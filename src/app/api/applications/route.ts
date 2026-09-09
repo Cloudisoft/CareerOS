@@ -4,17 +4,20 @@ import { prisma } from "@/lib/prisma";
 import { createApplicationSchema } from "@/lib/validations/application";
 import { createApplication } from "@/lib/applications/service";
 import { apiCatch, apiOk } from "@/lib/api-response";
-import type { ApplicationStatus } from "@prisma/client";
+import type { ApplicationStatus, ApplicationSource } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   try {
     const { profile } = await requireCandidate();
     const status = req.nextUrl.searchParams.get("status") as ApplicationStatus | null;
+    const source = req.nextUrl.searchParams.get("source") as ApplicationSource | null;
+    const limitParam = req.nextUrl.searchParams.get("limit");
 
     const applications = await prisma.application.findMany({
-      where: { profileId: profile.id, ...(status ? { status } : {}) },
+      where: { profileId: profile.id, ...(status ? { status } : {}), ...(source ? { source } : {}) },
       include: { job: { include: { company: true } } },
       orderBy: { appliedAt: "desc" },
+      ...(limitParam ? { take: Math.min(Number(limitParam) || 20, 100) } : {}),
     });
 
     return apiOk({

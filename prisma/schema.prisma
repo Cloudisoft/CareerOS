@@ -280,6 +280,8 @@ model CandidateProfile {
   applications   Application[]
   interviewSessions InterviewSession[]
   learningProgress  LearningProgress[]
+  autoApplySettings AutoApplySettings?
+  autoApplyRuns     AutoApplyRun[]
 
   @@map("candidate_profiles")
 }
@@ -984,6 +986,52 @@ model InterviewQuestion {
 
   @@index([sessionId])
   @@map("interview_questions")
+}
+
+// ============================================================
+// AUTO APPLY — settings + live run tracking for the browser extension's
+// automation engine. The extension holds the actual queue/state locally;
+// these tables exist so the web Control Center can show real settings and
+// a real live run rather than a static mock.
+// ============================================================
+
+model AutoApplySettings {
+  id        String           @id @default(cuid())
+  profileId String           @unique
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  minMatchScore Int     @default(70)
+  dailyLimit    Int     @default(5)
+  pacingSeconds Int     @default(45)
+  concurrency   Int     @default(1)
+  autoSubmit    Boolean @default(false)
+  platformModes Json    @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("auto_apply_settings")
+}
+
+model AutoApplyRun {
+  id        String           @id @default(cuid())
+  runId     String           @unique
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  status    String
+  queued    Int     @default(0)
+  submitted Int     @default(0)
+  assisted  Int     @default(0)
+  skipped   Int     @default(0)
+  failed    Int     @default(0)
+  lastError String?
+
+  startedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+  @@map("auto_apply_runs")
 }
 
 // ============================================================
