@@ -25,7 +25,7 @@ export const CANDIDATE_NAV: NavItem[] = [
   { href: "/applications", label: "Applications", icon: ClipboardList, available: true },
   { href: "/job-gpt", label: "Job GPT", icon: Bot, available: false },
   { href: "/auto-apply", label: "Auto Apply", icon: Send, available: false },
-  { href: "/resume-studio", label: "Resume", icon: FileText, available: false },
+  { href: "/resume-studio", label: "Resume", icon: FileText, available: true },
   { href: "/interview-ai", label: "Interview", icon: MessageSquare, available: false },
   { href: "/learning", label: "Learning", icon: GraduationCap, available: false },
   { href: "/network", label: "Network", icon: Users, available: false },

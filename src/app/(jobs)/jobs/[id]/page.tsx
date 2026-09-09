@@ -8,8 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { formatSalaryRange } from "@/lib/utils";
+
+interface ResumeOption {
+  id: string;
+  name: string;
+  isPrimary: boolean;
+}
 
 interface JobDetail {
   id: string;
@@ -50,6 +58,8 @@ export default function JobDetailPage() {
 
   const [applying, setApplying] = useState(false);
   const [coverLetter, setCoverLetter] = useState("");
+  const [resumes, setResumes] = useState<ResumeOption[]>([]);
+  const [resumeId, setResumeId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,12 +67,21 @@ export default function JobDetailPage() {
     (async () => {
       const [jobRes, meRes] = await Promise.all([fetch(`/api/jobs/${params.id}`), fetch("/api/auth/me")]);
       const json = await jobRes.json();
-      setAuthed(meRes.ok);
+      const isAuthed = meRes.ok;
+      setAuthed(isAuthed);
       if (jobRes.ok) {
         setJob(json.data.job);
         setMatch(json.data.match);
         setSaved(json.data.saved);
         setAlreadyApplied(json.data.alreadyApplied);
+      }
+      if (isAuthed) {
+        const resumeRes = await fetch("/api/resumes");
+        const resumeJson = await resumeRes.json();
+        const list: ResumeOption[] = resumeJson.data?.resumes ?? [];
+        setResumes(list);
+        const primary = list.find((r) => r.isPrimary) ?? list[0];
+        if (primary) setResumeId(primary.id);
       }
       setLoading(false);
     })();
@@ -79,7 +98,7 @@ export default function JobDetailPage() {
     const res = await fetch("/api/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId: params.id, coverLetter }),
+      body: JSON.stringify({ jobId: params.id, coverLetter, resumeId: resumeId || undefined }),
     });
     const json = await res.json();
     setSubmitting(false);
@@ -172,6 +191,24 @@ export default function JobDetailPage() {
           ) : applying ? (
             <Card>
               <CardContent className="space-y-4 p-6">
+                {resumes.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>Resume</Label>
+                    <Select value={resumeId} onValueChange={setResumeId}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {resumes.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name}
+                            {r.isPrimary ? " (Primary)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <p className="text-sm font-medium text-foreground">Cover letter (optional)</p>
                 <Textarea
                   rows={6}

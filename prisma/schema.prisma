@@ -508,6 +508,7 @@ model Job {
   savedBy      SavedJob[]
   matches      JobMatch[]
   applications Application[]
+  resumeScores ResumeScore[]
 
   @@index([companyId])
   @@index([status])
@@ -582,9 +583,30 @@ model Resume {
   updatedAt DateTime @updatedAt
 
   applications Application[]
+  scores       ResumeScore[]
 
   @@index([profileId])
   @@map("resumes")
+}
+
+model ResumeScore {
+  id       String  @id @default(cuid())
+  resumeId String
+  resume   Resume  @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobId    String?
+  job      Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  score           Int
+  keywordScore    Int
+  formatScore     Int
+  matchedKeywords String[]
+  missingKeywords String[]
+  recommendations String[]
+
+  createdAt DateTime @default(now())
+
+  @@index([resumeId])
+  @@map("resume_scores")
 }
 
 // ============================================================
