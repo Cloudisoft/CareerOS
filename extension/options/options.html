@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="options.css">
+  <title>CareerOS — Profile</title>
+</head>
+<body>
+  <header class="masthead">
+    <img src="../icons/icon128.png" alt="" class="mark">
+    <div>
+      <h1>CareerOS</h1>
+      <p>Everything CareerOS types into an application comes from this page. Nothing leaves your browser except what you send to JobGPT.</p>
+    </div>
+    <div class="saveState" id="saveState">Saved</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab is-on" data-panel="account">Account</button>
+    <button class="tab" data-panel="you">You</button>
+    <button class="tab" data-panel="targeting">What you want</button>
+    <button class="tab" data-panel="history">Experience</button>
+    <button class="tab" data-panel="resume">Resume</button>
+    <button class="tab" data-panel="sources">Job sources</button>
+    <button class="tab" data-panel="platforms">Platforms</button>
+    <button class="tab" data-panel="settings">How it runs</button>
+  </nav>
+
+  <main>
+
+    <!-- ACCOUNT -->
+    <section class="panel is-on" id="panel-account">
+      <div id="pairState" class="pairBox">
+        <h2>Connect this browser</h2>
+        <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
+
+        <div class="grid">
+          <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://app.careeros.example/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension.</small></label>
+        </div>
+
+        <div class="pairRow">
+          <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
+          <button class="btn" id="pairBtn">Connect</button>
+        </div>
+        <p class="note" id="pairMsg"></p>
+      </div>
+
+      <div id="pairedBox" class="pairBox" hidden>
+        <h2>Connected</h2>
+        <p class="note" id="pairedAs"></p>
+        <div class="row">
+          <button class="ghost" id="syncBtn">Sync now</button>
+          <button class="ghost danger" id="unpairBtn">Disconnect</button>
+          <span class="note" id="syncMsg"></span>
+        </div>
+      </div>
+
+      <p class="note">Your profile, target roles and resume come from CareerOS, so changing them anywhere reaches every browser you have connected.</p>
+
+      <h2>Which sites CareerOS can use</h2>
+      <p class="note">Nothing is granted at install. Turn on only the sites you actually apply through — CareerOS cannot see any site you have not enabled here.</p>
+      <div id="siteGroups" class="platformList"></div>
+    </section>
+
+    <!-- YOU -->
+    <section class="panel" id="panel-you">
+      <div class="grid">
+        <label>First name<input data-bind="identity.firstName"></label>
+        <label>Last name<input data-bind="identity.lastName"></label>
+        <label>Preferred name<input data-bind="identity.preferredName" placeholder="Optional"></label>
+        <label>Email<input data-bind="identity.email" type="email"></label>
+        <label>Phone<input data-bind="identity.phone" type="tel"></label>
+        <label>City<input data-bind="identity.city"></label>
+        <label>State or province<input data-bind="identity.state"></label>
+        <label>Country<input data-bind="identity.country"></label>
+        <label>Postal code<input data-bind="identity.postalCode"></label>
+        <label class="wide">Street address<input data-bind="identity.addressLine1"></label>
+        <label>LinkedIn<input data-bind="identity.linkedin" placeholder="https://linkedin.com/in/..."></label>
+        <label>GitHub<input data-bind="identity.github"></label>
+        <label>Portfolio<input data-bind="identity.portfolio"></label>
+      </div>
+
+      <h2>Work authorization</h2>
+      <div class="grid">
+        <label>Authorized to work in<input data-bind="workAuth.authorizedIn" data-list placeholder="US, IN"></label>
+        <label class="check"><input type="checkbox" data-bind="workAuth.needsSponsorship"> I need visa sponsorship</label>
+        <label class="check"><input type="checkbox" data-bind="workAuth.willingToRelocate"> I'll relocate for the right role</label>
+      </div>
+
+      <h2>Voluntary disclosures</h2>
+      <p class="note">Used only when a form asks. Set any of these to whatever you'd answer yourself.</p>
+      <div class="grid">
+        <label>Gender<input data-bind="voluntary.gender"></label>
+        <label>Race or ethnicity<input data-bind="voluntary.race"></label>
+        <label>Veteran status<input data-bind="voluntary.veteran"></label>
+        <label>Disability status<input data-bind="voluntary.disability"></label>
+      </div>
+    </section>
+
+    <!-- TARGETING -->
+    <section class="panel" id="panel-targeting">
+      <div class="grid">
+        <label class="wide">Roles you want<input data-bind="targeting.titles" data-list placeholder="Frontend Engineer, React Developer"><small>Comma separated. CareerOS scores every posting against these.</small></label>
+        <label class="wide">Titles to never apply to<input data-bind="targeting.excludeTitles" data-list placeholder="Sales, Intern"></label>
+        <label class="wide">Companies to skip<input data-bind="targeting.excludeCompanies" data-list placeholder="Former employers, agencies you've dealt with"></label>
+        <label>Seniority
+          <select data-bind="targeting.seniority">
+            <option value="">Pick one</option>
+            <option value="intern">Intern</option>
+            <option value="junior">Junior</option>
+            <option value="mid">Mid</option>
+            <option value="senior">Senior</option>
+            <option value="lead">Lead or staff</option>
+            <option value="director">Director</option>
+          </select>
+        </label>
+        <label>Work modes<input data-bind="targeting.workModes" data-list placeholder="remote, hybrid"></label>
+        <label>Locations you'd take<input data-bind="targeting.locations" data-list placeholder="Ahmedabad, Bengaluru, Remote"></label>
+        <label>Salary floor<input data-bind="targeting.minSalary" type="number" placeholder="0"></label>
+        <label>Currency<input data-bind="targeting.salaryCurrency"></label>
+      </div>
+
+      <h2>Skills</h2>
+      <div class="grid">
+        <label class="wide">Core — what you'd be hired for<input data-bind="skills.core" data-list placeholder="React, TypeScript, Node"></label>
+        <label class="wide">Familiar — true but not your headline<input data-bind="skills.familiar" data-list></label>
+        <label class="wide">Tools<input data-bind="skills.tools" data-list placeholder="Figma, Jira, Docker"></label>
+        <label class="wide">Spoken languages<input data-bind="skills.languages" data-list placeholder="English, Hindi, Gujarati"></label>
+      </div>
+
+      <h2>Qualities</h2>
+      <label class="wide">What you're good at, in your own words
+        <textarea data-bind="strengths" data-lines rows="4" placeholder="One per line. These go into cover letters, so write them the way you'd say them out loud."></textarea>
+      </label>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="panel" id="panel-history">
+      <div class="grid">
+        <label>Current title<input data-bind="experience.currentTitle"></label>
+        <label>Current company<input data-bind="experience.currentCompany"></label>
+        <label>Total years of experience<input data-bind="experience.totalYears" type="number" step="0.5"></label>
+        <label>Notice period<input data-bind="experience.noticePeriod" placeholder="30 days"></label>
+        <label>Available from<input data-bind="narrative.availableFrom" placeholder="Immediately"></label>
+      </div>
+
+      <label class="wide">Summary
+        <textarea data-bind="narrative.summary" rows="3" placeholder="Two or three sentences. JobGPT builds every cover letter on top of this."></textarea>
+      </label>
+
+      <h2>Roles<button class="ghost" id="addRole">Add a role</button></h2>
+      <div id="roles" class="repeater"></div>
+
+      <h2>Education<button class="ghost" id="addEdu">Add education</button></h2>
+      <div id="education" class="repeater"></div>
+
+      <label class="wide">Certifications
+        <textarea data-bind="certifications" data-lines rows="3" placeholder="One per line"></textarea>
+      </label>
+    </section>
+
+    <!-- RESUME -->
+    <section class="panel" id="panel-resume">
+      <p class="note">The file gets attached to every application that asks for one. The text is what JobGPT reads.</p>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.txt" hidden>
+        <strong id="resumeName">Drop a resume here, or choose a file</strong>
+        <span>PDF, DOC, DOCX or TXT, up to 5 MB</span>
+        <button class="ghost" id="pickResume">Choose file</button>
+      </div>
+
+      <label class="wide">Resume text
+        <textarea id="resumeText" rows="14" placeholder="Paste your resume text here."></textarea>
+      </label>
+      <div class="row">
+        <button class="btn" id="parseResume">Build my profile from this text</button>
+        <span class="note" id="parseState"></span>
+      </div>
+    </section>
+
+
+    <!-- SOURCES -->
+    <section class="panel" id="panel-sources">
+      <p class="note">CareerOS finds jobs through documented APIs rather than scraping job boards. One request returns fifty structured postings, which is both faster and the only version that stays inside a platform's terms.</p>
+
+      <h2>Adzuna</h2>
+      <p class="note">Free developer tier, worldwide coverage, good for location searches. Register at developer.adzuna.com.</p>
+      <div class="grid">
+        <label>App ID<input data-source="adzuna.appId"></label>
+        <label>App key<input data-source="adzuna.appKey" type="password"></label>
+        <label>Country code<input data-source="adzuna.country" placeholder="in"></label>
+        <label>Posted within (days)<input data-source="adzuna.maxDaysOld" type="number" placeholder="7"></label>
+      </div>
+      <div class="row">
+        <button class="ghost" data-test="adzuna">Test Adzuna</button>
+        <span class="note" data-testresult="adzuna"></span>
+      </div>
+
+      <h2>JSearch</h2>
+      <p class="note">Aggregates Google for Jobs. Tells you when a link goes straight to the employer's ATS, which is where CareerOS can finish the application on its own. Key from RapidAPI.</p>
+      <div class="grid">
+        <label>RapidAPI key<input data-source="jsearch.key" type="password"></label>
+        <label>Country code<input data-source="jsearch.country" placeholder="in"><small>Two letters. Your search is scoped to this.</small></label>
+        <label>Pages per search<input data-source="jsearch.pages" type="number" min="1" max="5" placeholder="2"><small>Each page is one API call. Free tiers are usually 200 calls a month.</small></label>
+        <label>Posted within
+          <select data-source="jsearch.datePosted">
+            <option value="today">Today</option>
+            <option value="3days">3 days</option>
+            <option value="week" selected>A week</option>
+            <option value="month">A month</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button class="ghost" data-test="jsearch">Test JSearch</button>
+        <span class="note" data-testresult="jsearch"></span>
+      </div>
+
+      <h2>USAJobs</h2>
+      <p class="note">Free US federal listings. The email you registered with is sent as the user agent.</p>
+      <div class="grid">
+        <label>Registered email<input data-source="usajobs.email"></label>
+        <label>Authorization key<input data-source="usajobs.key" type="password"></label>
+      </div>
+      <div class="row">
+        <button class="ghost" data-test="usajobs">Test USAJobs</button>
+        <span class="note" data-testresult="usajobs"></span>
+      </div>
+
+      <h2>Import and export</h2>
+      <p class="note">Paste a source config to set every key at once, or export the current one to move it to another machine. Keys stay in this browser — putting them in the extension folder would ship them to every user.</p>
+      <label class="wide">Config
+        <textarea id="sourceConfig" rows="8" spellcheck="false" placeholder='{"adzuna":{"appId":"","appKey":"","country":"in"},"jsearch":{"key":"","country":"in"},"boards":[{"ats":"greenhouse","token":"stripe"}]}'></textarea>
+      </label>
+      <div class="row">
+        <button class="btn" id="importSources">Apply this config</button>
+        <button class="ghost" id="exportSources">Load current config</button>
+        <span class="note" id="importState"></span>
+      </div>
+
+      <h2>Company job boards<button class="ghost" id="addBoard">Add a board</button></h2>
+      <p class="note">The most reliable source there is: a company's own ATS feed, current to the minute, with the direct apply link. The token is the last part of the board URL — for boards.greenhouse.io/stripe it is "stripe".</p>
+      <div id="boards" class="repeater"></div>
+    </section>
+
+
+    <!-- PLATFORMS -->
+    <section class="panel" id="panel-platforms">
+      <p class="note">Employer ATS platforms apply on their own by default — the candidate is submitting straight to the employer through the employer's own system. The job boards below are set to fill-and-stop by default because their user agreements prohibit automated interaction. You can change that. The account risk sits with whoever is running the extension.</p>
+
+      <h2>Job boards</h2>
+      <div id="restrictedPlatforms" class="platformList"></div>
+
+      <label class="check danger" id="ackWrap">
+        <input type="checkbox" data-setting="acknowledgedRestricted">
+        I understand that automating LinkedIn, Indeed, ZipRecruiter, Dice or Glassdoor is against their terms and can get a candidate's account restricted or closed.
+      </label>
+
+      <h2>Employer ATS</h2>
+      <p class="note">These apply on their own. Turn one down to fill-and-stop if you'd rather review that platform yourself.</p>
+      <div id="openPlatforms" class="platformList"></div>
+
+      <h2>What CareerOS will not do</h2>
+      <p class="note">At any setting: no browser fingerprint spoofing, no captcha solving, no proxy or IP rotation, no masking of automated control. Those cross from a terms question into circumventing a service's access controls, and they're also the fastest way to lose a Web Store listing. When a run hits a captcha or a login wall it stops and tells you.</p>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="panel" id="panel-settings">
+      <div class="grid">
+        <label class="check"><input type="checkbox" data-setting="highlightFields"> Outline fields as they are filled</label>
+        <label class="check"><input type="checkbox" data-setting="tailorCoverLetter"> Write a cover letter for each application</label>
+        <label class="check"><input type="checkbox" data-setting="tailorScreeningAnswers"> Answer screening questions</label>
+        <label class="check danger"><input type="checkbox" data-setting="autoSubmit"> Submit without asking me first</label>
+      </div>
+      <p class="note">Auto submit only ever applies to employer ATS platforms. On LinkedIn, Indeed, ZipRecruiter, Dice and Monster, whose terms prohibit automated interaction, CareerOS fills the form and stops regardless of this setting. With auto submit off everywhere, CareerOS fills the form and stops. You read it and press the site's own submit. Leaving it off is the safer habit, and some job boards restrict automated submissions in their terms.</p>
+
+      <div class="grid">
+        <label>Seconds to cancel before an auto submit<input data-setting="reviewCountdown" type="number" min="3" max="60"></label>
+        <label>Minimum match score to suggest applying<input data-setting="minMatchScore" type="number" min="0" max="100"></label>
+        <label>Applications per day<input data-setting="dailyLimit" type="number" min="1" max="200"></label>
+        <label>Seconds between applications<input data-setting="pacingSeconds" type="number" min="10"></label>
+        <label>Tabs applying at once<input data-setting="concurrency" type="number" min="1" max="6"><small>Three is a good balance. Higher gets loud.</small></label>
+      </div>
+
+      <h2>JobGPT</h2>
+      <p class="note">Generation runs through the CareerOS backend, which holds the model key server-side. A provider key placed in a browser extension is readable by anyone who installs it, so the direct path is developer-only and refuses to run unless you turn it on below.</p>
+      <div class="grid">
+        <label class="wide">API base<input data-setting="apiBase"></label>
+        <label class="wide">Token<input data-setting="apiToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
+        <label class="check danger wide"><input type="checkbox" data-setting="allowDirectKey"> Developer mode: allow a provider key to be used directly from this browser<small>Also needs the dev manifest — run <code>./build.sh dev</code>. The shipped build does not permit it.</small></label>
+      </div>
+
+      <h2>Your data</h2>
+      <div class="row">
+        <button class="ghost" id="exportData">Export everything</button>
+        <button class="ghost danger" id="clearData">Delete everything</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/profile.js"></script>
+  <script src="../lib/policy.js"></script>
+  <script src="../lib/careeros-api.js"></script>
+  <script src="../lib/permissions.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

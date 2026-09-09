@@ -1,0 +1,130 @@
+
+/* ─── BRAND ────────────────────────────────────────────────────────────────
+   Sampled from the logo: a 135 degree sweep from amber at the top-left to red
+   at the bottom-right, with the ring colour at the centre of the C. Identical
+   values to the web app, so the two surfaces match exactly. */
+:root {
+  --brand-amber:  #F78320;
+  --brand-orange: #F46A29;
+  --brand-flame:  #F14C2E;
+  --brand-ember:  #EF4232;
+  --brand-red:    #E63B2E;
+
+  --brand-ink:    #1F1923;
+  --brand-ink-2:  #17131B;
+
+  --brand-gradient: linear-gradient(135deg, #F78320 0%, #F14C2E 55%, #EF4232 100%);
+
+  --brand-tint-04: rgba(244,106,41,0.04);
+  --brand-tint-08: rgba(244,106,41,0.08);
+  --brand-tint-16: rgba(244,106,41,0.16);
+  --brand-tint-28: rgba(244,106,41,0.28);
+
+  --ink: var(--brand-ink);
+  --surface: #241E29;
+  --surface-2: #2B2431;
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #EDE9F0;
+  --muted: #9A929F;
+  --flame: var(--brand-flame);
+  --ember: var(--brand-ember);
+  --ok: #4FB980;
+}
+
+main { max-width: 1040px; }
+.masthead { max-width: 1040px; }
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.controls .btn { width: auto; }
+.controls .link { text-decoration: none; margin-left: auto; display: inline-block; }
+
+.counters {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 18px 0 24px;
+}
+.counter {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 13px 14px;
+}
+.counter span { display: block; font-size: 25px; font-weight: 680; letter-spacing: -0.02em; }
+.counter label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+.counter:nth-child(2) span { color: var(--ok); }
+.counter:nth-child(4) span { color: #F6BE84; }
+.counter:nth-child(5) span { color: #F79C90; }
+
+.queue { width: 100%; border-collapse: collapse; font-size: 12.6px; }
+.queue th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.queue td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: top;
+}
+.queue .num { width: 62px; }
+.queue tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
+
+.scoreChip {
+  display: inline-block;
+  min-width: 30px;
+  text-align: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 660;
+  font-size: 11.6px;
+  background: rgba(241, 127, 38, 0.16);
+  color: #F6BE84;
+}
+.scoreChip[data-high="1"] { background: rgba(143, 224, 182, 0.15); color: var(--ok); }
+
+.role { color: var(--text); font-weight: 560; }
+.role small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; margin-top: 2px; }
+.dim { color: var(--muted); }
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.6px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pill[data-s="running"]   { border-color: rgba(241, 127, 38, 0.5); color: var(--flame); }
+.pill[data-s="submitted"] { border-color: rgba(143, 224, 182, 0.4); color: var(--ok); }
+.pill[data-s="assisted"]  { border-color: rgba(143, 224, 182, 0.25); color: #B9DCC9; }
+.pill[data-s="skipped"]   { border-color: rgba(241, 169, 38, 0.4); color: #F6BE84; }
+.pill[data-s="failed"]    { border-color: rgba(241, 70, 50, 0.4); color: #F79C90; }
+
+.saveState[data-on="running"] { color: var(--flame); border-color: rgba(241, 127, 38, 0.45); }
+
+@media (max-width: 720px) {
+  .counters { grid-template-columns: repeat(2, 1fr); }
+  .queue thead { display: none; }
+  .queue td { display: block; border: 0; padding: 3px 0; }
+  .queue tbody tr { display: block; padding: 10px 0; border-bottom: 1px solid var(--line); }
+}

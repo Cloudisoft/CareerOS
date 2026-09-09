@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+  <title>CareerOS</title>
+</head>
+<body>
+  <header class="top">
+    <div class="brandMark"><img src="../icons/icon128.png" alt=""></div>
+    <div class="topText">
+      <strong class="brandName">CareerOS</strong>
+      <span id="tagline">Your employment OS</span>
+    </div>
+    <button id="openRun" class="iconBtn" title="Run dashboard">▶</button>
+    <button id="openSettings" class="iconBtn" title="Profile and settings">⚙</button>
+  </header>
+
+  <section id="signin" class="card" hidden>
+    <h2>Sign in to CareerOS</h2>
+    <p class="muted">One click. You'll approve it on the CareerOS site, where you're already signed in.</p>
+    <button id="connectBtn" class="btn">Sign in</button>
+    <p class="muted" id="connectMsg" style="margin-top:8px"></p>
+  </section>
+
+  <section id="setup" class="card" hidden>
+    <h2>Finish your profile</h2>
+    <p class="muted">CareerOS fills applications from your profile, so it needs these first.</p>
+    <ul id="gaps" class="gapList"></ul>
+    <button id="goSetup" class="btn">Open profile</button>
+  </section>
+
+  <section id="posting" class="card" hidden>
+    <div class="scoreRow">
+      <div class="score"><span id="scoreNum">0</span><span class="den">/100</span></div>
+      <div class="verdict">
+        <strong id="verdictLabel">Checking</strong>
+        <span id="jobTitle"></span>
+      </div>
+    </div>
+    <ul id="reasons" class="reasonList"></ul>
+    <p class="policyLine" id="policyLine"></p>
+    <div class="btnRow">
+      <button id="fillNow" class="btn">Fill this application</button>
+      <button id="submitNow" class="btn ghost" hidden>Submit</button>
+    </div>
+    <p class="result" id="fillResult" hidden></p>
+    <ul id="needsYou" class="needsList" hidden></ul>
+  </section>
+
+  <section id="search" class="card" hidden>
+    <div class="scoreRow">
+      <div class="score"><span id="harvestCount">0</span><span class="den">on screen</span></div>
+      <div class="verdict">
+        <strong>Results page</strong>
+        <span id="harvestMeta"></span>
+      </div>
+    </div>
+    <p class="muted">Scroll further to load more before collecting.</p>
+    <button id="queueThese" class="btn">Queue these</button>
+    <p class="result" id="queueResult" hidden></p>
+  </section>
+
+  <section id="idle" class="card" hidden>
+    <h2>No posting on this tab</h2>
+    <p class="muted">Open a job on a supported board, or start a batch from the run dashboard.</p>
+  </section>
+
+  <section class="stats">
+    <div class="stat"><span id="statToday">0</span><label>Today</label></div>
+    <div class="stat"><span id="statSubmitted">0</span><label>Submitted</label></div>
+    <div class="stat"><span id="statTotal">0</span><label>All time</label></div>
+  </section>
+
+  <section class="card tracker">
+    <h2>Recent</h2>
+    <ul id="recent" class="recentList"></ul>
+    <p id="recentEmpty" class="muted" hidden>Nothing yet. Your first application will show up here.</p>
+  </section>
+
+  <footer class="foot">
+    <span id="mode">Review before submit</span>
+    <a href="http://localhost:3000/" target="_blank" rel="noreferrer">Career OS</a>
+  </footer>
+
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/profile.js"></script>
+  <script src="../lib/policy.js"></script>
+  <script src="../lib/matcher.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

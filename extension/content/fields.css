@@ -1,0 +1,14 @@
+/* CareerOS — the only thing injected into a host page.
+   Two outlines: what got filled, and what still needs the person. No panel,
+   no floating widget, nothing that moves the page around. */
+
+.careeros-filled {
+  outline: 2px solid rgba(52, 168, 108, 0.7) !important;
+  outline-offset: 1px !important;
+}
+
+.careeros-attention {
+  outline: 2px solid #F46A29 !important;
+  outline-offset: 1px !important;
+  background-color: rgba(244, 106, 41, 0.07) !important;
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="../options/options.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <title>CareerOS — Run</title>
+</head>
+<body>
+  <header class="masthead">
+    <img src="../icons/icon128.png" alt="" class="mark">
+    <div>
+      <h1>Run</h1>
+      <p>CareerOS pulls live postings from the sources you've connected, scores each one, and works the queue.</p>
+    </div>
+    <div class="saveState" id="runState">Idle</div>
+  </header>
+
+  <main>
+    <section class="controls">
+      <button class="btn" id="findJobs">Find jobs</button>
+      <button class="btn" id="startRun" disabled>Start applying</button>
+      <button class="ghost" id="stopRun" hidden>Stop</button>
+      <button class="ghost" id="clearQueue">Clear queue</button>
+      <a class="ghost link" href="../options/options.html">Profile and sources</a>
+    </section>
+
+    <p class="note" id="engineNote" hidden></p>
+    <p class="note">Find jobs pulls from your API sources. For LinkedIn, Indeed, ZipRecruiter, Dice and Glassdoor, open your own search results with your filters set, scroll to load what you want, and use the Queue button in the CareerOS panel on that page.</p>
+
+    <section class="counters">
+      <div class="counter"><span id="cQueued">0</span><label>Queued</label></div>
+      <div class="counter"><span id="cApplied">0</span><label>Submitted</label></div>
+      <div class="counter"><span id="cAssisted">0</span><label>Filled</label></div>
+      <div class="counter"><span id="cSkipped">0</span><label>Needs you</label></div>
+      <div class="counter"><span id="cFailed">0</span><label>Failed</label></div>
+    </section>
+
+    <section class="queueWrap">
+      <h2>Queue</h2>
+      <table class="queue">
+        <thead>
+          <tr><th class="num">Score</th><th>Role</th><th>Company</th><th>Where</th><th>Platform</th><th>State</th></tr>
+        </thead>
+        <tbody id="queueBody"></tbody>
+      </table>
+      <p class="note" id="queueEmpty">Nothing queued. Press Find jobs to pull live postings from your sources.</p>
+    </section>
+  </main>
+
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/profile.js"></script>
+  <script src="../lib/policy.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
