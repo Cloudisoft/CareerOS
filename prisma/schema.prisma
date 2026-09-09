@@ -278,6 +278,7 @@ model CandidateProfile {
   savedJobs      SavedJob[]
   jobMatches     JobMatch[]
   applications   Application[]
+  interviewSessions InterviewSession[]
 
   @@map("candidate_profiles")
 }
@@ -524,6 +525,7 @@ model Job {
   matches      JobMatch[]
   applications Application[]
   resumeScores ResumeScore[]
+  interviewSessions InterviewSession[]
 
   @@index([companyId])
   @@index([status])
@@ -922,6 +924,64 @@ model AiUsage {
 
   @@index([userId])
   @@map("ai_usage")
+}
+
+// ============================================================
+// INTERVIEW AI — adaptive mock-interview sessions, scored per answer.
+// ============================================================
+
+enum InterviewType {
+  BEHAVIORAL
+  TECHNICAL
+  MIXED
+}
+
+enum InterviewSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model InterviewSession {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String?
+  job       Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  type         InterviewType           @default(MIXED)
+  status       InterviewSessionStatus  @default(IN_PROGRESS)
+  overallScore Int?
+  summary      String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  questions InterviewQuestion[]
+
+  @@index([profileId])
+  @@map("interview_sessions")
+}
+
+model InterviewQuestion {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  order    Int
+  category String
+  question String
+
+  answer       String?
+  score        Int?
+  feedback     String?
+  strengths    String[]
+  improvements String[]
+  answeredAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("interview_questions")
 }
 
 // ============================================================
