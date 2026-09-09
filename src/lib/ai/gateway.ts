@@ -18,6 +18,18 @@ export interface GenerateTextInput {
   effort?: "low" | "medium" | "high";
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface GenerateChatInput {
+  system: string;
+  messages: ChatMessage[];
+  maxTokens?: number;
+  effort?: "low" | "medium" | "high";
+}
+
 export type AiProviderName = "anthropic" | "mock";
 
 export interface GenerateTextResult {
@@ -28,6 +40,7 @@ export interface GenerateTextResult {
 interface AiProvider {
   name: AiProviderName;
   generateText(input: GenerateTextInput): Promise<string>;
+  generateChat(input: GenerateChatInput): Promise<string>;
 }
 
 /**
@@ -43,6 +56,15 @@ class MockAiProvider implements AiProvider {
     return (
       `[DEV MODE — no AI provider configured. Set ANTHROPIC_API_KEY to get real output.]\n\n` +
       `Placeholder response for: "${excerpt}${prompt.length > 140 ? "…" : ""}"`
+    );
+  }
+
+  async generateChat({ messages }: GenerateChatInput): Promise<string> {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const excerpt = (lastUser?.content ?? "").trim().replace(/\s+/g, " ").slice(0, 140);
+    return (
+      `[DEV MODE — no AI provider configured. Set ANTHROPIC_API_KEY to get real output.]\n\n` +
+      `Placeholder reply to: "${excerpt}"`
     );
   }
 }
@@ -70,6 +92,20 @@ class AnthropicAiProvider implements AiProvider {
     if (!textBlock) throw new Error("The AI provider returned no usable text.");
     return textBlock.text.trim();
   }
+
+  async generateChat({ system, messages, maxTokens = 1024, effort = "low" }: GenerateChatInput): Promise<string> {
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: maxTokens,
+      system,
+      output_config: { effort },
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+
+    const textBlock = response.content.find((block): block is Anthropic.TextBlock => block.type === "text");
+    if (!textBlock) throw new Error("The AI provider returned no usable text.");
+    return textBlock.text.trim();
+  }
 }
 
 let cachedProvider: AiProvider | null = null;
@@ -91,5 +127,11 @@ function getProvider(): AiProvider {
 export async function generateText(input: GenerateTextInput): Promise<GenerateTextResult> {
   const provider = getProvider();
   const text = await provider.generateText(input);
+  return { text, provider: provider.name };
+}
+
+export async function generateChat(input: GenerateChatInput): Promise<GenerateTextResult> {
+  const provider = getProvider();
+  const text = await provider.generateChat(input);
   return { text, provider: provider.name };
 }

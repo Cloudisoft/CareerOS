@@ -23,7 +23,7 @@ export const CANDIDATE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, available: true },
   { href: "/jobs", label: "Jobs", icon: Briefcase, available: true },
   { href: "/applications", label: "Applications", icon: ClipboardList, available: true },
-  { href: "/job-gpt", label: "Job GPT", icon: Bot, available: false },
+  { href: "/job-gpt", label: "Job GPT", icon: Bot, available: true },
   { href: "/auto-apply", label: "Auto Apply", icon: Send, available: false },
   { href: "/resume-studio", label: "Resume", icon: FileText, available: true },
   { href: "/interview-ai", label: "Interview", icon: MessageSquare, available: false },

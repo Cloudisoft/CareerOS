@@ -22,7 +22,7 @@ export function extCatch(error: unknown) {
   }
   if (error && typeof error === "object" && "code" in error && "message" in error) {
     const err = error as { code: string; message: string };
-    const statusByCode: Record<string, number> = { RATE_LIMITED: 429, UNAUTHENTICATED: 401 };
+    const statusByCode: Record<string, number> = { RATE_LIMITED: 429, UNAUTHENTICATED: 401, UPGRADE_REQUIRED: 402 };
     return extError(err.message, statusByCode[err.code] ?? 400);
   }
   console.error(error);
