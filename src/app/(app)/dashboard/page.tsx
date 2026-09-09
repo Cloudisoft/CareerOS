@@ -5,6 +5,35 @@ import { CircularProgress } from "@/components/ui/circular-progress";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+type ProfileWithCounts = {
+  onboardingCompletedAt: Date | null;
+  _count: { skills: number; experiences: number; resumes: number };
+} | null;
+
+function getNextBestAction(profile: ProfileWithCounts): { message: string; href: string; cta: string } | null {
+  if (!profile?.onboardingCompletedAt) return null;
+
+  if (profile._count.skills < 5) {
+    return {
+      message: `You've added ${profile._count.skills} skill${profile._count.skills === 1 ? "" : "s"}. Adding more will sharpen your future job matches and raise your Skills score.`,
+      href: "/profile",
+      cta: "Add skills",
+    };
+  }
+  if (profile._count.experiences === 0) {
+    return {
+      message: "Add your work experience so Career OS understands your background.",
+      href: "/profile",
+      cta: "Add experience",
+    };
+  }
+  return {
+    message: "Your Career Profile is in great shape. Job matching, resumes, and interview prep unlock as each part of Career OS ships.",
+    href: "/profile",
+    cta: "Review profile",
+  };
+}
+
 function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -31,7 +60,12 @@ export default async function DashboardPage() {
     );
   }
 
-  const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
+  const profile = await prisma.candidateProfile.findUnique({
+    where: { userId: user.id },
+    include: { _count: { select: { skills: true, experiences: true, resumes: true } } },
+  });
+
+  const nextBestAction = getNextBestAction(profile);
 
   return (
     <div className="space-y-6">
@@ -56,6 +90,20 @@ export default async function DashboardPage() {
             </div>
             <Button asChild>
               <Link href="/onboarding">Complete onboarding</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {nextBestAction && (
+        <Card>
+          <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-primary">Next best action</p>
+              <p className="mt-1 text-sm text-foreground">{nextBestAction.message}</p>
+            </div>
+            <Button asChild variant="secondary">
+              <Link href={nextBestAction.href}>{nextBestAction.cta}</Link>
             </Button>
           </CardContent>
         </Card>

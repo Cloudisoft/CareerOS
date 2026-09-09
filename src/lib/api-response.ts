@@ -16,8 +16,13 @@ export function apiCatch(error: unknown) {
   }
   if (error && typeof error === "object" && "code" in error && "message" in error) {
     const err = error as { code: string; message: string };
-    const status = err.code === "INVALID_CREDENTIALS" || err.code === "EMAIL_TAKEN" ? 400 : 400;
-    return apiError(err.message, status, err.code);
+    const statusByCode: Record<string, number> = {
+      UNAUTHENTICATED: 401,
+      FORBIDDEN: 403,
+      NOT_FOUND: 404,
+      RATE_LIMITED: 429,
+    };
+    return apiError(err.message, statusByCode[err.code] ?? 400, err.code);
   }
   console.error(error);
   return apiError("Something went wrong. Please try again.", 500, "INTERNAL_ERROR");

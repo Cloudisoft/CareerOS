@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Bell, LogOut, Settings, User as UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -48,8 +49,10 @@ export function Topbar({ user }: TopbarProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
-              <UserIcon className="h-4 w-4" /> Profile
+            <DropdownMenuItem asChild>
+              <Link href="/profile">
+                <UserIcon className="h-4 w-4" /> Profile
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem disabled>
               <Settings className="h-4 w-4" /> Settings
