@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Briefcase, FileText, TrendingUp } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -46,6 +47,10 @@ function greeting() {
 export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) return null;
+
+  if (user.role === "PLATFORM_ADMIN") {
+    redirect("/admin");
+  }
 
   if (user.role !== "CANDIDATE") {
     const company = await getCompanyForUser(user.id);

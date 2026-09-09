@@ -22,6 +22,13 @@ export async function requireCandidate() {
   return { user, profile };
 }
 
+export async function requirePlatformAdmin() {
+  const user = await getSessionUser();
+  if (!user) throw new UnauthenticatedError("Not authenticated");
+  if (user.role !== "PLATFORM_ADMIN") throw new ForbiddenRoleError("This action requires a platform admin account");
+  return { user };
+}
+
 export async function requireEmployer() {
   const user = await getSessionUser();
   if (!user) throw new UnauthenticatedError("Not authenticated");

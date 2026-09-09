@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Building2,
   Search,
+  ShieldCheck,
+  Users2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,4 +43,9 @@ export const EMPLOYER_NAV: NavItem[] = [
   { href: "/employer/talent", label: "Talent Search", icon: Search, available: true },
   { href: "/employer/company", label: "Company", icon: Building2, available: true },
   { href: "/messages", label: "Messages", icon: MessageCircle, available: false },
+];
+
+export const ADMIN_NAV: NavItem[] = [
+  { href: "/admin", label: "Overview", icon: ShieldCheck, available: true },
+  { href: "/admin/users", label: "Users", icon: Users2, available: true },
 ];
