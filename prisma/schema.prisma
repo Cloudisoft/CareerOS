@@ -279,6 +279,7 @@ model CandidateProfile {
   jobMatches     JobMatch[]
   applications   Application[]
   interviewSessions InterviewSession[]
+  learningProgress  LearningProgress[]
 
   @@map("candidate_profiles")
 }
@@ -375,6 +376,7 @@ model Skill {
 
   candidates CandidateSkill[]
   jobs       JobSkill[]
+  learningResources LearningResource[]
 
   @@map("skills")
 }
@@ -982,6 +984,69 @@ model InterviewQuestion {
 
   @@index([sessionId])
   @@map("interview_questions")
+}
+
+// ============================================================
+// LEARNING HUB — a curated catalog of real external resources
+// (official docs, free courses), recommended from the candidate's
+// actual missing skills as surfaced by the matching engine.
+// ============================================================
+
+enum LearningResourceType {
+  COURSE
+  ARTICLE
+  VIDEO
+  DOCS
+  BOOK
+}
+
+enum LearningLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model LearningResource {
+  id       String @id @default(cuid())
+  title    String
+  provider String
+  url      String
+  type     LearningResourceType
+  level    LearningLevel        @default(BEGINNER)
+
+  durationMinutes Int?
+  description     String
+
+  skillId String?
+  skill   Skill?  @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  progress LearningProgress[]
+
+  @@index([skillId])
+  @@map("learning_resources")
+}
+
+enum LearningProgressStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model LearningProgress {
+  id         String @id @default(cuid())
+  profileId  String
+  profile    CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  resourceId String
+  resource   LearningResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  status      LearningProgressStatus @default(IN_PROGRESS)
+  startedAt   DateTime               @default(now())
+  completedAt DateTime?
+
+  @@unique([profileId, resourceId])
+  @@index([profileId])
+  @@map("learning_progress")
 }
 
 // ============================================================
