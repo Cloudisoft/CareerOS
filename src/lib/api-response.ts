@@ -21,6 +21,9 @@ export function apiCatch(error: unknown) {
       FORBIDDEN: 403,
       NOT_FOUND: 404,
       RATE_LIMITED: 429,
+      UPGRADE_REQUIRED: 402,
+      BILLING_NOT_CONFIGURED: 503,
+      PRICE_NOT_CONFIGURED: 503,
     };
     return apiError(err.message, statusByCode[err.code] ?? 400, err.code);
   }

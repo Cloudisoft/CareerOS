@@ -48,6 +48,9 @@ model User {
   extensionSessions        ExtensionSession[]
   extensionPairingCodes    ExtensionPairingCode[]
   extensionConnectRequests ExtensionConnectRequest[]
+  subscription             Subscription?
+  addOnSubscriptions       AddOnSubscription[]
+  payments                 Payment[]
   notifications            Notification[]
   auditLogs                AuditLog[]
 
@@ -768,4 +771,86 @@ model ApplicationEvent {
 
   @@index([applicationId])
   @@map("application_events")
+}
+
+// ============================================================
+// BILLING — plans and their features/entitlements are defined in
+// src/lib/billing/plans.ts (the single source of truth); these tables
+// hold each user's actual Stripe-synced subscription state.
+// ============================================================
+
+enum PlanKey {
+  BASIC
+  STANDARD
+  PREMIUM
+  ELITE
+}
+
+enum AddOnKey {
+  RESUME_STUDIO
+  INTERVIEW_AI
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+model Subscription {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan   PlanKey
+  status SubscriptionStatus @default(INCOMPLETE)
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?   @unique
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("subscriptions")
+}
+
+model AddOnSubscription {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addOn  AddOnKey
+
+  status SubscriptionStatus @default(INCOMPLETE)
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?   @unique
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, addOn])
+  @@map("addon_subscriptions")
+}
+
+model Payment {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  stripeInvoiceId String? @unique
+  amount          Int
+  currency        String  @default("usd")
+  status          String
+  description     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("payments")
 }

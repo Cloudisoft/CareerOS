@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Badge } from "@/components/ui/badge";
+import { UpgradeRequired } from "@/components/billing/upgrade-required";
 
 interface ResumeOption {
   id: string;
@@ -37,6 +38,7 @@ export default function AtsScannerPage() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<AtsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [entitled, setEntitled] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetch("/api/resumes")
@@ -46,6 +48,9 @@ export default function AtsScannerPage() {
         setResumes(list);
         if (list.length) setResumeId(list[0].id);
       });
+    fetch("/api/billing/status")
+      .then((r) => r.json())
+      .then((json) => setEntitled(Boolean(json.data?.entitlements?.atsScanner)));
   }, []);
 
   async function scan() {
@@ -76,6 +81,9 @@ export default function AtsScannerPage() {
         </p>
       </div>
 
+      {entitled === false ? (
+        <UpgradeRequired feature="The ATS Scanner" />
+      ) : (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Scan</CardTitle>
@@ -119,6 +127,7 @@ export default function AtsScannerPage() {
           </Button>
         </CardContent>
       </Card>
+      )}
 
       {result && (
         <>

@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { getResume } from "@/lib/resume/service";
 import { computeAtsScore } from "@/lib/ats/scanner";
 import { atsScanSchema, resumeContentSchema } from "@/lib/validations/resume";
+import { requireEntitlement } from "@/lib/billing/entitlements";
 import { apiCatch, apiError, apiOk } from "@/lib/api-response";
 
 export async function POST(req: NextRequest) {
   try {
-    const { profile } = await requireCandidate();
+    const { user, profile } = await requireCandidate();
+    await requireEntitlement(user.id, "atsScanner");
     const input = atsScanSchema.parse(await req.json());
 
     const resume = await getResume(profile.id, input.resumeId);

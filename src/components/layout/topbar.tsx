@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, LogOut, Settings, User as UserIcon } from "lucide-react";
+import { Bell, LogOut, CreditCard, Laptop, User as UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -54,8 +54,15 @@ export function Topbar({ user }: TopbarProps) {
                 <UserIcon className="h-4 w-4" /> Profile
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem disabled>
-              <Settings className="h-4 w-4" /> Settings
+            <DropdownMenuItem asChild>
+              <Link href="/settings/billing">
+                <CreditCard className="h-4 w-4" /> Billing
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings/devices">
+                <Laptop className="h-4 w-4" /> Connected browsers
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={handleLogout}>
