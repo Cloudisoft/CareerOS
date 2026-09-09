@@ -136,7 +136,9 @@ export default function JobDetailPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground">{job.title}</h1>
-                <p className="text-sm text-primary">{job.company.name}</p>
+                <Link href={`/company/${job.company.slug}`} className="text-sm text-primary hover:underline">
+                  {job.company.name}
+                </Link>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                   {job.location && (
                     <span className="flex items-center gap-1">

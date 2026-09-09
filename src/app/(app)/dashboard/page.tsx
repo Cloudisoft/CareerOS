@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { Briefcase, FileText, TrendingUp } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { getCompanyForUser, getCompanyDashboardStats } from "@/lib/company/service";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,17 +48,84 @@ export default async function DashboardPage() {
   if (!user) return null;
 
   if (user.role !== "CANDIDATE") {
+    const company = await getCompanyForUser(user.id);
+
+    if (!company) {
+      return (
+        <Card className="border-primary/40">
+          <CardHeader>
+            <CardTitle>
+              {greeting()}, {user.firstName}
+            </CardTitle>
+            <CardDescription>
+              Create your company profile to start posting jobs and searching Career OS talent.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/employer/company">Set up your company</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const stats = await getCompanyDashboardStats(company.id);
+
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
             {greeting()}, {user.firstName}
-          </CardTitle>
-          <CardDescription>
-            The employer workspace is coming in a later phase of the Career OS build.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Here's how {company.name} is doing on Career OS.</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
+                <Briefcase className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-semibold text-foreground">{stats.openJobs}</p>
+                <p className="text-xs text-muted-foreground">Open jobs</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-semibold text-foreground">{stats.totalApplications}</p>
+                <p className="text-xs text-muted-foreground">Total applications</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-semibold text-foreground">{stats.newApplicationsThisWeek}</p>
+                <p className="text-xs text-muted-foreground">New this week</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex gap-3">
+          <Button asChild>
+            <Link href="/employer/jobs/new">Post a job</Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/employer/talent">Search talent</Link>
+          </Button>
+        </div>
+      </div>
     );
   }
 

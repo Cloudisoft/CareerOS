@@ -24,6 +24,7 @@ export function apiCatch(error: unknown) {
       UPGRADE_REQUIRED: 402,
       BILLING_NOT_CONFIGURED: 503,
       PRICE_NOT_CONFIGURED: 503,
+      NEEDS_COMPANY: 409,
     };
     return apiError(err.message, statusByCode[err.code] ?? 400, err.code);
   }

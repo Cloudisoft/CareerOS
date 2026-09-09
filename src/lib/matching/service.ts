@@ -6,7 +6,7 @@ import type { CandidateProfile, Job } from "@prisma/client";
 type ProfileWithSkills = CandidateProfile & { skills: { skill: { name: string } }[] };
 type JobWithSkills = Job & { skills: { required: boolean; skill: { name: string } }[] };
 
-function toProfileInput(profile: ProfileWithSkills): MatchProfileInput {
+export function toProfileInput(profile: ProfileWithSkills): MatchProfileInput {
   return {
     currentTitle: profile.currentTitle,
     desiredTitles: profile.desiredTitles,
@@ -21,7 +21,7 @@ function toProfileInput(profile: ProfileWithSkills): MatchProfileInput {
   };
 }
 
-function toJobInput(job: JobWithSkills): MatchJobInput {
+export function toJobInput(job: JobWithSkills): MatchJobInput {
   return {
     title: job.title,
     location: job.location,

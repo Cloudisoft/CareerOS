@@ -9,6 +9,8 @@ import {
   GraduationCap,
   Users,
   ClipboardList,
+  Building2,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,4 +33,12 @@ export const CANDIDATE_NAV: NavItem[] = [
   { href: "/learning", label: "Learning", icon: GraduationCap, available: false },
   { href: "/network", label: "Network", icon: Users, available: true },
   { href: "/messages", label: "Messages", icon: MessageCircle, available: true },
+];
+
+export const EMPLOYER_NAV: NavItem[] = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard, available: true },
+  { href: "/employer/jobs", label: "Jobs", icon: Briefcase, available: true },
+  { href: "/employer/talent", label: "Talent Search", icon: Search, available: true },
+  { href: "/employer/company", label: "Company", icon: Building2, available: true },
+  { href: "/messages", label: "Messages", icon: MessageCircle, available: false },
 ];

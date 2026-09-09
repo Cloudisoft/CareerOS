@@ -3,11 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
-import { CANDIDATE_NAV } from "@/config/nav";
+import { CANDIDATE_NAV, EMPLOYER_NAV, type NavItem } from "@/config/nav";
 import { cn } from "@/lib/utils";
 
-export function Sidebar() {
+interface SidebarProps {
+  role?: "CANDIDATE" | "EMPLOYER" | "COMPANY_ADMIN" | "PLATFORM_ADMIN";
+}
+
+export function Sidebar({ role = "CANDIDATE" }: SidebarProps) {
   const pathname = usePathname();
+  const items: NavItem[] = role === "EMPLOYER" || role === "COMPANY_ADMIN" ? EMPLOYER_NAV : CANDIDATE_NAV;
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface lg:flex">
@@ -15,7 +20,7 @@ export function Sidebar() {
         <Logo />
       </div>
       <nav className="flex-1 space-y-1 p-4">
-        {CANDIDATE_NAV.map((item) => {
+        {items.map((item) => {
           const active = pathname === item.href;
           if (!item.available) {
             return (
