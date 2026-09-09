@@ -260,6 +260,9 @@ model CandidateProfile {
   languages      CandidateLanguage[]
   skills         CandidateSkill[]
   resumes        Resume[]
+  savedJobs      SavedJob[]
+  jobMatches     JobMatch[]
+  applications   Application[]
 
   @@map("candidate_profiles")
 }
@@ -501,7 +504,10 @@ model Job {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  skills JobSkill[]
+  skills       JobSkill[]
+  savedBy      SavedJob[]
+  matches      JobMatch[]
+  applications Application[]
 
   @@index([companyId])
   @@index([status])
@@ -520,6 +526,45 @@ model JobSkill {
   @@map("job_skills")
 }
 
+model SavedJob {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@unique([profileId, jobId])
+  @@index([profileId])
+  @@map("saved_jobs")
+}
+
+// Cached output of the matching engine (src/lib/matching/engine.ts) for a
+// profile/job pair, refreshed whenever either side changes materially.
+model JobMatch {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  score           Int
+  skillsScore     Int
+  titleScore      Int
+  experienceScore Int
+  locationScore   Int
+  salaryScore     Int
+  matchedSkills   String[]
+  missingSkills   String[]
+  reasons         String[]
+
+  computedAt DateTime @default(now())
+
+  @@unique([profileId, jobId])
+  @@index([jobId])
+  @@map("job_matches")
+}
+
 // ============================================================
 // RESUME (skeleton — expanded in Phase 4)
 // ============================================================
@@ -535,6 +580,8 @@ model Resume {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  applications Application[]
 
   @@index([profileId])
   @@map("resumes")
@@ -635,4 +682,68 @@ model ExtensionConnectRequest {
 
   @@index([state])
   @@map("extension_connect_requests")
+}
+
+// ============================================================
+// APPLICATIONS
+// ============================================================
+
+enum ApplicationStatus {
+  SAVED
+  APPLIED
+  VIEWED
+  SCREENING
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicationSource {
+  MANUAL
+  ASSISTED
+  AUTO
+  EXTENSION
+}
+
+model Application {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeId  String?
+  resume    Resume?          @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  status            ApplicationStatus @default(APPLIED)
+  source            ApplicationSource @default(MANUAL)
+  coverLetter       String?
+  answers           Json?
+  matchScoreAtApply Int?
+
+  appliedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events ApplicationEvent[]
+
+  @@unique([profileId, jobId])
+  @@index([profileId])
+  @@index([jobId])
+  @@index([status])
+  @@map("applications")
+}
+
+model ApplicationEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  fromStatus ApplicationStatus?
+  toStatus   ApplicationStatus
+  note       String?
+  createdAt  DateTime           @default(now())
+
+  @@index([applicationId])
+  @@map("application_events")
 }

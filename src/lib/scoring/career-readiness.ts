@@ -93,11 +93,21 @@ export interface CareerReadinessResult {
 }
 
 /**
+ * Job match strength — the average of the candidate's best cached matches.
+ * Reflects whether the jobs actually available are a good fit, not just
+ * how complete the profile looks; stays 0 until any job has been scored.
+ */
+function computeJobMatchScore(topMatchScores: number[]) {
+  if (topMatchScores.length === 0) return 0;
+  return Math.round(topMatchScores.reduce((sum, s) => sum + s, 0) / topMatchScores.length);
+}
+
+/**
  * Recomputes every Career Readiness sub-score from real data and persists
  * them on the CandidateProfile. Call this after any mutation that could
  * change completeness: onboarding steps, skill/experience/education edits,
- * resume saves. `interviewScore` and `jobMatchScore` stay at 0 until the
- * Interview AI and Job Matching phases populate real history to score.
+ * resume saves, or a job match being (re)computed. `interviewScore` stays 0
+ * until the Interview AI phase populates real session history to score.
  */
 export async function recomputeCareerReadiness(profileId: string): Promise<CareerReadinessResult> {
   const profile = await prisma.candidateProfile.findUniqueOrThrow({
@@ -110,11 +120,18 @@ export async function recomputeCareerReadiness(profileId: string): Promise<Caree
     },
   });
 
+  const topMatches = await prisma.jobMatch.findMany({
+    where: { profileId },
+    orderBy: { score: "desc" },
+    take: 5,
+    select: { score: true },
+  });
+
   const profileScore = computeProfileScore(profile, profile.experiences.length, profile.education.length);
   const skillsScore = computeSkillsScore(profile.skills.length);
   const resumeScore = computeResumeScore(profile.resumes);
   const interviewScore = profile.interviewScore; // populated starting in the Interview AI phase
-  const jobMatchScore = profile.jobMatchScore; // populated starting in the Job Matching phase
+  const jobMatchScore = computeJobMatchScore(topMatches.map((m) => m.score));
 
   const careerReadinessScore = Math.round(
     resumeScore * 0.25 + profileScore * 0.3 + skillsScore * 0.2 + interviewScore * 0.1 + jobMatchScore * 0.15

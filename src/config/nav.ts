@@ -7,6 +7,7 @@ import {
   MessageSquare,
   GraduationCap,
   Users,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,7 +21,8 @@ export interface NavItem {
 
 export const CANDIDATE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, available: true },
-  { href: "/jobs", label: "Jobs", icon: Briefcase, available: false },
+  { href: "/jobs", label: "Jobs", icon: Briefcase, available: true },
+  { href: "/applications", label: "Applications", icon: ClipboardList, available: true },
   { href: "/job-gpt", label: "Job GPT", icon: Bot, available: false },
   { href: "/auto-apply", label: "Auto Apply", icon: Send, available: false },
   { href: "/resume-studio", label: "Resume", icon: FileText, available: false },
