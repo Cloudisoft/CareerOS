@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell, LogOut, CreditCard, Laptop, User as UserIcon } from "lucide-react";
@@ -20,6 +21,26 @@ interface TopbarProps {
 
 export function Topbar({ user }: TopbarProps) {
   const router = useRouter();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await fetch("/api/notifications");
+        const json = await res.json();
+        if (!cancelled) setUnread(json.data?.unread ?? 0);
+      } catch {
+        // ignore transient failures; next poll will retry
+      }
+    }
+    poll();
+    const interval = setInterval(poll, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -31,13 +52,16 @@ export function Topbar({ user }: TopbarProps) {
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-6">
       <div />
       <div className="flex items-center gap-4">
-        <button
+        <Link
+          href="/notifications"
           className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-raised hover:text-foreground"
           aria-label="Notifications"
-          disabled
         >
           <Bell className="h-4 w-4" />
-        </button>
+          {unread > 0 && (
+            <span className="absolute right-1.5 top-1.5 flex h-2 w-2 items-center justify-center rounded-full bg-primary" />
+          )}
+        </Link>
 
         <DropdownMenu>
           <DropdownMenuTrigger className="outline-none">
