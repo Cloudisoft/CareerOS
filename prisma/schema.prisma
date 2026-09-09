@@ -1,0 +1,594 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// AUTH & RBAC
+// ============================================================
+
+enum UserRole {
+  CANDIDATE
+  EMPLOYER
+  COMPANY_ADMIN
+  PLATFORM_ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  emailVerified DateTime?
+  phone         String?
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          UserRole      @default(CANDIDATE)
+  status        AccountStatus @default(ACTIVE)
+  avatarUrl     String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sessions           Session[]
+  verificationTokens VerificationToken[]
+  passwordResets     PasswordResetToken[]
+  candidateProfile   CandidateProfile?
+  employerProfile    EmployerProfile?
+  extensionSessions  ExtensionSession[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+
+  companyMemberships CompanyMember[]
+  companyFollows     CompanyFollower[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// Session tokens are DB-backed: the cookie holds an opaque token, only its
+// SHA-256 hash is stored, so a leaked DB row can't be replayed as a cookie.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+enum VerificationTokenType {
+  EMAIL_VERIFICATION
+}
+
+model VerificationToken {
+  id        String                @id @default(cuid())
+  userId    String
+  tokenHash String                @unique
+  type      VerificationTokenType @default(EMAIL_VERIFICATION)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// Fine-grained RBAC on top of the coarse UserRole, used for company-scoped
+// permission checks (e.g. who on an employer team can publish jobs).
+model Role {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// CANDIDATE PROFILE / CAREER PROFILE
+// ============================================================
+
+enum CareerLevel {
+  ENTRY
+  ASSOCIATE
+  MID
+  SENIOR
+  LEAD
+  MANAGER
+  DIRECTOR
+  EXECUTIVE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+}
+
+enum WorkplaceType {
+  ONSITE
+  HYBRID
+  REMOTE
+}
+
+enum SponsorshipStatus {
+  NOT_REQUIRED
+  REQUIRED
+  MAY_REQUIRE_FUTURE
+}
+
+model CandidateProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Identity
+  location String?
+  headline String?
+  bio      String?
+
+  // Professional
+  currentTitle         String?
+  currentCompany       String?
+  totalExperienceYears Float?
+  careerLevel          CareerLevel?
+  industry             String?
+
+  // Job preferences
+  desiredTitles     String[]
+  desiredIndustries String[]
+  desiredLocations  String[]
+  workplaceTypes    WorkplaceType[]
+  employmentTypes   EmploymentType[]
+  desiredSalaryMin  Int?
+  desiredSalaryMax  Int?
+  salaryCurrency    String           @default("USD")
+  noticePeriodDays  Int?
+
+  // Work authorization
+  workAuthorization String?
+  sponsorshipStatus SponsorshipStatus @default(NOT_REQUIRED)
+  willingToRelocate Boolean           @default(false)
+
+  // Career goals
+  targetTitles    String[]
+  targetCompanies String[]
+  careerGoals     String?
+
+  // Links
+  linkedinUrl  String?
+  githubUrl    String?
+  portfolioUrl String?
+
+  // Scoring (recomputed from real data, never hand-set)
+  careerReadinessScore Int @default(0)
+  resumeScore          Int @default(0)
+  profileScore         Int @default(0)
+  skillsScore          Int @default(0)
+  interviewScore       Int @default(0)
+  jobMatchScore        Int @default(0)
+
+  onboardingCompletedAt DateTime?
+  onboardingStep        Int       @default(0)
+
+  visibility ProfileVisibility @default(PRIVATE_UNTIL_APPLY)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  experiences    WorkExperience[]
+  education      Education[]
+  certifications Certification[]
+  languages      CandidateLanguage[]
+  skills         CandidateSkill[]
+  resumes        Resume[]
+
+  @@map("candidate_profiles")
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  RECRUITERS_ONLY
+  PRIVATE_UNTIL_APPLY
+  PRIVATE
+}
+
+model WorkExperience {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title        String
+  company      String
+  location     String?
+  startDate    DateTime
+  endDate      DateTime?
+  isCurrent    Boolean   @default(false)
+  description  String?
+  achievements String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+  @@map("work_experiences")
+}
+
+model Education {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  school       String
+  degree       String?
+  fieldOfStudy String?
+  startDate    DateTime?
+  endDate      DateTime?
+  isCurrent    Boolean   @default(false)
+  description  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+  @@map("education")
+}
+
+model Certification {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name          String
+  issuer        String?
+  issueDate     DateTime?
+  expiryDate    DateTime?
+  credentialUrl String?
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@map("certifications")
+}
+
+model CandidateLanguage {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  language    String
+  proficiency LanguageProficiency @default(CONVERSATIONAL)
+
+  @@index([profileId])
+  @@map("candidate_languages")
+}
+
+enum LanguageProficiency {
+  BASIC
+  CONVERSATIONAL
+  FLUENT
+  NATIVE
+}
+
+// Global, de-duplicated skill dictionary shared by candidates and jobs.
+model Skill {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  category String?
+
+  candidates CandidateSkill[]
+  jobs       JobSkill[]
+
+  @@map("skills")
+}
+
+enum SkillType {
+  TECHNICAL
+  SOFT
+  TOOL
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+model CandidateSkill {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skillId   String
+  skill     Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  type              SkillType  @default(TECHNICAL)
+  level             SkillLevel @default(INTERMEDIATE)
+  yearsOfExperience Float?
+
+  createdAt DateTime @default(now())
+
+  @@unique([profileId, skillId])
+  @@index([profileId])
+  @@map("candidate_skills")
+}
+
+// ============================================================
+// EMPLOYER / COMPANY
+// ============================================================
+
+model EmployerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employer_profiles")
+}
+
+model Company {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  logoUrl     String?
+  coverUrl    String?
+  description String?
+  industry    String?
+  size        String?
+  location    String?
+  website     String?
+  linkedinUrl String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  members   CompanyMember[]
+  followers CompanyFollower[]
+  jobs      Job[]
+
+  @@index([slug])
+  @@map("companies")
+}
+
+enum CompanyMemberRole {
+  OWNER
+  ADMIN
+  RECRUITER
+  MEMBER
+}
+
+model CompanyMember {
+  id        String            @id @default(cuid())
+  companyId String
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      CompanyMemberRole @default(MEMBER)
+
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, userId])
+  @@index([userId])
+  @@map("company_members")
+}
+
+model CompanyFollower {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, userId])
+  @@map("company_followers")
+}
+
+// ============================================================
+// JOBS (skeleton — expanded in Phase 3)
+// ============================================================
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+model Job {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  title          String
+  description    String
+  location       String?
+  workplaceType  WorkplaceType  @default(ONSITE)
+  employmentType EmploymentType @default(FULL_TIME)
+  careerLevel    CareerLevel?
+  salaryMin      Int?
+  salaryMax      Int?
+  salaryCurrency String         @default("USD")
+  status         JobStatus      @default(OPEN)
+  externalUrl    String?
+  externalId     String?
+  source         String         @default("careeros")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  skills JobSkill[]
+
+  @@index([companyId])
+  @@index([status])
+  @@map("jobs")
+}
+
+model JobSkill {
+  id       String  @id @default(cuid())
+  jobId    String
+  job      Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skillId  String
+  skill    Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  required Boolean @default(true)
+
+  @@unique([jobId, skillId])
+  @@map("job_skills")
+}
+
+// ============================================================
+// RESUME (skeleton — expanded in Phase 4)
+// ============================================================
+
+model Resume {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name      String
+  isPrimary Boolean @default(false)
+  content   Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+  @@map("resumes")
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+enum NotificationType {
+  CONNECTION_REQUEST
+  CONNECTION_ACCEPTED
+  MESSAGE
+  JOB_MATCH
+  APPLICATION_UPDATE
+  RECRUITER_CONTACT
+  INTERVIEW_REMINDER
+  LEARNING_RECOMMENDATION
+  RESUME_RECOMMENDATION
+  SUBSCRIPTION
+  AUTO_APPLY_NEEDS_ATTENTION
+  SYSTEM
+}
+
+model Notification {
+  id       String           @id @default(cuid())
+  userId   String
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type     NotificationType
+  title    String
+  body     String?
+  linkUrl  String?
+  readAt   DateTime?
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// CHROME EXTENSION
+// ============================================================
+
+model ExtensionSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String   @unique
+  deviceLabel String?
+  lastSeenAt  DateTime @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("extension_sessions")
+}

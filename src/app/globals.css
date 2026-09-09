@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Career OS design tokens.
+  Dark mode is the flagship experience and is the default (no class needed).
+  Adding `.light` to <html> switches to the light variant of the same
+  brand system — same hues, different lightness/contrast.
+*/
+
+:root {
+  --background: 276 42% 5%; /* #0D0711 deep plum */
+  --surface: 295 33% 6%; /* #150B16 */
+  --surface-raised: 295 28% 9%;
+  --foreground: 300 14% 99%; /* #FCFBFC */
+  --muted: 295 20% 12%;
+  --muted-foreground: 280 4% 72%; /* #B8B4BA */
+  --border: 295 15% 15%; /* #2A202B */
+  --input: 295 15% 15%;
+  --ring: 28 86% 56%;
+
+  --primary: 28 86% 56%; /* #EF862D */
+  --primary-foreground: 300 14% 99%;
+  --accent: 11 74% 52%; /* #DF4C2C */
+  --accent-foreground: 300 14% 99%;
+  --destructive: 11 74% 52%;
+  --destructive-foreground: 300 14% 99%;
+  --success: 144 50% 50%;
+  --success-foreground: 276 42% 5%;
+  --warning: 11 74% 52%;
+  --warning-foreground: 300 14% 99%;
+}
+
+html.light {
+  --background: 300 20% 99%;
+  --surface: 300 15% 96%;
+  --surface-raised: 300 15% 93%;
+  --foreground: 276 42% 7%;
+  --muted: 280 10% 92%;
+  --muted-foreground: 280 6% 40%;
+  --border: 280 10% 87%;
+  --input: 280 10% 87%;
+  --ring: 28 86% 50%;
+
+  --primary: 28 86% 50%;
+  --primary-foreground: 300 14% 99%;
+  --accent: 11 74% 48%;
+  --accent-foreground: 300 14% 99%;
+  --destructive: 11 74% 48%;
+  --destructive-foreground: 300 14% 99%;
+  --success: 144 45% 38%;
+  --success-foreground: 300 14% 99%;
+  --warning: 11 74% 48%;
+  --warning-foreground: 300 14% 99%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .brand-gradient-text {
+    background-image: linear-gradient(135deg, #ef862d 0%, #df4c2c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .brand-glow {
+    box-shadow: 0 0 60px rgba(239, 134, 45, 0.12), 0 0 120px rgba(223, 76, 44, 0.1);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
