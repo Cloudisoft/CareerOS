@@ -811,7 +811,7 @@ model ApplicationEvent {
 // ============================================================
 // BILLING — plans and their features/entitlements are defined in
 // src/lib/billing/plans.ts (the single source of truth); these tables
-// hold each user's actual Stripe-synced subscription state.
+// hold each user's actual PayPal-synced subscription state.
 // ============================================================
 
 enum PlanKey {
@@ -842,8 +842,7 @@ model Subscription {
   plan   PlanKey
   status SubscriptionStatus @default(INCOMPLETE)
 
-  stripeCustomerId     String?
-  stripeSubscriptionId String?   @unique
+  paypalSubscriptionId String?   @unique
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean   @default(false)
 
@@ -861,8 +860,7 @@ model AddOnSubscription {
 
   status SubscriptionStatus @default(INCOMPLETE)
 
-  stripeCustomerId     String?
-  stripeSubscriptionId String?   @unique
+  paypalSubscriptionId String?   @unique
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean   @default(false)
 
@@ -878,11 +876,11 @@ model Payment {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  stripeInvoiceId String? @unique
-  amount          Int
-  currency        String  @default("usd")
-  status          String
-  description     String?
+  paypalTransactionId String? @unique
+  amount              Int
+  currency            String  @default("usd")
+  status              String
+  description         String?
 
   createdAt DateTime @default(now())
 

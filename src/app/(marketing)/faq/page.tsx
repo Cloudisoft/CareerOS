@@ -24,7 +24,7 @@ const FAQS = [
   },
   {
     q: "Can I cancel or change my plan?",
-    a: "Yes, anytime, from your billing settings. Changes take effect through Stripe's billing portal and your entitlements update automatically.",
+    a: "Yes, anytime, from your billing settings. Plan changes go through PayPal and your entitlements update automatically.",
   },
   {
     q: "Does the Chrome extension use a separate account?",

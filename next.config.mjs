@@ -6,12 +6,12 @@
 // third-party script origins) rather than a nonce-perfect policy.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.paypal.com https://www.paypalobjects.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.anthropic.com https://api.stripe.com",
-  "frame-src https://js.stripe.com https://hooks.stripe.com",
+  "connect-src 'self' https://api.anthropic.com https://www.paypal.com",
+  "frame-src https://www.paypal.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

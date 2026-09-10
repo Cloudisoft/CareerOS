@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ExternalLink, CreditCard } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,50 +17,56 @@ interface BillingStatus {
 }
 
 export default function BillingPage() {
+  const router = useRouter();
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [redirecting, setRedirecting] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/billing/status")
+  function load() {
+    return fetch("/api/billing/status")
       .then((r) => r.json())
       .then((json) => setStatus(json.data))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
   }, []);
 
-  async function checkout(plan: PlanKey) {
-    setRedirecting(plan);
-    const res = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan }),
-    });
-    const json = await res.json();
-    setRedirecting(null);
-    if (res.ok && json.data.url) window.location.href = json.data.url;
-    else alert(json.error?.message ?? "Could not start checkout.");
+  function checkout(plan: PlanKey) {
+    router.push(`/checkout?kind=plan&key=${plan}`);
   }
 
-  async function checkoutAddOn(addOn: AddOnKey) {
-    setRedirecting(addOn);
-    const res = await fetch("/api/billing/checkout-addon", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ addOn }),
-    });
-    const json = await res.json();
-    setRedirecting(null);
-    if (res.ok && json.data.url) window.location.href = json.data.url;
-    else alert(json.error?.message ?? "Could not start checkout.");
+  function checkoutAddOn(addOn: AddOnKey) {
+    router.push(`/checkout?kind=addon&key=${addOn}`);
   }
 
-  async function openPortal() {
-    setRedirecting("portal");
-    const res = await fetch("/api/billing/portal", { method: "POST" });
+  async function cancelPlan() {
+    if (!confirm("Cancel your plan? You'll keep access until the current billing period ends.")) return;
+    setBusy("plan");
+    const res = await fetch("/api/billing/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target: "plan" }),
+    });
     const json = await res.json();
-    setRedirecting(null);
-    if (res.ok && json.data.url) window.location.href = json.data.url;
-    else alert(json.error?.message ?? "Billing portal is not available.");
+    setBusy(null);
+    if (res.ok) load();
+    else alert(json.error?.message ?? "Could not cancel your plan.");
+  }
+
+  async function cancelAddOn(addOn: AddOnKey) {
+    if (!confirm("Cancel this add-on? You'll keep access until the current billing period ends.")) return;
+    setBusy(addOn);
+    const res = await fetch("/api/billing/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target: addOn }),
+    });
+    const json = await res.json();
+    setBusy(null);
+    if (res.ok) load();
+    else alert(json.error?.message ?? "Could not cancel this add-on.");
   }
 
   if (loading) {
@@ -82,8 +89,7 @@ export default function BillingPage() {
       {status && !status.billingConfigured && (
         <Card className="border-warning/40">
           <CardContent className="p-4 text-sm text-muted-foreground">
-            Billing isn't configured in this environment. Checkout and the billing portal will show
-            an error until Stripe keys are set.
+            Billing isn't configured in this environment. Checkout will show an error until PayPal keys are set.
           </CardContent>
         </Card>
       )}
@@ -95,12 +101,13 @@ export default function BillingPage() {
             <CardDescription>
               {PLANS.find((p) => p.key === currentPlan)?.name ?? "Free"}
               {status?.subscription?.status ? ` · ${status.subscription.status}` : ""}
+              {status?.subscription?.cancelAtPeriodEnd ? " · canceling at period end" : ""}
             </CardDescription>
           </div>
-          {status?.subscription && (
-            <Button variant="secondary" onClick={openPortal} disabled={redirecting === "portal"}>
-              {redirecting === "portal" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-              Manage billing
+          {status?.subscription && !status.subscription.cancelAtPeriodEnd && (
+            <Button variant="secondary" onClick={cancelPlan} disabled={busy === "plan"}>
+              {busy === "plan" && <Loader2 className="h-4 w-4 animate-spin" />}
+              Cancel plan
             </Button>
           )}
         </CardHeader>
@@ -127,10 +134,9 @@ export default function BillingPage() {
                   <Button
                     className="w-full"
                     variant={isCurrent ? "secondary" : "primary"}
-                    disabled={isCurrent || redirecting === plan.key}
+                    disabled={isCurrent}
                     onClick={() => checkout(plan.key)}
                   >
-                    {redirecting === plan.key && <Loader2 className="h-4 w-4 animate-spin" />}
                     {isCurrent ? "Current plan" : "Switch to this plan"}
                   </Button>
                 )}
@@ -154,14 +160,15 @@ export default function BillingPage() {
                       ${addon.price}/{addon.period}
                     </p>
                   </div>
-                  <Button
-                    variant={active ? "secondary" : "outline"}
-                    disabled={active || redirecting === addon.key}
-                    onClick={() => checkoutAddOn(addon.key)}
-                  >
-                    {redirecting === addon.key && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {active ? "Active" : "Add"}
-                  </Button>
+                  {active ? (
+                    <Button variant="secondary" disabled={busy === addon.key} onClick={() => cancelAddOn(addon.key)}>
+                      {busy === addon.key ? <Loader2 className="h-4 w-4 animate-spin" /> : "Active — cancel"}
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={() => checkoutAddOn(addon.key)}>
+                      Add
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -188,12 +195,12 @@ export default function BillingPage() {
       )}
 
       <a
-        href="https://stripe.com"
+        href="https://www.paypal.com"
         target="_blank"
         rel="noreferrer"
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
-        Payments securely processed by Stripe <ExternalLink className="h-3 w-3" />
+        Payments securely processed by PayPal <ExternalLink className="h-3 w-3" />
       </a>
     </div>
   );

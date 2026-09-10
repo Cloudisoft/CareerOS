@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/auth/session";
 import { getEntitlements, serializeEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/prisma";
-import { isStripeConfigured } from "@/lib/stripe/client";
+import { isPayPalConfigured } from "@/lib/paypal/client";
 import { apiCatch, apiError, apiOk } from "@/lib/api-response";
 
 export async function GET() {
@@ -33,7 +33,7 @@ export async function GET() {
         description: p.description,
         createdAt: p.createdAt,
       })),
-      billingConfigured: isStripeConfigured(),
+      billingConfigured: isPayPalConfigured(),
     });
   } catch (error) {
     return apiCatch(error);

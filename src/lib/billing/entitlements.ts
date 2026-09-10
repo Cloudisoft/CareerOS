@@ -15,13 +15,13 @@ export interface UserEntitlements extends Entitlements {
  * beyond that is gated per-plan (see plans.ts) or by a standalone add-on.
  *
  * `DEV_GRANT_PLAN` is a development-only escape hatch (never honored when
- * Stripe is configured or in production) so gated features are testable
+ * PayPal is configured or in production) so gated features are testable
  * without a real subscription. See .env.example.
  */
 export async function getEntitlements(userId: string): Promise<UserEntitlements> {
   if (
     process.env.NODE_ENV !== "production" &&
-    !process.env.STRIPE_SECRET_KEY &&
+    !process.env.PAYPAL_CLIENT_ID &&
     process.env.DEV_GRANT_PLAN
   ) {
     const devPlan = PLANS.find((p) => p.key === process.env.DEV_GRANT_PLAN);
