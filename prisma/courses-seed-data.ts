@@ -515,4 +515,587 @@ Once a week, look at the whole list: what moved, what's stalled, what needs a fo
       },
     ],
   },
+  {
+    slug: "cloud-computing-fundamentals",
+    title: "Cloud Computing Fundamentals",
+    description: "What cloud computing actually is, the core service models, and how to reason about AWS, Azure, and GCP without vendor-specific tunnel vision.",
+    category: "Cloud",
+    level: "BEGINNER",
+    order: 5,
+    lessons: [
+      {
+        title: "IaaS, PaaS, and SaaS — What You're Actually Renting",
+        durationMinutes: 6,
+        content: `"Cloud computing" covers a wide range of what you're actually responsible for versus what the provider manages. Understanding the layers is the foundation everything else builds on.
+
+## The three core models
+
+- **IaaS (Infrastructure as a Service)** — you get raw compute, storage, and networking (e.g., AWS EC2, Azure VMs, GCP Compute Engine). You manage the OS, runtime, and everything above it. Maximum control, maximum responsibility.
+- **PaaS (Platform as a Service)** — the provider manages the OS and runtime; you deploy code (e.g., AWS Elastic Beanstalk, Heroku, Google App Engine). Less to manage, less control over the underlying environment.
+- **SaaS (Software as a Service)** — a fully managed application you just use (e.g., Salesforce, Gmail, Slack). No infrastructure decisions at all.
+
+## Why this distinction matters day to day
+
+The model you're operating in determines what "your problem" actually means. On IaaS, an OS-level security patch is your responsibility. On PaaS, the provider handles it, but you're constrained to their supported runtimes and versions. Picking the wrong model for a task creates either unnecessary operational burden (running raw VMs for something PaaS would handle fine) or unnecessary constraints (fighting a PaaS platform's limits when you actually need OS-level control).
+
+## Serverless is a further step, not a separate category
+
+Functions-as-a-Service (AWS Lambda, Azure Functions, Google Cloud Functions) takes PaaS further: you deploy individual functions, the platform handles provisioning, scaling, and teardown entirely, and you pay per invocation rather than for idle capacity. The tradeoff is cold-start latency and execution time limits — not the right fit for every workload, but often the right fit for event-driven or bursty ones.
+
+## The practical takeaway
+
+When evaluating a new cloud service, the first real question isn't "which provider" — it's "which layer am I operating at, and does that match how much operational responsibility I actually want to own for this workload."`,
+      },
+      {
+        title: "Core Services Across AWS, Azure, and GCP",
+        durationMinutes: 7,
+        content: `Once you understand one major cloud provider's core services, the others map onto the same concepts with different names. Learning the mapping is more useful than memorizing any one provider's console.
+
+## Compute
+
+- **AWS:** EC2 (VMs), Lambda (serverless), ECS/EKS (containers)
+- **Azure:** Virtual Machines, Azure Functions, AKS (Kubernetes)
+- **GCP:** Compute Engine, Cloud Functions, GKE (Kubernetes)
+
+## Storage
+
+- **Object storage** (unstructured files, accessed via API): S3 (AWS), Blob Storage (Azure), Cloud Storage (GCP).
+- **Block storage** (attached disks for VMs): EBS (AWS), Managed Disks (Azure), Persistent Disk (GCP).
+- **File storage** (shared network filesystems): EFS (AWS), Azure Files, Filestore (GCP).
+
+## Databases
+
+Each provider offers managed relational databases (AWS RDS, Azure SQL Database, Cloud SQL) and managed NoSQL options (DynamoDB, Cosmos DB, Firestore/Bigtable) — the managed part is the key value: automated backups, patching, and failover without running the database software yourself.
+
+## Networking
+
+All three share the same core concepts under different names: a virtual private network (VPC in AWS/GCP, VNet in Azure), subnets, security groups/firewall rules, load balancers, and a managed DNS service (Route 53, Azure DNS, Cloud DNS).
+
+## Why the mapping matters more than any single provider
+
+Employers rarely care which specific provider you've used most — they care whether you understand what a load balancer, a managed database, and a VPC actually do. If you've worked deeply with one provider, you can usually onboard onto another within days, because the underlying architecture concepts transfer almost completely.`,
+      },
+      {
+        title: "Reasoning About Cost",
+        durationMinutes: 6,
+        content: `Cloud cost surprises are one of the most common operational failures for teams new to cloud infrastructure — not because pricing is secret, but because the pay-for-what-you-use model shifts the failure mode from "we didn't provision enough" to "we didn't notice we left something running."
+
+## The core pricing levers
+
+- **Compute:** pay per hour/second for the size of instance running, whether or not it's doing useful work. A VM left running idle over a weekend still bills.
+- **Storage:** pay per GB stored, plus often per-request charges for object storage — a large number of small API calls can cost more than the storage itself.
+- **Data transfer (egress):** moving data *out* of a cloud provider's network is usually billed; moving data *in* usually isn't. This asymmetry is a common source of surprise bills, especially for data-heavy workloads.
+- **Reserved vs. on-demand:** committing to a specific instance type for 1-3 years (reserved) can cut compute costs 30-70% versus on-demand pricing, at the cost of flexibility.
+
+## Common cost traps
+
+- **Orphaned resources.** A deleted VM's attached storage volume, or an old load balancer nobody's using, keeps billing indefinitely until someone notices.
+- **Over-provisioned instances.** Defaulting to a large instance "to be safe" when a workload's actual usage would fit a much smaller (cheaper) one.
+- **Cross-region or cross-AZ data transfer** inside your own architecture, which is often billed even though it feels like "internal" traffic.
+
+## Practical habits
+
+- Tag resources by project/team from day one — untagged spend is nearly impossible to attribute later.
+- Set up billing alerts before you need them, not after an unexpected invoice.
+- Review a cost breakdown by service monthly, even briefly — cost trends are far easier to catch early than to untangle after months of drift.`,
+      },
+      {
+        title: "Security Basics: Shared Responsibility",
+        durationMinutes: 5,
+        content: `Every major cloud provider operates on a "shared responsibility model" — and misunderstanding where the line falls is one of the most common causes of real cloud security incidents.
+
+## What the provider secures
+
+The provider is responsible for the security *of* the cloud: physical data center security, the hardware, the hypervisor, and the managed services' underlying infrastructure. This is generally extremely well handled — it's not where incidents typically originate.
+
+## What you're responsible for
+
+You're responsible for security *in* the cloud: how you configure what you're given. This includes:
+- **Identity and access management (IAM).** Who can do what. Overly broad permissions ("just give it admin access, it's easier") are one of the most common real-world causes of cloud breaches.
+- **Network configuration.** Security groups, firewall rules, and whether something that should be private is accidentally exposed to the public internet.
+- **Data encryption.** Whether data at rest and in transit is actually encrypted — most providers make this easy, but it's rarely on by default for everything.
+- **Publicly exposed storage.** Misconfigured object storage buckets left publicly readable is one of the single most common real-world cloud data exposure incidents, and it's entirely a configuration choice, not a provider failure.
+
+## The practical baseline
+
+- Grant the minimum permissions a role actually needs (least privilege), not the most convenient.
+- Never use root/owner-level account credentials for day-to-day work — create scoped roles.
+- Enable multi-factor authentication on any account with meaningful access.
+- Treat "it's just a quick test, I'll fix the permissions later" as the exact pattern that causes real incidents — fix it before deploying, not after.
+
+Cloud security failures are overwhelmingly configuration failures, not provider failures — which is the encouraging part: they're within your control to prevent.`,
+      },
+    ],
+  },
+  {
+    slug: "devops-and-ci-cd-fundamentals",
+    title: "DevOps and CI/CD Fundamentals",
+    description: "The practices and pipeline concepts that turn 'it works on my machine' into a reliable, repeatable path from commit to production.",
+    category: "DevOps",
+    level: "INTERMEDIATE",
+    order: 6,
+    lessons: [
+      {
+        title: "What DevOps Actually Means",
+        durationMinutes: 5,
+        content: `"DevOps" gets used loosely enough to mean almost anything. At its core, it's a specific idea: breaking down the separation between the people who write software and the people who operate it, so that the team building something is also accountable for how it runs in production.
+
+## The cultural shift, briefly
+
+Before DevOps became common practice, it was typical for a development team to "throw code over the wall" to a separate operations team, who then had to run it without having written it — leading to friction, slow releases, and each side blaming the other when something broke in production.
+
+## The practical pillars
+
+- **Automation.** Manual deployment steps are slow and error-prone; automating them (via CI/CD) makes releases fast and repeatable.
+- **Shared ownership.** The team that builds a service is also on the hook for its reliability — this incentivizes writing operable, observable code rather than code that merely passes tests.
+- **Fast feedback loops.** Small, frequent changes with fast feedback (does it build, does it pass tests, is it healthy in production) beat large, infrequent releases where problems surface late and are expensive to isolate.
+- **Infrastructure as code.** Environments defined in version-controlled configuration rather than manually clicked together, so they're reproducible and reviewable like any other code change.
+
+## What DevOps is not
+
+It's not a job title alone, though "DevOps Engineer" roles exist and typically focus on building the automation and tooling that makes these practices possible. And it's not simply "using Docker" or "using Kubernetes" — those are tools that support DevOps practices, not DevOps itself. A team can use every modern tool and still not practice DevOps if deployments are still manual, infrequent, and owned by a separate team from the people who wrote the code.`,
+      },
+      {
+        title: "CI/CD Pipelines, Step by Step",
+        durationMinutes: 7,
+        content: `A CI/CD pipeline automates the path from a code change to a running deployment. Understanding each stage — and what it's actually checking for — makes pipeline configuration far less mysterious.
+
+## Continuous Integration (CI)
+
+Triggered on every code push, typically:
+1. **Build** — compile the code / install dependencies, catching anything that doesn't even build.
+2. **Lint/format check** — catch style and obvious-error issues automatically, before a human reviewer has to.
+3. **Automated tests** — unit tests (fast, isolated) and often integration tests (slower, exercise more of the real system).
+4. **Security/dependency scanning** — checking for known vulnerabilities in dependencies, often automated as a standard gate.
+
+The point of CI is to catch problems within minutes of a change, while the context is still fresh, rather than days later during a manual QA pass.
+
+## Continuous Delivery vs. Continuous Deployment
+
+These terms are often used loosely, but the distinction matters:
+- **Continuous Delivery** — every change that passes CI is automatically built into a release-ready artifact, but a human still triggers the actual production deployment.
+- **Continuous Deployment** — every change that passes CI deploys to production automatically, with no manual gate.
+
+Continuous Deployment requires real confidence in your test coverage and monitoring — it's the more mature end state, not necessarily the right starting point for every team.
+
+## Common pipeline stages after CI passes
+
+- **Deploy to a staging environment** that mirrors production, for a final check.
+- **Run smoke tests** against staging — a quick check that core functionality actually works, not just that the code compiled.
+- **Deploy to production**, often using a strategy (next lesson) that limits blast radius if something's still wrong.
+- **Post-deploy verification** — automated health checks confirming the new version is actually serving traffic correctly.
+
+## Why this matters for anyone, not just "DevOps engineers"
+
+Even as an individual contributor, understanding what each pipeline stage checks for changes how you write code and tests — you write with the pipeline's checks in mind, rather than treating CI as a mysterious gate that sometimes fails for reasons you don't understand.`,
+      },
+      {
+        title: "Containers and Docker, Conceptually",
+        durationMinutes: 6,
+        content: `Containers solve a specific, real problem: "it works on my machine" — where an application behaves differently across environments because of differences in installed dependencies, OS versions, or configuration.
+
+## What a container actually is
+
+A container packages an application together with everything it needs to run — dependencies, runtime, system libraries, configuration — into a single, portable unit. Unlike a full virtual machine, containers share the host OS kernel, making them far lighter weight and faster to start.
+
+## The key mental model
+
+A **Docker image** is a snapshot — the packaged application and its dependencies, built once. A **container** is a running instance of that image. You can run many containers from the same image, each an isolated instance, the same way you can run multiple instances of a program from the same executable.
+
+## Why this solves the "works on my machine" problem
+
+If the image itself contains the exact runtime version, exact dependency versions, and exact configuration, then a container built from that image behaves identically whether it's running on a developer's laptop, a CI server, or production — because it's not relying on whatever happens to be installed on the host machine.
+
+## Dockerfiles, briefly
+
+A Dockerfile is the recipe for building an image: start from a base image (e.g., a specific OS + language runtime), copy in application code, install dependencies, specify how to start the application. Each instruction adds a layer, and Docker caches layers that haven't changed — which is why dependency installation is typically ordered before copying application code, so that code changes don't invalidate the (slower) dependency-install cache layer.
+
+## Where this connects to orchestration
+
+Running one container is straightforward. Running dozens of containers across multiple machines, handling failures, scaling up and down, and routing traffic between them is what container orchestration platforms like Kubernetes exist to manage — a genuinely deep topic on its own, built entirely on the container fundamentals covered here.`,
+      },
+      {
+        title: "Deployment Strategies That Limit Blast Radius",
+        durationMinutes: 6,
+        content: `Deploying a new version by simply replacing the old one everywhere at once works — until the new version has a problem, at which point every user is affected simultaneously. Several strategies exist specifically to avoid that.
+
+## Rolling deployment
+
+Instances are updated a few at a time rather than all at once, so at any moment some instances run the old version and some run the new one. If a problem appears partway through, the rollout can be paused with only a fraction of traffic affected. The tradeoff: both versions run simultaneously during the rollout, so they need to be compatible with the same data/API contracts.
+
+## Blue-green deployment
+
+Two full environments exist: "blue" (currently live) and "green" (the new version). Traffic is switched from blue to green all at once, after green has been verified healthy. If something's wrong, switching back to blue is immediate. The tradeoff: running two full environments simultaneously costs more, even briefly.
+
+## Canary deployment
+
+A new version is released to a small percentage of real traffic first (e.g., 5%), monitored closely, and only rolled out further if it's healthy. This catches problems that only appear under real production load or with real user behavior — the kind of issue that passes every automated test but fails in practice. The tradeoff: it requires good monitoring to actually notice a problem in that small percentage before expanding further.
+
+## Feature flags, as a complementary tool
+
+Deploying code and *releasing* a feature don't have to be the same event. A feature flag lets new code ship to production dark (inactive), then get turned on for specific users or gradually ramped up — independent of the deployment itself. This decouples "is the code safely deployed" from "is the feature ready for users," which is a genuinely useful separation once a team's release process matures.
+
+## The common thread
+
+Every one of these strategies exists to answer the same question: if this deployment has a problem, how many real users find out before someone notices and can respond? The right strategy for a given team depends on how much that blast radius actually matters for the system in question.`,
+      },
+    ],
+  },
+  {
+    slug: "cybersecurity-fundamentals-for-it",
+    title: "Cybersecurity Fundamentals for IT Professionals",
+    description: "The core security principles, common attack vectors, and practical habits that apply across almost every IT role — not just dedicated security positions.",
+    category: "Security",
+    level: "BEGINNER",
+    order: 7,
+    lessons: [
+      {
+        title: "The CIA Triad and Why It's the Starting Point",
+        durationMinutes: 5,
+        content: `Nearly every security decision can be framed against three properties: Confidentiality, Integrity, and Availability. It's a simple model, and precisely because it's simple, it's a genuinely useful lens for evaluating almost any security question.
+
+## The three properties
+
+- **Confidentiality** — only authorized people/systems can access the data. A data breach is a confidentiality failure.
+- **Integrity** — data hasn't been tampered with, whether maliciously or accidentally. A system that lets anyone silently modify financial records has an integrity failure, even if access is otherwise well-controlled.
+- **Availability** — authorized users can actually access the system when they need to. A denial-of-service attack is purely an availability failure — it doesn't steal or alter data, it just makes the system unusable.
+
+## Why thinking in these terms is useful
+
+Different systems weight these differently. A public read-only status page cares enormously about availability and barely about confidentiality (there's nothing secret on it). A system holding medical records cares enormously about confidentiality and integrity, and somewhat less about maximum availability (some downtime during a security incident is an acceptable tradeoff for preventing a breach). Framing a security decision as "which of these three am I protecting, and what am I trading off" clarifies decisions that otherwise feel abstract.
+
+## A concrete example
+
+Encrypting a database protects confidentiality (an attacker who steals the raw files can't read them) but does nothing for availability (a ransomware attack can still lock you out of your own encrypted data) — which is why a real security posture layers multiple protections rather than relying on any single measure to cover all three properties at once.`,
+      },
+      {
+        title: "Common Attack Vectors",
+        durationMinutes: 7,
+        content: `Understanding how systems actually get compromised — in practice, not in theory — makes every other security practice make more sense.
+
+## Phishing and social engineering
+
+The overwhelming majority of real breaches start with a human, not a technical vulnerability — a convincing email that gets someone to click a malicious link, enter credentials on a fake login page, or run an attachment. No firewall stops this; it's addressed through awareness and, critically, systems designed so that one person's mistake doesn't cascade into full compromise (see least privilege, next lesson).
+
+## Credential-based attacks
+
+- **Credential stuffing** — attackers use username/password pairs leaked from one breach to try logging into other, unrelated services, betting on password reuse. This is why unique passwords per service (via a password manager) matters more than password complexity alone.
+- **Brute force** — systematically trying passwords until one works, mitigated by rate limiting, account lockouts, and multi-factor authentication.
+
+## Injection attacks
+
+- **SQL injection** — untrusted input is concatenated directly into a database query, letting an attacker manipulate the query itself. Prevented reliably by using parameterized queries (never string-concatenating user input into SQL) — a solved problem technically, but still a common real-world vulnerability because the fix isn't always applied consistently.
+- **Cross-site scripting (XSS)** — untrusted input is rendered as executable code in another user's browser, letting an attacker run scripts in that user's session. Prevented by properly escaping/encoding output, not just sanitizing input.
+
+## Misconfiguration
+
+Not an "attack" in the traditional sense, but one of the most common real causes of breaches: a publicly exposed storage bucket, an admin panel left with default credentials, an overly permissive firewall rule. These aren't sophisticated exploits — they're mistakes an attacker only has to find, not create.
+
+## The practical implication
+
+Most real breaches don't involve a novel, sophisticated technique — they exploit a known category of weakness (a reused password, an unpatched system, a misconfigured permission) that a fairly standard security practice would have prevented. Getting the fundamentals right closes far more real risk than chasing exotic threats.`,
+      },
+      {
+        title: "Least Privilege and Defense in Depth",
+        durationMinutes: 5,
+        content: `Two principles do more real-world security work than almost any specific tool: give people and systems only the access they actually need, and never rely on a single layer of protection.
+
+## Least privilege
+
+Grant the minimum access required to do a job — no more. This isn't about distrust; it's about limiting the damage a mistake or a compromised account can do. If a marketing analyst's account only has read access to a reporting dashboard, a phished password there can't reach customer payment data. If it has broad admin access "just in case," the blast radius of that same phishing email is far larger.
+
+Practical applications:
+- Application service accounts get only the specific database permissions they need — not full admin access, even if it's more convenient during development.
+- Temporary elevated access (for a specific task) beats permanent elevated access "in case it's needed again."
+- Regularly review who has access to what — permissions tend to accumulate over time as people change roles, and rarely get revoked without a deliberate review.
+
+## Defense in depth
+
+No single security control is perfect, so real security posture layers multiple independent controls — if one fails, others still limit the damage.
+
+Example layering for a web application:
+1. **Network level** — firewall rules restricting what can even reach the server.
+2. **Application level** — input validation, authentication, authorization checks.
+3. **Data level** — encryption at rest, so even a successful breach yields unreadable data.
+4. **Monitoring** — logging and alerting, so a breach is detected quickly rather than discovered months later.
+
+If an attacker gets past the network layer, the application layer is still a real barrier. If they get past both, encrypted data is still not immediately useful to them. No individual layer needs to be perfect for the combination to meaningfully reduce real risk.
+
+## Why both principles together matter
+
+Least privilege limits how much any single compromised point can reach. Defense in depth ensures no single compromised point is enough on its own. Neither substitutes for the other — a tightly-scoped account behind zero other protections, or a heavily-layered system where every account has full access, both fail in the same way, just from different directions.`,
+      },
+      {
+        title: "Practical Security Hygiene",
+        durationMinutes: 5,
+        content: `Most of the security value in day-to-day IT work comes from a small set of unglamorous, consistently-applied habits — not from advanced tooling.
+
+## Patching
+
+Unpatched software is one of the most common real causes of breaches, because known vulnerabilities are, by definition, publicly documented — an attacker doesn't need to discover anything, just check whether a system has applied a fix that's already known. A reasonable patching cadence (especially for anything internet-facing) closes more real risk than most other single practices.
+
+## Multi-factor authentication (MFA)
+
+A stolen or guessed password alone should not be enough to access a system. MFA — a second factor beyond the password (an authenticator app code, a hardware key) — stops the overwhelming majority of credential-based attacks even when a password is compromised. Enabling it broadly, especially on anything with meaningful access, is one of the highest-value, lowest-effort security improvements available.
+
+## Backups, tested
+
+A backup that's never been tested for restoration isn't a reliable backup — it's an assumption. Ransomware specifically targets backups where possible, which is why an offline or immutable backup copy (one an attacker with system access can't also encrypt or delete) matters, not just having a backup that exists somewhere on the same network.
+
+## Logging and monitoring
+
+A breach that isn't noticed for months does far more damage than one caught within hours. Centralized logging and basic alerting on unusual activity (a login from an unexpected location, a sudden spike in data access) turns "we found out three months later from a customer" into "we caught this within the hour."
+
+## The unifying theme
+
+None of this requires exotic tooling or deep specialization — it requires consistency. A sophisticated security architecture with unpatched systems and no MFA is weaker in practice than a simple architecture where these basics are actually, reliably applied.`,
+      },
+    ],
+  },
+  {
+    slug: "networking-fundamentals",
+    title: "Networking Fundamentals",
+    description: "How data actually moves between systems — the model, the protocols, and the troubleshooting instincts that make networking issues less opaque.",
+    category: "Networking",
+    level: "BEGINNER",
+    order: 8,
+    lessons: [
+      {
+        title: "The OSI Model, Practically",
+        durationMinutes: 6,
+        content: `The seven-layer OSI model is often taught as something to memorize for an exam. It's more useful as a mental checklist for isolating where a networking problem actually lives.
+
+## The layers, briefly (bottom to top)
+
+1. **Physical** — actual cables, radio signals, electrical signals.
+2. **Data Link** — how devices on the same local network address each other (MAC addresses, switches).
+3. **Network** — how data finds its way across different networks (IP addresses, routers). This is where "the internet" mostly lives conceptually.
+4. **Transport** — reliable (TCP) or fast-but-unreliable (UDP) delivery between two endpoints, including ports.
+5. **Session** — managing a connection's lifecycle (less commonly a distinct troubleshooting concern in modern practice).
+6. **Presentation** — data format/encoding (e.g., TLS encryption often gets discussed here).
+7. **Application** — what the user-facing protocol actually is (HTTP, DNS, SMTP).
+
+## Why this ordering is the practically useful part
+
+When something's broken, working through the layers from bottom to top is a genuinely efficient debugging method: Is the cable/wifi actually connected (physical)? Does the device have a valid IP address (network)? Can it reach the destination port at all (transport)? Is the application-level request actually succeeding (application)? Most people jump straight to application-layer debugging ("the website's down!") when the actual problem is two layers lower ("this device has no network connectivity at all").
+
+## A concrete example
+
+"I can't reach this website" could mean: no physical network connection, no IP address assigned (DHCP failure), DNS isn't resolving the domain to an IP, the server's port isn't reachable (firewall or the service isn't running), or the server is reachable but returning an error. Each of these is diagnosable with a specific tool (ping, ipconfig/ifconfig, nslookup/dig, telnet/curl) — and knowing which layer you're checking tells you which tool actually answers the question.`,
+      },
+      {
+        title: "TCP/IP and How Data Actually Travels",
+        durationMinutes: 6,
+        content: `Beneath every web request, every video call, and every file transfer is the same underlying model: data broken into packets, addressed, and routed across networks using TCP/IP.
+
+## IP addresses: where something is
+
+An IP address identifies a device on a network — IPv4 addresses (like 192.168.1.1) are the most common, though the internet is gradually transitioning to IPv6 to accommodate far more addresses than IPv4 space allows. Private IP ranges (like 192.168.x.x, 10.x.x.x) are used inside local networks and aren't directly reachable from the public internet — which is what NAT (Network Address Translation) exists to bridge.
+
+## TCP vs. UDP: how reliably it travels
+
+- **TCP (Transmission Control Protocol)** — establishes a connection, guarantees delivery and correct ordering, retransmits lost packets. Used where correctness matters more than raw speed: web browsing, file transfer, email.
+- **UDP (User Datagram Protocol)** — no connection setup, no delivery guarantee, no retransmission. Faster and lower overhead, used where speed matters more than occasional loss: video calls, live streaming, online gaming (a dropped frame is less costly than the delay of waiting for a guaranteed retransmission).
+
+## Ports: which service on that device
+
+A single device can run many network services simultaneously — a port number (0-65535) identifies which one a given piece of traffic is for. Well-known ports are conventional, not enforced: 80 (HTTP), 443 (HTTPS), 22 (SSH), 53 (DNS). This is why a firewall rule often specifies both an IP range and a port — "allow traffic to this address, but only on port 443."
+
+## Putting it together
+
+A web request is, underneath, a TCP connection to a specific IP address on port 443, carrying an HTTP request as its payload, broken into packets that get routed independently across the internet's infrastructure and reassembled in order at the destination. Every layer discussed in the previous lesson is doing real work in that single, everyday action.`,
+      },
+      {
+        title: "DNS: How Names Become Addresses",
+        durationMinutes: 5,
+        content: `DNS (Domain Name System) is the system that turns a human-readable domain name into the IP address a computer actually needs to connect to. It's also one of the most common sources of "mysterious" connectivity problems, because a DNS failure often looks like the destination itself is down.
+
+## The resolution process, simplified
+
+1. Your device asks a DNS resolver (often provided by your ISP or a public one like 8.8.8.8) to resolve a domain.
+2. If the resolver doesn't already have the answer cached, it queries the authoritative chain: root servers → the domain's top-level-domain (TLD) servers → the domain's own authoritative nameservers.
+3. The authoritative nameserver returns the actual IP address, which gets cached at various points along the way (by your resolver, sometimes by your own device) for a duration set by the DNS record's TTL (time to live).
+
+## Common DNS record types
+
+- **A record** — maps a domain to an IPv4 address.
+- **AAAA record** — maps a domain to an IPv6 address.
+- **CNAME record** — maps a domain to another domain name, rather than directly to an IP.
+- **MX record** — specifies which mail servers handle email for a domain.
+- **TXT record** — arbitrary text, commonly used for domain verification and email security (SPF/DKIM/DMARC records).
+
+## Why DNS problems are so often misdiagnosed
+
+If DNS fails to resolve, the symptom is usually "I can't reach this site at all" — which looks identical to the server actually being down, even though the server may be perfectly healthy and simply unreachable because its name isn't resolving to the right address. This is exactly why "check DNS" is one of the first real troubleshooting steps, not a last resort: running nslookup or dig against the domain quickly confirms whether the name is resolving correctly before spending time investigating the server itself.
+
+## TTL and propagation delay
+
+When a DNS record changes (e.g., pointing a domain at a new server), that change doesn't take effect everywhere instantly — cached copies at resolvers around the world persist until their TTL expires. This is why DNS changes can take anywhere from minutes to (rarely) a day or more to be visible everywhere, and why lowering a record's TTL in advance of a planned change is a common practice to speed up the eventual cutover.`,
+      },
+      {
+        title: "Troubleshooting Connectivity Like a Checklist",
+        durationMinutes: 5,
+        content: `Networking problems feel overwhelming mostly because people try to reason about them all at once. Working through a fixed checklist, bottom to top, turns a vague "the internet is broken" into a specific, diagnosable problem.
+
+## A practical troubleshooting order
+
+1. **Is there a physical/link-level connection?** Cable plugged in, wifi actually connected, link light on. (ipconfig/ifconfig shows an interface as up.)
+2. **Does the device have a valid IP address?** A device with no address, or a fallback "link-local" address (like 169.254.x.x), didn't get one from DHCP — the problem is here, not further up the stack.
+3. **Can it reach the local gateway?** Ping the default gateway address. If this fails, the problem is local — not a general "internet is down" issue.
+4. **Can it reach something outside the local network?** Ping a known, reliable public IP (like 8.8.8.8) to test general internet connectivity without involving DNS at all.
+5. **Does DNS resolve?** Run nslookup or dig against the domain. If step 4 works but this fails, the problem is specifically DNS, not general connectivity.
+6. **Is the specific port/service reachable?** telnet to the host on the target port, or curl -v against the URL, tests whether the actual service is responding, isolating problems at the application layer from everything below it.
+
+## Why this order specifically
+
+Each step assumes everything before it works — so a failure at any given step tells you precisely where to focus, instead of investigating the entire stack at once. Someone who jumps straight to "is the website's code broken?" when the real problem is "this device never got a valid IP address" wastes significant time investigating the wrong layer entirely.
+
+## The habit worth building
+
+Even informally, running through this order mentally before diving deep into any specific layer saves real time — most "network is broken" problems turn out to be resolved by identifying which of these six steps actually fails, not by deep expertise in any one of them.`,
+      },
+    ],
+  },
+  {
+    slug: "sql-and-database-fundamentals",
+    title: "SQL and Database Fundamentals",
+    description: "The relational model, writing real queries, and the indexing and normalization concepts that separate a database that works from one that scales.",
+    category: "Databases",
+    level: "BEGINNER",
+    order: 9,
+    lessons: [
+      {
+        title: "The Relational Model and Why Tables Work",
+        durationMinutes: 5,
+        content: `A relational database organizes data into tables — rows and columns — connected to each other through shared keys. Understanding *why* this model works is more useful than memorizing SQL syntax in isolation.
+
+## Tables, rows, and columns
+
+A table represents one type of entity (e.g., "customers," "orders"). Each row is one instance of that entity; each column is one attribute of it. A "customers" table might have columns for id, name, and email, with each row being one actual customer.
+
+## Primary keys: uniquely identifying a row
+
+Every table typically has a primary key — a column (or combination of columns) that uniquely identifies each row. This is what lets other tables reference a specific row reliably, even if other attributes (like a name) might not be unique on their own.
+
+## Foreign keys: connecting tables
+
+A foreign key is a column in one table that references a primary key in another — this is how relational databases represent relationships without duplicating data. An "orders" table with a customer_id column referencing the "customers" table's primary key means each order is linked to exactly one customer, without repeating that customer's full details in every order row.
+
+## Why normalize instead of one giant table
+
+You could store everything — customer info, order info, product info — in a single flat table, but this creates real problems: a customer's email appears once per order they've placed, so updating it means updating potentially hundreds of rows, and any inconsistency between those copies becomes a real data integrity bug. Splitting related data into separate, linked tables (normalization) means each fact is stored once, and relationships handle the connections. The next lesson covers this in more depth.
+
+## The mental model worth keeping
+
+A relational database isn't just "a place to put data" — it's a structured way of representing real-world entities and the relationships between them, in a form the database can enforce consistency on (through keys and constraints) rather than trusting application code to keep everything in sync manually.`,
+      },
+      {
+        title: "Writing Real Queries",
+        durationMinutes: 7,
+        content: `SQL (Structured Query Language) is how you ask a relational database for data, or tell it to change data. A small set of core statements covers the overwhelming majority of real usage.
+
+## SELECT: reading data
+
+\`\`\`sql
+SELECT name, email FROM customers WHERE signup_date > '2026-01-01' ORDER BY signup_date DESC LIMIT 10;
+\`\`\`
+
+This reads as: get the name and email columns, from the customers table, filtered to rows where signup_date is after a given date, sorted newest first, limited to 10 rows. Each clause does one specific job, and they compose in a consistent order (SELECT → FROM → WHERE → ORDER BY → LIMIT).
+
+## JOIN: combining data across tables
+
+Since related data lives in separate tables (previous lesson), reading a complete picture usually means joining them:
+
+\`\`\`sql
+SELECT orders.id, customers.name
+FROM orders
+JOIN customers ON orders.customer_id = customers.id;
+\`\`\`
+
+This connects each order to its customer's name via the foreign key relationship. An **INNER JOIN** (the default) only returns rows that match in both tables; a **LEFT JOIN** returns all rows from the left table even if there's no match in the right one (with NULLs filling the gap) — the distinction matters a lot in practice: using INNER JOIN when you actually needed LEFT JOIN silently drops rows that should have appeared.
+
+## INSERT, UPDATE, DELETE: changing data
+
+\`\`\`sql
+INSERT INTO customers (name, email) VALUES ('Jane Smith', 'jane@example.com');
+UPDATE customers SET email = 'new@example.com' WHERE id = 42;
+DELETE FROM customers WHERE id = 42;
+\`\`\`
+
+The WHERE clause in UPDATE and DELETE is doing critical work — omitting it updates or deletes *every row in the table*, which is one of the most common, most damaging real-world SQL mistakes. Always write and verify the WHERE clause (often by running the equivalent SELECT first) before running an UPDATE or DELETE in a real environment.
+
+## Aggregation: summarizing data
+
+\`\`\`sql
+SELECT customer_id, COUNT(*) AS order_count, SUM(total) AS total_spent
+FROM orders
+GROUP BY customer_id
+HAVING COUNT(*) > 5;
+\`\`\`
+
+GROUP BY collapses rows sharing a value into summary rows; aggregate functions (COUNT, SUM, AVG, MAX, MIN) compute over each group; HAVING filters *after* aggregation (unlike WHERE, which filters before) — a common source of confusion until the distinction clicks.`,
+      },
+      {
+        title: "Indexing: Why Some Queries Are Slow",
+        durationMinutes: 6,
+        content: `A database without the right index has to scan every row to answer a query — fine for a thousand rows, genuinely painful for tens of millions. Indexing is the single highest-leverage performance concept in practical database work.
+
+## What an index actually is
+
+An index is a separate, ordered data structure (typically a B-tree) that lets the database find rows matching a condition without scanning the entire table — conceptually similar to a book's index letting you jump to a page instead of reading cover to cover to find a topic.
+
+## When an index helps
+
+- Columns frequently used in WHERE clauses.
+- Columns used to JOIN tables (foreign keys especially — many databases don't index these automatically, which is a common, quietly serious performance gap).
+- Columns used in ORDER BY, since a sorted index can avoid a separate sort step entirely.
+
+## When an index doesn't help (or actively hurts)
+
+- **Small tables.** A full scan of a few hundred rows is already fast; the index adds overhead without meaningful benefit.
+- **Columns rarely queried.** An index only helps queries that actually use it — indexing every column "just in case" adds real cost without proportional benefit.
+- **Write-heavy tables.** Every index must be updated on every INSERT/UPDATE/DELETE, so excessive indexing slows down writes to speed up reads that may not need it.
+- **Low-cardinality columns** (few distinct values, like a boolean flag) — an index here often doesn't narrow the search space enough to be worth using.
+
+## Reading a query plan
+
+Most databases offer an EXPLAIN (or EXPLAIN ANALYZE) command that shows *how* a query will actually be executed — whether it's using an index or falling back to a full table scan. This is the concrete way to verify whether an index is helping, rather than assuming: a query that "should" be fast but isn't is often traceable directly to a missing or unused index visible right there in the plan.
+
+## The practical habit
+
+Add indexes deliberately, based on the queries a table actually needs to serve well — not reflexively on every column, and not only after a production slowdown forces the investigation. A quick EXPLAIN on a new query during development, before it ever reaches production scale, catches most of these problems early and cheaply.`,
+      },
+      {
+        title: "Transactions and Data Integrity",
+        durationMinutes: 5,
+        content: `Some operations need multiple steps to complete together, or not at all — transferring money between two accounts, for instance, requires both a debit and a credit to succeed together. Transactions exist exactly for this.
+
+## ACID, briefly
+
+- **Atomicity** — a transaction either completes entirely or has no effect at all; there's no partial state where the debit happened but the credit didn't.
+- **Consistency** — a transaction moves the database from one valid state to another, respecting all defined constraints (like foreign keys, uniqueness).
+- **Isolation** — concurrent transactions don't interfere with each other's intermediate states; each transaction behaves as if it were running alone, even when others are running simultaneously.
+- **Durability** — once a transaction commits, it survives even a crash immediately afterward.
+
+## A concrete example
+
+\`\`\`sql
+BEGIN;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+COMMIT;
+\`\`\`
+
+If the second UPDATE fails for any reason (a constraint violation, a crash, a connection drop), the transaction can be rolled back — undoing the first UPDATE too — so the database never ends up in a state where money vanished from one account without appearing in the other.
+
+## Why this matters even for less dramatic examples
+
+The money-transfer example is the classic one, but the same principle applies broadly: creating an order and decrementing inventory, registering a user and creating their default settings row, or any operation where two or more related writes need to succeed or fail as a unit. Without a transaction, a failure partway through leaves the database in an inconsistent state that's often difficult to detect and even harder to repair after the fact.
+
+## Isolation levels, briefly
+
+Full isolation between every concurrent transaction has a real performance cost, so most databases offer configurable isolation levels trading strict correctness for throughput (e.g., PostgreSQL's default "read committed" versus the stricter "serializable"). The right level depends on the workload — financial systems often need stricter guarantees than, say, a page-view counter — but knowing this is a deliberate, adjustable tradeoff (not a fixed constant) is the useful takeaway at this level.`,
+      },
+    ],
+  },
 ];

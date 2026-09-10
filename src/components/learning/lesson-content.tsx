@@ -33,8 +33,25 @@ export function LessonContent({ content }: { content: string }) {
     listItems = [];
   }
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (line.startsWith("```")) {
+      flushList();
+      const codeLines: string[] = [];
+      i += 1;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i += 1;
+      }
+      blocks.push(
+        <pre key={blocks.length} className="overflow-x-auto rounded-md border border-border bg-surface-raised p-3 text-xs">
+          <code className="font-mono text-foreground">{codeLines.join("\n")}</code>
+        </pre>
+      );
+      continue;
+    }
+
     if (!line) {
       flushList();
       continue;
