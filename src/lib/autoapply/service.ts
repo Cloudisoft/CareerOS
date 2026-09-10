@@ -76,15 +76,27 @@ export async function listAppliedUrls(profileId: string) {
   return applications.map((a) => a.job.externalUrl).filter((u): u is string => Boolean(u));
 }
 
-async function findOrCreateExternalJob(companyId: string, input: { url: string; title: string; ats: string }) {
+export async function findOrCreateExternalJob(
+  companyId: string,
+  input: { url: string; title: string; ats: string; description?: string }
+) {
   const existing = await prisma.job.findFirst({ where: { companyId, externalUrl: input.url } });
-  if (existing) return existing;
+  if (existing) {
+    // A real description arriving later (e.g. the package endpoint sees the
+    // full posting) upgrades the placeholder text from a bare application log.
+    if (input.description && existing.description.startsWith("Discovered and applied to via")) {
+      return prisma.job.update({ where: { id: existing.id }, data: { description: input.description } });
+    }
+    return existing;
+  }
 
   return prisma.job.create({
     data: {
       companyId,
       title: input.title || "Untitled role",
-      description: `Discovered and applied to via the Career OS browser extension (${input.ats || "unknown platform"}).`,
+      description:
+        input.description ||
+        `Discovered and applied to via the Career OS browser extension (${input.ats || "unknown platform"}).`,
       status: "CLOSED", // not part of the Career OS marketplace — tracking only
       source: "extension",
       externalUrl: input.url,

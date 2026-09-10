@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CareerOS \u2014 Auto Apply",
   "short_name": "CareerOS",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Finds roles that match you, tailors your resume for each one, and fills the application. You approve before anything is sent.",
   "author": "Career OS",
   "icons": {

@@ -1,14 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ExternalLink, Search, CheckCircle2, Circle, Clock } from "lucide-react";
+import Link from "next/link";
+import { Loader2, ExternalLink, Search, CheckCircle2, Circle, Clock, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UpgradeRequired } from "@/components/billing/upgrade-required";
 import { cn } from "@/lib/utils";
+
+interface CourseSummary {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  level: string;
+  lessonCount: number;
+  completedCount: number;
+  progressPercent: number;
+}
 
 interface Resource {
   id: string;
@@ -93,6 +107,7 @@ export default function LearningHubPage() {
   const [catalog, setCatalog] = useState<Resource[]>([]);
   const [query, setQuery] = useState("");
   const [progress, setProgress] = useState<Record<string, "IN_PROGRESS" | "COMPLETED">>({});
+  const [courses, setCourses] = useState<CourseSummary[]>([]);
 
   async function loadProgress() {
     const res = await fetch("/api/learning/progress");
@@ -114,15 +129,18 @@ export default function LearningHubPage() {
         return;
       }
 
-      const [recRes, catalogRes] = await Promise.all([
+      const [recRes, catalogRes, coursesRes] = await Promise.all([
         fetch("/api/learning/recommended"),
         fetch("/api/learning/resources"),
+        fetch("/api/learning/courses"),
       ]);
       const recJson = await recRes.json();
       const catalogJson = await catalogRes.json();
+      const coursesJson = await coursesRes.json();
       setRecommended(recJson.data?.resources ?? []);
       setMissingSkills(recJson.data?.missingSkills ?? []);
       setCatalog(catalogJson.data?.resources ?? []);
+      setCourses(coursesJson.data?.courses ?? []);
       await loadProgress();
       setLoading(false);
     })();
@@ -182,8 +200,46 @@ export default function LearningHubPage() {
       <Tabs defaultValue="recommended">
         <TabsList>
           <TabsTrigger value="recommended">Recommended</TabsTrigger>
+          <TabsTrigger value="courses">Courses</TabsTrigger>
           <TabsTrigger value="browse">Browse all</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="courses">
+          <p className="mb-3 text-sm text-muted-foreground">
+            Original Career OS courses on the job-search process itself — resumes, interviews, negotiation, and strategy.
+          </p>
+          <div className="space-y-3">
+            {courses.map((c) => (
+              <Link key={c.id} href={`/learning/courses/${c.slug}`}>
+                <Card className="transition-colors hover:border-primary/40">
+                  <CardContent className="space-y-3 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="h-4 w-4 text-muted-foreground" />
+                          <p className="font-medium text-foreground">{c.title}</p>
+                          <Badge variant="outline">{c.category}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>
+                      </div>
+                      {c.progressPercent === 100 && (
+                        <Badge variant="success">
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> Completed
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Progress value={c.progressPercent} className="h-1.5 flex-1" />
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {c.completedCount}/{c.lessonCount} lessons
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </TabsContent>
 
         <TabsContent value="recommended">
           {missingSkills.length === 0 ? (

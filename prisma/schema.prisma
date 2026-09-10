@@ -269,19 +269,20 @@ model CandidateProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  experiences    WorkExperience[]
-  education      Education[]
-  certifications Certification[]
-  languages      CandidateLanguage[]
-  skills         CandidateSkill[]
-  resumes        Resume[]
-  savedJobs      SavedJob[]
-  jobMatches     JobMatch[]
-  applications   Application[]
-  interviewSessions InterviewSession[]
-  learningProgress  LearningProgress[]
-  autoApplySettings AutoApplySettings?
-  autoApplyRuns     AutoApplyRun[]
+  experiences          WorkExperience[]
+  education            Education[]
+  certifications       Certification[]
+  languages            CandidateLanguage[]
+  skills               CandidateSkill[]
+  resumes              Resume[]
+  savedJobs            SavedJob[]
+  jobMatches           JobMatch[]
+  applications         Application[]
+  interviewSessions    InterviewSession[]
+  learningProgress     LearningProgress[]
+  courseLessonProgress CourseLessonProgress[]
+  autoApplySettings    AutoApplySettings?
+  autoApplyRuns        AutoApplyRun[]
 
   @@map("candidate_profiles")
 }
@@ -376,8 +377,8 @@ model Skill {
   name     String  @unique
   category String?
 
-  candidates CandidateSkill[]
-  jobs       JobSkill[]
+  candidates        CandidateSkill[]
+  jobs              JobSkill[]
   learningResources LearningResource[]
 
   @@map("skills")
@@ -519,17 +520,24 @@ model Job {
   externalUrl    String?
   externalId     String?
   source         String         @default("careeros")
+  /**
+   * Past this, the listing auto-closes — a real, non-cron way of keeping
+   * "no longer available" honest without needing the employer (or an
+   * external board) to ever tell us it filled.
+   */
+  expiresAt      DateTime?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  skills       JobSkill[]
-  savedBy      SavedJob[]
-  matches      JobMatch[]
-  applications Application[]
-  resumeScores ResumeScore[]
+  skills            JobSkill[]
+  savedBy           SavedJob[]
+  matches           JobMatch[]
+  applications      Application[]
+  resumeScores      ResumeScore[]
   interviewSessions InterviewSession[]
+  targetedResumes   Resume[]           @relation("ResumeTargetJob")
 
   @@unique([source, externalId])
   @@index([companyId])
@@ -601,6 +609,13 @@ model Resume {
   isPrimary Boolean @default(false)
   content   Json
 
+  /**
+   * The live job this resume is being tailored against, if any — read
+   * fresh at request time so a closed/filled target is never stale.
+   */
+  targetJobId String?
+  targetJob   Job?    @relation("ResumeTargetJob", fields: [targetJobId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -608,6 +623,7 @@ model Resume {
   scores       ResumeScore[]
 
   @@index([profileId])
+  @@index([targetJobId])
   @@map("resumes")
 }
 
@@ -947,14 +963,14 @@ enum InterviewSessionStatus {
 }
 
 model InterviewSession {
-  id        String  @id @default(cuid())
+  id        String           @id @default(cuid())
   profileId String
   profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   jobId     String?
-  job       Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  job       Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
-  type         InterviewType           @default(MIXED)
-  status       InterviewSessionStatus  @default(IN_PROGRESS)
+  type         InterviewType          @default(MIXED)
+  status       InterviewSessionStatus @default(IN_PROGRESS)
   overallScore Int?
   summary      String?
 
@@ -1056,7 +1072,7 @@ enum LearningLevel {
 }
 
 model LearningResource {
-  id       String @id @default(cuid())
+  id       String               @id @default(cuid())
   title    String
   provider String
   url      String
@@ -1083,7 +1099,7 @@ enum LearningProgressStatus {
 }
 
 model LearningProgress {
-  id         String @id @default(cuid())
+  id         String           @id @default(cuid())
   profileId  String
   profile    CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   resourceId String
@@ -1096,6 +1112,65 @@ model LearningProgress {
   @@unique([profileId, resourceId])
   @@index([profileId])
   @@map("learning_progress")
+}
+
+// ============================================================
+// COURSES — real, hosted, original written lessons Career OS
+// authors and owns (vs. LearningResource above, which links out to
+// third-party docs/courses). Gated behind the same `learning`
+// entitlement as the resource catalog.
+// ============================================================
+
+model Course {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  description String
+  category    String
+  level       LearningLevel @default(BEGINNER)
+  order       Int           @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons CourseLesson[]
+
+  @@index([category])
+  @@map("courses")
+}
+
+model CourseLesson {
+  id       String @id @default(cuid())
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  title           String
+  /**
+   * Original written lesson content, markdown.
+   */
+  content         String
+  order           Int
+  durationMinutes Int    @default(5)
+
+  progress CourseLessonProgress[]
+
+  @@unique([courseId, order])
+  @@index([courseId])
+  @@map("course_lessons")
+}
+
+model CourseLessonProgress {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  lessonId  String
+  lesson    CourseLesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  completedAt DateTime @default(now())
+
+  @@unique([profileId, lessonId])
+  @@index([profileId])
+  @@map("course_lesson_progress")
 }
 
 // ============================================================

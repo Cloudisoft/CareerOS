@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { getEntitlements } from "@/lib/billing/entitlements";
 import { computeAndCacheMatch, getProfileForMatching, getJobForMatching } from "@/lib/matching/service";
 import { recomputeCareerReadiness } from "@/lib/scoring/career-readiness";
+import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
 import { apiCatch, apiError, apiOk } from "@/lib/api-response";
 
 /** "Salary Intelligence" — a real comparison of the posted range against the candidate's own, not a fabricated market estimate. */
@@ -34,6 +35,7 @@ function computeSalaryIntelligence(
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    await closeExpiredJobs();
     const job = await prisma.job.findUnique({
       where: { id: params.id },
       include: { company: true, skills: { include: { skill: true } } },

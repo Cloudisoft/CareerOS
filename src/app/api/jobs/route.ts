@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth/session";
 import { getEntitlements } from "@/lib/billing/entitlements";
 import { scoreJobsForProfile } from "@/lib/matching/service";
+import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
 import { apiCatch, apiOk } from "@/lib/api-response";
 import type { Prisma } from "@prisma/client";
 
@@ -10,6 +11,7 @@ const PAGE_SIZE = 20;
 
 export async function GET(req: NextRequest) {
   try {
+    await closeExpiredJobs();
     const params = req.nextUrl.searchParams;
     const q = params.get("q")?.trim();
     const location = params.get("location")?.trim();

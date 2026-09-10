@@ -263,7 +263,7 @@
       /* A tailored package means this posting has its own resume, cover letter
          and screening answers, written and approved for it. Without one the
          content script falls back to the base profile. */
-      const pkg = await Api.getPackage(entry.job.url).catch(() => ({ tailored: false }));
+      const pkg = await Api.getPackage(entry.job).catch(() => ({ tailored: false }));
       if (pkg && pkg.tailored) {
         entry.job.applicationId = pkg.applicationId;
       }

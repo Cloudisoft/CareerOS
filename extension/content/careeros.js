@@ -414,9 +414,17 @@
     /* When a tailored package exists, the form is filled from the resume
        written for this specific posting rather than the base profile. That
        distinction is the whole product: a spray tool sends one resume
-       everywhere, this sends the one written for this role. */
-    const profileForFill = tailored?.resume
-      ? Profile.hydrate(Object.assign({}, state.profile, tailored.resume))
+       everywhere, this sends the one written for this role.
+
+       Only narrative.summary is ever overridden today, so this merges one
+       level into narrative rather than replacing it outright — a shallow
+       Object.assign here would silently drop whyLeaving/availableFrom. */
+    const profileForFill = tailored?.tailoredResume
+      ? Profile.hydrate(
+          Object.assign({}, state.profile, {
+            narrative: Object.assign({}, state.profile.narrative, tailored.tailoredResume.narrative)
+          })
+        )
       : state.profile;
 
     return {

@@ -52,6 +52,8 @@ export const updateResumeSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   isPrimary: z.boolean().optional(),
   content: resumeContentSchema.optional(),
+  /** The live job to tailor this resume against. Pass null to clear it. */
+  targetJobId: z.string().trim().min(1).nullable().optional(),
 });
 
 export const rewriteBulletSchema = z.object({

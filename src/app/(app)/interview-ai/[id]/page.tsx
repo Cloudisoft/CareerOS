@@ -1,14 +1,81 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { CircularProgress } from "@/components/ui/circular-progress";
+
+/** The Web Speech API has no official TS lib types; this is the minimal
+    shape this component actually uses. Free, native, no server round trip. */
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: { transcript: string };
+}
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+}
+
+function useVoiceInput(onFinalText: (text: string) => void) {
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [listening, setListening] = useState(false);
+  const [supported, setSupported] = useState(false);
+
+  useEffect(() => {
+    const Ctor =
+      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition ??
+      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
+    setSupported(Boolean(Ctor));
+  }, []);
+
+  function start() {
+    const Ctor =
+      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition ??
+      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
+    if (!Ctor) return;
+
+    const recognition = new Ctor();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+    recognition.onresult = (event) => {
+      let text = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) text += result[0].transcript;
+      }
+      if (text.trim()) onFinalText(text.trim());
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }
+
+  function stop() {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }
+
+  return { supported, listening, start, stop };
+}
 
 interface Question {
   id: string;
@@ -39,6 +106,7 @@ export default function InterviewSessionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const voice = useVoiceInput((text) => setDraft((prev) => (prev ? `${prev} ${text}` : text)));
 
   async function load() {
     const res = await fetch(`/api/interview/sessions/${params.id}`);
@@ -175,12 +243,30 @@ export default function InterviewSessionPage() {
               <CardContent className="space-y-4 p-6">
                 <Badge variant="outline">{current.category}</Badge>
                 <p className="text-lg font-medium text-foreground">{current.question}</p>
-                <Textarea
-                  rows={8}
-                  placeholder="Type your answer…"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                />
+                <div className="relative">
+                  <Textarea
+                    rows={8}
+                    placeholder="Type your answer, or use the mic to speak it…"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    className={voice.supported ? "pb-12" : undefined}
+                  />
+                  {voice.supported && (
+                    <Button
+                      type="button"
+                      variant={voice.listening ? "secondary" : "ghost"}
+                      size="icon"
+                      className="absolute bottom-2 right-2"
+                      onClick={voice.listening ? voice.stop : voice.start}
+                      aria-label={voice.listening ? "Stop recording" : "Answer by voice"}
+                    >
+                      {voice.listening ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}
+                    </Button>
+                  )}
+                </div>
+                {voice.listening && (
+                  <p className="text-xs text-muted-foreground">Listening… speak your answer, then stop when done.</p>
+                )}
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button onClick={submitAnswer} disabled={submitting || !draft.trim()}>
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}

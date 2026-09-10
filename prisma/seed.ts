@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { COURSES } from "./courses-seed-data";
 
 const prisma = new PrismaClient();
 
@@ -903,6 +904,51 @@ async function seedLearningResources() {
   console.log(`Seeded ${count} learning resources.`);
 }
 
+async function seedCourses() {
+  let lessonCount = 0;
+  for (const course of COURSES) {
+    const record = await prisma.course.upsert({
+      where: { slug: course.slug },
+      update: {
+        title: course.title,
+        description: course.description,
+        category: course.category,
+        level: course.level,
+        order: course.order,
+      },
+      create: {
+        slug: course.slug,
+        title: course.title,
+        description: course.description,
+        category: course.category,
+        level: course.level,
+        order: course.order,
+      },
+    });
+
+    for (let index = 0; index < course.lessons.length; index++) {
+      const lesson = course.lessons[index];
+      await prisma.courseLesson.upsert({
+        where: { courseId_order: { courseId: record.id, order: index } },
+        update: {
+          title: lesson.title,
+          content: lesson.content,
+          durationMinutes: lesson.durationMinutes,
+        },
+        create: {
+          courseId: record.id,
+          title: lesson.title,
+          content: lesson.content,
+          order: index,
+          durationMinutes: lesson.durationMinutes,
+        },
+      });
+      lessonCount += 1;
+    }
+  }
+  console.log(`Seeded ${COURSES.length} courses with ${lessonCount} lessons.`);
+}
+
 async function main() {
   for (const skill of SKILLS) {
     await prisma.skill.upsert({
@@ -915,6 +961,7 @@ async function main() {
 
   await seedCompaniesAndJobs();
   await seedLearningResources();
+  await seedCourses();
 }
 
 main()

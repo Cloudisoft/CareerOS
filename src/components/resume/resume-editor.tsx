@@ -2,20 +2,35 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Plus, Trash2, Loader2, Check, Star, Printer } from "lucide-react";
+import { Sparkles, Plus, Trash2, Loader2, Check, Star, Printer, Target, X, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { TagInput } from "@/components/ui/tag-input";
 import type { ResumeContent, ResumeExperience, ResumeEducation } from "@/lib/validations/resume";
+
+interface TargetJob {
+  id: string;
+  title: string;
+  company: string;
+  status: string;
+}
 
 interface ResumeEditorProps {
   resumeId: string;
   initialName: string;
   initialIsPrimary: boolean;
   initialContent: ResumeContent;
+  initialTargetJob: TargetJob | null;
+}
+
+interface JobSearchResult {
+  id: string;
+  title: string;
+  company: { name: string };
 }
 
 const EMPTY_EXPERIENCE: ResumeExperience = {
@@ -30,7 +45,7 @@ const EMPTY_EXPERIENCE: ResumeExperience = {
 
 const EMPTY_EDUCATION: ResumeEducation = { school: "", degree: "", fieldOfStudy: "", startDate: "", endDate: "" };
 
-export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialContent }: ResumeEditorProps) {
+export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialContent, initialTargetJob }: ResumeEditorProps) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
   const [isPrimary, setIsPrimary] = useState(initialIsPrimary);
@@ -39,6 +54,11 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
   const [saved, setSaved] = useState(false);
   const [improvingSummary, setImprovingSummary] = useState(false);
   const [rewritingBulletKey, setRewritingBulletKey] = useState<string | null>(null);
+  const [targetJob, setTargetJob] = useState<TargetJob | null>(initialTargetJob);
+  const [jobQuery, setJobQuery] = useState("");
+  const [jobResults, setJobResults] = useState<JobSearchResult[]>([]);
+  const [searchingJobs, setSearchingJobs] = useState(false);
+  const [settingTarget, setSettingTarget] = useState(false);
 
   function update(patch: Partial<ResumeContent>) {
     setContent((prev) => ({ ...prev, ...patch }));
@@ -59,6 +79,33 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
   async function remove() {
     await fetch(`/api/resumes/${resumeId}`, { method: "DELETE" });
     router.push("/resume-studio");
+  }
+
+  async function searchJobs(q: string) {
+    setJobQuery(q);
+    if (q.trim().length < 2) {
+      setJobResults([]);
+      return;
+    }
+    setSearchingJobs(true);
+    const res = await fetch(`/api/jobs?q=${encodeURIComponent(q)}`);
+    const json = await res.json();
+    setSearchingJobs(false);
+    if (res.ok) setJobResults(json.data.jobs.slice(0, 6));
+  }
+
+  async function setTarget(job: JobSearchResult | null) {
+    setSettingTarget(true);
+    const res = await fetch(`/api/resumes/${resumeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetJobId: job ? job.id : null }),
+    });
+    setSettingTarget(false);
+    if (!res.ok) return;
+    setTargetJob(job ? { id: job.id, title: job.title, company: job.company.name, status: "OPEN" } : null);
+    setJobQuery("");
+    setJobResults([]);
   }
 
   async function improveSummary() {
@@ -153,6 +200,64 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Target className="h-4 w-4" /> Tailor to a job
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {targetJob ? (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {targetJob.title} <span className="text-muted-foreground">· {targetJob.company}</span>
+                </p>
+                {targetJob.status !== "OPEN" ? (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                    <AlertTriangle className="h-3.5 w-3.5" /> This job is no longer available — pick another target.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    AI rewrites on this resume are tailored toward this role automatically.
+                  </p>
+                )}
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setTarget(null)} disabled={settingTarget} aria-label="Clear target job">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Input
+                value={jobQuery}
+                onChange={(e) => searchJobs(e.target.value)}
+                placeholder="Search open jobs on Career OS to tailor toward…"
+              />
+              {searchingJobs && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              {jobResults.length > 0 && (
+                <div className="space-y-1">
+                  {jobResults.map((job) => (
+                    <button
+                      key={job.id}
+                      type="button"
+                      onClick={() => setTarget(job)}
+                      disabled={settingTarget}
+                      className="flex w-full items-center justify-between rounded-md border border-border p-2 text-left text-sm hover:bg-surface-raised"
+                    >
+                      <span>
+                        {job.title} <span className="text-muted-foreground">· {job.company.name}</span>
+                      </span>
+                      <Badge variant="outline">Target</Badge>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">

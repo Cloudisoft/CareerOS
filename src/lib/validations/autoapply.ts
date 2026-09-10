@@ -24,6 +24,14 @@ export const extensionPackageSubmittedSchema = z.object({
   applicationId: z.string().trim().min(1),
 });
 
+export const extensionPackageRequestSchema = z.object({
+  jobUrl: z.string().trim().min(1).max(2000),
+  title: z.string().trim().max(200).default(""),
+  company: z.string().trim().max(200).default(""),
+  description: z.string().trim().max(8000).default(""),
+  ats: z.string().trim().max(60).default(""),
+});
+
 export const extensionRunSchema = z.object({
   runId: z.string().trim().min(1).max(120),
   status: z.enum(["running", "finished"]),

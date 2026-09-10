@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { findOrCreateExternalCompany } from "@/lib/company/service";
+import { externalJobExpiry, closeExpiredJobs } from "@/lib/jobs/lifecycle";
 import { fetchAdzunaJobs } from "./adzuna";
 import { fetchJSearchJobs } from "./jsearch";
 import type { NormalizedExternalJob } from "./types";
@@ -31,6 +32,9 @@ async function upsertExternalJob(job: NormalizedExternalJob): Promise<"created" 
     salaryMax: job.salaryMax,
     salaryCurrency: job.salaryCurrency,
     status: "OPEN" as const,
+    // Re-confirmed by this sync, so its clock resets — an old listing that
+    // stops showing up in fresh scans ages out on its own (see lifecycle.ts).
+    expiresAt: externalJobExpiry(),
     externalUrl: job.externalUrl,
     externalId: job.externalId,
     source: job.source,
@@ -85,5 +89,6 @@ export async function syncExternalJobs(queries: string[], options?: { country?: 
     results.push(result);
   }
 
+  await closeExpiredJobs();
   return results;
 }

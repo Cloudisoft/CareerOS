@@ -93,12 +93,17 @@ export async function createResume(profileId: string, name: string, fromProfile:
 export async function updateResume(
   profileId: string,
   resumeId: string,
-  patch: { name?: string; isPrimary?: boolean; content?: ResumeContent }
+  patch: { name?: string; isPrimary?: boolean; content?: ResumeContent; targetJobId?: string | null }
 ) {
   await getResume(profileId, resumeId); // ownership check
 
   if (patch.isPrimary) {
     await prisma.resume.updateMany({ where: { profileId }, data: { isPrimary: false } });
+  }
+
+  if (patch.targetJobId) {
+    const job = await prisma.job.findUnique({ where: { id: patch.targetJobId } });
+    if (!job || job.deletedAt) throw new ResumeServiceError("That job could not be found.", "JOB_NOT_FOUND");
   }
 
   const resume = await prisma.resume.update({
@@ -107,6 +112,7 @@ export async function updateResume(
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.isPrimary !== undefined ? { isPrimary: patch.isPrimary } : {}),
       ...(patch.content !== undefined ? { content: patch.content } : {}),
+      ...(patch.targetJobId !== undefined ? { targetJobId: patch.targetJobId } : {}),
     },
   });
   await recomputeCareerReadiness(profileId);

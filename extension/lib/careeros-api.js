@@ -149,13 +149,25 @@
       return request('/sync');
     },
 
-    /* The tailored package for a specific posting, if one was approved.
-       Returns { tailored: false } when there isn't one, and the caller falls
-       back to the base profile rather than refusing — someone who navigated to
-       a posting themselves should still get their form filled. */
-    async getPackage(jobUrl) {
+    /* The tailored package for a specific posting — a resume summary and
+       cover letter written for it, generated server-side the first time this
+       posting is seen and cached after that. Returns { tailored: false } on
+       any failure (not entitled, rate-limited, no profile yet), and the
+       caller falls back to the base profile rather than refusing — someone
+       who navigated to a posting themselves should still get their form
+       filled. */
+    async getPackage(job) {
       try {
-        return await request(`/package?jobUrl=${encodeURIComponent(jobUrl)}`);
+        return await request('/package', {
+          method: 'POST',
+          body: JSON.stringify({
+            jobUrl: job.url,
+            title: job.title || '',
+            company: job.company || '',
+            description: job.description || '',
+            ats: job.ats || '',
+          }),
+        });
       } catch (err) {
         return { tailored: false };
       }

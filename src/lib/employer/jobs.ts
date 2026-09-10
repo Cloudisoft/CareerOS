@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { JobInput } from "@/lib/validations/employer";
+import { employerJobExpiry } from "@/lib/jobs/lifecycle";
 
 export class EmployerJobError extends Error {
   code: string;
@@ -51,6 +52,7 @@ export async function createJobForCompany(companyId: string, input: JobInput) {
       salaryMax: input.salaryMax ?? null,
       salaryCurrency: input.salaryCurrency,
       status: "OPEN",
+      expiresAt: employerJobExpiry(),
       skills: {
         create: skillIds.map((skillId) => ({ skillId, required: true })),
       },
@@ -74,6 +76,8 @@ export async function updateJobForCompany(companyId: string, jobId: string, inpu
       salaryMin: input.salaryMin ?? null,
       salaryMax: input.salaryMax ?? null,
       salaryCurrency: input.salaryCurrency,
+      // Editing a live posting is the "still open" signal that renews it.
+      expiresAt: employerJobExpiry(),
       skills: {
         deleteMany: {},
         create: skillIds.map((skillId) => ({ skillId, required: true })),
@@ -84,7 +88,10 @@ export async function updateJobForCompany(companyId: string, jobId: string, inpu
 
 export async function setJobStatus(companyId: string, jobId: string, status: "DRAFT" | "OPEN" | "CLOSED" | "ARCHIVED") {
   await getJobForCompany(companyId, jobId);
-  return prisma.job.update({ where: { id: jobId }, data: { status } });
+  return prisma.job.update({
+    where: { id: jobId },
+    data: { status, ...(status === "OPEN" ? { expiresAt: employerJobExpiry() } : {}) },
+  });
 }
 
 export async function deleteJobForCompany(companyId: string, jobId: string) {
