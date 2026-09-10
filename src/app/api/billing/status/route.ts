@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/auth/session";
-import { getEntitlements } from "@/lib/billing/entitlements";
+import { getEntitlements, serializeEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/prisma";
 import { isStripeConfigured } from "@/lib/stripe/client";
 import { apiCatch, apiError, apiOk } from "@/lib/api-response";
@@ -16,7 +16,7 @@ export async function GET() {
     ]);
 
     return apiOk({
-      entitlements,
+      entitlements: serializeEntitlements(entitlements),
       subscription: subscription
         ? {
             plan: subscription.plan,

@@ -9,7 +9,7 @@ import { apiCatch, apiOk } from "@/lib/api-response";
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { user, profile } = await requireCandidate();
-    await requireEntitlement(user.id, "resumeOptimization");
+    const entitlements = await requireEntitlement(user.id, "resumeOptimization");
     await getResume(profile.id, params.id); // ownership check
     const input = improveSummarySchema.parse(await req.json());
 
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       headline: profile.headline ?? undefined,
       currentTitle: profile.currentTitle ?? undefined,
       jobDescription: input.jobDescription,
+      executiveMode: entitlements.executiveMode,
     });
     return apiOk(result);
   } catch (error) {

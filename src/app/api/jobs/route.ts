@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth/session";
+import { getEntitlements } from "@/lib/billing/entitlements";
 import { scoreJobsForProfile } from "@/lib/matching/service";
 import { apiCatch, apiOk } from "@/lib/api-response";
 import type { Prisma } from "@prisma/client";
@@ -50,8 +51,11 @@ export async function GET(req: NextRequest) {
     const user = await getSessionUser();
     let scores = new Map<string, number>();
     if (user && user.role === "CANDIDATE") {
-      const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
-      if (profile) scores = await scoreJobsForProfile(profile.id, jobs.map((j) => j.id));
+      const entitlements = await getEntitlements(user.id);
+      if (entitlements.matchInsights) {
+        const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
+        if (profile) scores = await scoreJobsForProfile(profile.id, jobs.map((j) => j.id));
+      }
     }
 
     return apiOk({

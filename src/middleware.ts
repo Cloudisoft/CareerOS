@@ -3,7 +3,7 @@ import { SESSION_COOKIE } from "@/lib/auth/constants";
 
 // "/jobs" is intentionally public — browsing the marketplace doesn't require an
 // account, only applying/saving does (enforced at the API layer, not here).
-const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/applications", "/auto-apply", "/resume-studio", "/ats-scanner", "/job-gpt", "/interview-ai", "/learning", "/network", "/messages", "/profile", "/notifications", "/employer", "/admin", "/settings", "/extension-connect"];
+const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/applications", "/auto-apply", "/resume-studio", "/cover-letter-studio", "/ats-scanner", "/job-gpt", "/interview-ai", "/learning", "/network", "/messages", "/profile", "/notifications", "/employer", "/admin", "/settings", "/extension-connect"];
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
@@ -33,6 +33,7 @@ export const config = {
     "/applications/:path*",
     "/auto-apply/:path*",
     "/resume-studio/:path*",
+    "/cover-letter-studio/:path*",
     "/ats-scanner/:path*",
     "/job-gpt/:path*",
     "/interview-ai/:path*",

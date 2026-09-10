@@ -4,6 +4,7 @@ import { Briefcase, FileText, TrendingUp } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { getCompanyForUser, getCompanyDashboardStats } from "@/lib/company/service";
+import { getEntitlements } from "@/lib/billing/entitlements";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -134,10 +135,13 @@ export default async function DashboardPage() {
     );
   }
 
-  const profile = await prisma.candidateProfile.findUnique({
-    where: { userId: user.id },
-    include: { _count: { select: { skills: true, experiences: true, resumes: true } } },
-  });
+  const [profile, entitlements] = await Promise.all([
+    prisma.candidateProfile.findUnique({
+      where: { userId: user.id },
+      include: { _count: { select: { skills: true, experiences: true, resumes: true } } },
+    }),
+    getEntitlements(user.id),
+  ]);
 
   const nextBestAction = getNextBestAction(profile);
 
@@ -191,20 +195,28 @@ export default async function DashboardPage() {
               Calculated from your resume, profile completeness, skills, interview practice, and
               job match quality.
             </p>
-            <div className="mt-6 grid grid-cols-3 gap-4">
-              {[
-                ["Resume", profile?.resumeScore ?? 0],
-                ["Profile", profile?.profileScore ?? 0],
-                ["Skills", profile?.skillsScore ?? 0],
-                ["Interview", profile?.interviewScore ?? 0],
-                ["Job Match", profile?.jobMatchScore ?? 0],
-              ].map(([label, val]) => (
-                <div key={label as string}>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-lg font-semibold text-foreground">{val}</p>
-                </div>
-              ))}
-            </div>
+            {entitlements.careerAnalytics ? (
+              <div className="mt-6 grid grid-cols-3 gap-4">
+                {[
+                  ["Resume", profile?.resumeScore ?? 0],
+                  ["Profile", profile?.profileScore ?? 0],
+                  ["Skills", profile?.skillsScore ?? 0],
+                  ["Interview", profile?.interviewScore ?? 0],
+                  ["Job Match", profile?.jobMatchScore ?? 0],
+                ].map(([label, val]) => (
+                  <div key={label as string}>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="text-lg font-semibold text-foreground">{val}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-6 flex items-center gap-3">
+                <Link href="/pricing" className="text-sm text-primary hover:underline">
+                  Upgrade to Basic to see your full Career Analytics breakdown
+                </Link>
+              </div>
+            )}
           </div>
           <CircularProgress value={profile?.careerReadinessScore ?? 0} size={140} label="Overall" />
         </CardContent>

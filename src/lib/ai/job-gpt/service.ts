@@ -12,6 +12,10 @@ Rules you never break:
 - Be direct and specific. No filler openings, no "I'd be happy to help" — just help.
 - Keep answers focused; use short paragraphs or a few bullets, not long essays, unless the candidate asks for depth.`;
 
+/** Elite's "Executive Career Coaching" — same real Job GPT, an executive-level coaching frame. */
+const EXECUTIVE_COACHING_PROMPT =
+  "\n\nThis candidate is on Career OS Elite: frame advice as executive career coaching — organizational impact, board/investor narrative, and executive positioning, not entry-level job-search tactics.";
+
 export class JobGptError extends Error {
   code: string;
   constructor(message: string, code: string) {
@@ -20,10 +24,27 @@ export class JobGptError extends Error {
   }
 }
 
-export async function listConversations(userId: string) {
+export async function listConversations(userId: string, take?: number) {
   return prisma.aiConversation.findMany({
     where: { userId, kind: "JOB_GPT" },
     orderBy: { updatedAt: "desc" },
+    ...(take ? { take } : {}),
+  });
+}
+
+function startOfMonthUtc() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/** For enforcing jobGptMonthlyMessageLimit — counts this user's own messages, not the AI's replies. */
+export async function countMonthlyUserMessages(userId: string) {
+  return prisma.aiMessage.count({
+    where: {
+      role: "USER",
+      conversation: { userId, kind: "JOB_GPT" },
+      createdAt: { gte: startOfMonthUtc() },
+    },
   });
 }
 
@@ -50,7 +71,7 @@ export async function deleteConversation(userId: string, conversationId: string)
   await prisma.aiConversation.delete({ where: { id: conversationId } });
 }
 
-export async function sendMessage(userId: string, conversationId: string, text: string) {
+export async function sendMessage(userId: string, conversationId: string, text: string, executiveMode = false) {
   const conversation = await getConversation(userId, conversationId);
   const careerContext = await buildCareerContext(userId);
 
@@ -65,7 +86,7 @@ export async function sendMessage(userId: string, conversationId: string, text: 
   ];
 
   const { text: replyText, provider } = await generateChat({
-    system: `${SYSTEM_PROMPT}\n\nCareerContext for this candidate:\n${careerContext}`,
+    system: `${SYSTEM_PROMPT}${executiveMode ? EXECUTIVE_COACHING_PROMPT : ""}\n\nCareerContext for this candidate:\n${careerContext}`,
     messages: history,
     maxTokens: 1024,
   });

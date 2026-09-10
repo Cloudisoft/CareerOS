@@ -10,7 +10,7 @@ import { apiCatch, apiError, apiOk } from "@/lib/api-response";
 export async function POST(req: NextRequest) {
   try {
     const { user, profile } = await requireCandidate();
-    await requireEntitlement(user.id, "atsScanner");
+    const entitlements = await requireEntitlement(user.id, "atsScanner");
     const input = atsScanSchema.parse(await req.json());
 
     const resume = await getResume(profile.id, input.resumeId);
@@ -41,7 +41,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return apiOk({ result, scoreId: scoreRecord.id });
+    const response = entitlements.atsScannerDetail
+      ? result
+      : { score: result.score, keywordScore: result.keywordScore, formatScore: result.formatScore };
+
+    return apiOk({ result: response, scoreId: scoreRecord.id });
   } catch (error) {
     return apiCatch(error);
   }

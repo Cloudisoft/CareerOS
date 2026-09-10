@@ -111,6 +111,15 @@ Respond with ONLY JSON, no markdown code fences, no prose, in exactly this shape
   }
 }
 
+function startOfMonthUtc() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+export async function countSessionsThisMonth(profileId: string) {
+  return prisma.interviewSession.count({ where: { profileId, createdAt: { gte: startOfMonthUtc() } } });
+}
+
 export async function listSessions(profileId: string) {
   return prisma.interviewSession.findMany({
     where: { profileId },

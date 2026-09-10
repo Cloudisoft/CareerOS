@@ -26,9 +26,10 @@ interface AtsResult {
   score: number;
   keywordScore: number;
   formatScore: number;
-  matchedKeywords: string[];
-  missingKeywords: string[];
-  recommendations: string[];
+  // Omitted for plans without Advanced Resume Truth (Standard+ or the Resume Studio add-on).
+  matchedKeywords?: string[];
+  missingKeywords?: string[];
+  recommendations?: string[];
 }
 
 export default function AtsScannerPage() {
@@ -147,53 +148,64 @@ export default function AtsScannerPage() {
             </CardContent>
           </Card>
 
-          {result.matchedKeywords.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-success" /> Matched keywords
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-1.5 pt-0">
-                {result.matchedKeywords.map((k) => (
-                  <Badge key={k} variant="success">
-                    {k}
-                  </Badge>
-                ))}
+          {result.matchedKeywords === undefined ? (
+            <Card className="border-primary/40">
+              <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                Upgrade to Standard (or add Resume Studio) for Advanced Resume Truth — the full
+                matched/missing keyword breakdown and specific recommendations.
               </CardContent>
             </Card>
-          )}
+          ) : (
+            <>
+              {result.matchedKeywords.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-success" /> Matched keywords
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-1.5 pt-0">
+                    {result.matchedKeywords.map((k) => (
+                      <Badge key={k} variant="success">
+                        {k}
+                      </Badge>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
-          {result.missingKeywords.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <XCircle className="h-4 w-4 text-destructive" /> Missing keywords
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-1.5 pt-0">
-                {result.missingKeywords.map((k) => (
-                  <Badge key={k} variant="outline">
-                    {k}
-                  </Badge>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+              {result.missingKeywords && result.missingKeywords.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <XCircle className="h-4 w-4 text-destructive" /> Missing keywords
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-1.5 pt-0">
+                    {result.missingKeywords.map((k) => (
+                      <Badge key={k} variant="outline">
+                        {k}
+                      </Badge>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
-          {result.recommendations.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Recommendations</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <ul className="space-y-1.5 text-sm text-muted-foreground">
-                  {result.recommendations.map((r) => (
-                    <li key={r}>· {r}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+              {result.recommendations && result.recommendations.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Recommendations</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <ul className="space-y-1.5 text-sm text-muted-foreground">
+                      {result.recommendations.map((r) => (
+                        <li key={r}>· {r}</li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </>
       )}

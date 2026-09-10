@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const updateAutoApplySettingsSchema = z.object({
   minMatchScore: z.coerce.number().int().min(0).max(100),
-  dailyLimit: z.coerce.number().int().min(0).max(100),
+  monthlyLimit: z.coerce.number().int().min(0).max(100000),
   pacingSeconds: z.coerce.number().int().min(10).max(600),
   concurrency: z.coerce.number().int().min(1).max(3),
   autoSubmit: z.boolean(),

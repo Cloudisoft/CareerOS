@@ -4,8 +4,19 @@ import { generateText } from "@/lib/ai/gateway";
 const GROUNDING_RULE =
   "Never invent employers, dates, degrees, certifications, numbers, or achievements that aren't already stated in what you're given. If asked to quantify something with no basis for a number, rephrase for impact without fabricating a metric.";
 
-export async function rewriteResumeBullet(input: { bullet: string; jobTitle?: string; jobDescription?: string }) {
-  const system = `You rewrite resume bullet points to be concise, impact-first, and quantified where the input already supports it. ${GROUNDING_RULE} Return only the rewritten bullet — no preamble, no quotes, no bullet character.`;
+/** Elite's "Executive Resume Optimization" — same real AI tools, an executive-caliber editorial bar. */
+const EXECUTIVE_RULE =
+  " Write at an executive level: board- and C-suite-appropriate language, emphasis on scope, scale, and strategic impact over task-level detail.";
+
+export async function rewriteResumeBullet(input: {
+  bullet: string;
+  jobTitle?: string;
+  jobDescription?: string;
+  executiveMode?: boolean;
+}) {
+  const system = `You rewrite resume bullet points to be concise, impact-first, and quantified where the input already supports it. ${GROUNDING_RULE}${
+    input.executiveMode ? EXECUTIVE_RULE : ""
+  } Return only the rewritten bullet — no preamble, no quotes, no bullet character.`;
 
   const context = input.jobDescription
     ? `\n\nTailor the phrasing (not the facts) toward this target role:\nTitle: ${input.jobTitle ?? "unknown"}\n${input.jobDescription.slice(0, 2000)}`
@@ -26,8 +37,11 @@ export async function improveResumeSummary(input: {
   currentTitle?: string;
   topSkills?: string[];
   jobDescription?: string;
+  executiveMode?: boolean;
 }) {
-  const system = `You write concise, first-person resume summaries (2-3 sentences). ${GROUNDING_RULE} Return only the summary text — no preamble, no quotes.`;
+  const system = `You write concise, first-person resume summaries (2-3 sentences). ${GROUNDING_RULE}${
+    input.executiveMode ? EXECUTIVE_RULE : ""
+  } Return only the summary text — no preamble, no quotes.`;
 
   const facts = [
     input.currentTitle ? `Current title: ${input.currentTitle}` : "",

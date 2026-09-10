@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe/client";
 import { getPlanPriceId, getAddOnPriceId } from "@/lib/stripe/prices";
-import type { PlanKey, AddOnKey } from "@/lib/billing/plans";
+import type { PayablePlanKey, AddOnKey } from "@/lib/billing/plans";
 import type { User } from "@prisma/client";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -20,7 +20,7 @@ async function getOrCreateStripeCustomerId(user: User): Promise<string> {
   return customer.id;
 }
 
-export async function createPlanCheckoutSession(user: User, plan: PlanKey) {
+export async function createPlanCheckoutSession(user: User, plan: PayablePlanKey) {
   const stripe = getStripeClient();
   const customerId = await getOrCreateStripeCustomerId(user);
 

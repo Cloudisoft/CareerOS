@@ -1,7 +1,7 @@
 import "server-only";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
-import type { PlanKey, AddOnKey } from "@/lib/billing/plans";
+import type { PayablePlanKey, AddOnKey } from "@/lib/billing/plans";
 
 function mapStripeStatus(status: Stripe.Subscription.Status): "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED" | "INCOMPLETE" {
   switch (status) {
@@ -34,7 +34,7 @@ async function syncSubscriptionFromStripe(subscription: Stripe.Subscription) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
   if (kind === "plan") {
-    const plan = subscription.metadata.plan as PlanKey;
+    const plan = subscription.metadata.plan as PayablePlanKey;
     await prisma.subscription.upsert({
       where: { userId },
       create: {

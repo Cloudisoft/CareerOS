@@ -47,10 +47,17 @@ interface MatchInfo {
   gaps: string[];
 }
 
+interface SalaryIntelligence {
+  overlapPercent: number;
+  meetsMinimum: boolean;
+  gapAmount: number | null;
+}
+
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<JobDetail | null>(null);
   const [match, setMatch] = useState<MatchInfo | null>(null);
+  const [salaryIntelligence, setSalaryIntelligence] = useState<SalaryIntelligence | null>(null);
   const [saved, setSaved] = useState(false);
   const [alreadyApplied, setAlreadyApplied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -72,6 +79,7 @@ export default function JobDetailPage() {
       if (jobRes.ok) {
         setJob(json.data.job);
         setMatch(json.data.match);
+        setSalaryIntelligence(json.data.salaryIntelligence);
         setSaved(json.data.saved);
         setAlreadyApplied(json.data.alreadyApplied);
       }
@@ -238,32 +246,34 @@ export default function JobDetailPage() {
         </div>
       </div>
 
-      {authed && match && (
+      {authed && (match || salaryIntelligence) && (
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Your match</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4 p-6 pt-0">
-              <CircularProgress value={match.score} size={110} />
-              <div className="w-full space-y-2 text-sm">
-                {[
-                  ["Skills", match.skillsScore],
-                  ["Title & level", match.titleScore],
-                  ["Experience", match.experienceScore],
-                  ["Location", match.locationScore],
-                  ["Salary", match.salaryScore],
-                ].map(([label, val]) => (
-                  <div key={label as string} className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium text-foreground">{val}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {match && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Your match</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-4 p-6 pt-0">
+                <CircularProgress value={match.score} size={110} />
+                <div className="w-full space-y-2 text-sm">
+                  {[
+                    ["Skills", match.skillsScore],
+                    ["Title & level", match.titleScore],
+                    ["Experience", match.experienceScore],
+                    ["Location", match.locationScore],
+                    ["Salary", match.salaryScore],
+                  ].map(([label, val]) => (
+                    <div key={label as string} className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-medium text-foreground">{val}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          {match.reasons.length > 0 && (
+          {match && match.reasons.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Why you match</CardTitle>
@@ -278,7 +288,7 @@ export default function JobDetailPage() {
             </Card>
           )}
 
-          {match.gaps.length > 0 && (
+          {match && match.gaps.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Potential gaps</CardTitle>
@@ -289,6 +299,29 @@ export default function JobDetailPage() {
                     <li key={g}>· {g}</li>
                   ))}
                 </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {salaryIntelligence && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Salary Intelligence</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 pt-0 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Overlap with your range</span>
+                  <span className="font-medium text-foreground">{salaryIntelligence.overlapPercent}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Meets your minimum</span>
+                  <span className="font-medium text-foreground">{salaryIntelligence.meetsMinimum ? "Yes" : "No"}</span>
+                </div>
+                {salaryIntelligence.gapAmount != null && (
+                  <p className="text-xs text-muted-foreground">
+                    About ${salaryIntelligence.gapAmount.toLocaleString()} below what you're looking for.
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}

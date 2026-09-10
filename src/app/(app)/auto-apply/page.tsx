@@ -13,7 +13,7 @@ import { UpgradeRequired } from "@/components/billing/upgrade-required";
 
 interface Settings {
   minMatchScore: number;
-  dailyLimit: number;
+  monthlyLimit: number;
   pacingSeconds: number;
   concurrency: number;
   autoSubmit: boolean;
@@ -50,7 +50,7 @@ export default function AutoApplyPage() {
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [maxDailyLimit, setMaxDailyLimit] = useState(0);
+  const [maxMonthlyLimit, setMaxMonthlyLimit] = useState<number | null>(0);
   const [runs, setRuns] = useState<Run[]>([]);
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [devices, setDevices] = useState<DeviceSession[]>([]);
@@ -79,7 +79,7 @@ export default function AutoApplyPage() {
     const devicesJson = await devicesRes.json();
 
     setSettings(settingsJson.data?.settings ?? null);
-    setMaxDailyLimit(settingsJson.data?.maxDailyLimit ?? 0);
+    setMaxMonthlyLimit(settingsJson.data?.maxMonthlyLimit ?? 0);
     setRuns(runsJson.data?.runs ?? []);
     setApplications(appsJson.data?.applications ?? []);
     setDevices(devicesJson.data?.sessions ?? []);
@@ -216,14 +216,16 @@ export default function AutoApplyPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="dailyLimit">Daily application limit (max {maxDailyLimit} on your plan)</Label>
+                <Label htmlFor="monthlyLimit">
+                  Monthly application limit (max {maxMonthlyLimit == null ? "Unlimited" : maxMonthlyLimit} on your plan)
+                </Label>
                 <Input
-                  id="dailyLimit"
+                  id="monthlyLimit"
                   type="number"
                   min={0}
-                  max={maxDailyLimit}
-                  value={settings.dailyLimit}
-                  onChange={(e) => setSettings({ ...settings, dailyLimit: Number(e.target.value) })}
+                  max={maxMonthlyLimit ?? undefined}
+                  value={settings.monthlyLimit}
+                  onChange={(e) => setSettings({ ...settings, monthlyLimit: Number(e.target.value) })}
                 />
               </div>
               <div className="space-y-1.5">

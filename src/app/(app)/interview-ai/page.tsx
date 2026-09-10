@@ -33,6 +33,7 @@ export default function InterviewAiPage() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entitled, setEntitled] = useState<boolean | null>(null);
+  const [companyPrepEntitled, setCompanyPrepEntitled] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -43,6 +44,7 @@ export default function InterviewAiPage() {
       setSessions(sessionsJson.data?.sessions ?? []);
       setJobs(appsJson.data?.applications ?? []);
       setEntitled(Boolean(billingJson.data?.entitlements?.interviewAi));
+      setCompanyPrepEntitled(Boolean(billingJson.data?.entitlements?.companyInterviewPrep));
       setLoading(false);
     });
   }, []);
@@ -108,7 +110,7 @@ export default function InterviewAiPage() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Target job (optional)</label>
-                <Select value={jobId} onValueChange={setJobId}>
+                <Select value={jobId} onValueChange={setJobId} disabled={!companyPrepEntitled}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -121,6 +123,11 @@ export default function InterviewAiPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {!companyPrepEntitled && (
+                  <p className="text-xs text-muted-foreground">
+                    Company Interview Preparation requires Premium or higher.
+                  </p>
+                )}
               </div>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}

@@ -1001,7 +1001,7 @@ model AutoApplySettings {
   profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   minMatchScore Int     @default(70)
-  dailyLimit    Int     @default(5)
+  monthlyLimit  Int     @default(20)
   pacingSeconds Int     @default(45)
   concurrency   Int     @default(1)
   autoSubmit    Boolean @default(false)

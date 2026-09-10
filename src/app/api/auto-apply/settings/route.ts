@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireCandidate } from "@/lib/auth/guards";
-import { getEntitlements } from "@/lib/billing/entitlements";
+import { getEntitlements, serializeEntitlements } from "@/lib/billing/entitlements";
 import { getOrCreateSettings, updateSettings } from "@/lib/autoapply/service";
 import { updateAutoApplySettingsSchema } from "@/lib/validations/autoapply";
 import { apiCatch, apiOk } from "@/lib/api-response";
@@ -12,7 +12,8 @@ export async function GET() {
       getOrCreateSettings(profile.id),
       getEntitlements(user.id),
     ]);
-    return apiOk({ settings, maxDailyLimit: entitlements.dailyApplicationLimit });
+    const { monthlyApplicationLimit } = serializeEntitlements(entitlements);
+    return apiOk({ settings, maxMonthlyLimit: monthlyApplicationLimit });
   } catch (error) {
     return apiCatch(error);
   }

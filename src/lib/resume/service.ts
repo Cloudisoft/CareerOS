@@ -64,7 +64,7 @@ export async function getResume(profileId: string, resumeId: string) {
   return resume;
 }
 
-export async function createResume(profileId: string, name: string, fromProfile: boolean) {
+export async function createResume(profileId: string, name: string, fromProfile: boolean, resumeImportLimit: number) {
   let content: ResumeContent = resumeContentSchema.parse({});
 
   if (fromProfile) {
@@ -76,6 +76,13 @@ export async function createResume(profileId: string, name: string, fromProfile:
   }
 
   const existingCount = await prisma.resume.count({ where: { profileId } });
+  if (existingCount >= resumeImportLimit) {
+    throw new ResumeServiceError(
+      "Your plan's resume limit has been reached. Upgrade to add more resumes.",
+      "UPGRADE_REQUIRED"
+    );
+  }
+
   const resume = await prisma.resume.create({
     data: { profileId, name, content, isPrimary: existingCount === 0 },
   });

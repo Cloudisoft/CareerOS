@@ -23,7 +23,7 @@ export default function PricingPage() {
         </p>
       </div>
 
-      <div className="mt-14 grid gap-6 lg:grid-cols-4">
+      <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
         {PLANS.map((plan) => (
           <Card
             key={plan.key}
@@ -62,20 +62,31 @@ export default function PricingPage() {
 
       <div className="mx-auto mt-16 max-w-3xl">
         <h2 className="text-center text-2xl font-semibold text-foreground">Add-ons</h2>
+        <p className="mx-auto mt-2 max-w-xl text-center text-sm text-muted-foreground">
+          Independent of your plan — stack them on Free or any paid tier.
+        </p>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {ADD_ONS.map((addon) => (
             <Card key={addon.key}>
-              <CardContent className="flex items-center justify-between gap-4 p-6">
-                <div>
-                  <p className="font-semibold text-foreground">{addon.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{addon.description}</p>
-                </div>
-                <div className="whitespace-nowrap text-right">
-                  <p className="font-semibold text-foreground">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-semibold text-foreground">{addon.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{addon.description}</p>
+                  </div>
+                  <p className="shrink-0 whitespace-nowrap font-semibold text-foreground">
                     ${addon.price}
                     <span className="text-xs text-muted-foreground">/{addon.period}</span>
                   </p>
                 </div>
+                <ul className="mt-4 space-y-2">
+                  {addon.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-xs text-foreground">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           ))}

@@ -70,3 +70,11 @@ export const atsScanSchema = z.object({
   jobId: z.string().min(1).optional(),
   jobDescription: z.string().trim().max(8000).optional(),
 });
+
+export const generateCoverLetterSchema = z.object({
+  jobId: z.string().min(1).optional(),
+  jobTitle: z.string().trim().max(160).default(""),
+  companyName: z.string().trim().max(160).default(""),
+  jobDescription: z.string().trim().max(8000).default(""),
+  tone: z.enum(["professional", "enthusiastic", "concise"]).default("professional"),
+});

@@ -1,17 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { PLANS, type Entitlements, type AddOnKey } from "@/lib/billing/plans";
+import { PLANS, getPlan, type Entitlements, type AddOnKey } from "@/lib/billing/plans";
 
-const FREE_ENTITLEMENTS: Entitlements = {
-  autoApply: false,
-  dailyApplicationLimit: 0,
-  jobGpt: false,
-  resumeOptimization: false,
-  atsScanner: false,
-  interviewAi: false,
-  learning: false,
-  networkFeatures: false,
-};
+const FREE_ENTITLEMENTS: Entitlements = getPlan("FREE").entitlements;
 
 export interface UserEntitlements extends Entitlements {
   planKey: string | null;
@@ -19,11 +10,9 @@ export interface UserEntitlements extends Entitlements {
 }
 
 /**
- * Career OS's free tier is the Career Profile, job browsing, matching, and
- * manual applications — always available with no subscription. Everything
- * in `Entitlements` (Auto Apply, Job GPT, AI resume tools, ATS scanner,
- * Interview AI, Learning, network features) requires at least the Basic
- * plan, or the relevant standalone add-on.
+ * Career OS's Free plan is always available with no subscription — see
+ * `getPlan("FREE")` in plans.ts for exactly what it includes. Everything
+ * beyond that is gated per-plan (see plans.ts) or by a standalone add-on.
  *
  * `DEV_GRANT_PLAN` is a development-only escape hatch (never honored when
  * Stripe is configured or in production) so gated features are testable
@@ -53,19 +42,46 @@ export async function getEntitlements(userId: string): Promise<UserEntitlements>
   const isActive = subscription && (subscription.status === "ACTIVE" || subscription.status === "TRIALING");
   const base = isActive ? PLANS.find((p) => p.key === subscription!.plan)?.entitlements ?? FREE_ENTITLEMENTS : FREE_ENTITLEMENTS;
 
+  const hasResumeStudio = activeAddOns.includes("RESUME_STUDIO");
+  const hasInterviewAiAddOn = activeAddOns.includes("INTERVIEW_AI");
+
   return {
     ...base,
-    resumeOptimization: base.resumeOptimization || activeAddOns.includes("RESUME_STUDIO"),
-    interviewAi: base.interviewAi || activeAddOns.includes("INTERVIEW_AI"),
+    // The Resume Studio add-on bundles unlimited resumes, cover letters, and
+    // full ATS detail regardless of the base plan — see plans.ts's ADD_ONS entry.
+    resumeOptimization: base.resumeOptimization || hasResumeStudio,
+    resumeImportLimit: hasResumeStudio ? Infinity : base.resumeImportLimit,
+    coverLetterStudio: base.coverLetterStudio || hasResumeStudio,
+    atsScanner: base.atsScanner || hasResumeStudio,
+    atsScannerDetail: base.atsScannerDetail || hasResumeStudio,
+    // The Interview AI add-on bundles unlimited, company-targeted sessions.
+    interviewAi: base.interviewAi || hasInterviewAiAddOn,
+    interviewSessionMonthlyLimit: hasInterviewAiAddOn ? Infinity : base.interviewSessionMonthlyLimit,
+    companyInterviewPrep: base.companyInterviewPrep || hasInterviewAiAddOn,
     planKey: isActive ? subscription!.plan : null,
     addOns: activeAddOns,
   };
+}
+
+/**
+ * `Infinity` (an unlimited allotment) doesn't survive JSON — it serializes
+ * to `null`. Do that conversion explicitly wherever entitlements cross the
+ * API boundary, so the client can treat `null` as the documented "unlimited"
+ * sentinel instead of silently receiving one by accident.
+ */
+export function serializeEntitlements<T extends object>(entitlements: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(entitlements)) {
+    out[key] = value === Infinity ? null : value;
+  }
+  return out as T;
 }
 
 export class EntitlementError extends Error {
   code = "UPGRADE_REQUIRED";
 }
 
+/** For plain boolean/on-off gates and "0 blocks, any positive or Infinity allows" numeric caps. */
 export async function requireEntitlement(userId: string, key: keyof Entitlements) {
   const entitlements = await getEntitlements(userId);
   const value = entitlements[key];

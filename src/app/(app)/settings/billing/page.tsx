@@ -70,7 +70,7 @@ export default function BillingPage() {
     );
   }
 
-  const currentPlan = status?.subscription?.plan;
+  const currentPlan = status?.subscription?.plan ?? "FREE";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -93,11 +93,11 @@ export default function BillingPage() {
           <div>
             <CardTitle className="text-base">Current plan</CardTitle>
             <CardDescription>
-              {currentPlan ? PLANS.find((p) => p.key === currentPlan)?.name : "No active plan"}
+              {PLANS.find((p) => p.key === currentPlan)?.name ?? "Free"}
               {status?.subscription?.status ? ` · ${status.subscription.status}` : ""}
             </CardDescription>
           </div>
-          {currentPlan && (
+          {status?.subscription && (
             <Button variant="secondary" onClick={openPortal} disabled={redirecting === "portal"}>
               {redirecting === "portal" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               Manage billing
@@ -106,29 +106,38 @@ export default function BillingPage() {
         </CardHeader>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {PLANS.map((plan) => (
-          <Card key={plan.key} className={currentPlan === plan.key ? "border-primary" : undefined}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-base">
-                {plan.name}
-                {currentPlan === plan.key && <Badge variant="brand">Current</Badge>}
-              </CardTitle>
-              <CardDescription>{formatCurrency(plan.priceMonthly)}/month</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                className="w-full"
-                variant={currentPlan === plan.key ? "secondary" : "primary"}
-                disabled={currentPlan === plan.key || redirecting === plan.key}
-                onClick={() => checkout(plan.key)}
-              >
-                {redirecting === plan.key && <Loader2 className="h-4 w-4 animate-spin" />}
-                {currentPlan === plan.key ? "Current plan" : "Switch to this plan"}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {PLANS.map((plan) => {
+          const isCurrent = currentPlan === plan.key;
+          return (
+            <Card key={plan.key} className={isCurrent ? "border-primary" : undefined}>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-base">
+                  {plan.name}
+                  {isCurrent && <Badge variant="brand">Current</Badge>}
+                </CardTitle>
+                <CardDescription>{formatCurrency(plan.priceMonthly)}/month</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {plan.key === "FREE" ? (
+                  <Button className="w-full" variant="secondary" disabled>
+                    {isCurrent ? "Current plan" : "Included"}
+                  </Button>
+                ) : (
+                  <Button
+                    className="w-full"
+                    variant={isCurrent ? "secondary" : "primary"}
+                    disabled={isCurrent || redirecting === plan.key}
+                    onClick={() => checkout(plan.key)}
+                  >
+                    {redirecting === plan.key && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {isCurrent ? "Current plan" : "Switch to this plan"}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <div>

@@ -20,6 +20,10 @@ export function PricingCta({ plan, recommended }: { plan: PlanKey; recommended?:
       router.push("/signup");
       return;
     }
+    if (plan === "FREE") {
+      router.push("/dashboard");
+      return;
+    }
     setLoading(true);
     const res = await fetch("/api/billing/checkout", {
       method: "POST",
@@ -38,7 +42,7 @@ export function PricingCta({ plan, recommended }: { plan: PlanKey; recommended?:
   return (
     <Button variant={recommended ? "primary" : "secondary"} className="w-full" onClick={handleClick} disabled={loading}>
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-      Get started
+      {plan === "FREE" && authed ? "Go to dashboard" : "Get started"}
     </Button>
   );
 }

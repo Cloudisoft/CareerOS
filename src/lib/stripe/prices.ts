@@ -1,7 +1,7 @@
 import "server-only";
-import type { PlanKey, AddOnKey } from "@/lib/billing/plans";
+import type { PayablePlanKey, AddOnKey } from "@/lib/billing/plans";
 
-const PLAN_PRICE_ENV: Record<PlanKey, string> = {
+const PLAN_PRICE_ENV: Record<PayablePlanKey, string> = {
   BASIC: "STRIPE_PRICE_BASIC",
   STANDARD: "STRIPE_PRICE_STANDARD",
   PREMIUM: "STRIPE_PRICE_PREMIUM",
@@ -17,7 +17,7 @@ export class PriceNotConfiguredError extends Error {
   code = "PRICE_NOT_CONFIGURED";
 }
 
-export function getPlanPriceId(plan: PlanKey): string {
+export function getPlanPriceId(plan: PayablePlanKey): string {
   const envVar = PLAN_PRICE_ENV[plan];
   const priceId = process.env[envVar];
   if (!priceId) {
@@ -35,8 +35,8 @@ export function getAddOnPriceId(addOn: AddOnKey): string {
   return priceId;
 }
 
-export function planFromPriceId(priceId: string): PlanKey | null {
-  for (const [plan, envVar] of Object.entries(PLAN_PRICE_ENV) as [PlanKey, string][]) {
+export function planFromPriceId(priceId: string): PayablePlanKey | null {
+  for (const [plan, envVar] of Object.entries(PLAN_PRICE_ENV) as [PayablePlanKey, string][]) {
     if (process.env[envVar] === priceId) return plan;
   }
   return null;

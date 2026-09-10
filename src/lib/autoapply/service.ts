@@ -10,9 +10,14 @@ export class AutoApplyError extends Error {
   }
 }
 
-function startOfTodayUtc() {
+function startOfMonthUtc() {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/** Clamps a stored limit against the plan's cap; Infinity clamps to Infinity (Math.min(x, Infinity) === x). */
+function clampToPlan(value: number, planMax: number) {
+  return Math.max(0, Math.min(value, planMax));
 }
 
 export async function getOrCreateSettings(profileId: string) {
@@ -25,30 +30,37 @@ export async function updateSettings(
   profileId: string,
   input: {
     minMatchScore: number;
-    dailyLimit: number;
+    monthlyLimit: number;
     pacingSeconds: number;
     concurrency: number;
     autoSubmit: boolean;
   },
   entitlements: UserEntitlements
 ) {
-  const clampedDailyLimit = Math.max(0, Math.min(input.dailyLimit, entitlements.dailyApplicationLimit));
+  const clampedMonthlyLimit = clampToPlan(input.monthlyLimit, entitlements.monthlyApplicationLimit);
 
   return prisma.autoApplySettings.upsert({
     where: { profileId },
-    update: { ...input, dailyLimit: clampedDailyLimit },
-    create: { profileId, ...input, dailyLimit: clampedDailyLimit },
+    update: { ...input, monthlyLimit: clampedMonthlyLimit },
+    create: { profileId, ...input, monthlyLimit: clampedMonthlyLimit },
   });
 }
 
-/** Applications the extension has submitted or assisted with today, for daily-limit enforcement. */
-export async function countAppliedToday(profileId: string) {
+/** Applications the extension has submitted or assisted with this calendar month, for monthly-limit enforcement. */
+export async function countAppliedThisMonth(profileId: string) {
   return prisma.application.count({
     where: {
       profileId,
       source: { in: ["EXTENSION", "AUTO"] },
-      appliedAt: { gte: startOfTodayUtc() },
+      appliedAt: { gte: startOfMonthUtc() },
     },
+  });
+}
+
+/** Distinct Auto Apply runs ("campaigns") started this calendar month, for campaign-limit enforcement. */
+export async function countCampaignsThisMonth(profileId: string) {
+  return prisma.autoApplyRun.count({
+    where: { profileId, startedAt: { gte: startOfMonthUtc() } },
   });
 }
 
@@ -167,7 +179,20 @@ export interface RunHeartbeatInput {
   lastError?: string;
 }
 
-export async function recordRunHeartbeat(profileId: string, input: RunHeartbeatInput) {
+export async function recordRunHeartbeat(
+  profileId: string,
+  input: RunHeartbeatInput,
+  entitlements: UserEntitlements
+) {
+  const existing = await prisma.autoApplyRun.findUnique({ where: { runId: input.runId } });
+
+  if (!existing) {
+    const campaignsThisMonth = await countCampaignsThisMonth(profileId);
+    if (campaignsThisMonth >= entitlements.campaignMonthlyLimit) {
+      throw new AutoApplyError("This month's AI Application Campaign limit has been reached.", "CAMPAIGN_LIMIT_REACHED");
+    }
+  }
+
   return prisma.autoApplyRun.upsert({
     where: { runId: input.runId },
     update: {

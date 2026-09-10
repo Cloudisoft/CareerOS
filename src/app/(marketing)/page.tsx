@@ -146,6 +146,25 @@ export default function MarketingHomePage() {
         </div>
       </section>
 
+      <section className="border-t border-border py-20">
+        <div className="mx-auto max-w-5xl px-6">
+          <div className="brand-glow overflow-hidden rounded-2xl border border-border bg-surface">
+            <video
+              className="block h-auto w-full"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              aria-label="Career OS product walkthrough"
+            >
+              <source src="/videos/product-demo.webm" type="video/webm" />
+              <source src="/videos/product-demo.mp4" type="video/mp4" />
+            </video>
+          </div>
+        </div>
+      </section>
+
       <section className="border-t border-border bg-surface/40 py-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto max-w-2xl text-center">
