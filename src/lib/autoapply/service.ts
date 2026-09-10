@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { UserEntitlements } from "@/lib/billing/entitlements";
+import { findOrCreateExternalCompany } from "@/lib/company/service";
 
 export class AutoApplyError extends Error {
   code: string;
@@ -73,41 +74,6 @@ export async function listAppliedUrls(profileId: string) {
     take: 500,
   });
   return applications.map((a) => a.job.externalUrl).filter((u): u is string => Boolean(u));
-}
-
-function slugify(name: string) {
-  return (
-    name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "company"
-  );
-}
-
-/**
- * Extension-discovered companies are consolidated by name among themselves,
- * but never merged into a real employer's own Company row (those always
- * have at least one CompanyMember) — so an extension-logged "Acme Robotics"
- * never lands on an actual employer's public page.
- */
-async function findOrCreateExternalCompany(name: string) {
-  const trimmed = name?.trim() || "Unknown Company";
-  const existing = await prisma.company.findFirst({
-    where: { name: { equals: trimmed, mode: "insensitive" }, members: { none: {} } },
-  });
-  if (existing) return existing;
-
-  const base = slugify(trimmed);
-  let slug = base;
-  let attempt = 0;
-  while (await prisma.company.findUnique({ where: { slug } })) {
-    attempt += 1;
-    slug = `${base}-${attempt}`;
-  }
-
-  return prisma.company.create({ data: { slug, name: trimmed } });
 }
 
 async function findOrCreateExternalJob(companyId: string, input: { url: string; title: string; ats: string }) {

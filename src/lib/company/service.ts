@@ -30,6 +30,24 @@ async function uniqueSlug(name: string) {
   return slug;
 }
 
+/**
+ * Companies discovered from an external source (the browser extension, or a
+ * job aggregator sync) are consolidated by name among themselves, but never
+ * merged into a real employer's own Company row (those always have at least
+ * one CompanyMember) — so a discovered "Acme Robotics" never lands on an
+ * actual employer's public page.
+ */
+export async function findOrCreateExternalCompany(name: string) {
+  const trimmed = name?.trim() || "Unknown Company";
+  const existing = await prisma.company.findFirst({
+    where: { name: { equals: trimmed, mode: "insensitive" }, members: { none: {} } },
+  });
+  if (existing) return existing;
+
+  const slug = await uniqueSlug(trimmed);
+  return prisma.company.create({ data: { slug, name: trimmed } });
+}
+
 function cleanInput(input: CompanyInput) {
   return {
     name: input.name,

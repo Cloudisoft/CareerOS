@@ -531,6 +531,7 @@ model Job {
   resumeScores ResumeScore[]
   interviewSessions InterviewSession[]
 
+  @@unique([source, externalId])
   @@index([companyId])
   @@index([status])
   @@map("jobs")

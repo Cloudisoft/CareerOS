@@ -90,6 +90,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         salaryMax: job.salaryMax,
         salaryCurrency: job.salaryCurrency,
         createdAt: job.createdAt,
+        source: job.source,
+        externalUrl: job.externalUrl,
         company: {
           id: job.company.id,
           name: job.company.name,

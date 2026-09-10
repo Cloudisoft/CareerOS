@@ -20,6 +20,12 @@ export async function createApplication(
   if (!job || job.deletedAt || job.status !== "OPEN") {
     throw new ApplicationServiceError("This job is no longer accepting applications.", "JOB_UNAVAILABLE");
   }
+  if (job.source !== "careeros") {
+    throw new ApplicationServiceError(
+      "This listing is from an external job board — apply on the original posting.",
+      "EXTERNAL_JOB"
+    );
+  }
 
   const existing = await prisma.application.findUnique({
     where: { profileId_jobId: { profileId, jobId: input.jobId } },

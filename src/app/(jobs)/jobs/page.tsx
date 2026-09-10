@@ -23,6 +23,7 @@ interface JobListItem {
   company: { name: string; slug: string; logoUrl: string | null };
   skills: string[];
   matchScore: number | null;
+  source: string;
 }
 
 const WORKPLACE_OPTIONS = ["ONSITE", "HYBRID", "REMOTE"];
@@ -126,7 +127,14 @@ function JobsContent() {
               <Card className="transition-colors hover:border-primary/40">
                 <CardContent className="flex items-start justify-between gap-4 p-5">
                   <div>
-                    <p className="font-semibold text-foreground">{job.title}</p>
+                    <p className="font-semibold text-foreground">
+                      {job.title}
+                      {job.source !== "careeros" && (
+                        <Badge variant="outline" className="ml-2 align-middle text-xs font-normal">
+                          via {job.source === "adzuna" ? "Adzuna" : job.source === "jsearch" ? "JSearch" : job.source}
+                        </Badge>
+                      )}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {job.company.name}
                       {job.location ? ` · ${job.location}` : ""} ·{" "}

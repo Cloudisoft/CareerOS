@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Loader2, CheckCircle2, MapPin, Briefcase, DollarSign } from "lucide-react";
+import { Bookmark, BookmarkCheck, Loader2, CheckCircle2, MapPin, Briefcase, DollarSign, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ interface JobDetail {
   salaryMin: number | null;
   salaryMax: number | null;
   salaryCurrency: string;
+  source: string;
+  externalUrl: string | null;
   company: { name: string; slug: string; industry: string | null; location: string | null };
   skills: { name: string; required: boolean }[];
 }
@@ -147,6 +149,11 @@ export default function JobDetailPage() {
                 <Link href={`/company/${job.company.slug}`} className="text-sm text-primary hover:underline">
                   {job.company.name}
                 </Link>
+                {job.source !== "careeros" && (
+                  <Badge variant="outline" className="ml-2 align-middle text-xs">
+                    via {job.source === "adzuna" ? "Adzuna" : job.source === "jsearch" ? "JSearch" : job.source}
+                  </Badge>
+                )}
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                   {job.location && (
                     <span className="flex items-center gap-1">
@@ -183,7 +190,21 @@ export default function JobDetailPage() {
         </Card>
 
         <div className="mt-4">
-          {!authed ? (
+          {job.source !== "careeros" && job.externalUrl ? (
+            <Card>
+              <CardContent className="flex items-center justify-between gap-4 p-6">
+                <p className="text-sm text-muted-foreground">
+                  This listing comes from {job.source === "adzuna" ? "Adzuna" : job.source === "jsearch" ? "JSearch" : "an external board"}.
+                  Apply on the original posting.
+                </p>
+                <Button asChild size="lg">
+                  <a href={job.externalUrl} target="_blank" rel="noopener noreferrer">
+                    Apply <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : !authed ? (
             <Card>
               <CardContent className="flex items-center justify-between gap-4 p-6">
                 <p className="text-sm text-muted-foreground">Log in to see your match score and apply.</p>

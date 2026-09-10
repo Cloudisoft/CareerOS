@@ -1,9 +1,91 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Users, Building2, Briefcase, FileText, Bot, UserPlus } from "lucide-react";
+import { Loader2, Users, Building2, Briefcase, FileText, Bot, UserPlus, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+
+interface SyncResult {
+  query: string;
+  fetched: number;
+  created: number;
+  updated: number;
+  errors: string[];
+}
+
+function ExternalJobSyncCard() {
+  const [queries, setQueries] = useState("software engineer, product manager");
+  const [country, setCountry] = useState("us");
+  const [syncing, setSyncing] = useState(false);
+  const [results, setResults] = useState<SyncResult[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runSync() {
+    setSyncing(true);
+    setError(null);
+    setResults(null);
+    try {
+      const res = await fetch("/api/admin/jobs/sync-external", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          queries: queries.split(",").map((q) => q.trim()).filter(Boolean),
+          country,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message ?? "Sync failed.");
+      setResults(json.data.results);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sync failed.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Sync external job listings</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0">
+        <p className="text-sm text-muted-foreground">
+          Pulls real listings from Adzuna and JSearch (whichever has API keys configured) and adds them to the
+          marketplace as browsable, searchable jobs. Candidates apply on the original posting — Career OS isn&apos;t
+          the employer of record for these.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-[1fr_100px_auto]">
+          <Input value={queries} onChange={(e) => setQueries(e.target.value)} placeholder="software engineer, product manager" />
+          <Input value={country} onChange={(e) => setCountry(e.target.value.toLowerCase())} placeholder="us" maxLength={2} />
+          <Button onClick={runSync} disabled={syncing}>
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Sync
+          </Button>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {results && (
+          <div className="space-y-1 text-sm">
+            {results.map((r) => (
+              <div key={r.query} className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+                <span className="font-medium text-foreground">{r.query}:</span>
+                <span>{r.fetched} fetched</span>
+                <span>&middot; {r.created} new</span>
+                <span>&middot; {r.updated} updated</span>
+                {r.errors.map((err, i) => (
+                  <span key={i} className="text-destructive">
+                    {err}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface Stats {
   usersByRole: { role: string; count: number }[];
@@ -149,6 +231,8 @@ export default function AdminOverviewPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ExternalJobSyncCard />
     </div>
   );
 }

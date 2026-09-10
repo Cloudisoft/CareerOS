@@ -73,6 +73,8 @@ export async function GET(req: NextRequest) {
         company: { id: job.company.id, name: job.company.name, slug: job.company.slug, logoUrl: job.company.logoUrl },
         skills: job.skills.map((s) => s.skill.name),
         matchScore: scores.get(job.id) ?? null,
+        source: job.source,
+        externalUrl: job.externalUrl,
       })),
       total,
       page,
