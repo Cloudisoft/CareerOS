@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { Reveal } from "@/components/marketing/reveal";
 import { Badge } from "@/components/ui/badge";
 
@@ -19,6 +21,13 @@ export function PageHero({ eyebrow, title, description, align = "center", action
         style={{ background: "radial-gradient(circle, rgba(239,134,45,0.16), transparent 70%)" }}
       />
       <div className={`relative mx-auto max-w-5xl px-6 py-20 ${isCenter ? "text-center" : ""}`}>
+        <Link
+          href="/"
+          className={`inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground ${isCenter ? "mb-8" : "mb-6"}`}
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to home
+        </Link>
         <Reveal>
           {eyebrow && (
             <Badge variant="brand" className={isCenter ? "mx-auto" : ""}>
