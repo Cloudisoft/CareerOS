@@ -13,6 +13,22 @@ export interface AtsScanResult {
 
 const WEIGHTS = { keyword: 0.7, format: 0.3 };
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Whole-word/phrase match, not substring — plain `.includes()` would count
+ * "SQL" as present in "PostgreSQL" or "Java" as present in "JavaScript",
+ * producing false keyword matches. Boundaries are "not a letter or digit"
+ * on either side, so this still matches skill names containing punctuation
+ * (e.g. "Node.js", "C++").
+ */
+function containsKeyword(haystack: string, keyword: string): boolean {
+  const pattern = new RegExp(`(?<![a-z0-9])${escapeRegExp(keyword.toLowerCase())}(?![a-z0-9])`, "i");
+  return pattern.test(haystack);
+}
+
 function resumeToText(content: ResumeContent) {
   return [
     content.summary,
@@ -47,7 +63,7 @@ export async function computeAtsScore(content: ResumeContent, jobDescription: st
   const allSkills = await prisma.skill.findMany({ select: { name: true } });
   const jdLower = jobDescription.toLowerCase();
 
-  const jdKeywords = allSkills.map((s) => s.name).filter((name) => jdLower.includes(name.toLowerCase()));
+  const jdKeywords = allSkills.map((s) => s.name).filter((name) => containsKeyword(jdLower, name));
   const resumeText = resumeToText(content);
   const resumeSkillsLower = content.skills.map((s) => s.toLowerCase());
 
@@ -55,7 +71,7 @@ export async function computeAtsScore(content: ResumeContent, jobDescription: st
   const missing: string[] = [];
   for (const keyword of jdKeywords) {
     const lower = keyword.toLowerCase();
-    if (resumeSkillsLower.includes(lower) || resumeText.includes(lower)) matched.push(keyword);
+    if (resumeSkillsLower.includes(lower) || containsKeyword(resumeText, keyword)) matched.push(keyword);
     else missing.push(keyword);
   }
 
