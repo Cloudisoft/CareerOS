@@ -310,5 +310,271 @@ spec:
         },
       ],
     },
+    {
+      title: "Health Checks: Liveness, Readiness, and Startup Probes",
+      durationMinutes: 8,
+      slides: [
+        {
+          kind: "title",
+          heading: "Health Checks: Liveness, Readiness, and Startup Probes",
+          subheading:
+            "Kubernetes replacing a dead Pod only works if it can actually tell the Pod is dead. Probes are how it knows — without them, a hung process just keeps serving broken responses indefinitely.",
+        },
+        {
+          kind: "text",
+          heading: "The gap self-healing alone doesn't cover",
+          body: [
+            "By default, kubelet only notices a container if its main process actually exits or crashes. A process that's still running but deadlocked, stuck retrying a dependency forever, or wedged in some other way looks perfectly healthy to Kubernetes — the container's still there, it's just not doing anything useful.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "The three probe types",
+          bullets: [
+            "livenessProbe — \"is this container still working?\" Repeated failures get the container killed and restarted by kubelet.",
+            "readinessProbe — \"is this container ready for traffic right now?\" A failure removes the Pod from a Service's routing rotation without restarting it — meant for slow startup or temporary overload the Pod can recover from on its own.",
+            "startupProbe — gives a slow-starting container (a JVM app with a long init, say) a grace period before liveness probing even begins, so a legitimately slow start isn't mistaken for a hang.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Probes on a real Deployment",
+          language: "yaml",
+          code: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+        - name: web
+          image: myregistry/web-app:1.4
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "This is what actually enforces \"never remove an old Pod until a new one is healthy\"",
+          body: "The rolling update behavior from the Deployments lesson depends entirely on readinessProbe to know what \"healthy\" means. Without one, \"healthy\" only means \"the container process started\" — a much weaker guarantee that lets a rollout route traffic to a Pod that started fine but can't actually serve requests yet.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Liveness and readiness answer different questions — don't collapse them into one",
+          body: "A Pod overwhelmed by a traffic spike should fail readiness (stop receiving new traffic, recover on its own) — restarting it via liveness just adds cold-start delay on top of the overload. A genuinely deadlocked process should fail liveness so kubelet actually replaces it. Pointing both probes at the same check with the same thresholds is a common way to lose this distinction entirely.",
+        },
+        {
+          kind: "summary",
+          heading: "What to remember",
+          bullets: [
+            "Kubernetes' self-healing only reacts to crashes by default — probes are what catch a container that's running but broken.",
+            "readinessProbe controls traffic; livenessProbe controls restarts — mixing up which one a symptom calls for makes outages worse, not better.",
+            "startupProbe exists specifically so a slow, legitimate startup isn't mistaken for a hang.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Debugging and Configuring Pod Health",
+      durationMinutes: 14,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Debugging and Configuring Pod Health",
+          subheading: "Three exercises using kubectl output and manifests you'd actually see — work through each before checking the solution.",
+        },
+        {
+          kind: "practice",
+          heading: "Debug a CrashLoopBackOff",
+          prompt:
+            "This Pod is stuck in CrashLoopBackOff. `kubectl describe pod` shows `Last State: Terminated, Reason: OOMKilled, Exit Code: 137`, and the app's logs show it loading a large in-memory cache on startup. Diagnose the problem and fix the manifest:\n\napiVersion: v1\nkind: Pod\nmetadata:\n  name: cache-warmer\nspec:\n  containers:\n    - name: app\n      image: myregistry/cache-warmer:2.1\n      resources:\n        limits:\n          memory: \"128Mi\"\n        requests:\n          memory: \"64Mi\"",
+          hint: "OOMKilled with exit code 137 means the container hit its memory limit and the kernel killed it — this is a resource configuration problem, not a bug to go looking for in application code.",
+          solution: `apiVersion: v1
+kind: Pod
+metadata:
+  name: cache-warmer
+spec:
+  containers:
+    - name: app
+      image: myregistry/cache-warmer:2.1
+      resources:
+        limits:
+          memory: "512Mi"   # was 128Mi — too small for the startup cache, causing OOMKilled
+        requests:
+          memory: "256Mi"   # requests should scale up alongside the raised limit
+# CrashLoopBackOff + OOMKilled (exit 137) almost always means the memory
+# limit is set below what the process actually needs — check "kubectl
+# describe pod" for the exit reason before assuming it's an application bug.`,
+        },
+        {
+          kind: "practice",
+          heading: "Add probes without breaking a slow startup",
+          prompt:
+            "Add a readinessProbe and a livenessProbe to this Deployment for an HTTP service with a health endpoint at /health on port 8080. The app takes about 20 seconds to warm up a DB connection pool before /health returns 200, so a naive probe would restart it during normal startup:\n\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: orders-api\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: orders-api\n  template:\n    metadata:\n      labels:\n        app: orders-api\n    spec:\n      containers:\n        - name: api\n          image: myregistry/orders-api:3.2\n          ports:\n            - containerPort: 8080",
+          hint: "Give livenessProbe enough initialDelaySeconds to cover the ~20-second warm-up, or the container will be killed for taking exactly as long to start as it's supposed to.",
+          solution: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orders-api
+  template:
+    metadata:
+      labels:
+        app: orders-api
+    spec:
+      containers:
+        - name: api
+          image: myregistry/orders-api:3.2
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 25   # covers the ~20s DB warm-up so it isn't mistaken for a hang
+            periodSeconds: 20
+            failureThreshold: 3`,
+        },
+        {
+          kind: "practice",
+          heading: "Find why a Service isn't routing traffic",
+          prompt:
+            "Requests to Service `orders-api` return connection errors even though `kubectl get pods` shows 2/2 Pods Running. Find the mismatch:\n\napiVersion: v1\nkind: Service\nmetadata:\n  name: orders-api\nspec:\n  selector:\n    app: order-api\n  ports:\n    - port: 80\n      targetPort: 8080\n---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: orders-api\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: orders-api\n  template:\n    metadata:\n      labels:\n        app: orders-api\n    spec:\n      containers:\n        - name: api\n          image: myregistry/orders-api:3.2\n          ports:\n            - containerPort: 8080",
+          hint: "Services find Pods purely by label match — compare the Service's selector to the Pod template's labels character by character, not to the Deployment's name.",
+          solution:
+            "The Service's selector is `app: order-api` (missing the \"s\") while the Pod template's label is `app: orders-api` — they don't match, so the Service has zero matching endpoints even though the Pods themselves are perfectly healthy. Fix: correct the Service's selector to `app: orders-api`, matching the Deployment's template.metadata.labels exactly (the Deployment's own name, also \"orders-api\", is irrelevant to routing — only the Pod template's labels matter).",
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Reading kubectl describe pod's exit reason instead of assuming a crash means an application bug.",
+            "Distinguishing what a livenessProbe should protect against (a genuine hang) from what a readinessProbe should protect against (temporary unavailability, like a slow warm-up).",
+            "Remembering that Services match on labels, not names — a one-character typo in a selector silently breaks routing while every Pod still reports Running.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading: "Five questions across the whole course — not just the last lesson.",
+        },
+        {
+          kind: "quiz",
+          heading: "Bare Pods",
+          question: "A Pod's node crashes. That Pod was created directly with `kind: Pod`, not through a Deployment. What happens?",
+          options: [
+            "Kubernetes automatically reschedules it onto a healthy node",
+            "Nothing recreates it — a bare Pod has no controller watching it that would replace it",
+            "It restarts automatically on the same node once that node recovers",
+            "The Service in front of it creates a replacement automatically",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Pods created directly, with no Deployment (or similar controller) managing them, are genuinely disposable — if the node holding one dies, it's simply gone, which is exactly why real usage almost never creates bare Pods.",
+        },
+        {
+          kind: "quiz",
+          heading: "Liveness vs. readiness",
+          question: "What's the actual difference between a Pod failing its readinessProbe versus its livenessProbe?",
+          options: [
+            "They do the same thing — readinessProbe is just the newer name for it",
+            "Failing readiness removes the Pod from Service routing without restarting it; failing liveness gets the container restarted",
+            "Failing liveness removes the Pod from Service routing; failing readiness restarts the container",
+            "Both failing readiness and failing liveness immediately delete the Pod",
+          ],
+          correctIndex: 1,
+          explanation:
+            "readinessProbe controls traffic routing; livenessProbe controls whether kubelet restarts the container. Confusing the two means restarting Pods that just needed a moment to recover, or leaving genuinely hung ones running.",
+        },
+        {
+          kind: "quiz",
+          heading: "Ingress without a controller",
+          question:
+            "You apply an Ingress resource routing myapp.example.com to a Service, and it applies without error, but requests to that hostname go nowhere. What's the most likely missing piece?",
+          options: [
+            "The Service needs to be type LoadBalancer instead of ClusterIP",
+            "No Ingress controller is actually running in the cluster to implement the routing rule",
+            "Ingress objects require a matching NetworkPolicy before they route any traffic",
+            "DNS propagation for any new Ingress always takes 48 hours",
+          ],
+          correctIndex: 1,
+          explanation:
+            "An Ingress object is only a spec — a separate piece of software (an Ingress controller) has to be running in the cluster to actually read it and configure real routing. Applying valid YAML with no controller installed does nothing.",
+        },
+        {
+          kind: "quiz",
+          heading: "Manual Pod deletion",
+          question: "A Deployment has replicas: 3. One of its Pods is deleted manually with kubectl delete pod. What happens next?",
+          options: [
+            "The Deployment now runs with 2 replicas until someone manually restores it",
+            "The Deployment's controller notices the running count dropped below 3 and creates a replacement Pod",
+            "Kubernetes blocks the delete, since the Deployment requires exactly 3 replicas",
+            "The Service in front of it creates the replacement, not the Deployment",
+          ],
+          correctIndex: 1,
+          explanation:
+            "replicas: 3 is a continuously enforced target, not a one-time instruction — the same reconciliation loop that recreates a Pod after a node failure recreates one after a manual delete, with no special-casing.",
+        },
+        {
+          kind: "quiz",
+          heading: "Control plane components",
+          question: "Which control plane component is responsible for deciding which node a new Pod should run on?",
+          options: ["kubelet", "kube-proxy", "The scheduler", "etcd"],
+          correctIndex: 2,
+          explanation:
+            "The scheduler assigns Pods to nodes based on resource requests and available capacity. kubelet then actually starts the container on the assigned node; kube-proxy handles routing; etcd just stores the cluster's state.",
+        },
+        {
+          kind: "summary",
+          heading: "The course, in six takeaways",
+          bullets: [
+            "Kubernetes works by continuously reconciling actual state to match a declared desired state — the same loop underlies scaling, self-healing, and rollouts.",
+            "Pods are disposable and shouldn't be created directly — Deployments manage them and replace them automatically.",
+            "Services give a stable address to a constantly-changing set of Pods by matching on labels, not identity.",
+            "Ingress needs a controller actually running in the cluster — the YAML alone does nothing.",
+            "Probes distinguish a Pod that needs a restart (liveness) from one that just needs to stop receiving traffic temporarily (readiness).",
+            "The control plane (API server, etcd, scheduler, controller manager) decides and tracks; kubelet and the container runtime on each node actually execute it.",
+          ],
+        },
+      ],
+    },
   ],
 };

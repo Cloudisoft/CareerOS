@@ -345,5 +345,240 @@ docker compose down -v      # also remove named volumes — data is gone`,
         },
       ],
     },
+    {
+      title: "Securing and Resource-Limiting Containers in Production",
+      durationMinutes: 8,
+      slides: [
+        {
+          kind: "title",
+          heading: "Securing and Resource-Limiting Containers in Production",
+          subheading:
+            "A container that works on your laptop isn't automatically safe to run in production — a short list of defaults needs to be deliberately overridden first.",
+        },
+        {
+          kind: "example",
+          heading: "Running as a non-root user",
+          language: "dockerfile",
+          code: `FROM node:20-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY . .
+
+# Create a dedicated, unprivileged user instead of running as root
+RUN addgroup --system app && adduser --system --ingroup app app
+USER app
+
+EXPOSE 3000
+CMD ["node", "server.js"]`,
+        },
+        {
+          kind: "bullets",
+          heading: "Other production defaults worth overriding",
+          bullets: [
+            "A read-only root filesystem (`docker run --read-only`, with explicit writable mounts only for the few paths that truly need writes) so a compromised process can't rewrite the application itself.",
+            "Dropping unneeded Linux capabilities (`--cap-drop=ALL --cap-add=<only what's actually needed>`) instead of accepting Docker's broader default set.",
+            "Scanning images for known vulnerabilities in the base image and dependencies (Docker Scout, Trivy, or a registry's built-in scanner) as an automated CI step, not an occasional manual check.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Resource limits, at run time",
+          code: `docker run -d \\
+  --name web \\
+  --memory="512m" \\
+  --cpus="1.0" \\
+  --restart=on-failure:5 \\
+  myapp:1.0`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Without limits, one container can starve every other container on the host",
+          body: "A memory leak or runaway process with no --memory cap can consume all of a shared host's RAM, taking down unrelated containers that had nothing to do with the bug. The isolation containers give you by default doesn't include resource fairness — that has to be set explicitly.",
+        },
+        {
+          kind: "summary",
+          heading: "The practical baseline",
+          bullets: [
+            "Add a non-root USER to any Dockerfile heading toward production — it's one of the cheapest security wins available.",
+            "Set memory and CPU limits on anything sharing a host with other workloads.",
+            "Scan images in CI, not manually and occasionally — a base image that was clean last month often isn't today.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Hardening and Debugging Containers",
+      durationMinutes: 14,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Hardening and Debugging Containers",
+          subheading: "Three exercises — a Dockerfile fix, a debugging scenario, and a production run command — write your own answer first.",
+        },
+        {
+          kind: "practice",
+          heading: "Make this Dockerfile run as non-root",
+          prompt:
+            "Rewrite this Dockerfile so the container runs as a non-root user, without breaking the app:\n\nFROM node:20-slim\nWORKDIR /app\nCOPY package.json package-lock.json ./\nRUN npm ci --omit=dev\nCOPY . .\nEXPOSE 3000\nCMD [\"node\", \"server.js\"]",
+          hint: "You need to create a system user/group and switch to it with USER before CMD — and consider whether the app writes anything to disk at runtime that the new user needs permission for.",
+          solution: `FROM node:20-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY . .
+
+# Create an unprivileged user and hand ownership of /app to it —
+# needed if the app writes anything (logs, temp files) at runtime
+RUN addgroup --system app && adduser --system --ingroup app app \\
+  && chown -R app:app /app
+USER app
+
+EXPOSE 3000
+CMD ["node", "server.js"]`,
+        },
+        {
+          kind: "practice",
+          heading: "Debug a restarting container",
+          prompt:
+            "`docker ps` shows a container cycling between \"Up 2 seconds\" and \"Restarting (1) 4 seconds ago\". `docker logs mycontainer` prints `Error: connect ECONNREFUSED 127.0.0.1:5432` right before each restart. It was started with `docker run -d --name mycontainer --restart=always myapp:1.0` (no --network flag), and a separate `db` container running Postgres already exists. Diagnose the cause and fix it.",
+          hint: "What does 127.0.0.1 actually refer to inside a container? And are these two containers even on a network where they could resolve each other by name?",
+          solution: `# The app is connecting to 127.0.0.1, which inside its own container means
+# itself — nothing is listening there, since Postgres runs in a different
+# container entirely. It's also never been attached to any network shared
+# with "db", so even a corrected hostname couldn't resolve.
+
+docker network create app-net
+docker run -d --name db --network app-net postgres:16
+docker run -d --name mycontainer --network app-net \\
+  -e DB_HOST=db \\
+  --restart=on-failure \\
+  myapp:1.0
+# DB_HOST=db lets the app connect to the "db" container by its network name
+# instead of 127.0.0.1, and --network app-net makes that name resolvable.`,
+        },
+        {
+          kind: "practice",
+          heading: "Write a production-ready run command",
+          prompt:
+            "Write a single `docker run` command for a production web container that: limits it to 256MB memory and 0.5 CPU, restarts on failure but gives up after 3 attempts instead of looping forever, runs detached, and maps host port 8080 to the container's port 3000.",
+          hint: "--restart accepts on-failure:N for a bounded retry count, rather than always which retries forever.",
+          solution: `docker run -d \\
+  --name web \\
+  -p 8080:3000 \\
+  --memory="256m" \\
+  --cpus="0.5" \\
+  --restart=on-failure:3 \\
+  myapp:1.0`,
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Adding a non-root user without breaking file permissions the app actually needs at runtime.",
+            "Diagnosing container-to-container networking failures from log output and the run command itself, instead of guessing at application code.",
+            "Writing a run command with resource and restart limits appropriate for a shared production host, not just \"whatever works locally.\"",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading: "Five questions across the whole course — not just the last lesson.",
+        },
+        {
+          kind: "quiz",
+          heading: "Image vs. container",
+          question:
+            "You edit a file inside a running container, then run `docker run` again from the same image without rebuilding. Where is your edit?",
+          options: [
+            "In the new container automatically, since containers share the image's writable layer",
+            "Gone — the edit lived only in the old container's own writable layer, never in the image",
+            "In the image, but not in any container",
+            "Saved automatically to a bind mount",
+          ],
+          correctIndex: 1,
+          explanation:
+            "A container's writable layer is its own — changes made inside a running container never propagate back into the image it was started from, or into any other container started from that same image.",
+        },
+        {
+          kind: "quiz",
+          heading: "Base image tags",
+          question:
+            "A Dockerfile builds fine locally but produces a noticeably different result months later, using the exact same file with no code changes. What's the most likely cause?",
+          options: [
+            "Docker's build cache expired on its own",
+            "The base image is pinned to a moving tag like `latest` instead of a specific version, so the same Dockerfile now pulls a different underlying image",
+            ".dockerignore rules expire automatically after some months",
+            "COPY instructions are non-deterministic by design",
+          ],
+          correctIndex: 1,
+          explanation:
+            "A tag like `latest` (or any unpinned tag) can point to a different image over time — the Dockerfile text didn't change, but what FROM actually resolves to did.",
+        },
+        {
+          kind: "quiz",
+          heading: "Multi-stage builds",
+          question: "What does a multi-stage build actually remove from your final image compared to a single-stage build?",
+          options: [
+            "Nothing — multi-stage builds only affect build speed, not the final image's size or contents",
+            "The build-time toolchain and intermediate files (compilers, dev dependencies, pre-compiled source) only needed to produce the final artifact, not to run it",
+            "The application's own runtime dependencies",
+            "All environment variables set anywhere in the Dockerfile",
+          ],
+          correctIndex: 1,
+          explanation:
+            "COPY --from pulls only specific files out of an earlier build stage — everything else that stage installed (compilers, dev-only packages, source before compilation) never reaches the final image.",
+        },
+        {
+          kind: "quiz",
+          heading: "Volumes",
+          question:
+            "You need a Postgres container's data to survive `docker rm` and a full container replacement during a deploy. What's the right tool?",
+          options: [
+            "A bind mount pointing at a temp directory",
+            "A named volume, since Docker manages its storage independent of any single container's lifecycle",
+            "Nothing — Postgres data persists automatically regardless of how the container is run",
+            "The container's own writable layer, since it survives docker rm by default",
+          ],
+          correctIndex: 1,
+          explanation:
+            "A container's writable layer is deleted with the container — a named volume is Docker-managed storage that outlives any one container and can be re-attached to whatever replaces it.",
+        },
+        {
+          kind: "quiz",
+          heading: "Container networking",
+          question:
+            "Containers \"web\" and \"db\" are both running on the same Docker host, started with plain `docker run` and no shared `--network` beyond Docker's default. Can \"web\" reach \"db\" using the hostname \"db\"?",
+          options: [
+            "Yes — all containers on the same host can always resolve each other by name",
+            "Not reliably — DNS-based name resolution between containers requires both to be attached to the same user-defined network, not merely running on the same host",
+            "Yes, but only if both containers expose the exact same port",
+            "No — containers can never communicate with each other under any configuration",
+          ],
+          correctIndex: 1,
+          explanation:
+            "\"Running on the same machine\" is not the same as \"on the same Docker network.\" Name-based resolution only works between containers explicitly attached to a shared user-defined network.",
+        },
+        {
+          kind: "summary",
+          heading: "The course, in six takeaways",
+          bullets: [
+            "An image is a built snapshot; a container is a running instance of it — edits inside a container never change the image.",
+            "Order Dockerfile instructions so dependency installs are cached separately from application code changes.",
+            "Multi-stage builds keep build-only tools and files out of the image that actually ships.",
+            "Named volumes persist data a container owns; bind mounts connect to files that live on the host.",
+            "Container-to-container communication requires an explicit shared network — proximity on the same host isn't enough.",
+            "Production containers need a non-root user, resource limits, and a bounded restart policy — none of that is on by default.",
+          ],
+        },
+      ],
+    },
   ],
 };
