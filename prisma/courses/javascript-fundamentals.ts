@@ -367,5 +367,299 @@ for (let i = 0; i < 3; i++) {
         },
       ],
     },
+    {
+      title: "Classes and the Prototype Chain",
+      durationMinutes: 8,
+      slides: [
+        {
+          kind: "title",
+          heading: "Classes and the Prototype Chain",
+          subheading:
+            "Every object in JavaScript is built on another object underneath — class syntax is a clean face on that older, prototype-based system.",
+        },
+        {
+          kind: "example",
+          heading: "class syntax: a constructor and methods",
+          body: "A class bundles data (set up in the constructor) with the methods that operate on it. new creates an instance; the constructor runs automatically.",
+          language: "javascript",
+          code: `class Account {
+  constructor(owner, balance = 0) {
+    this.owner = owner;
+    this.balance = balance;
+  }
+
+  deposit(amount) {
+    this.balance += amount;
+    return this.balance;
+  }
+
+  toString() {
+    return \`\${this.owner}'s account: $\${this.balance}\`;
+  }
+}
+
+const acct = new Account("Ada", 100);
+acct.deposit(50);
+console.log(acct.toString()); // "Ada's account: $150"`,
+        },
+        {
+          kind: "example",
+          heading: "extends and super chain one class onto another",
+          body: "A subclass inherits everything the parent has, and super(...) calls the parent's constructor — it must run before the subclass touches `this`.",
+          language: "javascript",
+          code: `class SavingsAccount extends Account {
+  constructor(owner, balance = 0, rate = 0.02) {
+    super(owner, balance); // sets up this.owner and this.balance first
+    this.rate = rate;
+  }
+
+  applyInterest() {
+    this.balance += this.balance * this.rate;
+    return this.balance;
+  }
+}
+
+const savings = new SavingsAccount("Grace", 1000, 0.03);
+savings.applyInterest();
+console.log(savings.balance);            // 1030
+console.log(savings instanceof Account); // true`,
+        },
+        {
+          kind: "bullets",
+          heading: "What's really happening: prototypes",
+          intro:
+            "class is syntax sugar over JavaScript's older prototype system — nothing about how objects actually work underneath has changed.",
+          bullets: [
+            "Every object has a hidden link to another object it inherits from — that chain of links is the \"prototype chain.\"",
+            "Methods defined in a class body live once on Account.prototype, not copied onto every instance — creating a thousand accounts doesn't create a thousand copies of deposit.",
+            "acct.deposit(50) works because JavaScript checks acct itself first, then walks up to Account.prototype, then further up the chain, until it finds a matching method.",
+            "Object.getPrototypeOf(acct) === Account.prototype lets you inspect the link directly; instanceof checks whether a given prototype appears anywhere in that chain.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A method detached from its instance loses `this`",
+          body: "const deposit = acct.deposit; deposit(50); doesn't behave like acct.deposit(50) — a class method's `this` still depends on how it's called, exactly like a regular function's. Passing acct.deposit directly as a callback (button.addEventListener(\"click\", acct.deposit)) is a classic version of this bug. Fix it with acct.deposit.bind(acct), or wrap it in an arrow function: () => acct.deposit(50).",
+        },
+        {
+          kind: "summary",
+          heading: "What to carry forward",
+          bullets: [
+            "class is sugar over prototypes — methods live once on the prototype, shared by every instance, not duplicated per object.",
+            "extends plus super(...) chains one class's behavior onto another; super(...) must run before a subclass constructor uses this.",
+            "instanceof and Object.getPrototypeOf let you inspect the prototype chain directly.",
+            "A class method detached from its instance loses this just like any other function — bind it or wrap it in an arrow function before passing it as a callback.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Closures and Classes",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Closures and Classes",
+          subheading:
+            "Three hands-on exercises — building private state with closures, then the same idea again with classes and inheritance.",
+        },
+        {
+          kind: "practice",
+          heading: "Counter with Increment, Decrement, and Reset",
+          prompt:
+            "Write a function makeCounter(start = 0) that returns an object with three methods: increment() (adds 1, returns the new count), decrement() (subtracts 1, returns the new count), and reset() (sets the count back to start, returns it). The count itself must be private — not reachable except through these methods.",
+          hint: "Use a closure: declare count as a local variable inside makeCounter, and have every returned method reference that same variable.",
+          solution: `function makeCounter(start = 0) {
+  let count = start; // private — only reachable through the methods below
+
+  return {
+    increment() {
+      count += 1;
+      return count;
+    },
+    decrement() {
+      count -= 1;
+      return count;
+    },
+    reset() {
+      count = start; // closes over the original "start", not the current count
+      return count;
+    },
+  };
+}
+
+const counter = makeCounter(10);
+counter.increment(); // 11
+counter.increment(); // 12
+counter.decrement(); // 11
+counter.reset();     // 10 — back to the original start`,
+        },
+        {
+          kind: "practice",
+          heading: "Memoize an Expensive Function",
+          prompt:
+            "Write memoize(fn) that takes a function of one argument and returns a new function with the same behavior, but caches results by argument so repeated calls with the same input skip re-running fn. Assume the argument is always safe to use as a Map key (a number or string).",
+          hint: "Store a cache (a Map created inside memoize, outside the returned function) in a closure. Check it before calling fn; store the result after.",
+          solution: `function memoize(fn) {
+  const cache = new Map(); // private to this memoized function, via closure
+
+  return function (arg) {
+    if (cache.has(arg)) {
+      return cache.get(arg); // skip recomputation
+    }
+    const result = fn(arg);
+    cache.set(arg, result);
+    return result;
+  };
+}
+
+function slowSquare(n) {
+  console.log("computing...");
+  return n * n;
+}
+
+const fastSquare = memoize(slowSquare);
+fastSquare(5); // logs "computing...", returns 25
+fastSquare(5); // no log — returned straight from the cache`,
+        },
+        {
+          kind: "practice",
+          heading: "A Stack Class, and a Size-Limited Subclass",
+          prompt:
+            "Write a class Stack with push(item), pop() (removes and returns the top item), and peek() (returns the top item without removing it), backed by an array. Then write LimitedStack extends Stack that takes maxSize in its constructor and overrides push to throw if the stack is already full.",
+          hint: "Set up this.items = [] in Stack's constructor. In LimitedStack, call super() then super.push(item) only after checking this.items.length against maxSize.",
+          solution: `class Stack {
+  constructor() {
+    this.items = [];
+  }
+
+  push(item) {
+    this.items.push(item);
+  }
+
+  pop() {
+    return this.items.pop();
+  }
+
+  peek() {
+    return this.items[this.items.length - 1];
+  }
+}
+
+class LimitedStack extends Stack {
+  constructor(maxSize) {
+    super(); // sets up this.items before we touch it
+    this.maxSize = maxSize;
+  }
+
+  push(item) {
+    if (this.items.length >= this.maxSize) {
+      throw new Error("Stack is full");
+    }
+    super.push(item); // reuse the parent's logic instead of duplicating it
+  }
+}
+
+const s = new LimitedStack(2);
+s.push("a");
+s.push("b");
+s.push("c"); // throws: Error: Stack is full`,
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "A closure keeps state alive and private across multiple calls without a class — makeCounter and memoize both lean on this instead of a global variable.",
+            "A Map closed over by a returned function is a common, lightweight cache — no library needed for basic memoization.",
+            "extends plus super.push(...) lets a subclass reuse a parent method's logic instead of copy-pasting it, then add its own check on top.",
+            "Closures and classes are really the same core idea underneath: bundling state together with the only functions allowed to touch it.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — variables, functions, arrays, async, and the scope/class material you just covered.",
+        },
+        {
+          kind: "quiz",
+          heading: "const and Mutation",
+          question:
+            "What does this code log?\n\nconst cart = [\"shirt\"];\ncart.push(\"shoes\");\nconsole.log(cart.length);",
+          options: ["1", "2", "TypeError: Assignment to constant variable", "undefined"],
+          correctIndex: 1,
+          explanation:
+            "const locks the binding, not the contents — cart can't be reassigned to a different array, but its existing array can still be mutated. push() adds an item in place, so length becomes 2.",
+        },
+        {
+          kind: "quiz",
+          heading: "Arrow Functions and this",
+          question:
+            "What does this log?\n\nconst obj = {\n  value: 42,\n  logValue: function () {\n    setTimeout(() => {\n      console.log(this.value);\n    }, 0);\n  },\n};\n\nobj.logValue();",
+          options: ["42", "undefined", "TypeError: Cannot read properties of undefined", "NaN"],
+          correctIndex: 0,
+          explanation:
+            "The arrow function has no this of its own — it uses this from logValue's scope. logValue was called as obj.logValue(), so this there is obj, and the arrow function inherits that. A regular function passed to setTimeout instead would not keep this pointing at obj.",
+        },
+        {
+          kind: "quiz",
+          heading: "await and try/catch",
+          question:
+            "If getUser(id) rejects, what happens here?\n\nasync function loadInvoiceTotal(id) {\n  try {\n    const user = await getUser(id);\n    const orders = await getOrders(user.id);\n    return orders.length;\n  } catch (error) {\n    return -1;\n  }\n}",
+          options: [
+            "The function throws an uncaught error and crashes the program",
+            "Execution jumps to the catch block, and the function returns -1",
+            "getOrders still runs, using undefined as the user",
+            "The function hangs indefinitely waiting for getUser",
+          ],
+          correctIndex: 1,
+          explanation:
+            "await on a rejected promise throws inside the function, exactly like a synchronous throw would. Since it's inside the try block, control moves straight to catch, which returns -1 — orders is never reached.",
+        },
+        {
+          kind: "quiz",
+          heading: "var Inside a Loop",
+          question:
+            "What does this log?\n\nfor (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}",
+          options: ["0 1 2", "0 0 0", "3 3 3", "undefined undefined undefined"],
+          correctIndex: 2,
+          explanation:
+            "var is function-scoped, not block-scoped, so all three callbacks share the exact same i. By the time any of them run, the loop has already finished and i is 3. Switching to let creates a fresh binding per iteration and fixes it — 0, 1, 2.",
+        },
+        {
+          kind: "quiz",
+          heading: "Where Class Methods Live",
+          question:
+            "Given class Dog extends Animal { bark() { ... } } and a dozen Dog instances, where does bark actually live in memory?",
+          options: [
+            "A separate copy is created on every instance, for speed",
+            "On Animal.prototype only, copied down into Dog at construction time",
+            "Nowhere until first called, then cached per instance",
+            "Once, on Dog.prototype, shared by every instance",
+          ],
+          correctIndex: 3,
+          explanation:
+            "Methods defined in a class body are placed once on the class's prototype. Every instance shares that single copy via the prototype chain — creating more instances never duplicates the method itself.",
+        },
+        {
+          kind: "summary",
+          heading: "Course recap",
+          bullets: [
+            "const prevents reassignment, not mutation — arrays and objects declared with const can still change in place.",
+            "Arrow functions inherit this from their surrounding scope; regular functions get their own, determined by how they're called.",
+            "map/filter/reduce, destructuring, and spread are the daily tools for arrays and objects; know the six falsy values so if checks don't surprise you.",
+            "async/await is promises with readable syntax — always pair await with try/catch.",
+            "A closure is a function plus the variables it remembers; classes are sugar over the same prototype system, with methods shared via the prototype chain rather than duplicated per instance.",
+          ],
+        },
+      ],
+    },
   ],
 };

@@ -354,5 +354,237 @@ function render(state: LoadState) {
         },
       ],
     },
+    {
+      title: "Utility Types: Reshaping Types You Already Have",
+      durationMinutes: 8,
+      slides: [
+        {
+          kind: "title",
+          heading: "Utility Types: Reshaping Types You Already Have",
+          subheading:
+            "Once you've defined a type once, TypeScript gives you tools to derive new shapes from it — instead of hand-writing a slightly different copy every time you need one.",
+        },
+        {
+          kind: "example",
+          heading: "Partial and Required",
+          body: "Partial<T> makes every field optional — ideal for an \"update\" function where a caller only sends the fields that changed. Required<T> does the reverse.",
+          language: "typescript",
+          code: `interface User {
+  id: string;
+  name: string;
+  email: string;
+  age?: number;
+}
+
+function updateUser(id: string, changes: Partial<User>) {
+  // changes might be just { name: "New Name" } — every field is optional here
+}
+
+type CompleteUser = Required<User>;
+// { id: string; name: string; email: string; age: number } — age is no longer optional`,
+        },
+        {
+          kind: "example",
+          heading: "Pick and Omit",
+          body: "Pick<T, Keys> keeps only the fields you name; Omit<T, Keys> keeps everything except the fields you name. Both derive a new type from User without retyping it.",
+          language: "typescript",
+          code: `type UserPreview = Pick<User, "id" | "name">;
+// { id: string; name: string }
+
+type NewUserInput = Omit<User, "id">;
+// { name: string; email: string; age?: number }
+// id is assigned by the server, so callers creating a user shouldn't supply it`,
+        },
+        {
+          kind: "example",
+          heading: "Record types a lookup table",
+          body: "Record<Keys, ValueType> is the standard way to type an object used as a dictionary — every key in the union must be present, with a value of the given type.",
+          language: "typescript",
+          code: `type RolePermissions = Record<"admin" | "editor" | "viewer", string[]>;
+
+const permissions: RolePermissions = {
+  admin: ["read", "write", "delete"],
+  editor: ["read", "write"],
+  viewer: ["read"],
+  // missing a key, or adding one not in the union, is a compile error
+};`,
+        },
+        {
+          kind: "bullets",
+          heading: "A few more worth recognizing",
+          bullets: [
+            "Readonly<T> — every field becomes read-only; assigning to it after creation is a compile error.",
+            "ReturnType<typeof someFunction> — pulls out a function's return type without retyping it, so it can't drift out of sync if the function changes.",
+            "These compose freely: Partial<Pick<User, \"name\" | \"email\">> is a fully valid type — \"an object with just name and email, both optional.\"",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "You rarely need to memorize the full list",
+          body: "There are a couple dozen built-in utility types, but Partial, Pick, Omit, and Record cover the large majority of real usage. When you catch yourself about to hand-write a slightly modified copy of an existing type, that's usually the moment to reach for one of these instead — it keeps both types tied together, so an edit to the original doesn't quietly fall out of sync.",
+        },
+        {
+          kind: "summary",
+          heading: "What to carry forward",
+          bullets: [
+            "Partial<T> and Required<T> flip every field between optional and required at once.",
+            "Pick<T, Keys> narrows to specific fields; Omit<T, Keys> excludes specific fields — both avoid retyping a near-duplicate.",
+            "Record<Keys, ValueType> types a dictionary object, and enforces that every key in the union is actually present.",
+            "Utility types compose — deriving a type from another is almost always better than maintaining two independent, near-identical ones.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Deriving Types with Utility Types",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Deriving Types with Utility Types",
+          subheading:
+            "Three exercises using Partial, Omit, Pick, and Record to derive new types from one Product interface, instead of hand-writing duplicates.",
+        },
+        {
+          kind: "practice",
+          heading: "A Type-Safe updateProduct Function",
+          prompt:
+            "Given this Product interface and an existing products lookup, write an updateProduct function that accepts a product's id and a changes object containing any subset of the other Product fields (never id itself), and returns the merged result.\n\ninterface Product {\n  id: string;\n  name: string;\n  price: number;\n  inStock: boolean;\n}\n\ndeclare const products: Record<string, Product>;",
+          hint: "You need every Product field optional except id shouldn't be a valid key on changes at all — Partial<Omit<Product, \"id\">> expresses exactly that.",
+          solution: `function updateProduct(id: string, changes: Partial<Omit<Product, "id">>): Product {
+  const existing = products[id];
+  return { ...existing, ...changes }; // existing first, changes overwrite just the given fields
+}
+
+updateProduct("p1", { price: 19.99 }); // fine — only price changes
+updateProduct("p1", { id: "p2" });     // Error — "id" isn't a valid key on the changes type`,
+        },
+        {
+          kind: "practice",
+          heading: "A Narrowed Type for a Product Card",
+          prompt:
+            "Using the same Product interface, define a type ProductCard containing only the fields a product list card needs to display: name, price, and inStock. Then write a function toCard(product: Product): ProductCard that builds one from a full Product.",
+          hint: "Pick<Product, \"name\" | \"price\" | \"inStock\"> gives you exactly those three fields without retyping them by hand.",
+          solution: `type ProductCard = Pick<Product, "name" | "price" | "inStock">;
+
+function toCard(product: Product): ProductCard {
+  const { name, price, inStock } = product; // pull out just what the card needs
+  return { name, price, inStock };
+}`,
+        },
+        {
+          kind: "practice",
+          heading: "A Complete Lookup Table for Order Status",
+          prompt:
+            "There are three possible order statuses: \"pending\", \"shipped\", \"delivered\". Define a type StatusLabels mapping each status to a human-readable string, then a statusLabels object satisfying it. TypeScript should error if a status is missing or misspelled.",
+          hint: "Record<\"pending\" | \"shipped\" | \"delivered\", string> forces the object to have exactly those three keys — no more, no fewer.",
+          solution: `type OrderStatus = "pending" | "shipped" | "delivered";
+type StatusLabels = Record<OrderStatus, string>;
+
+const statusLabels: StatusLabels = {
+  pending: "Order received",
+  shipped: "On its way",
+  delivered: "Delivered",
+  // Error if any key here is missing, or if an extra key like "canceled" is added
+};`,
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Partial<Omit<T, \"id\">> is the standard shape for an update input — everything optional except the identifier, which shouldn't be editable at all.",
+            "Pick<T, Keys> narrows a large interface down to exactly what one specific view needs, without duplicating field definitions that can drift out of sync.",
+            "Record<Keys, ValueType> forces an object to cover every key in a union exactly once — a missing or misspelled key is a compile error, not a runtime surprise.",
+            "All three compose with each other and with plain object types — deriving a type is almost always better than hand-writing a near-duplicate.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — from any vs. unknown through generics, narrowing, and the utility types you just covered.",
+        },
+        {
+          kind: "quiz",
+          heading: "any vs. unknown",
+          question: "Why is unknown usually a safer choice than any for a value of uncertain type?",
+          options: [
+            "unknown forces you to narrow the type (e.g. with typeof) before you can use it, while any turns off checking entirely",
+            "unknown lets you call any method on the value, but any does not",
+            "unknown is faster at runtime than any",
+            "unknown and any are the same behavior under two names, chosen by style preference",
+          ],
+          correctIndex: 0,
+          explanation:
+            "any disables type checking for that value completely — code that's actually wrong can compile fine. unknown says \"this could be anything\" but requires you to check what it actually is (typeof, instanceof, etc.) before TypeScript will let you use it as anything specific.",
+        },
+        {
+          kind: "quiz",
+          heading: "interface vs. type",
+          question: "Which of the following can interface NOT directly express, unlike type?",
+          options: ["Extending another object shape", "An optional field", "A union of several distinct shapes (A | B)", "A method signature"],
+          correctIndex: 2,
+          explanation:
+            "interface describes the shape of a single object (and can extend another interface), but it can't express a union of alternatives. type Status = \"pending\" | \"active\" | \"cancelled\" has no interface equivalent — that's the main case where type is the only option.",
+        },
+        {
+          kind: "quiz",
+          heading: "Generic Inference",
+          question:
+            "Given function first<T>(arr: T[]): T { return arr[0]; }, what is the inferred return type of first([\"a\", \"b\"])?",
+          options: ["T (the generic placeholder itself)", "any", "string[]", "string"],
+          correctIndex: 3,
+          explanation:
+            "TypeScript infers T from the argument — [\"a\", \"b\"] is a string[], so T becomes string for this call. The function's declared return type is T, but with T resolved to string, so the actual inferred type you get back is string, not the placeholder or the array type.",
+        },
+        {
+          kind: "quiz",
+          heading: "Discriminated Union Narrowing",
+          question:
+            "Given this LoadState type and function, why does state.data.length compile without error inside the if block?\n\ntype LoadState =\n  | { kind: \"loading\" }\n  | { kind: \"success\"; data: string[] }\n  | { kind: \"error\"; message: string };\n\nfunction describe(state: LoadState) {\n  if (state.kind === \"success\") {\n    return state.data.length;\n  }\n  return 0;\n}",
+          options: [
+            "TypeScript allows accessing any property on any object type by default",
+            "The if check narrowed state to the branch of the union where kind is \"success\", the only branch with a data field",
+            "data is optional on all three branches, so TypeScript allows accessing it anywhere",
+            "TypeScript skips property checks entirely inside if statements",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Checking state.kind === \"success\" narrows state's type inside that block to just the { kind: \"success\"; data: string[] } branch — the only one of the three with a data field — so TypeScript knows .data.length is safe there.",
+        },
+        {
+          kind: "quiz",
+          heading: "Reading a Utility Type",
+          question: "What does Partial<Omit<Product, \"id\">> describe?",
+          options: [
+            "An object with every Product field required except id, which is removed entirely",
+            "An object with every Product field optional, except id, which is removed entirely",
+            "An object with every Product field optional, including id",
+            "An object identical to Product, but read-only",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Omit<Product, \"id\"> first produces Product without the id field at all. Partial<...> then makes every remaining field (name, price, inStock) optional. id isn't optional on this type — it's simply not a valid key on it.",
+        },
+        {
+          kind: "summary",
+          heading: "Course recap",
+          bullets: [
+            "Types are erased at compile time — they exist purely to catch mistakes before code runs, never to change runtime behavior.",
+            "Prefer unknown over any when a value's type isn't known yet; it forces a check before you can use it as anything specific.",
+            "interface and type both describe object shapes; only type can express unions, tuples, and other non-object shapes directly.",
+            "Generics let one function or type work correctly across many types without any; discriminated unions plus narrowing are how you safely branch on which variant of a union you actually have.",
+            "Utility types — Partial, Pick, Omit, Record, and others — derive new types from ones you've already defined instead of hand-duplicating them.",
+          ],
+        },
+      ],
+    },
   ],
 };
