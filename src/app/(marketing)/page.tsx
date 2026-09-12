@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { CountUp } from "@/components/marketing/count-up";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
+import { ResumeShowcase } from "@/components/marketing/resume-showcase";
+import { AutoApplySteps, AutoApplyAgentCard } from "@/components/marketing/auto-apply-showcase";
 
 const FLOW = [
   { icon: Search, label: "Discover" },
@@ -206,7 +208,7 @@ export default function MarketingHomePage() {
               <span className="h-2.5 w-2.5 rounded-full bg-success/60" />
               <span className="ml-3 flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-xs text-muted-foreground">
                 <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-success" />
-                app.careeros.com/dashboard
+                app.careeros.app/dashboard
               </span>
             </div>
             <div className="p-6 text-left sm:p-8">
@@ -238,6 +240,61 @@ export default function MarketingHomePage() {
             </div>
           </div>
         </Reveal>
+      </section>
+
+      {/* Resume Studio showcase */}
+      <section className="border-t border-border py-24">
+        <div className="mx-auto max-w-5xl px-6">
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <Reveal>
+              <Badge variant="outline">Resume Studio</Badge>
+              <h2 className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
+                Every resume, tailored and scored in seconds
+              </h2>
+              <p className="mt-4 text-muted-foreground">
+                Paste a job description and Resume Studio scores your resume against it, flags the
+                exact keywords it's missing, and rewrites bullets with AI — grounded in your real
+                experience, never invented.
+              </p>
+              <Button asChild size="lg" className="group mt-8">
+                <Link href="/signup">
+                  Try Resume Studio
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </Button>
+            </Reveal>
+            <Reveal delay={0.1}>
+              <ResumeShowcase />
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Auto Apply showcase */}
+      <section className="border-t border-border bg-surface/40 py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <Badge variant="outline" className="mx-auto">
+              Auto Apply
+            </Badge>
+            <h2 className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
+              A job search agent that shows its work
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Auto Apply discovers, scores, and applies within the limits you set — and pauses to
+              ask you the moment anything is ambiguous.
+            </p>
+          </Reveal>
+
+          <div className="mt-14 grid gap-8 lg:grid-cols-5 lg:items-start">
+            <div className="lg:col-span-3">
+              <AutoApplySteps />
+            </div>
+            <div className="lg:col-span-2">
+              <AutoApplyAgentCard />
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Product video */}
