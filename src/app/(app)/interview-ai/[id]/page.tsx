@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square, Volume2, VolumeX, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -77,6 +77,36 @@ function useVoiceInput(onFinalText: (text: string) => void) {
   return { supported, listening, start, stop };
 }
 
+/** Speaks the interviewer's questions aloud with the browser's native speech
+    synthesis — free, no server round trip, same pattern as voice input above. */
+function useVoiceOutput() {
+  const [supported, setSupported] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    setSupported(typeof window !== "undefined" && "speechSynthesis" in window);
+  }, []);
+
+  function speak(text: string) {
+    if (!supported || muted) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function stop() {
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+  }
+
+  return { supported, speaking, muted, setMuted, speak, stop };
+}
+
 interface Question {
   id: string;
   order: number;
@@ -101,17 +131,21 @@ interface SessionDetail {
 export default function InterviewSessionPage() {
   const params = useParams<{ id: string }>();
   const [session, setSession] = useState<SessionDetail | null>(null);
+  const [totalQuestions, setTotalQuestions] = useState(5);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const voice = useVoiceInput((text) => setDraft((prev) => (prev ? `${prev} ${text}` : text)));
+  const voiceOut = useVoiceOutput();
+  const lastSpokenIdRef = useRef<string | null>(null);
 
   async function load() {
     const res = await fetch(`/api/interview/sessions/${params.id}`);
     const json = await res.json();
     setSession(json.data?.session ?? null);
+    if (json.data?.totalQuestions) setTotalQuestions(json.data.totalQuestions);
     setLoading(false);
   }
 
@@ -119,6 +153,21 @@ export default function InterviewSessionPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  useEffect(() => {
+    return () => voiceOut.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    const currentQ = session.questions.find((q) => q.answer == null);
+    if (currentQ && lastSpokenIdRef.current !== currentQ.id) {
+      lastSpokenIdRef.current = currentQ.id;
+      voiceOut.speak(currentQ.question);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
 
   if (loading) {
     return (
@@ -142,6 +191,7 @@ export default function InterviewSessionPage() {
 
   async function submitAnswer() {
     if (!current || !draft.trim()) return;
+    voiceOut.stop();
     setSubmitting(true);
     setError(null);
     const res = await fetch(`/api/interview/sessions/${params.id}/questions/${current.id}/answer`, {
@@ -235,13 +285,43 @@ export default function InterviewSessionPage() {
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Question {(currentIndex === -1 ? session.questions.length : currentIndex) + 1} of {session.questions.length}
+            Question {(currentIndex === -1 ? session.questions.length : currentIndex) + 1} of {totalQuestions}
           </p>
 
           {current ? (
             <Card>
               <CardContent className="space-y-4 p-6">
-                <Badge variant="outline">{current.category}</Badge>
+                <div className="flex items-start justify-between gap-3">
+                  <Badge variant="outline">{current.category}</Badge>
+                  {voiceOut.supported && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={voiceOut.muted}
+                        onClick={() => voiceOut.speak(current.question)}
+                        aria-label="Replay question"
+                        title="Replay question"
+                      >
+                        <RotateCcw className={voiceOut.speaking ? "h-4 w-4 animate-pulse text-primary" : "h-4 w-4"} />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (!voiceOut.muted) voiceOut.stop();
+                          voiceOut.setMuted((m) => !m);
+                        }}
+                        aria-label={voiceOut.muted ? "Unmute interviewer" : "Mute interviewer"}
+                        title={voiceOut.muted ? "Unmute interviewer" : "Mute interviewer"}
+                      >
+                        {voiceOut.muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <p className="text-lg font-medium text-foreground">{current.question}</p>
                 <div className="relative">
                   <Textarea
@@ -270,8 +350,13 @@ export default function InterviewSessionPage() {
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button onClick={submitAnswer} disabled={submitting || !draft.trim()}>
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Submit answer
+                  {submitting ? "Scoring your answer…" : "Submit answer"}
                 </Button>
+                {submitting && (
+                  <p className="text-xs text-muted-foreground">
+                    The interviewer is reviewing your answer and preparing the next question.
+                  </p>
+                )}
               </CardContent>
             </Card>
           ) : (

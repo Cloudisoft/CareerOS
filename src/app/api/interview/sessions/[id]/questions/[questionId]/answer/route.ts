@@ -10,7 +10,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
     const { user, profile } = await requireCandidate();
     await requireEntitlement(user.id, "interviewAi");
     const { answer } = submitAnswerSchema.parse(await req.json());
-    const question = await submitAnswer(profile.id, params.id, params.questionId, answer);
+    const question = await submitAnswer(user.id, profile.id, params.id, params.questionId, answer);
     return apiOk({ question });
   } catch (error) {
     return apiCatch(error);

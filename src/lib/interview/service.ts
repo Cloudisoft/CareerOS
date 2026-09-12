@@ -13,7 +13,7 @@ export class InterviewError extends Error {
   }
 }
 
-const QUESTIONS_PER_SESSION = 5;
+export const QUESTIONS_PER_SESSION = 5;
 
 const TYPE_LABEL: Record<InterviewType, string> = {
   BEHAVIORAL: "behavioral (STAR-style: situation, task, action, result)",
@@ -34,40 +34,70 @@ interface GeneratedQuestion {
   question: string;
 }
 
-function mockQuestions(type: InterviewType): GeneratedQuestion[] {
+function mockQuestion(type: InterviewType, questionNumber: number): GeneratedQuestion {
   const label = TYPE_LABEL[type];
-  return Array.from({ length: QUESTIONS_PER_SESSION }, (_, i) => ({
+  return {
     category: "Dev mode",
-    question: `[DEV MODE — no AI provider configured. Set ANTHROPIC_API_KEY for real, tailored ${label} questions.] Placeholder question ${i + 1} of ${QUESTIONS_PER_SESSION}.`,
-  }));
+    question: `[DEV MODE — no AI provider configured. Set ANTHROPIC_API_KEY for real, tailored ${label} questions.] Placeholder question ${questionNumber} of ${QUESTIONS_PER_SESSION}.`,
+  };
 }
 
-async function generateQuestions(
+interface AnsweredTurn {
+  category: string;
+  question: string;
+  answer: string;
+}
+
+/**
+ * Generates ONE question at a time, live — question 1 opens the interview;
+ * every question after that is generated only once the candidate has
+ * answered the previous one, reading their actual answer and deciding
+ * whether to probe deeper on it or move to new ground, the way a real
+ * interviewer conducts a conversation rather than reading a fixed script.
+ */
+async function generateQuestion(
   type: InterviewType,
   careerContext: string,
-  jobContext: string | null
-): Promise<GeneratedQuestion[]> {
-  const system = `You are an expert interviewer creating a mock interview for a candidate practicing on Career OS.
-Generate realistic, specific interview questions grounded only in the candidate's real background given below and, if provided, the target job. Never invent facts about the candidate that aren't in their CareerContext.
-Respond with ONLY a JSON array, no markdown code fences, no prose, in exactly this shape:
-[{"category": "string", "question": "string"}, ...]`;
+  jobContext: string | null,
+  history: AnsweredTurn[],
+  questionNumber: number
+): Promise<GeneratedQuestion> {
+  const label = TYPE_LABEL[type];
+  const system = `You are an expert interviewer conducting a live ${label} mock interview with a candidate, one question at a time — this is question ${questionNumber} of ${QUESTIONS_PER_SESSION}.
+Ground every question only in the candidate's real background (CareerContext) below and, if given, the target job — never invent facts about them.
+${
+  history.length > 0
+    ? "You have already asked the questions below and the candidate answered each. Read their most recent answer closely: if it left something specific worth probing — a vague claim, an interesting detail, a result stated without a number, a decision they glossed over — ask a genuine, natural follow-up question about exactly that. Otherwise, move on to a new angle you haven't covered yet. Don't repeat ground already covered."
+    : "This is the opening question of the interview — set a natural, welcoming tone."
+}
+Respond with ONLY a JSON object, no markdown code fences, no prose, in exactly this shape:
+{"category": "string", "question": "string"}`;
 
-  const prompt = `Generate exactly ${QUESTIONS_PER_SESSION} ${TYPE_LABEL[type]} interview questions for this candidate.
+  const historyBlock = history.length
+    ? `\n\nQuestions asked so far and the candidate's answers, in order:\n${history
+        .map((h, i) => `${i + 1}. [${h.category}] ${h.question}\nCandidate's answer: ${h.answer}`)
+        .join("\n\n")}`
+    : "";
 
-CareerContext:
-${careerContext}
-${jobContext ? `\nTarget job:\n${jobContext}` : ""}`;
+  const prompt = `CareerContext:\n${careerContext}${jobContext ? `\n\nTarget job:\n${jobContext}` : ""}${historyBlock}\n\nAsk question ${questionNumber} of ${QUESTIONS_PER_SESSION} now.`;
 
-  const { text, provider } = await generateText({ system, prompt, maxTokens: 1200 });
-  if (provider === "mock") return mockQuestions(type);
+  const { text, provider } = await generateText({ system, prompt, maxTokens: 400 });
+  if (provider === "mock") return mockQuestion(type, questionNumber);
 
   try {
-    const parsed = JSON.parse(stripCodeFence(text)) as GeneratedQuestion[];
-    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("empty");
-    return parsed.slice(0, QUESTIONS_PER_SESSION);
+    const parsed = JSON.parse(stripCodeFence(text)) as GeneratedQuestion;
+    if (!parsed?.question) throw new Error("empty");
+    return parsed;
   } catch {
     throw new InterviewError("The AI provider returned an unexpected response. Please try again.", "AI_PARSE_ERROR");
   }
+}
+
+async function loadJobContext(jobId?: string | null): Promise<{ context: string | null; validId: string | undefined }> {
+  if (!jobId) return { context: null, validId: undefined };
+  const job = await prisma.job.findUnique({ where: { id: jobId }, include: { company: true } });
+  if (!job) return { context: null, validId: undefined };
+  return { context: `${job.title} at ${job.company.name}\n${job.description.slice(0, 1500)}`, validId: job.id };
 }
 
 interface AnswerScore {
@@ -141,34 +171,22 @@ export async function getSession(profileId: string, sessionId: string) {
 }
 
 export async function startSession(userId: string, profileId: string, type: InterviewType, jobId?: string) {
-  let jobContext: string | null = null;
-  let validJobId: string | undefined;
-
-  if (jobId) {
-    const job = await prisma.job.findUnique({ where: { id: jobId }, include: { company: true } });
-    if (job) {
-      validJobId = job.id;
-      jobContext = `${job.title} at ${job.company.name}\n${job.description.slice(0, 1500)}`;
-    }
-  }
-
+  const { context: jobContext, validId: validJobId } = await loadJobContext(jobId);
   const careerContext = await buildCareerContext(userId);
-  const questions = await generateQuestions(type, careerContext, jobContext);
+  const first = await generateQuestion(type, careerContext, jobContext, [], 1);
 
   return prisma.interviewSession.create({
     data: {
       profileId,
       jobId: validJobId,
       type,
-      questions: {
-        create: questions.map((q, i) => ({ order: i, category: q.category, question: q.question })),
-      },
+      questions: { create: [{ order: 0, category: first.category, question: first.question }] },
     },
     include: { questions: { orderBy: { order: "asc" } } },
   });
 }
 
-export async function submitAnswer(profileId: string, sessionId: string, questionId: string, answer: string) {
+export async function submitAnswer(userId: string, profileId: string, sessionId: string, questionId: string, answer: string) {
   const session = await getSession(profileId, sessionId);
   if (session.status !== "IN_PROGRESS") {
     throw new InterviewError("This session has already been completed.", "SESSION_COMPLETED");
@@ -178,7 +196,7 @@ export async function submitAnswer(profileId: string, sessionId: string, questio
 
   const result = await scoreAnswer(question.question, question.category, answer);
 
-  return prisma.interviewQuestion.update({
+  const updated = await prisma.interviewQuestion.update({
     where: { id: questionId },
     data: {
       answer,
@@ -189,6 +207,26 @@ export async function submitAnswer(profileId: string, sessionId: string, questio
       answeredAt: new Date(),
     },
   });
+
+  const nextOrder = question.order + 1;
+  if (nextOrder < QUESTIONS_PER_SESSION) {
+    const history: AnsweredTurn[] = [
+      ...session.questions
+        .filter((q) => q.answer != null)
+        .map((q) => ({ category: q.category, question: q.question, answer: q.answer as string })),
+      { category: question.category, question: question.question, answer },
+    ];
+
+    const { context: jobContext } = await loadJobContext(session.jobId);
+    const careerContext = await buildCareerContext(userId);
+    const next = await generateQuestion(session.type, careerContext, jobContext, history, nextOrder + 1);
+
+    await prisma.interviewQuestion.create({
+      data: { sessionId: session.id, order: nextOrder, category: next.category, question: next.question },
+    });
+  }
+
+  return updated;
 }
 
 export async function completeSession(profileId: string, sessionId: string) {
