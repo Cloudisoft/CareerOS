@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { TagInput } from "@/components/ui/tag-input";
+import { MicButton } from "@/components/voice/mic-button";
 import type { ResumeContent, ResumeExperience, ResumeEducation } from "@/lib/validations/resume";
 
 interface TargetJob {
@@ -268,12 +269,19 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
           </Button>
         </CardHeader>
         <CardContent>
-          <Textarea
-            rows={4}
-            value={content.summary}
-            onChange={(e) => update({ summary: e.target.value })}
-            placeholder="A 2-3 sentence summary of your experience and what you're looking for."
-          />
+          <div className="relative">
+            <Textarea
+              rows={4}
+              value={content.summary}
+              onChange={(e) => update({ summary: e.target.value })}
+              placeholder="A 2-3 sentence summary of your experience and what you're looking for."
+              className="pb-12"
+            />
+            <MicButton
+              className="absolute bottom-2 right-2"
+              onFinalText={(text) => update({ summary: content.summary ? `${content.summary} ${text}` : text })}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -336,6 +344,7 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
                       className="flex-1"
                     />
                     <div className="flex flex-col gap-1">
+                      <MicButton onFinalText={(text) => updateBullet(i, bi, bullet ? `${bullet} ${text}` : text)} />
                       <Button
                         variant="ghost"
                         size="icon"

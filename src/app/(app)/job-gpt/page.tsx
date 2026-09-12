@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { UpgradeRequired } from "@/components/billing/upgrade-required";
+import { MicButton } from "@/components/voice/mic-button";
+import { SpeakButton } from "@/components/voice/speak-button";
 import { cn } from "@/lib/utils";
 
 interface Conversation {
@@ -188,7 +190,10 @@ export default function JobGptPage() {
                 </div>
               )}
               <Card className={cn("max-w-lg", m.role === "USER" && "bg-surface-raised")}>
-                <CardContent className="whitespace-pre-line p-3 text-sm text-foreground">{m.content}</CardContent>
+                <CardContent className="flex items-start gap-2 p-3">
+                  <p className="whitespace-pre-line text-sm text-foreground">{m.content}</p>
+                  {m.role === "ASSISTANT" && <SpeakButton text={m.content} className="-mr-1 -mt-1 shrink-0" />}
+                </CardContent>
               </Card>
               {m.role === "USER" && (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
@@ -221,9 +226,10 @@ export default function JobGptPage() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Job GPT…"
+            placeholder="Ask Job GPT, or use the mic…"
             disabled={sending}
           />
+          <MicButton onFinalText={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))} />
           <Button type="submit" disabled={sending || !input.trim()}>
             <Send className="h-4 w-4" />
           </Button>

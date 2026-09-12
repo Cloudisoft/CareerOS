@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UpgradeRequired } from "@/components/billing/upgrade-required";
+import { MicButton } from "@/components/voice/mic-button";
+import { SpeakButton } from "@/components/voice/speak-button";
 
 interface TargetJob {
   job: { id: string; title: string; company: { name: string } };
@@ -135,13 +137,20 @@ export default function CoverLetterStudioPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="jobDescription">Job description</Label>
-                <Textarea
-                  id="jobDescription"
-                  rows={6}
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Paste the job description here."
-                />
+                <div className="relative">
+                  <Textarea
+                    id="jobDescription"
+                    rows={6}
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="Paste the job description here, or dictate it with the mic."
+                    className="pb-12"
+                  />
+                  <MicButton
+                    className="absolute bottom-2 right-2"
+                    onFinalText={(text) => setJobDescription((prev) => (prev ? `${prev} ${text}` : text))}
+                  />
+                </div>
               </div>
             </>
           )}
@@ -178,13 +187,22 @@ export default function CoverLetterStudioPage() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Your cover letter</CardTitle>
-            <Button size="sm" variant="secondary" onClick={copyLetter}>
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <SpeakButton text={letter} />
+              <Button size="sm" variant="secondary" onClick={copyLetter}>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <Textarea rows={14} value={letter} onChange={(e) => setLetter(e.target.value)} />
+            <div className="relative">
+              <Textarea rows={14} value={letter} onChange={(e) => setLetter(e.target.value)} className="pb-12" />
+              <MicButton
+                className="absolute bottom-2 right-2"
+                onFinalText={(text) => setLetter((prev) => (prev ? `${prev} ${text}` : text))}
+              />
+            </div>
           </CardContent>
         </Card>
       )}
