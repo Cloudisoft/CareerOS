@@ -209,5 +209,206 @@ triage process, cutting average response time from 18 hours to 4."`,
         },
       ],
     },
+    {
+      title: "Resumes for Career Changers and Employment Gaps",
+      durationMinutes: 6,
+      slides: [
+        {
+          kind: "title",
+          heading: "Resumes for Career Changers and Employment Gaps",
+          subheading:
+            "Every rule so far assumes a clean, linear career. If yours has a gap or a pivot, the fixes are specific — not just \"be more confident.\"",
+        },
+        {
+          kind: "bullets",
+          heading: "Gaps and pivots are different problems",
+          bullets: [
+            "A gap is a stretch of time with no paid work on the resume — caregiving, a layoff, illness, travel, a return to school.",
+            "A pivot is continuous work history that just doesn't point at the job you're applying for now.",
+            "Both trigger the same silent question in a reader's head — \"why isn't this straightforward?\" — and both are best answered on the page, briefly, rather than left for the reader to guess at.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Handling a gap without hiding it",
+          bullets: [
+            "Don't switch to year-only dates (\"2021-2023\") just for the gap year — it's a pattern recruiters recognize immediately, and it reads as concealment rather than as neutral.",
+            "If you did anything structured during the gap — freelance work, a certification, caregiving that involved real coordination and budget, volunteer leadership — list it as a real line item with dates, the way you would a job.",
+            "For an unstructured gap, a single factual phrase is enough on the resume itself: \"Family caregiving leave, 2022-2023.\" Save the fuller story, if anyone asks, for the interview.",
+            "Never fabricate a title or a company to paper over the months. It's discoverable, and it costs you more than the honest gap would have.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Handling a pivot: lead with the transfer, not the timeline",
+          bullets: [
+            "Add a 2-3 line summary that states the pivot plainly: \"Marketing coordinator moving into UX design, with two years leading user research for product launches.\" Don't make the reader infer the story from job titles alone.",
+            "Reorder your skills section to foreground what transfers — user research, stakeholder interviews, data analysis — ahead of what's specific to the old track.",
+            "Rewrite old-job bullets through the lens of the new target, honestly. The same project can honestly be described as \"led customer interviews that shaped a product redesign\" if that's genuinely what you did, even though your title was Marketing Coordinator.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "What undermines a pivot resume",
+          body: "Keeping every bullet in the original professional voice of the old career, with none of it translated toward the new one, forces the reader to do the pivot's work for you. If you wouldn't naturally use a term in an interview for the new role, don't lean on it here either.",
+        },
+        {
+          kind: "summary",
+          heading: "The honest version reads stronger",
+          bullets: [
+            "A gap or pivot named briefly and factually reads as someone in control of their story.",
+            "A gap disguised or a pivot left unexplained reads as something to be suspicious of — usually worse than the truth would have.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Rewriting Weak Bullets Into Impact",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Rewriting Weak Bullets Into Impact",
+          subheading:
+            "Three real rewrites, using the skeleton and the honest-metric moves from this course. Do them before checking the model answers.",
+        },
+        {
+          kind: "practice",
+          heading: "Rewrite a duty-only bullet",
+          prompt:
+            "Rewrite this bullet using the skeleton [Did X] by [doing Y], resulting in [Z]: \"Responsible for the company's social media accounts.\" Assume you actually grew a following, posted more consistently, and increased engagement, even though you don't remember the exact numbers.",
+          hint: "Start with the verb: what did you actually do to the accounts — grew, redesigned, launched, restructured? Then attach scale or before/after language instead of a number you don't have.",
+          solution:
+            "\"Rebuilt the brand's social content calendar and posting cadence, growing Instagram followers by roughly 40% over eight months and lifting average post engagement from under 1% to consistently above 3%.\" If you truly have no numbers at all: \"Restructured the brand's social content calendar from ad hoc posting to a consistent weekly schedule, taking the account from stalled growth to the fastest-growing of the company's three platforms.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Fix a bullet that buries the actual work in \"helped with\"",
+          prompt:
+            "Rewrite: \"Helped with the launch of a new customer onboarding process.\" You know the person actually wrote onboarding emails and ran training for new hires, but was not the project lead.",
+          hint: "\"Helped with\" hides your specific piece. Name exactly what you owned, even as one contributor on a bigger project — that's still a real, specific claim.",
+          solution:
+            "\"Wrote the full email sequence and led training sessions for a new customer onboarding process, one of three workstreams on a cross-functional launch that cut new-customer support tickets by 25% in the first quarter.\" Notice it's honest about scope (\"one of three workstreams\") while still being specific about the individual contribution.",
+        },
+        {
+          kind: "practice",
+          heading: "Rewrite a bullet with a fabricated-sounding number",
+          prompt:
+            "Rewrite this bullet, which currently reads as unbelievable: \"Increased team productivity by 300% through better time management.\" The real story: you introduced a shared task board that cut the time the team spent in status meetings roughly in half.",
+          hint: "An implausible percentage is worse than no percentage. Anchor the claim to something concrete and checkable — time saved, meetings cut, a process replaced — rather than an abstract \"productivity\" figure.",
+          solution:
+            "\"Introduced a shared task board to replace status-update meetings, cutting the team's weekly meeting time roughly in half and freeing an estimated 4 hours per person per week for direct project work.\"",
+        },
+        {
+          kind: "summary",
+          heading: "What good rewriting looks like",
+          bullets: [
+            "Every bullet starts with a specific verb, not \"responsible for\" or \"helped with.\"",
+            "A missing number is replaced with real scale or before/after language — never an invented figure.",
+            "The claim stays something you could defend in detail if an interviewer asked \"walk me through that.\"",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check: Resume Writing",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check: Resume Writing",
+          subheading:
+            "Five questions across the whole course — the kind of thing a hiring manager's first 30-second scan would actually catch.",
+        },
+        {
+          kind: "quiz",
+          heading: "Structure",
+          question:
+            "A candidate puts a two-paragraph \"Objective\" statement at the top of their resume, above their most recent job title. What's the main problem with this, per this course?",
+          options: [
+            "It's outdated formatting that ATS systems can no longer parse at all",
+            "It uses space a scanning reader needs for concrete signal, and vague language like \"seeking a challenging role\" tells the reader nothing",
+            "Objective statements are only appropriate for candidates with a college degree",
+            "It should be replaced with a two-page cover letter instead",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course's core structural argument is that a resume is scanned in 20-40 seconds, so every line has to earn its place. A generic objective burns prime top-of-page space without giving the reader anything concrete — the fix is either cutting it or replacing it with a tight, specific summary.",
+        },
+        {
+          kind: "quiz",
+          heading: "Impact vs. duty",
+          question:
+            "Which rewrite best follows the \"[Did X] by [doing Y], resulting in [Z]\" skeleton from this course?",
+          options: [
+            "\"Responsible for managing a team of engineers and various technical projects.\"",
+            "\"Worked on improving the deployment process for the engineering team.\"",
+            "\"Redesigned the deployment pipeline by automating manual test steps, cutting release time from two days to four hours.\"",
+            "\"Passionate about engineering excellence and continuous process improvement.\"",
+          ],
+          correctIndex: 2,
+          explanation:
+            "Only the third option names a specific action (redesigned), what it was applied to (the deployment pipeline, via automating manual steps), and a concrete result (two days to four hours). The others describe presence or personality, not impact.",
+        },
+        {
+          kind: "quiz",
+          heading: "ATS formatting",
+          question:
+            "Which resume choice is most likely to cause an ATS to read a resume's content out of order or drop sections entirely?",
+          options: [
+            "Using the exact phrasing from the job posting for a skill you genuinely have",
+            "Listing skills in a single grouped section near the middle of the page",
+            "A two-column layout with graphics or icons next to each section",
+            "Ordering sections as Contact, Summary, Experience, Skills, Education",
+          ],
+          correctIndex: 2,
+          explanation:
+            "Multi-column layouts and embedded graphics are the most common cause of an ATS misreading section order or missing content, because many parsers read left-to-right, top-to-bottom across the whole page rather than following visual columns.",
+        },
+        {
+          kind: "quiz",
+          heading: "Page length",
+          question:
+            "A candidate with 14 years of experience across two distinct chapters (5 years as an individual contributor, then 9 years in people management) is deciding between one and two pages. What does this course recommend?",
+          options: [
+            "Always stay at one page regardless of experience — two pages is never acceptable",
+            "Two pages is defensible here, since cutting either chapter to fit one page would misrepresent a real, relevant part of their background",
+            "Three pages, to give equal space to both chapters",
+            "One page, but only if font size is reduced to fit everything",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course's one-page rule is narrower than \"always one page\" — it explicitly calls out 12+ years of experience with multiple distinct career chapters as a case where two pages is defensible, because compressing to one page would cut context a reader actually needs.",
+        },
+        {
+          kind: "quiz",
+          heading: "Career gaps and pivots",
+          question:
+            "Someone has an 8-month employment gap for a documented medical leave. According to this course, what's the recommended way to handle it on the resume?",
+          options: [
+            "Switch all dates on the resume to year-only format so the gap isn't visually obvious",
+            "List a brief, factual line for the period (e.g., \"Medical leave, 2023\") rather than hiding or fabricating it",
+            "Omit the most recent job entirely so the timeline looks continuous",
+            "Leave it unaddressed on the resume and explain it only if asked directly in an interview",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course's guidance is to name a gap briefly and factually rather than disguise it — switching to year-only dates or omitting jobs to hide a gap reads as concealment, which usually costs more credibility than the honest, short explanation would.",
+        },
+        {
+          kind: "summary",
+          heading: "This course's core takeaways",
+          bullets: [
+            "Structure controls whether the content even gets read — fix the scan before the sentences.",
+            "Every bullet should show impact (verb + what + result), not just describe a duty.",
+            "ATS problems are almost always plain formatting and keyword-overlap issues, not a hidden algorithm to game.",
+            "The one-page rule is about experience shape, not a fixed law — defend every line with the cut test.",
+            "Proofread out of normal reading order, since your brain autocorrects what it expects to see.",
+            "A gap or a pivot, named honestly and briefly, reads better than one hidden or left unexplained.",
+          ],
+        },
+      ],
+    },
   ],
 };

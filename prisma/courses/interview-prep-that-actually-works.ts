@@ -207,5 +207,205 @@ company]."`,
         },
       ],
     },
+    {
+      title: "Following Up After the Interview (and Reading the Signals)",
+      durationMinutes: 6,
+      slides: [
+        {
+          kind: "title",
+          heading: "Following Up After the Interview (and Reading the Signals)",
+          subheading:
+            "The interview doesn't end when you leave the room. What you do in the next 24 hours, and how you read what happens after, is still part of the process.",
+        },
+        {
+          kind: "bullets",
+          heading: "The thank-you note that actually helps",
+          bullets: [
+            "Send it within 24 hours, to each individual interviewer if you have their emails, not one generic note to the recruiter to forward.",
+            "Reference something specific from your conversation with that person — a question they asked, a detail about their team's work — not a templated paragraph that could apply to any interview.",
+            "Use it to add one thing you didn't get to say, if there's a genuine gap, rather than just repeating your interest in the role.",
+            "Keep it short. A thank-you note is a courtesy and a small signal, not a second interview answer.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A structure that works",
+          body: "Notice it's specific to the conversation, not just \"thank you for your time\" — that's what makes it read as genuine rather than procedural.",
+          code: `"Thanks for taking the time to talk through the data
+migration project today — I've been thinking more about
+the phased rollout approach you mentioned, and it's a big
+part of why I'm excited about the role. One thing I didn't
+get to mention: I led a similar migration at [company] and
+would be glad to talk through it more if useful."`,
+        },
+        {
+          kind: "bullets",
+          heading: "Reading the signals while you wait",
+          bullets: [
+            "A fast next-round scheduling request is a genuinely good sign — it usually means no internal debate about whether to move you forward.",
+            "A generic \"we'll be in touch\" with no timeline isn't necessarily bad news — ask directly: \"Do you have a sense of timeline for next steps?\" rather than trying to read tone in an email.",
+            "A long silence past the timeline you were given is worth one polite check-in, not several. If a recruiter said \"early next week\" and it's now the following Friday, a single follow-up is reasonable; a daily one reads as pressure, not interest.",
+            "Radio silence after a promised date, with no response to a follow-up either, is itself information — treat the process as likely stalled and keep moving on other opportunities rather than pausing your whole search to wait.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "The asymmetry worth remembering",
+          body: "A thoughtful follow-up rarely costs you anything, even in a process that was already going to end in a rejection. Skipping it costs you nothing when things go well, but occasionally costs you a genuine edge when a decision is close. It's a small, low-risk action with only upside.",
+        },
+        {
+          kind: "summary",
+          heading: "Following up, briefly",
+          bullets: [
+            "A specific, personal thank-you note within 24 hours to each interviewer.",
+            "Ask directly about timeline instead of guessing from tone or silence.",
+            "One polite check-in past a missed date is reasonable; repeated ones aren't.",
+            "Treat unexplained silence as real information and keep your other options moving.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Building Your STAR Story Bank",
+      durationMinutes: 13,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Building Your STAR Story Bank",
+          subheading:
+            "Draft three real answers now, before an interview forces you to improvise them live.",
+        },
+        {
+          kind: "practice",
+          heading: "Draft your \"tell me about a failure\" answer",
+          prompt:
+            "Using the STAR shape, draft your answer to \"Tell me about a time you failed.\" Pick a real, specific failure — not a disguised humble-brag (\"I work too hard\") — where you can honestly name what went wrong and what you actually changed afterward. Write the full answer, aiming for 60-90 seconds spoken.",
+          hint: "Spend one sentence on Situation, one on Task, most of the answer on Action (what you did and specifically what you got wrong), and make sure Result includes the lesson, not just the outcome.",
+          solution:
+            "\"On a product launch I owned, I assumed our existing analytics setup would capture the new feature's usage automatically — it didn't, because the events needed custom tagging I hadn't scoped in. [Situation/Task] Two weeks after launch, I realized we had almost no usage data to show whether the feature was working. [Action] I owned the mistake directly with my manager rather than downplaying it, then worked with an engineer to backfill instrumentation and built a lightweight weekly report so it wouldn't happen again on the next launch. [Result] We recovered three weeks of partial data through log analysis, and every launch since has had an instrumentation checklist item before go-live — a step that's now standard for the team.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Draft your \"time you disagreed with your manager\" answer",
+          prompt:
+            "Draft a STAR answer to \"Tell me about a time you disagreed with your manager.\" Choose a real disagreement where you pushed back constructively and it led to a genuine resolution — not one where you simply complied, and not one where you were simply right and they were simply wrong.",
+          hint: "This question is testing whether you can push back without either going silent or being insubordinate. Show the actual conversation — what you said, not just that you \"raised concerns.\"",
+          solution:
+            "\"My manager wanted to ship a feature two weeks early by cutting the QA pass to one round instead of two. [Situation/Task] I disagreed, but instead of just saying no, I laid out the specific risk — a similar cut on a past project had caused a production bug that cost us a week of hotfixes — and proposed a middle ground: keep both QA rounds but cut scope on a lower-priority part of the feature to hit the earlier date. [Action] My manager agreed to the trade-off once it was framed as a specific alternative rather than just pushback. [Result] We shipped on the revised date with both QA passes intact, and no regressions — and my manager started looping me into scope-timeline tradeoffs earlier on later projects.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Draft your strongest \"proudest work\" answer",
+          prompt:
+            "Draft a STAR answer to \"What's a piece of work you're most proud of?\" Choose something where your individual contribution is genuinely clear — practice separating \"I\" from \"we\" explicitly, the way the course recommends.",
+          hint: "If it was a team effort, say so once, then be explicit about your specific piece: \"the team did X; I specifically owned Y and drove Z.\"",
+          solution:
+            "\"Our team was tasked with cutting customer churn, which was trending up quarter over quarter. [Situation/Task] The team ran several workstreams — I specifically owned the onboarding-email analysis, and proposed and built a revised email sequence with clearer setup guidance after finding that most churned customers had never completed a key setup step. [Action] I ran it as an A/B test against the old sequence before rolling it out fully. [Result] The new sequence lifted setup completion by 22% for new customers, and churn in that segment dropped by roughly a third over the following two quarters — a change that's still the default onboarding flow today.\"",
+        },
+        {
+          kind: "summary",
+          heading: "What a strong story bank has in common",
+          bullets: [
+            "Real, specific situations — not composites or exaggerations you'd struggle to defend under a follow-up question.",
+            "\"I\" clearly separated from \"we\" in every Action section.",
+            "A Result that names what changed, and ideally what you'd still improve — not just \"and it worked out.\"",
+            "Answers you could start from any point in, not a memorized script you'd lose your place in.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check: Interview Prep",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check: Interview Prep",
+          subheading: "Five questions across the whole course.",
+        },
+        {
+          kind: "quiz",
+          heading: "STAR method",
+          question:
+            "In a strong STAR answer, which part should typically take up the largest share of the response?",
+          options: ["Situation", "Task", "Action", "Result"],
+          correctIndex: 2,
+          explanation:
+            "Action is where you show what you actually did, step by step — it's the part interviewers are most evaluating. A common mistake is spending most of the answer on Situation context and rushing or skipping the rest.",
+        },
+        {
+          kind: "quiz",
+          heading: "Behavioral questions",
+          question:
+            "An interviewer asks, \"Tell me about a time you failed.\" What is this question primarily evaluating, according to this course?",
+          options: [
+            "How severe the failure was, since bigger failures show more resilience",
+            "Whether you can find an example where the failure wasn't really your fault",
+            "Self-awareness and whether you extracted a real, applied lesson from it",
+            "Whether you've ever failed at all, since some candidates will claim they haven't",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course is explicit that severity isn't the point — a small, honest failure with a clear lesson beats a vague or deflected big one. The evaluation is on self-awareness and follow-through, not on how dramatic the failure was.",
+        },
+        {
+          kind: "quiz",
+          heading: "Technical and case interviews",
+          question:
+            "A candidate in a technical interview goes silent for two minutes while stuck, then presents a full working solution. What does this course say about that approach?",
+          options: [
+            "It's ideal — interviewers only care about the final answer being correct",
+            "Silence while stuck is the worst option; narrating what you know, what you've ruled out, and your next direction is stronger even before you land on an answer",
+            "It's fine as long as the solution is optimal on the first attempt",
+            "Interviewers expect total silence during problem-solving and interpret talking as a lack of confidence",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course's core point about technical/case rounds is that the evaluation is on process as much as outcome — an interviewer who sees a structured approach to being stuck often comes away more confident than one who only watches a smooth answer to an easy problem.",
+        },
+        {
+          kind: "quiz",
+          heading: "Questions to ask",
+          question:
+            "Which of these is the strongest question to ask an interviewer near the end of a first-round interview, per this course?",
+          options: [
+            "\"What does your company do?\"",
+            "\"What's the salary range for this role?\"",
+            "\"What does success look like in this role at 6 months and a year?\"",
+            "\"Do you have any concerns about my background?\" as a yes/no check",
+          ],
+          correctIndex: 2,
+          explanation:
+            "Questions answerable from the company website (like what the company does) signal a lack of preparation, and compensation specifics are generally better left until the interviewer raises them. The success-metrics question shows you're thinking about impact and evaluating fit both ways.",
+        },
+        {
+          kind: "quiz",
+          heading: "After the interview",
+          question:
+            "A candidate was told by a recruiter \"we'll follow up early next week\" and it's now the following Friday with no word. What does this course recommend?",
+          options: [
+            "Send one polite check-in asking for a status update",
+            "Email daily until you get a response, since persistence signals interest",
+            "Assume the process is dead and never follow up at all",
+            "Call the interviewer's personal cell phone if you can find it",
+          ],
+          correctIndex: 0,
+          explanation:
+            "The course's guidance is one polite follow-up past a missed timeline, not repeated ones — a single check-in reads as reasonable interest, while daily follow-ups read as pressure rather than genuine engagement.",
+        },
+        {
+          kind: "summary",
+          heading: "This course's core takeaways",
+          bullets: [
+            "STAR works when Action carries the weight and Result is never skipped.",
+            "Behavioral questions test the trait behind the story, not the story's drama — pick honest, specific examples.",
+            "In technical and case rounds, narrate your reasoning; process is evaluated as much as the answer.",
+            "Prepare real, specific questions for them — it's still part of the evaluation, both ways.",
+            "Follow up specifically and promptly, then read silence as real information without escalating pressure.",
+          ],
+        },
+      ],
+    },
   ],
 };

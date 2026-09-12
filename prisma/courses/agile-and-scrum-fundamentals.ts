@@ -370,5 +370,204 @@ so that I don't have to re-enter it every time I check out.`,
         },
       ],
     },
+    {
+      title: "Estimating Work: Story Points, Velocity, and Why Hours Mislead",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Estimating Work: Story Points, Velocity, and Why Hours Mislead",
+          subheading:
+            "Sprint planning needs some way to size work — most Scrum teams use story points instead of hours, and the reason isn't arbitrary.",
+        },
+        {
+          kind: "text",
+          heading: "Why not just estimate in hours?",
+          body: [
+            "Hour estimates on knowledge work are consistently unreliable — the same task takes different people, and even the same person on different days, meaningfully different amounts of time, and interruptions, meetings, and unrelated work eat into the hours nobody scoped for.",
+            "Story points sidestep this by estimating relative size and complexity instead of absolute time — the question shifts from \"how many hours will this take\" (hard to answer accurately) to \"is this roughly twice as complex as that other story we already agreed on\" (a comparison people are actually decent at).",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "How story pointing actually works",
+          bullets: [
+            "Points are usually assigned from a Fibonacci-like scale (1, 2, 3, 5, 8, 13...) — the growing gaps at higher numbers reflect that estimating precisely gets harder as size and uncertainty grow, not that anyone can distinguish a true 12 from a true 13.",
+            "Points measure a mix of effort, complexity, and uncertainty — not just how long something takes. A small, well-understood task and a small, but genuinely unfamiliar or risky one can reasonably get different point values even at similar \"size.\"",
+            "Planning poker (each person privately selects a point value, then reveals simultaneously) is a common technique specifically to avoid anchoring — if the most senior engineer says \"3\" out loud first, everyone else tends to converge toward it whether or not it's accurate.",
+            "A large spread of guesses on reveal isn't a problem to smooth over quickly — it usually means the story is genuinely ambiguous, and that gap is exactly what the follow-up discussion should resolve before committing to it.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Velocity: what it's for, and what it isn't",
+          body: [
+            "Velocity is the average number of story points a team completes per sprint, tracked over several sprints. Its real purpose is forecasting — if a team's velocity is stable around 30 points a sprint, that's a grounded basis for estimating when a 90-point backlog of upcoming work might realistically be done.",
+            "It is a team-level planning tool, not an individual performance metric, and it isn't comparable across teams — a 40-velocity team isn't twice as productive as a 20-velocity one, because point scales are calibrated differently team to team.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The trap: velocity as a target",
+          body: "Using velocity to pressure a team into hitting a specific number quietly incentivizes point inflation (calling everything an 8 instead of a 3) rather than more actual delivery — the metric stops being useful the moment it becomes something to hit rather than something to observe.",
+        },
+        {
+          kind: "summary",
+          heading: "Estimating, briefly",
+          bullets: [
+            "Story points estimate relative size and complexity, because hour estimates on knowledge work are reliably inaccurate.",
+            "Techniques like planning poker exist specifically to prevent anchoring on the most senior voice in the room.",
+            "Velocity is a team-level forecasting tool built from historical data — not a cross-team comparison or an individual performance measure.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Writing and Sizing a User Story",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Writing and Sizing a User Story",
+          subheading:
+            "Turn a vague ask into a real, INVEST-checked, estimated backlog item.",
+        },
+        {
+          kind: "practice",
+          heading: "Turn a raw request into a proper user story",
+          prompt:
+            "You've been handed this raw ask from a stakeholder: \"Add a way for users to export their data.\" Rewrite it as a proper user story in the As a / I want / so that format, and name the specific user type and benefit rather than leaving it generic.",
+          hint: "Ask yourself who specifically wants this and why — \"a user\" is too vague. Is this for a compliance-conscious business customer, someone switching to a competing tool, someone building a personal backup? The \"so that\" clause should name a real reason, not just restate the feature.",
+          solution:
+            "\"As a business customer preparing for an internal audit, I want to export my account's full activity history as a CSV, so that I can hand it to our compliance team without manually copying data out of the app.\" Naming the specific user and reason makes the story's priority and scope much easier to reason about than the original vague ask.",
+        },
+        {
+          kind: "practice",
+          heading: "Run the INVEST check and flag what's missing",
+          prompt:
+            "Apply the INVEST checklist to this story: \"As a user, I want the entire settings page redesigned with a modern look, so that the app feels more professional.\" Identify which INVEST criteria it fails and why.",
+          hint: "Check specifically for Small (does it fit in one sprint?), Testable (is there a clear way to know it's done?), and Valuable (is the benefit concrete, or just a vague feeling?).",
+          solution:
+            "Fails Small — \"the entire settings page redesigned\" is likely too large for a single sprint and should be split by section or component. Fails Testable — \"feels more professional\" has no clear acceptance criteria; there's no way to check objectively whether it's done. Weak on Valuable — the benefit is vague; a stronger version would tie to something concrete, like \"so that new users can find the account settings they're looking for without contacting support,\" which can actually be measured.",
+        },
+        {
+          kind: "practice",
+          heading: "Estimate two stories relative to each other",
+          prompt:
+            "Your team already agreed a past story — \"add a CSV export button to the reports page\" — was a 3. Now estimate this new story using the same point scale: \"add a scheduled weekly CSV export that emails the report automatically, including handling failed email deliveries and a user-facing settings toggle to turn it on or off.\" Give a point value and justify it relative to the 3-point story.",
+          hint: "Compare complexity and unknowns, not just \"does it look like more work.\" What's genuinely new here that the 3-point story didn't have to deal with — a scheduler, email delivery, failure handling, a new settings surface?",
+          solution:
+            "8 points. It reuses the underlying CSV generation from the 3-point story, but adds several genuinely new pieces of complexity: a scheduling mechanism, email delivery integration, failure/retry handling, and a new settings UI — each a real source of uncertainty the original story didn't touch. It's clearly bigger than a 5 (which would suggest one added dimension of complexity) but not so novel it warrants a 13, since none of the individual pieces are unprecedented for the team.",
+        },
+        {
+          kind: "summary",
+          heading: "What a ready-to-estimate story looks like",
+          bullets: [
+            "Named user, real capability, and a genuine \"so that\" — not a restated feature request.",
+            "Small and testable enough that the team could realistically finish and demo it within a sprint.",
+            "Estimated relative to a known reference point, based on complexity and uncertainty — not a guess at raw hours.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check: Agile and Scrum Fundamentals",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check: Agile and Scrum Fundamentals",
+          subheading: "Five questions across the whole course.",
+        },
+        {
+          kind: "quiz",
+          heading: "The Agile Manifesto",
+          question:
+            "Per the Agile Manifesto's actual value statements, which of these best reflects what \"responding to change over following a plan\" means?",
+          options: [
+            "Plans and deadlines should never be used at all",
+            "A plan is treated as a living thing that adapts as the team learns, not a fixed commitment made before real information existed",
+            "Every plan should be replaced weekly regardless of whether anything has changed",
+            "Only the Scrum Master is allowed to change a sprint plan",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course is explicit that Agile values are preferences, not rejections — this value doesn't mean no planning, it means holding a plan more lightly and adjusting it based on real feedback, rather than treating an upfront plan as fixed.",
+        },
+        {
+          kind: "quiz",
+          heading: "Scrum ceremonies",
+          question:
+            "A team's daily standup consists of each person reporting their task list one by one directly to a manager, with little cross-talk. What does this course call this?",
+          options: [
+            "A healthy, well-run standup",
+            "A sprint retrospective, incorrectly scheduled daily",
+            "The most common anti-pattern — standup as a status report instead of a peer coordination check-in",
+            "Sprint planning, mislabeled",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course names this specifically as the most common anti-pattern: the standup's actual purpose is surfacing blockers and coordinating who needs to talk to whom, not reporting individual progress up to a manager.",
+        },
+        {
+          kind: "quiz",
+          heading: "Roles",
+          question:
+            "A Scrum Master starts assigning individual tasks to team members and evaluating their individual performance. What does this course say about that?",
+          options: [
+            "This is exactly what a Scrum Master is supposed to do",
+            "It's a sign the Scrum Master has effectively become a manager wearing a different title — outside the role's actual scope",
+            "It's fine as long as the Product Owner approves it first",
+            "This is the Development Team's job, so the Scrum Master is simply helping out",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course specifically flags this as the most common role confusion: the Scrum Master's job is facilitating process and removing blockers, not assigning tasks or evaluating individuals — that crosses into a management role the framework doesn't define for this position.",
+        },
+        {
+          kind: "quiz",
+          heading: "User stories and estimation",
+          question:
+            "A team disagrees widely on planning poker point values for a story — some say 2, others say 13. What does this course say this spread usually means?",
+          options: [
+            "Someone on the team is estimating incorrectly and should be overruled by the most senior voice",
+            "The story is genuinely ambiguous, and the gap is exactly what the follow-up discussion should resolve before committing to it",
+            "The team should just average the numbers and move on immediately",
+            "Planning poker has failed and the team should switch to hour-based estimates instead",
+          ],
+          correctIndex: 1,
+          explanation:
+            "A wide spread on reveal is treated as useful signal, not noise — it usually means people are seeing different scope, risk, or unknowns in the story, and that's precisely the disagreement the discussion after the reveal is meant to surface and resolve.",
+        },
+        {
+          kind: "quiz",
+          heading: "Anti-patterns and follow-through",
+          question:
+            "A team's retrospectives raise the same complaint sprint after sprint with no real change. Per this course, what's the actual problem?",
+          options: [
+            "Retrospectives are inherently useless and should be dropped",
+            "The team isn't spending enough time in the retrospective meeting itself",
+            "The retro's value is in follow-through, and the pattern shows action items aren't actually being carried out",
+            "The Product Owner should be running retrospectives instead of the Scrum Master",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course is explicit that a retrospective's entire value is in follow-through — surfacing the same issue repeatedly with no real change is the classic sign that action items are being nodded at but not actually implemented, not that the ceremony itself is worthless.",
+        },
+        {
+          kind: "summary",
+          heading: "This course's core takeaways",
+          bullets: [
+            "Agile is a set of values favoring adaptability and real feedback over rigid upfront planning.",
+            "Each Scrum ceremony answers a distinct coordination question — treat them as tools, not boxes to check.",
+            "Product Owner, Scrum Master, and the Team have distinct responsibilities; confusing them is a common source of dysfunction.",
+            "Good user stories name real value and pass an honest INVEST check; story points estimate relative complexity, not hours.",
+            "Velocity forecasts a team's own pace over time — it isn't a cross-team comparison or a target to hit.",
+            "Watch for ceremonies and metrics that keep their form but quietly lose their actual purpose.",
+          ],
+        },
+      ],
+    },
   ],
 };

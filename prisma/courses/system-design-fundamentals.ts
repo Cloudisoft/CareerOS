@@ -279,5 +279,206 @@ Read path (redirect):
         },
       ],
     },
+    {
+      title: "Rate Limiting and Backpressure",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Rate Limiting and Backpressure",
+          subheading:
+            "Every technique so far assumed legitimate traffic that simply needs to be served efficiently. Rate limiting is the piece that protects a system when traffic — abusive or just excessive — needs to be refused instead.",
+        },
+        {
+          kind: "text",
+          heading: "What rate limiting actually protects",
+          body: [
+            "A rate limiter caps how many requests a given client (by API key, user ID, or IP) can make in a window of time, rejecting the excess with a 429-style response instead of processing it. It protects two different things at once: the backend itself, from being overwhelmed by one client's traffic (accidental — a buggy retry loop — or deliberate, like a scraper or a brute-force login attempt), and fairness between clients, so one noisy consumer can't degrade service for everyone else on shared infrastructure.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "The standard algorithms, and the actual trade-off between them",
+          bullets: [
+            "Fixed window — count requests in discrete windows (e.g. per calendar minute), reset to zero at each boundary. Simple, but bursty at the edges: a client can send a full window's worth of requests in the last second of one window and another full window's worth in the first second of the next, doubling the intended rate briefly.",
+            "Sliding window — instead of a hard reset, the window continuously slides with time, smoothing out that edge-burst problem at the cost of a bit more bookkeeping (tracking timestamps, or a weighted blend of the current and previous window).",
+            "Token bucket — a bucket holds up to N tokens, refilling at a steady rate; each request consumes one token, and a request with no tokens available is rejected. This naturally allows a short burst (spending saved-up tokens) while still enforcing a steady average rate over time — the algorithm most APIs actually reach for, because occasional legitimate bursts are common and shouldn't be penalized the way a rigid fixed window would.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Where it's enforced changes what it protects",
+          body: "Rate limiting isn't one decision — it's usually layered, and each layer catches something the others don't.",
+          code: `Layer                 Protects against                 Typical granularity
+---------------------------------------------------------------------------
+CDN / edge / gateway   Broad abuse, DDoS-style floods    Per IP, very cheap to check
+API gateway            Per-client fairness, quota tiers  Per API key / per user
+Application code       Expensive-specific-endpoint abuse Per endpoint, per user
+                        (e.g. "send password reset email")`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Backpressure: rate limiting's quieter cousin",
+          body: "Rate limiting rejects excess requests from a client outright. Backpressure is the related idea of a system signaling upstream that it's overloaded — a queue that stops accepting new items once it's full, or a service that starts returning errors deliberately, faster and cheaper than trying to process everything and collapsing under the load. A queue worker falling behind message production is a classic case: without backpressure, the queue simply grows unbounded until memory runs out, rather than failing predictably and visibly earlier.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A shared rate limiter needs shared state, not per-server counters",
+          body: "Behind a load balancer with multiple app servers, a rate limiter that counts requests in a local in-memory variable on each server is enforcing the limit per server, not per client overall — a client hitting 5 servers round-robin effectively gets 5x the intended limit. Enforcing a real global limit needs a shared, fast store (Redis is the standard choice) that every server checks against, the same statelessness requirement that shows up everywhere else in a horizontally scaled system.",
+        },
+        {
+          kind: "summary",
+          heading: "Recap",
+          bullets: [
+            "Rate limiting caps a client's request rate to protect backend capacity and fairness between clients — token bucket is the most common algorithm because it tolerates legitimate short bursts.",
+            "It's typically layered: a cheap, broad check at the edge (CDN/gateway) plus tighter, more specific limits closer to the application for expensive endpoints.",
+            "Backpressure is the related idea of a system pushing back when overloaded (a full queue, an early error) instead of accepting unbounded work it can't actually handle.",
+            "Enforcing a limit across multiple servers requires shared state (like Redis) — a per-server in-memory counter only enforces the limit per server, not overall.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Applying the Toolkit to New Scenarios",
+      durationMinutes: 14,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Applying the Toolkit to New Scenarios",
+          subheading:
+            "Two open-ended design scenarios. Work through scope, scale, naive design, and bottlenecks before checking the worked solution — that order is most of the exercise.",
+        },
+        {
+          kind: "practice",
+          heading: "1. Design a rate limiter for a public API",
+          prompt:
+            "Design a rate limiter for a public API with these constraints: it needs to enforce 100 requests/minute per API key, run correctly across 20 app servers behind a load balancer, and reject excess requests in well under 5ms so it doesn't itself become the bottleneck. Sketch the approach: what algorithm, where the counters live, and how a request is checked.",
+          hint:
+            "Whatever you pick has to be shared across all 20 servers (not per-server state), and fast enough that the check itself doesn't dominate the request's latency budget. What kind of store is built for exactly this kind of fast, shared counter?",
+          solution:
+            "Token bucket per API key, with the bucket state (tokens remaining, last refill time) stored in Redis rather than in any app server's memory — that's what makes it correct across all 20 servers regardless of which one handles a given request. On each request: the app server computes the key's Redis key (e.g. `ratelimit:{apiKey}`), atomically checks and decrements available tokens (using a Lua script or Redis's built-in atomic operations so a burst of concurrent requests to the same key can't race past each other and both succeed when only one token remained), and refills tokens lazily based on elapsed time since the last check rather than running a separate background refill process per key.\n\nWhy token bucket over fixed window here: 100 req/min is an average rate, and legitimate API consumers often burst — a client that batches its calls once a minute rather than trickling them out steadily shouldn't be penalized for it, which is exactly what token bucket tolerates and fixed window doesn't. Why Redis specifically: it's fast enough (sub-millisecond) to check on every request without meaningfully affecting latency, and — critically — it's the one place all 20 app servers can share the exact same counter, avoiding the per-server-counter bug where a client round-robining across servers gets a multiple of the intended limit.\nKey decision: the atomicity of the check-and-decrement matters as much as the algorithm choice — without it, concurrent requests to the same key can both read \"1 token left\" and both proceed, silently allowing the limit to be exceeded under real concurrent load.",
+        },
+        {
+          kind: "practice",
+          heading: "2. Diagnose and fix a design under revised requirements",
+          prompt:
+            "The URL shortener from this course's worked example was designed assuming a 1000:1 read/write ratio. Now assume a new requirement: link creation suddenly needs to support 50,000 writes/second (a marketing partner is bulk-importing links), while redirects stay roughly the same volume as before. Which part of the earlier design breaks first under this new requirement, and what's the fix?",
+          hint:
+            "The original design leaned on one write-only primary database plus read replicas — that split was built around reads being the dominant traffic. Which side of that split does a 50,000 writes/second spike actually stress?",
+          solution:
+            "The single primary database is what breaks first — read replicas don't help write throughput at all, since every write still funnels through the one primary regardless of how many read replicas exist. 50,000 writes/second sustained is well beyond what a single primary can typically absorb, especially with cache invalidation or write-through work happening per write.\n\nFix: this is exactly the scenario sharding exists for — shard the links table by a hash of the short code (the same shard key reasoned about in the worked example, chosen specifically because it distributes evenly with no natural hot key), splitting the 50,000 writes/second across N primaries instead of one. Each shard handles a fraction of the import load in parallel. The read path barely changes — a redirect still checks the cache first, and a cache miss now has to be routed to the correct shard's replica based on the same short-code hash used for writes, rather than a single replica pool.\nKey decision: read replicas and sharding solve different problems (read scale vs. write/data-volume scale), and this scenario is a clean illustration of why the course's rule of thumb — reach for sharding only once write volume has genuinely outgrown a single primary — applies here specifically because the bottleneck moved from reads to writes, not because sharding is simply the \"next step up\" from replication.",
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Matching the algorithm to the actual traffic shape (token bucket tolerating legitimate bursts) rather than picking whichever rate-limiting technique is most familiar.",
+            "Recognizing that shared enforcement across multiple servers requires a shared, atomic store — not assuming any in-memory or per-server approach generalizes.",
+            "Correctly attributing a new bottleneck to the specific part of the system it actually stresses (writes vs. reads) instead of reflexively reapplying the same fix that solved a previous, different bottleneck.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — testing the reasoning behind each technique, not just its name.",
+        },
+        {
+          kind: "quiz",
+          heading: "Approaching an open-ended problem",
+          question:
+            "In a system design interview, a candidate immediately starts drawing a diagram of load balancers, caches, and sharded databases for \"design a URL shortener,\" without first discussing scope or scale. What's the most accurate assessment of this approach?",
+          options: [
+            "It's a strong start — jumping to a complete architecture shows deep technical knowledge.",
+            "It's a common failure mode — without first pinning down functional scope and scale, a technically sound-looking design may be solving the wrong problem, which reads as a bigger miss than a simpler design for the right one.",
+            "It doesn't matter what order these are discussed in, as long as all the right components eventually get mentioned.",
+            "It's correct as long as caching is included, since caching is required in every system design regardless of scale.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course calls this out directly as the most common failure mode: a diagram of services before the problem is scoped. Requirements (what the system does, what's explicitly out of scope) and scale (users, request rate, read/write ratio, consistency vs. availability needs) should shape which techniques are even relevant — applying sharding or heavy caching to a problem that doesn't need them is a real miss, not a neutral safe default.",
+        },
+        {
+          kind: "quiz",
+          heading: "Statelessness and horizontal scaling",
+          question:
+            "A team horizontally scales their app servers to handle more load, but stores each logged-in user's session data in a plain in-memory object on whichever server first handled their login. What breaks, and why?",
+          options: [
+            "Nothing breaks — horizontal scaling makes every server identical automatically, including their in-memory data.",
+            "A user's session can appear to randomly disappear whenever the load balancer routes their next request to a different server that never saw their login.",
+            "This only becomes a problem once the number of servers exceeds 10.",
+            "This is fine as long as a fixed-window rate limiter is also in place.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Horizontal scaling's promise — any server can handle any request — requires servers to be stateless, meaning nothing about handling a request depends on state that only lives in one specific server's memory. Session data kept in-process breaks exactly this: a request landing on a different server than the one that saw the login effectively hits a server that's \"never heard of them,\" the precise failure mode the course calls out. The fix is moving session state to a shared store (like Redis), not adding more servers or a rate limiter.",
+        },
+        {
+          kind: "quiz",
+          heading: "Caching and invalidation",
+          question:
+            "A popular product page's cache entry expires, and in the same instant, 5,000 concurrent requests all miss the cache and hit the database simultaneously. What is this called, and what's a standard defense?",
+          options: [
+            "A hot shard, defended against by choosing a better sharding key.",
+            "A cache stampede, defended against with a short random jitter on TTLs or a lock so only one request repopulates the cache while others wait.",
+            "Cache invalidation, defended against by switching from cache-aside to write-through.",
+            "A thundering herd of replicas, defended against by adding more read replicas.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "This is a cache stampede — a burst of simultaneous misses on one popular key overwhelming the database at once. Jittered TTLs (so entries don't all expire at exactly the same instant) and a repopulation lock (so only one request refetches while the rest wait for that result) are the two standard defenses. A hot shard is a different problem — one shard getting disproportionate traffic — and neither more replicas nor a caching-strategy swap addresses the actual simultaneous-miss dynamic here.",
+        },
+        {
+          kind: "quiz",
+          heading: "Replication vs. sharding",
+          question:
+            "A system's read traffic has grown 10x, but total data size and write volume are unchanged and comfortably handled by the current primary database. What's the appropriate next step?",
+          options: [
+            "Shard the database, since sharding is the standard next step whenever a system needs to scale.",
+            "Add read replicas, since a read-heavy increase with unchanged write volume and data size is exactly what replication (not sharding) is designed to address.",
+            "Both sharding and replication should be added together as a default pairing.",
+            "Switch from cache-aside to write-through caching, since that's the correct response to any traffic growth.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course's rule of thumb is explicit: reach for replication first since it directly addresses read-heavy load (spreading reads across replicas while writes stay on the primary), and reach for sharding only once write volume or data size has genuinely outgrown a single primary — neither of which is true in this scenario. Sharding here would add real complexity (multi-shard queries) to solve a problem replication already solves more simply.",
+        },
+        {
+          kind: "quiz",
+          heading: "Rate limiting across multiple servers",
+          question:
+            "An API enforces a 100 req/min limit per client, but the counter is a plain JavaScript object kept in each app server's memory, and the API runs behind a load balancer across 10 servers. What's the actual effect?",
+          options: [
+            "The limit is enforced correctly, since each server independently caps requests at 100/min.",
+            "A client can receive up to roughly 10x the intended limit, since each server tracks its own separate count and the load balancer can spread that client's requests across all 10.",
+            "The load balancer automatically merges the counters from all 10 servers into one shared total.",
+            "This has no effect on the rate limit, only on which algorithm (token bucket vs. fixed window) is being used.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "An in-memory counter is local to one server's process — it has no visibility into what the other 9 servers are counting. A client whose requests get distributed across all 10 servers can effectively get up to 10x the intended limit, since each server independently allows 100/min without any awareness of the others. Enforcing a real global limit requires a shared store like Redis that every server checks against, not more sophisticated per-server logic.",
+        },
+        {
+          kind: "summary",
+          heading: "Course takeaways",
+          bullets: [
+            "Scope and scale (especially the read/write ratio and consistency-vs-availability trade-off) should be pinned down before any specific technique is chosen — a good design for the wrong scale reads as a bigger miss than a simple design for the right one.",
+            "Horizontal scaling requires statelessness — anything a server needs to remember across requests belongs in a shared store, not a server's own memory.",
+            "Caching trades memory for speed; invalidation (not storage) is the hard part, and TTLs, explicit invalidation, and jittered expirations are the practical tools for managing it.",
+            "Load balancers distribute traffic and remove failed servers via health checks — and need redundancy themselves, since one load balancer just moves the single point of failure up a level.",
+            "Replication scales reads by copying data; sharding scales writes and data volume by splitting it — replication first, sharding only once write volume or size genuinely outgrows a single primary.",
+            "Rate limiting and backpressure protect a system from excess or abusive load, but only work correctly across multiple servers when the limiting state itself is shared, not per-server.",
+          ],
+        },
+      ],
+    },
   ],
 };

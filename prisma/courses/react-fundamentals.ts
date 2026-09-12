@@ -424,5 +424,245 @@ function Child() {
         },
       ],
     },
+    {
+      title: "Memoization: useMemo, useCallback, and React.memo",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Memoization: useMemo, useCallback, and React.memo",
+          subheading:
+            "The last lesson made the case that most re-renders aren't a problem. This one covers what to actually do once you've measured one that is.",
+        },
+        {
+          kind: "text",
+          heading: "Three tools, one underlying idea",
+          body: [
+            "Memoization means caching a result and reusing it instead of recomputing it, as long as its inputs haven't changed. React gives you three flavors of this: useMemo caches a computed value, useCallback caches a function itself, and React.memo caches an entire component's rendered output.",
+            "All three exist to answer the same question: given that a component re-rendered, can some of the work inside it be skipped because nothing it depends on actually changed?",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "useMemo: skipping an expensive recomputation",
+          body: "Without useMemo, sortAndFilter would run on every render of this component — including renders triggered by something unrelated, like a theme toggle. With it, the sort only reruns when items or query actually change.",
+          code: `function ProductList({ items, query }) {
+  const visible = useMemo(
+    () => sortAndFilter(items, query), // only reruns when items or query change
+    [items, query]
+  );
+
+  return (
+    <ul>
+      {visible.map((item) => (
+        <li key={item.id}>{item.name}</li>
+      ))}
+    </ul>
+  );
+}`,
+        },
+        {
+          kind: "example",
+          heading: "useCallback + React.memo: skipping a child's re-render entirely",
+          body: "React.memo makes a component skip re-rendering if its props are shallow-equal to last time. That only works if the props themselves are stable — a new arrow function on every render of the parent would defeat it, which is exactly what useCallback prevents here.",
+          code: `const RowButton = React.memo(function RowButton({ onSelect, id }) {
+  console.log("RowButton rendered", id);
+  return <button onClick={() => onSelect(id)}>Select</button>;
+});
+
+function Parent({ items }) {
+  const [theme, setTheme] = useState("light");
+
+  // Without useCallback, this is a brand-new function every render,
+  // so RowButton's memo comparison always fails and it re-renders anyway.
+  const handleSelect = useCallback((id) => {
+    console.log("selected", id);
+  }, []);
+
+  return (
+    <div>
+      <button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+        Toggle theme
+      </button>
+      {items.map((item) => (
+        <RowButton key={item.id} id={item.id} onSelect={handleSelect} />
+      ))}
+    </div>
+  );
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Memoization is not free, and it's not the default you should reach for first",
+          body: "Every useMemo and useCallback call costs a comparison and a bit of retained memory, and React.memo costs a props comparison on every parent render. Wrapping everything in memoization by default usually makes code harder to read without measurably helping performance — most components are cheap enough that re-rendering them is a non-issue. Reach for these tools when you've identified a specific, measured slowdown (a large list, an expensive computation, a component that's costly enough that skipping its render actually matters), not as a reflexive habit applied to every component you write.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "A dependency array mistake that silently defeats memoization",
+          body: "useMemo and useCallback compare dependency arrays the same way useEffect does — by reference for objects, arrays, and functions. Passing a freshly created object as a dependency (`useMemo(() => x, [{ id }])`) recreates that dependency every render, so the cache never actually hits. The values inside the array need to themselves be stable (primitives, or things already memoized) for the memoization to do anything at all.",
+        },
+        {
+          kind: "summary",
+          heading: "Recap",
+          bullets: [
+            "useMemo caches a computed value; useCallback caches a function reference; React.memo skips a component's re-render when its props haven't changed.",
+            "React.memo only helps if the props it's comparing are themselves stable — pairing it with useCallback (or a memoized value) for any function or object props is what actually makes it work.",
+            "These are targeted fixes for a measured performance problem, not a default to apply everywhere — the comparison and memory overhead isn't free either.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Fixing Unnecessary Re-renders",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Fixing Unnecessary Re-renders",
+          subheading:
+            "Three small, realistic bugs. In each, figure out why the component re-renders (or behaves) more than it should before reaching for a fix.",
+        },
+        {
+          kind: "practice",
+          heading: "1. A memoized child that re-renders anyway",
+          prompt:
+            "`ExpensiveRow` is wrapped in React.memo, but it still re-renders every time `Dashboard`'s unrelated `theme` state changes. Find the bug and fix it.\n\n```jsx\nconst ExpensiveRow = React.memo(function ExpensiveRow({ data, onClick }) {\n  console.log(\"rendering row\", data.id);\n  return <div onClick={() => onClick(data.id)}>{data.label}</div>;\n});\n\nfunction Dashboard({ rows }) {\n  const [theme, setTheme] = useState(\"light\");\n\n  return (\n    <div>\n      <button onClick={() => setTheme(theme === \"light\" ? \"dark\" : \"light\")}>\n        Toggle theme\n      </button>\n      {rows.map((row) => (\n        <ExpensiveRow key={row.id} data={row} onClick={(id) => console.log(id)} />\n      ))}\n    </div>\n  );\n}\n```",
+          hint:
+            "React.memo does a shallow comparison of props. Look at what's created fresh, as a new reference, on every single render of Dashboard — regardless of what triggered it.",
+          solution:
+            "The `onClick` prop is a new arrow function literal on every render of Dashboard, so React.memo's shallow comparison always sees a \"changed\" prop and re-renders ExpensiveRow anyway, even though nothing about that row actually changed. Fix: hoist the handler out with useCallback so the same function reference is passed on every render, and derive the id inside the child instead of closing over it in the parent.\n\n```jsx\nfunction Dashboard({ rows }) {\n  const [theme, setTheme] = useState(\"light\");\n\n  const handleClick = useCallback((id) => {\n    console.log(id);\n  }, []);\n\n  return (\n    <div>\n      <button onClick={() => setTheme(theme === \"light\" ? \"dark\" : \"light\")}>\n        Toggle theme\n      </button>\n      {rows.map((row) => (\n        <ExpensiveRow key={row.id} data={row} onClick={handleClick} />\n      ))}\n    </div>\n  );\n}\n```\nKey decision: the fix targets the actual cause (an unstable prop reference) rather than removing React.memo — the memo was correct, the prop passed to it wasn't stable.",
+        },
+        {
+          kind: "practice",
+          heading: "2. An expensive computation running on every keystroke",
+          prompt:
+            "`SearchResults` recomputes a sorted, filtered list from 10,000 items on every render — including every render caused by unrelated state like `showFilters`. Typing in the search box is noticeably laggy. Fix the performance problem without changing what's rendered.\n\n```jsx\nfunction SearchResults({ items, query }) {\n  const [showFilters, setShowFilters] = useState(false);\n\n  const results = items\n    .filter((item) => item.name.toLowerCase().includes(query.toLowerCase()))\n    .sort((a, b) => a.name.localeCompare(b.name));\n\n  return (\n    <div>\n      <button onClick={() => setShowFilters(!showFilters)}>Toggle filters</button>\n      {showFilters && <FilterPanel />}\n      <ul>\n        {results.map((item) => (\n          <li key={item.id}>{item.name}</li>\n        ))}\n      </ul>\n    </div>\n  );\n}\n```",
+          hint:
+            "The filter/sort only actually needs to rerun when items or query change — toggling showFilters shouldn't trigger it at all. What hook exists specifically to skip recomputing a value when its dependencies haven't changed?",
+          solution:
+            "Wrap the filter+sort in useMemo with `[items, query]` as its dependency array, so toggling `showFilters` (which changes state but not items or query) no longer reruns it.\n\n```jsx\nfunction SearchResults({ items, query }) {\n  const [showFilters, setShowFilters] = useState(false);\n\n  const results = useMemo(\n    () =>\n      items\n        .filter((item) => item.name.toLowerCase().includes(query.toLowerCase()))\n        .sort((a, b) => a.name.localeCompare(b.name)),\n    [items, query]\n  );\n\n  return (\n    <div>\n      <button onClick={() => setShowFilters(!showFilters)}>Toggle filters</button>\n      {showFilters && <FilterPanel />}\n      <ul>\n        {results.map((item) => (\n          <li key={item.id}>{item.name}</li>\n        ))}\n      </ul>\n    </div>\n  );\n}\n```\nKey decision: the dependency array only lists the two values the computation actually reads — `showFilters` is deliberately left out, because including it would make the memoization rerun on exactly the render we're trying to skip.",
+        },
+        {
+          kind: "practice",
+          heading: "3. List items losing their own state after reordering",
+          prompt:
+            "Each row in this list has its own \"expanded\" toggle. After the list gets re-sorted (say, alphabetically), users report that the wrong rows appear expanded — the expanded state seems to stay with a position in the list rather than following the item. Find the bug.\n\n```jsx\nfunction ItemList({ items }) {\n  return (\n    <ul>\n      {items.map((item, index) => (\n        <Row key={index} item={item} />\n      ))}\n    </ul>\n  );\n}\n\nfunction Row({ item }) {\n  const [expanded, setExpanded] = useState(false);\n  return (\n    <li onClick={() => setExpanded(!expanded)}>\n      {item.name} {expanded && <p>{item.details}</p>}\n    </li>\n  );\n}\n```",
+          hint:
+            "The key is `index`, not something tied to the item itself. Think about what React actually uses the key for when a list is reordered rather than just appended to.",
+          solution:
+            "React uses `key` to match a rendered element to the same element from the previous render, so it knows to reuse (and preserve the state of) that same component instance instead of creating a new one. With `key={index}`, after a re-sort, position 2 is still \"key 2\" even though a completely different item now sits there — so React reuses the Row instance (and its `expanded` state) that used to belong to a different item. Fix: key by the item's own stable identity instead of its position.\n\n```jsx\nfunction ItemList({ items }) {\n  return (\n    <ul>\n      {items.map((item) => (\n        <Row key={item.id} item={item} />\n      ))}\n    </ul>\n  );\n}\n```\nKey decision: the fix is entirely in the key, not in Row itself — `Row` was written correctly all along. This is why array index as a key is a known anti-pattern specifically for lists that can reorder, filter, or have items inserted/removed from the middle.",
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Recognizing that React.memo only helps when the props it compares are reference-stable, and pairing it with useCallback where needed.",
+            "Using useMemo for a genuinely expensive computation, with a dependency array limited to what the computation actually reads.",
+            "Understanding that `key` controls component identity across renders, not just list rendering — and that index-as-key is specifically dangerous once a list can reorder.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — the goal is testing whether the mental models actually stuck, not recalling lesson trivia.",
+        },
+        {
+          kind: "quiz",
+          heading: "The component model",
+          question:
+            "A teammate says React is \"imperative because you write functions that run code.\" What's the most accurate response?",
+          options: [
+            "They're right — any code with function calls and logic is imperative by definition.",
+            "React is declarative: components describe what the UI should look like for given props/state, and React decides how to update the actual DOM to match.",
+            "React is neither — it has no real distinction between declarative and imperative styles.",
+            "React is imperative only when hooks like useEffect are used, and declarative otherwise.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Declarative vs. imperative is about what you specify, not whether the code has functions or logic. You describe the desired end result (given this data, render this) and React figures out the DOM operations to get there — you never manually target an element and mutate it. That's true of the whole component model, not just parts of it.",
+        },
+        {
+          kind: "quiz",
+          heading: "JSX and the zero trap",
+          question:
+            "Why does `{count && <Badge />}` sometimes render a stray \"0\" on the page instead of rendering nothing?",
+          options: [
+            "React has a bug with falsy values inside JSX expressions.",
+            "`<Badge />` throws an error when count is falsy, and React shows the error inline.",
+            "JavaScript's && returns the left operand (0) when it's falsy, and React renders that returned 0 as literal text.",
+            "count needs to be explicitly cast to a boolean before it can be used in JSX at all.",
+          ],
+          correctIndex: 2,
+          explanation:
+            "`&&` evaluates to its left side if that side is falsy — for `0`, that's the number 0 itself, not `false` or `undefined`. React renders numbers as text, so `0` shows up on the page. `count > 0 && <Badge />` sidesteps this because the left side then evaluates to an actual boolean.",
+        },
+        {
+          kind: "quiz",
+          heading: "Props, state, and where shared data should live",
+          question:
+            "Two sibling components need to read and update the same piece of data. Where should that data live, and how should the siblings interact with it?",
+          options: [
+            "Each sibling should keep its own copy in local state and sync them with a useEffect that watches the other's value.",
+            "In the closest common ancestor's state, passed down to both siblings as props — along with a function, also passed down, that either sibling calls to update it.",
+            "As a global variable outside the component tree, so both siblings can read and write it directly without props.",
+            "In whichever sibling renders first, passed to the other as a prop only when it changes.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "This is \"lifting state up\": state lives in the nearest common ancestor, which passes the value down as a prop and passes an updater function down for children to call. Syncing two separate copies of state with an effect is a common but fragile pattern — it introduces a lag and a place for the two copies to drift out of sync, when a single shared source of truth avoids the problem entirely.",
+        },
+        {
+          kind: "quiz",
+          heading: "useEffect's dependency array",
+          question:
+            "An effect reads a prop called `userId` inside a fetch call, but the dependency array is `[]`. What's the actual consequence?",
+          options: [
+            "The effect throws a runtime error immediately because userId is referenced but not declared as a dependency.",
+            "The effect runs once, on mount, and continues using whatever userId was at that first render — it won't refetch if userId later changes.",
+            "React automatically adds userId to the dependency array behind the scenes since it detects it's used inside the effect.",
+            "The effect re-runs on every render regardless of the empty array, because fetch calls are always tracked separately.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "An empty dependency array means \"run once, after the first render, and never again.\" If the effect closes over `userId`, it keeps using the value from that first render's closure — a classic stale-closure bug. The fix is to include every value the effect actually reads, here `[userId]`, so it re-runs and refetches when that value changes.",
+        },
+        {
+          kind: "quiz",
+          heading: "Memoization and re-renders",
+          question:
+            "A component is wrapped in React.memo, but it still re-renders on every parent render. The most likely cause is:",
+          options: [
+            "React.memo only works on class components, not function components.",
+            "One or more props passed to it are new references each render (an inline object, array, or function), so the shallow prop comparison never matches.",
+            "React.memo has no effect unless the component also calls useMemo internally.",
+            "The component has too many props for React.memo's comparison to work correctly.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "React.memo compares props shallowly (by reference for objects/arrays/functions). If the parent creates a new object, array, or function literal inline on every render and passes it down, that prop looks \"different\" every time even if its contents are identical — defeating the memoization. Stabilizing those props with useMemo/useCallback (or moving the literal outside the component) is what makes React.memo actually skip the re-render.",
+        },
+        {
+          kind: "summary",
+          heading: "Course takeaways",
+          bullets: [
+            "React is declarative: describe the UI for a given state, and let React reconcile the DOM — don't hand-roll DOM mutations.",
+            "Props are read-only input from a parent; state is what a component owns and changes itself. Shared data lives in the closest common ancestor.",
+            "useEffect handles anything outside of rendering, and its dependency array must include every value the effect actually reads, or it'll run on stale data.",
+            "A re-render isn't automatically a DOM update, and a parent re-rendering cascades to children by default — most re-renders aren't worth fighting.",
+            "useMemo, useCallback, and React.memo are targeted tools for a measured performance problem, and each depends on prop/dependency references actually being stable to do anything useful.",
+            "Stable, identity-based list keys (not array index) are what let React correctly preserve state across reorders.",
+          ],
+        },
+      ],
+    },
   ],
 };

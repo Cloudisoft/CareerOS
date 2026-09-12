@@ -378,5 +378,218 @@ controlled test to confirm load time is the actual cause."`,
         },
       ],
     },
+    {
+      title: "Statistical Significance and Sample Size: How Confident Should You Be?",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Statistical Significance and Sample Size: How Confident Should You Be?",
+          subheading:
+            "Version B beat version A in your A/B test. Before you ship B, there's one more question: could this difference just be noise?",
+        },
+        {
+          kind: "text",
+          heading: "What \"statistically significant\" actually means",
+          body: [
+            "A difference between two groups is statistically significant when it's unlikely to have happened by chance alone, given how much natural variation you'd expect from random sampling. It does not mean the difference is large, or important, or guaranteed to be real — only that random noise is an unlikely explanation for it.",
+            "The two numbers that drive this judgment are the size of the observed difference and the sample size behind it. The same 2-point difference can be meaningless noise with 200 visitors and a rock-solid signal with 200,000.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Working through a real A/B test",
+          body: "Version A converts 500 of 10,000 visitors (5.0%). Version B converts 560 of 10,000 (5.6%). Is that 0.6-point lift real, or noise?",
+          code: `Pooled conversion rate = (500 + 560) / (10,000 + 10,000) = 5.3%
+
+Standard error = sqrt(0.053 * 0.947 * (1/10,000 + 1/10,000))
+              ≈ 0.32 percentage points
+
+z-score = (5.6% - 5.0%) / 0.32%  ≈ 1.9
+
+A z-score above ~1.96 is the common threshold for
+"significant at 95% confidence." 1.9 falls just short of it —
+close, but not quite there.`,
+        },
+        {
+          kind: "bullets",
+          heading: "What this result actually tells you",
+          bullets: [
+            "A z-score of 1.9 doesn't mean \"no effect\" — it means the current data can't yet rule out chance as the explanation, at the usual 95% bar. The honest read is \"promising, not yet proven.\"",
+            "The fix for a borderline result like this is almost always more data, not a different formula — running the test longer (or on more traffic) narrows the standard error and makes a real effect easier to detect.",
+            "Sample size cuts both ways: with a large enough sample, even a genuinely trivial difference (a 0.1-point lift nobody would care about) can become \"statistically significant\" — significance is not the same question as whether an effect is worth acting on.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Peeking early inflates false positives",
+          body: "Checking a test's results every day and stopping as soon as it looks significant is one of the most common ways teams fool themselves — random noise will cross a significance threshold temporarily just by chance if you check often enough. Decide the sample size (or run time) needed before starting, and don't act on the result until you get there.",
+        },
+        {
+          kind: "summary",
+          heading: "Significance, briefly",
+          bullets: [
+            "Statistical significance asks whether chance is a plausible explanation for a difference — not whether the difference is large or worth acting on.",
+            "A bigger sample narrows the noise band around your estimate, which is why small tests produce inconclusive results even when a real effect exists.",
+            "Decide your sample size up front and don't stop a test early just because it briefly looks significant.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Turning Raw Numbers Into a Decision-Ready Finding",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Turning Raw Numbers Into a Decision-Ready Finding",
+          subheading:
+            "Three exercises spanning cleaning, summarizing, and communicating — the same arc as a real analysis.",
+        },
+        {
+          kind: "practice",
+          heading: "Spot the cleaning issues",
+          prompt: `You're handed this raw export of support tickets:
+
+ticket_id | customer_email  | priority | opened_date
+1001      | j.lee@acme.com  | HIGH     | 2026-02-11
+1002      | J.LEE@ACME.COM  | High     | 11/02/2026
+1003      |                 | high     | 2026-02-12
+1004      | j.lee@acme.com  | HIGH     | 2026-02-11
+
+List every data quality issue you see, and for each one say what you'd do about it before analyzing ticket volume by customer.`,
+          hint: "Look row by row for anything that would make the same real-world entity look like different values, plus anything ambiguous.",
+          solution:
+            "Issues: (1) \"j.lee@acme.com\" and \"J.LEE@ACME.COM\" are the same email in different casing — without standardizing case, this customer would be undercounted as two different customers; fix by lowercasing all emails before grouping. (2) Priority values \"HIGH\" and \"High\" are the same category in inconsistent casing — standardize casing here too. (3) Row 1003 has a missing email — decide whether to investigate the source ticket rather than silently dropping it, since a missing identifier could bias a per-customer analysis if the missingness isn't random. (4) The date format switches between 2026-02-11 (ISO) and 11/02/2026 (ambiguous — could be Nov 2 or Feb 11) — this needs to be resolved by checking the source system's actual format, not guessed, since reading 11/02 the wrong way silently corrupts every date-based analysis. (5) Rows 1001 and 1004 look like an exact duplicate (same email, priority, and date) — check the ticket IDs against a real unique identifier before deciding whether it's a true duplicate or two genuinely separate tickets that happen to share these values.",
+        },
+        {
+          kind: "practice",
+          heading: "Mean, median, or both?",
+          prompt:
+            "Customer support resolution times (in hours) for 8 recent tickets: 2, 3, 3, 4, 4, 5, 6, 41. The 41-hour ticket was a legitimate but unusually complex case, not a data error. Calculate the mean and median, and decide which one (or both) you'd report to leadership as \"typical resolution time,\" with reasoning.",
+          hint: "Calculate both first, then think about what a single very large but real value does to each.",
+          solution:
+            "Mean = (2+3+3+4+4+5+6+41)/8 = 68/8 = 8.5 hours. Median (sorted: 2,3,3,4,4,5,6,41 — average of the 4th and 5th values) = (4+4)/2 = 4 hours. Report the median (4 hours) as \"typical\" — the mean is pulled far upward by the single 41-hour outlier and would badly overstate what a normal ticket actually looks like. But don't report only the median: mention the mean and the outlier alongside it (e.g., \"typical resolution time is 4 hours; one complex case took 41 hours and pulled the average up to 8.5\"), since dropping the outlier from the story entirely would hide a real, legitimate case that leadership may want visibility into.",
+        },
+        {
+          kind: "practice",
+          heading: "Write the decision-ready version",
+          prompt:
+            "Raw finding: \"Customers who used live chat support had a 12% 90-day churn rate versus 19% for customers who only used email support, based on 6,000 customers over the last two quarters. We have not run a controlled experiment.\" Turn this into a decision-ready finding: a plain-language answer, a recommendation, and an honest caveat.",
+          hint: "Lead with the answer in plain terms, then recommend an action proportional to how solid the evidence actually is, then name what could be confounding it.",
+          solution:
+            "Answer: Customers who used live chat churned at roughly two-thirds the rate of email-only customers (12% vs. 19%) over the last two quarters. Recommendation: given this is correlational, not yet proven causal, the right next step is a controlled test — offer live chat proactively to a random subset of customers and compare churn, rather than immediately assuming chat access itself reduces churn and rolling it out company-wide. Caveat: customers who proactively seek out live chat may simply be more engaged or higher-intent to begin with (a confounding variable) — that alone could produce this gap even if chat access changes nothing. This finding justifies running the experiment; it doesn't yet justify skipping straight to a company-wide rollout.",
+        },
+        {
+          kind: "summary",
+          heading: "What this practice demonstrates",
+          bullets: [
+            "Catching formatting inconsistencies, ambiguous dates, and possible duplicates before they quietly bias a per-customer analysis.",
+            "Choosing median over mean (or reporting both) when a real but extreme value would otherwise distort the \"typical\" story.",
+            "Writing a finding that leads with the answer, recommends a proportional next step, and names the honest limitation — rather than presenting a correlation as if it were already proven causal.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — the kind of understanding that should survive being asked a different way than the lesson asked it.",
+        },
+        {
+          kind: "quiz",
+          heading: "Framing a question",
+          question:
+            "Which of these is the most \"workable\" analysis question, in the sense this course defines it?",
+          options: [
+            "\"How is the business doing overall?\"",
+            "\"Are customers happy with the product?\"",
+            "\"Did customers who completed onboarding have lower 90-day churn than those who didn't, over the last two quarters?\"",
+            "\"What's interesting in the customer data?\"",
+          ],
+          correctIndex: 2,
+          explanation:
+            "A workable question names a specific metric (churn), a specific comparison group (completed onboarding vs. not), and a specific time window (last two quarters) — which tells you exactly what data you need and what result would prove the idea wrong. The others are topics, not falsifiable questions.",
+        },
+        {
+          kind: "quiz",
+          heading: "Missing data",
+          question:
+            "A dataset has a column that's missing for roughly 40% of rows — and those missing rows turn out to be almost entirely customers who signed up in the last 3 months. What's the risk of simply dropping every row with a missing value in that column?",
+          options: [
+            "There's no risk — dropping incomplete rows is always safe",
+            "It would bias the analysis toward older customers, since newer customers are disproportionately being removed",
+            "It would bias the analysis toward newer customers",
+            "It only matters if more than 50% of rows are affected",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Because the missingness isn't random — it's concentrated in newer signups — dropping those rows quietly skews the remaining data toward older customers. Missing-data decisions need to account for whether the missingness itself is random or systematic, not just how much of it there is.",
+        },
+        {
+          kind: "quiz",
+          heading: "Mean vs. median",
+          question:
+            "A dataset of home sale prices in a neighborhood is heavily skewed by a few very expensive mansions. Which statistic best describes a \"typical\" home price there?",
+          options: [
+            "The mean, because it uses every data point",
+            "The median, because it isn't dragged by the few extreme values",
+            "Neither — only the standard deviation is meaningful here",
+            "The mean and median will be nearly identical either way",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The mean is sensitive to every value, so a handful of very expensive mansions pull it well above what a typical home actually costs. The median only depends on the middle-ranked value, so it stays representative even with a skewed, long-tailed distribution like home prices.",
+        },
+        {
+          kind: "quiz",
+          heading: "Reading a chart honestly",
+          question:
+            "A bar chart shows a jump from 51% to 53% with a y-axis running from 50% to 54%. What's the most accurate description of this chart?",
+          options: [
+            "It's dishonest because the underlying numbers must be wrong",
+            "It's technically accurate but visually exaggerates a modest 2-point change",
+            "It's the correct way to display any percentage comparison",
+            "It's misleading only if the bars are colored differently",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Every number on the chart can be correct while the visual impression is still distorted — cropping the y-axis to a narrow range makes a small, real difference look dramatic. The fix is showing the full 0-100% range (or clearly labeling the cropped axis), not changing the underlying data.",
+        },
+        {
+          kind: "quiz",
+          heading: "Correlation vs. causation",
+          question:
+            "Stores with more sales staff also have higher sales. Someone concludes \"hiring more staff increases sales.\" What's the most important thing to check before accepting that conclusion?",
+          options: [
+            "Whether the correlation coefficient is above 0.5",
+            "Whether busier, already-higher-revenue stores might simply be the ones getting more staffing budget in the first place",
+            "Whether the data covers a full calendar year",
+            "Whether the stores are in the same country",
+          ],
+          correctIndex: 1,
+          explanation:
+            "This is a classic confounding-variable risk: it's just as plausible that higher-revenue stores are allocated more staff (the reverse of the assumed direction), not that staffing causes the sales. Without a controlled experiment or a check that accounts for store size and traffic, the causal claim isn't justified by the correlation alone.",
+        },
+        {
+          kind: "summary",
+          heading: "The course's core takeaways",
+          bullets: [
+            "Start with a specific, falsifiable question before touching any data.",
+            "Clean deliberately — standardize formats, check real duplicates, and think about whether missing data is random before dropping it.",
+            "Match your summary statistic (mean vs. median) and chart type to the actual shape of the data, not habit.",
+            "A correlation is a starting point for investigation, not proof of causation — watch for confounders and reverse causation.",
+            "Statistical significance tells you whether chance is a plausible explanation, not whether an effect is large or worth acting on.",
+            "End every analysis with a plain-language answer, a proportional recommendation, and an honest caveat.",
+          ],
+        },
+      ],
+    },
   ],
 };

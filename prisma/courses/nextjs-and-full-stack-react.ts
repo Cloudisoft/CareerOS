@@ -331,5 +331,227 @@ async function applyToJob(jobId) {
         },
       ],
     },
+    {
+      title: "Server Actions: Mutations Without an API Route",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Server Actions: Mutations Without an API Route",
+          subheading:
+            "Route handlers cover the case where you genuinely need an HTTP endpoint. For a form on your own page that just needs to write data, Server Actions skip that layer entirely.",
+        },
+        {
+          kind: "text",
+          heading: "What a Server Action actually is",
+          body: [
+            "A Server Action is a regular async function marked with the \"use server\" directive that Next.js turns into a callable server-side operation — you can pass it directly as a form's action, or call it from a Client Component like a normal function. Under the hood, Next.js still makes a network request to run it on the server, but you never write the route handler, the fetch call, or the JSON parsing yourself.",
+            "This closes a real gap left by the earlier data-fetching lesson: Server Components make reading data trivial (just await it), but they can't handle a form submission — that requires a Client Component or an action, and Server Actions are the framework's answer for the write side of that same trivial-by-default goal.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A Server Action wired directly to a form",
+          body: "No onSubmit, no client-side fetch, no JSON.stringify — the form's action prop takes the function directly, and it runs on the server when submitted.",
+          code: `// app/jobs/actions.ts
+"use server";
+
+export async function createJob(formData: FormData) {
+  const title = formData.get("title") as string;
+  await db.job.create({ data: { title, status: "open" } });
+}
+
+// app/jobs/new/page.tsx (a Server Component)
+import { createJob } from "../actions";
+
+export default function NewJobPage() {
+  return (
+    <form action={createJob}>
+      <input name="title" placeholder="Job title" />
+      <button type="submit">Create</button>
+    </form>
+  );
+}`,
+        },
+        {
+          kind: "example",
+          heading: "Revalidating after a write",
+          body: "A mutation that changes data doesn't automatically update pages that already cached the old version. revalidatePath tells Next.js to treat a specific route's cached data as stale and regenerate it on the next request.",
+          code: `"use server";
+
+import { revalidatePath } from "next/cache";
+
+export async function createJob(formData: FormData) {
+  const title = formData.get("title") as string;
+  await db.job.create({ data: { title, status: "open" } });
+  revalidatePath("/jobs"); // the jobs list page will show the new job on next visit
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "Where a Server Action fits versus a route handler",
+          bullets: [
+            "Server Action: a mutation triggered from your own app's UI — a form submit, a button click that saves something. No separate endpoint needed, and it composes naturally with revalidatePath/revalidateTag.",
+            "Route handler: something outside your app needs to call this (a webhook, a mobile client, a public API), or you need to control the raw HTTP response.",
+            "Both ultimately run server-side code in response to a request — the difference is who's calling it and how directly it's tied to your own UI.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A Server Action is still a public entry point",
+          body: "Because a Server Action can be called directly (not just through the form it was attached to), it needs the same authentication and authorization checks you'd put in a route handler — Next.js does not implicitly restrict who can invoke it just because it's defined next to a particular page. Treat every Server Action as reachable by anyone, and check permissions inside it, not just in the UI that happens to render the form.",
+        },
+        {
+          kind: "summary",
+          heading: "Recap",
+          bullets: [
+            "\"use server\" turns an async function into a callable server-side mutation — usable directly as a form's action or called from client code.",
+            "revalidatePath/revalidateTag tell Next.js which cached data is now stale after a write, so subsequent renders reflect the change.",
+            "Server Actions handle mutations from your own UI without a route handler; route handlers remain for external callers or when you need raw control over the HTTP response.",
+            "A Server Action is a real, directly callable server endpoint — it needs its own authorization checks, not just a form that happens to be gated in the UI.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Choosing the Right Piece of the App Router",
+      durationMinutes: 13,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Choosing the Right Piece of the App Router",
+          subheading:
+            "Given a scenario, decide: Server or Client Component, which data-fetching approach, and which rendering strategy. Then check your reasoning against a worked answer.",
+        },
+        {
+          kind: "practice",
+          heading: "1. A product page with a live 'add to cart' button",
+          prompt:
+            "You're building `app/products/[id]/page.tsx`. It needs to: read the product from the database and show its details, and include an \"Add to cart\" button that updates a client-side cart count without a full page reload. As currently written below, the whole file has \"use client\" at the top because of the button. Restructure it so only the interactive part is a Client Component, and describe what rendering strategy fits this page.\n\n```jsx\n\"use client\";\n\nexport default function ProductPage({ params }) {\n  const [product, setProduct] = useState(null);\n\n  useEffect(() => {\n    fetch(`/api/products/${params.id}`).then(r => r.json()).then(setProduct);\n  }, [params.id]);\n\n  if (!product) return <p>Loading...</p>;\n\n  return (\n    <div>\n      <h1>{product.name}</h1>\n      <p>{product.description}</p>\n      <AddToCartButton productId={product.id} />\n    </div>\n  );\n}\n```",
+          hint:
+            "The page itself doesn't need any hooks or event handlers — only AddToCartButton does. What would the page look like as an async Server Component that fetches directly from the database, with the button pulled into its own client file?",
+          solution:
+            "Make the page a Server Component that reads the product directly from the database (no fetch, no loading state, no client JS shipped for the parts that don't need it), and isolate only the button — the actually-interactive part — into its own Client Component.\n\n```jsx\n// app/products/[id]/page.tsx (Server Component — no \"use client\")\nimport { AddToCartButton } from \"./add-to-cart-button\";\n\nexport default async function ProductPage({ params }) {\n  const { id } = await params;\n  const product = await db.product.findUnique({ where: { id } });\n\n  return (\n    <div>\n      <h1>{product.name}</h1>\n      <p>{product.description}</p>\n      <AddToCartButton productId={product.id} />\n    </div>\n  );\n}\n\n// app/products/[id]/add-to-cart-button.tsx\n\"use client\";\n\nexport function AddToCartButton({ productId }) {\n  const [added, setAdded] = useState(false);\n  return (\n    <button onClick={() => setAdded(true)}>\n      {added ? \"Added\" : \"Add to cart\"}\n    </button>\n  );\n}\n```\nRendering strategy: product detail pages like this are a textbook case for ISR — the description and name rarely change minute to minute, but they're not truly static forever (price or stock could update). Fetching the product with a revalidate window (e.g. `next: { revalidate: 300 }`) gets nearly static-page speed while keeping the page from serving month-old data indefinitely.\nKey decision: pushing \"use client\" down to just the button means the product's name and description are rendered on the server with zero client JS for that part, and the page never needs a loading spinner for its main content.",
+        },
+        {
+          kind: "practice",
+          heading: "2. A comment form that needs to save and refresh the list",
+          prompt:
+            "A blog post page shows existing comments and a form to add a new one. Currently the form posts to a route handler via fetch, then manually calls `router.refresh()`. Rewrite the mutation using a Server Action instead, including making sure the comment list actually reflects the new comment without a manual refresh call.\n\n```jsx\n// app/api/comments/route.ts\nexport async function POST(request) {\n  const { postId, body } = await request.json();\n  await db.comment.create({ data: { postId, body } });\n  return Response.json({ ok: true });\n}\n\n// CommentForm.tsx\n\"use client\";\nexport function CommentForm({ postId }) {\n  const router = useRouter();\n  async function handleSubmit(e) {\n    e.preventDefault();\n    const body = new FormData(e.target).get(\"body\");\n    await fetch(\"/api/comments\", { method: \"POST\", body: JSON.stringify({ postId, body }) });\n    router.refresh();\n  }\n  return (\n    <form onSubmit={handleSubmit}>\n      <textarea name=\"body\" />\n      <button type=\"submit\">Post</button>\n    </form>\n  );\n}\n```",
+          hint:
+            "A Server Action can be the form's action directly, removing the need for onSubmit, fetch, and the route handler. What replaces the manual router.refresh() call so the comment list updates automatically?",
+          solution:
+            "Move the mutation into a Server Action and call revalidatePath for the post's page — that's what makes the comment list reflect the new comment, replacing the manual `router.refresh()`.\n\n```jsx\n// app/posts/[id]/actions.ts\n\"use server\";\nimport { revalidatePath } from \"next/cache\";\n\nexport async function addComment(postId: string, formData: FormData) {\n  const body = formData.get(\"body\") as string;\n  await db.comment.create({ data: { postId, body } });\n  revalidatePath(`/posts/${postId}`);\n}\n\n// CommentForm.tsx — still a Client Component (it needs to bind postId)\n\"use client\";\nimport { addComment } from \"./actions\";\n\nexport function CommentForm({ postId }) {\n  const addCommentForPost = addComment.bind(null, postId);\n  return (\n    <form action={addCommentForPost}>\n      <textarea name=\"body\" />\n      <button type=\"submit\">Post</button>\n    </form>\n  );\n}\n```\nKey decision: `.bind(null, postId)` supplies the postId argument ahead of time so the form only needs to submit the textarea's value — a common pattern for passing extra context into a Server Action beyond what the form fields themselves carry. The route handler and manual fetch/refresh are gone entirely; the Server Action and revalidatePath replace both.",
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Defaulting to a Server Component and isolating only the genuinely interactive piece into a Client Component, rather than converting a whole page.",
+            "Matching a rendering strategy to how stale the content can honestly tolerate being, instead of defaulting to fully dynamic out of caution.",
+            "Replacing a route handler + manual refresh with a Server Action + revalidatePath for a mutation that's really just \"this page's own form,\" and remembering that a Server Action still needs its own checks — it isn't automatically as protected as the UI around it.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — testing whether the App Router's mental model actually stuck, not lesson-by-lesson recall.",
+        },
+        {
+          kind: "quiz",
+          heading: "What a framework adds on top of React",
+          question:
+            "Which of the following is NOT one of the core problems a framework like Next.js solves on top of plain React?",
+          options: [
+            "Mapping a URL to the right component to render.",
+            "Deciding whether a page's HTML is generated at build time, at request time, or somewhere in between.",
+            "Compiling JSX into function calls before the browser runs the code.",
+            "Getting data to a component without necessarily exposing an API endpoint or database credentials to the browser.",
+          ],
+          correctIndex: 2,
+          explanation:
+            "JSX compilation is a build-tool concern (Babel or the compiler bundled into whatever tool you're using) that exists independent of any framework — plain React with a bundler already needs it. Routing, rendering strategy, and server-side data access are the three problems this course identified as what a framework specifically adds on top of React itself.",
+        },
+        {
+          kind: "quiz",
+          heading: "Server vs. Client Components",
+          question:
+            "A component needs to call useState to track whether a dropdown is open. What does it need, and what's the actual consequence of adding it?",
+          options: [
+            "It needs \"use client\" at the top of its file — that component (and everything else exported from that file) now runs in the browser instead of the server.",
+            "Nothing — useState works the same in Server and Client Components since both are just React components.",
+            "It needs \"use client\", but only that single component's file stops being a Server Component; every component that imports and renders it also automatically becomes a Client Component.",
+            "It needs to be moved into a route handler, since only route handlers can hold interactive state in the App Router.",
+          ],
+          correctIndex: 0,
+          explanation:
+            "useState requires \"use client\" — Server Components can't hold browser-side state or lifecycle at all. Adding it opts that file's exports into running in the browser, but it does not force every parent that renders it to also become a Client Component — a Server Component can still render a Client Component as a child; the boundary only pushes one direction (a Client Component can't render a Server Component the same way in reverse).",
+        },
+        {
+          kind: "quiz",
+          heading: "Choosing a rendering strategy",
+          question:
+            "A logged-in account settings page shows the current user's own data and needs to always be current for that specific user. Which rendering strategy fits, and why?",
+          options: [
+            "Static rendering, since account settings pages rarely change in structure.",
+            "ISR with a long revalidation window, since account data doesn't change every second.",
+            "Dynamic rendering, since the content is personalized per request and must reflect the current user, not a cached shared version.",
+            "It doesn't matter — Next.js always renders every page dynamically by default regardless of what it reads.",
+          ],
+          correctIndex: 2,
+          explanation:
+            "Static and ISR both serve a cached version of a page to multiple visitors — appropriate when the content is the same for everyone (or can tolerate being briefly stale). A page reading data specific to the current logged-in user needs to render fresh per request, which is exactly what dynamic rendering is for. Next.js infers this automatically once a page reads something request-specific, like cookies or a session.",
+        },
+        {
+          kind: "quiz",
+          heading: "Server Actions and authorization",
+          question:
+            "A Server Action deletes a job posting and is only rendered behind a \"Delete\" button that's hidden in the UI unless the current user owns that job. Is this sufficient protection?",
+          options: [
+            "Yes — since the button is only rendered for the owner, the action can never be triggered by anyone else.",
+            "No — a Server Action is a real, directly callable server endpoint regardless of which UI renders it, so it needs its own ownership check inside the action itself.",
+            "Yes, but only if the action is defined in the same file as the page that renders the button.",
+            "No — Server Actions can only be secured by moving the logic into a route handler instead.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Hiding a button doesn't prevent someone from invoking the underlying Server Action directly — it's a callable server endpoint, not a UI-gated function. The action itself needs to verify the current user actually owns the job before deleting it, the same way a route handler would need to check authorization rather than trusting that only \"authorized\" UI calls it.",
+        },
+        {
+          kind: "quiz",
+          heading: "Data fetching and waterfalls",
+          question:
+            "A Server Component needs both a user's profile and their recent orders, and neither depends on the other's result. What's the better approach, and why?",
+          options: [
+            "Awaiting getUser() and then getOrders() sequentially, since Server Components must fetch data one call at a time.",
+            "Using Promise.all to fetch both concurrently, since sequential awaits on independent requests waste time neither request actually needs to spend waiting.",
+            "Fetching getOrders() inside a useEffect after the page has rendered with just the user.",
+            "It doesn't matter, since Server Component data fetching always happens in parallel automatically regardless of how it's written.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Sequential awaits on requests that don't depend on each other create an avoidable waterfall — the second request doesn't start until the first resolves, even though it could have started immediately. Promise.all runs independent requests concurrently. Server Components don't parallelize this for you automatically just by virtue of being async — you still write Promise.all yourself when requests are independent, and Server Components can't use useEffect at all (that requires a Client Component).",
+        },
+        {
+          kind: "summary",
+          heading: "Course takeaways",
+          bullets: [
+            "A framework adds routing, a rendering strategy, and server-side data access on top of what plain React provides on its own.",
+            "Server Components are the default; \"use client\" is an opt-in for state, effects, event handlers, or browser APIs, pushed as far down the tree as possible.",
+            "Fetch directly in Server Components, run independent requests with Promise.all, and reach for a route handler only when something outside your own UI needs to call you.",
+            "Server Actions handle mutations from your own app's forms without a separate endpoint, paired with revalidatePath/revalidateTag to keep cached data in sync — but they're real endpoints and need their own authorization checks.",
+            "Pick the loosest rendering strategy (static, then ISR, then dynamic) that the content can honestly tolerate — it's the cheapest one to serve.",
+          ],
+        },
+      ],
+    },
   ],
 };

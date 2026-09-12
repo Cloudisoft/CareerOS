@@ -224,5 +224,202 @@ the base. Is there flexibility there?"`,
         },
       ],
     },
+    {
+      title: "Using a Competing Offer as Leverage (Without Overplaying It)",
+      durationMinutes: 6,
+      slides: [
+        {
+          kind: "title",
+          heading: "Using a Competing Offer as Leverage (Without Overplaying It)",
+          subheading:
+            "A real competing offer is some of the strongest leverage you can have — and it's also the easiest thing to mishandle in a way that damages trust on both sides.",
+        },
+        {
+          kind: "text",
+          heading: "Why a real competing offer works",
+          body: [
+            "A specific, real number from another company is concrete evidence a hiring manager can act on internally — it's far more persuasive than a general \"I was hoping for more,\" because it answers the question of what the market is actually paying you, right now, for the same work.",
+            "It also creates real urgency: a company that wants you now has a concrete reason to move quickly rather than let the process drift.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "How to use it without overplaying it",
+          bullets: [
+            "Disclose only what you're comfortable having checked — never invent a number or a company. It's frequently discoverable, and even when it isn't, the risk of getting caught in an easily-avoidable lie outweighs the leverage.",
+            "Name the number and, if comfortable, the type of role, without necessarily naming the company, unless doing so helps your case: \"I have another offer at $X for a similar-scope role.\"",
+            "Be genuine about preference. If you'd rather take this job, say so — \"this is honestly my first choice, I just want to understand if there's room to close the gap\" reads as collaborative, not as a bidding war.",
+            "Give a real deadline, not a manufactured one, if the other offer has one: \"I need to give them an answer by Friday\" is useful information, not a pressure tactic, as long as it's true.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The bluff that backfires",
+          body: "Claiming a competing offer that doesn't exist, or inflating a real one's number, is one of the riskiest moves in a negotiation. Recruiters compare notes more than candidates expect, offer letters get requested as verification more often than people assume, and a caught bluff doesn't just lose you the extra ask — it can lose you the offer entirely.",
+        },
+        {
+          kind: "bullets",
+          heading: "When you don't have a competing offer",
+          bullets: [
+            "You can still negotiate — most of this course's advice (research, a specific number, prioritized asks) doesn't depend on having one.",
+            "Don't manufacture urgency you don't have (\"I have other things in the works\" when you don't) — a specific, well-researched ask stands on its own without needing a fake competing process behind it.",
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "The honest version of leverage",
+          bullets: [
+            "A real competing offer, disclosed honestly and specifically, is legitimate and effective leverage.",
+            "A fabricated one is a real risk for a small, recoverable gain — the math rarely favors it.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Calculating Your Number and Drafting the Ask",
+      durationMinutes: 13,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Calculating Your Number and Drafting the Ask",
+          subheading:
+            "Work through a realistic offer scenario end to end — the number, the message, and the priority call.",
+        },
+        {
+          kind: "practice",
+          heading: "Set your target, walk-away, and stretch numbers",
+          prompt:
+            "Scenario: you're a marketing manager who currently earns $95,000 base. Research (comp-site data, two recruiter conversations, and your own network) shows similar roles at similar-sized companies pay $100,000-$120,000 base. You've received an offer at $102,000 base. Set your target, walk-away, and stretch numbers, and briefly justify each.",
+          hint: "Walk-away should reflect the minimum you'd seriously reconsider over — often near the bottom of the researched range, not just \"more than I have now.\" Stretch should be defensible if someone asked you to explain it, not just your dream number.",
+          solution:
+            "Walk-away: $100,000 — at the bottom of the researched range, and barely above current pay once you account for a new-job risk premium. Target: $112,000 — solidly mid-range for the data gathered, comfortably justifiable by referencing the research directly. Stretch: $118,000 — near the top of the range, defensible by pointing to specific relevant experience (e.g., a skill or industry background above the median candidate), used as the opening ask rather than the expected outcome.",
+        },
+        {
+          kind: "practice",
+          heading: "Draft the counter-offer message",
+          prompt:
+            "Using the scenario above, draft the actual message (written or spoken) you'd send back on the $102,000 offer, opening with your stretch number.",
+          hint: "Confirm genuine interest, name a specific number, and ground it in something other than just wanting more — your research, your relevant experience, or both.",
+          solution:
+            "\"Thank you again for the offer — I'm genuinely excited about the role and the team. Based on my research into the market for marketing manager roles at similarly sized companies, and my background running paid acquisition campaigns at scale, I was hoping we could get closer to $118,000 on the base. Is there flexibility there?\"",
+        },
+        {
+          kind: "practice",
+          heading: "Prioritize your asks when the base won't move",
+          prompt:
+            "The recruiter comes back and says the base is capped at $105,000 for this level, but there may be room elsewhere. From this course's list of other levers (sign-on bonus, equity, start date, title, review timeline, professional development budget), pick your top two asks for this scenario and explain why, in priority order.",
+          hint: "Rank by what genuinely matters most to you, not by asking for everything with equal weight — the course is explicit that spreading asks evenly makes it harder for the other side to say yes to any one of them.",
+          solution:
+            "1) A sign-on bonus of roughly $8,000-10,000 to close most of the gap between $105,000 and target — a one-time cost is typically easier to approve than a permanent base change, and it directly compensates for the shortfall. 2) A compensation review at 6 months instead of the standard 12, tied to specific, agreed success metrics — this creates a near-term path back to base if performance is strong, rather than waiting a full year to revisit the number.",
+        },
+        {
+          kind: "summary",
+          heading: "What a well-run negotiation looks like",
+          bullets: [
+            "Three real numbers, decided before the pressure of a live conversation — not one wish figure.",
+            "A specific counter grounded in research or experience, not just \"I was hoping for more.\"",
+            "A clear priority order on non-salary levers, asked for one or two at a time, not all at once.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check: Negotiating Your Offer",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check: Negotiating Your Offer",
+          subheading: "Five questions across the whole course.",
+        },
+        {
+          kind: "quiz",
+          heading: "The core reframe",
+          question:
+            "According to this course, why is an initial offer usually not a company's absolute final number?",
+          options: [
+            "Companies are legally required to leave room to negotiate",
+            "Most initial offers are deliberately built with some room for exactly this conversation with a reasonable candidate",
+            "Recruiters are instructed to always lowball every candidate by the same fixed percentage",
+            "Initial offers are randomly generated and unrelated to the actual budget",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course frames the initial offer as typically anchored to expect a reasonable counter, not as a rock-bottom final number — that's the core reframe that makes asking worthwhile in the first place.",
+        },
+        {
+          kind: "quiz",
+          heading: "Researching your number",
+          question:
+            "What does this course recommend building before entering a negotiation conversation?",
+          options: [
+            "A single ideal number to ask for",
+            "A target, walk-away, and stretch number, grounded in real data gathered ahead of time",
+            "Only a walk-away number, since target and stretch are unnecessary",
+            "A number based only on what you currently earn plus 10%",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course specifically recommends three figures — target, walk-away, and stretch — built from real research before you're under the pressure of a live conversation, not a single number decided on the spot.",
+        },
+        {
+          kind: "quiz",
+          heading: "Negotiating beyond salary",
+          question:
+            "Why does the course suggest a sign-on bonus is often easier for a company to approve than a base salary increase?",
+          options: [
+            "Sign-on bonuses are always larger in total value than a base increase",
+            "It's a one-time cost rather than a permanent change to a pay band",
+            "Sign-on bonuses don't require any manager approval at all",
+            "Base salary can never be negotiated under any circumstances",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course's reasoning is specifically about cost structure — a sign-on bonus is a one-time expense, while a base increase is a permanent line-item change tied to a pay band, which is often more tightly controlled.",
+        },
+        {
+          kind: "quiz",
+          heading: "Using a competing offer",
+          question:
+            "What does this course say about disclosing a competing offer during negotiation?",
+          options: [
+            "Never mention a competing offer under any circumstances",
+            "Inventing a competing offer is a low-risk way to strengthen your position if you're confident it won't be checked",
+            "A real, honestly disclosed competing offer is legitimate leverage; fabricating one risks far more than it gains if discovered",
+            "Only disclose a competing offer if it's from a direct competitor in the same industry",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course draws a sharp line: a genuine competing offer, disclosed honestly, is real and effective leverage. A fabricated one is a serious risk, since it's often checkable and a caught bluff can cost you the entire offer, not just the extra ask.",
+        },
+        {
+          kind: "quiz",
+          heading: "Handling a final offer",
+          question:
+            "A recruiter says \"this is our final offer,\" and the number is above your walk-away figure but below your target. What does this course suggest as a reasonable next step?",
+          options: [
+            "Issue an ultimatum demanding the target number or you'll decline",
+            "Accept immediately without any further check, since it was declared final",
+            "Ask if there's flexibility elsewhere (sign-on, equity, start date) while respecting that the base is fixed, then decide based on whether it clears your walk-away number",
+            "Assume the recruiter is lying and demand to speak to their manager",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course recommends a low-risk check on remaining flexibility elsewhere, without pushing back on the stated base — and notes that if the final number is at or above your walk-away figure, accepting it isn't a loss, since a firm final offer can still be a good outcome.",
+        },
+        {
+          kind: "summary",
+          heading: "This course's core takeaways",
+          bullets: [
+            "Most offers have built-in room; not asking is the most common way money gets left on the table.",
+            "Research your target, walk-away, and stretch numbers before you're in the conversation.",
+            "Base salary is often the least flexible lever — sign-on, equity, start date, and title frequently have more room.",
+            "A real competing offer is strong leverage; a fabricated one is a serious, often-discovered risk.",
+            "A genuinely final offer isn't a loss if it clears your walk-away number — know that number ahead of time.",
+          ],
+        },
+      ],
+    },
   ],
 };

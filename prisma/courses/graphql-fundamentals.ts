@@ -273,5 +273,254 @@ type Query {
         },
       ],
     },
+    {
+      title: "Fragments and Pagination: Structuring Real Queries",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Fragments and Pagination: Structuring Real Queries",
+          subheading:
+            "The queries so far have all fetched short, hand-written field lists returning full lists. Real applications need to reuse field selections and handle lists with millions of rows — both have standard, well-worn answers.",
+        },
+        {
+          kind: "example",
+          heading: "Fragments: naming a reusable set of fields",
+          body: "A fragment is a named, reusable selection of fields on a given type. It stops the same field list from being copy-pasted across every query that needs a user summary, and keeps them in sync in one place.",
+          code: `fragment UserSummary on User {
+  id
+  name
+  email
+}
+
+query GetUserWithOrders($id: ID!) {
+  user(id: $id) {
+    ...UserSummary
+    orders {
+      id
+      total
+    }
+  }
+}
+
+query GetAllUsers {
+  users {
+    ...UserSummary
+  }
+}`,
+        },
+        {
+          kind: "text",
+          heading: "Why a list field can't just return everything",
+          body: [
+            "A naive `orders: [Order!]!` field that returns every order for a user works fine for a user with 12 orders and falls apart for one with 400,000 — the response gets enormous, and the resolver has to load the entire result set into memory to send it. Real GraphQL APIs paginate any list that can grow without bound, the same way a REST API would page a large collection.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Cursor-based pagination, the pattern most GraphQL APIs converge on",
+          body: "Rather than page numbers (which shift under you as new rows get inserted), a cursor points at a specific position in the result set. `pageInfo` tells the client whether more results exist and what cursor to ask for next.",
+          code: `type OrderConnection {
+  edges: [OrderEdge!]!
+  pageInfo: PageInfo!
+}
+
+type OrderEdge {
+  node: Order!
+  cursor: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+type Query {
+  orders(first: Int!, after: String): OrderConnection!
+}
+
+# query GetOrders {
+#   orders(first: 20, after: "cursor_abc") {
+#     edges { node { id total } cursor }
+#     pageInfo { hasNextPage endCursor }
+#   }
+# }`,
+        },
+        {
+          kind: "bullets",
+          heading: "Why cursors instead of just an offset/limit",
+          bullets: [
+            "An offset (\"skip 40, take 20\") shifts silently if a row is inserted or deleted earlier in the list between two page requests — a client can see a duplicate or miss a row entirely without any error.",
+            "A cursor (often an encoded ID or a sort key) points at an actual position, so \"give me the 20 after this cursor\" stays correct even as the underlying data changes between requests.",
+            "This shape — edges, node, cursor, pageInfo — became a de facto standard (popularized as the Relay connection spec) precisely because so many APIs independently needed the same answer to the same problem.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Fragments and pagination solve different problems, and combine naturally",
+          body: "A fragment controls what fields you ask for; pagination controls how much of a list you ask for at once. They compose directly — a fragment for the fields on each Order node, inside a paginated OrderConnection — and together they're what turns the simple query/mutation examples from earlier lessons into something that actually holds up at real-world scale and query complexity.",
+        },
+        {
+          kind: "summary",
+          heading: "Recap",
+          bullets: [
+            "Fragments name a reusable field selection, keeping duplicate field lists out of every query that needs the same shape.",
+            "Any list field that can grow without bound needs pagination — returning everything doesn't scale, in GraphQL any more than in REST.",
+            "Cursor-based pagination (edges/node/cursor/pageInfo) is the standard pattern, because it stays correct even as the underlying list changes between page requests, unlike a plain offset.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Writing Resolvers and Paginated Queries",
+      durationMinutes: 13,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Writing Resolvers and Paginated Queries",
+          subheading:
+            "Given a schema, write the actual resolver logic and query shape that make it work correctly and efficiently.",
+        },
+        {
+          kind: "practice",
+          heading: "1. Write the resolver for a nested field",
+          prompt:
+            "Given this schema, write the resolver map for the `Post.author` field, so that querying a list of posts along with each one's author works. Assume `context.db.user.findUnique({ where: { id } })` fetches a single user by id, and each post row has an `authorId` column.\n\n```graphql\ntype Post {\n  id: ID!\n  title: String!\n  author: User!\n}\n\ntype User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  posts: [Post!]!\n}\n```",
+          hint:
+            "Query.posts already returns rows with an authorId on them (the \"parent\" object for the Post type). The author resolver receives that parent as its first argument — use it to look up the actual User.",
+          solution:
+            "```js\nconst resolvers = {\n  Query: {\n    posts: (parent, args, context) => {\n      return context.db.post.findMany();\n    },\n  },\n  Post: {\n    author: (parent, args, context) => {\n      // parent is the specific Post already resolved by Query.posts;\n      // parent.authorId is the foreign key on that row\n      return context.db.user.findUnique({ where: { id: parent.authorId } });\n    },\n  },\n};\n```\nKey decision: `id`, `title` on Post, and `id`, `name` on User need no custom resolver at all — they match properties already present on the underlying row, so GraphQL's default resolver handles them. Only `author` needs custom logic, because it requires a second lookup the raw Post row doesn't already contain.",
+        },
+        {
+          kind: "practice",
+          heading: "2. Fix the N+1 query this resolver causes",
+          prompt:
+            "The resolver from the previous exercise works correctly, but a query for 100 posts triggers 100 separate `user.findUnique` calls — one per post — instead of one batched query. Describe the fix (you don't need working DataLoader code, just the batching strategy and why it works), and explain what would happen without it at real scale.",
+          hint:
+            "Instead of resolving each post's author independently the moment it's asked for, what if the individual requests within a single tick were collected first, and issued as one combined query?",
+          solution:
+            "This is the DataLoader pattern: instead of each `Post.author` resolver call immediately hitting the database, it registers the requested `authorId` with a per-request batching queue. DataLoader collects every `.load(id)` call made within the same event-loop tick, then issues one combined query (e.g. `user.findMany({ where: { id: { in: [...allRequestedIds] } } })`) and distributes each result back to the resolver that asked for it — turning 100 individual queries into 1.\n\n```js\nconst { author: authorLoader } = createLoaders(context.db); // one per request\n\nconst resolvers = {\n  Post: {\n    author: (parent, args, context) => {\n      return context.authorLoader.load(parent.authorId);\n    },\n  },\n};\n```\nWithout batching, at real scale this isn't just slower — 100 posts becomes 100 round trips to the database on every single request for that list, and a page requesting posts-with-comments-with-authors compounds into hundreds or thousands of queries for one API call, the exact kind of hidden cost the course flagged as one of GraphQL's most common real performance traps.\nKey decision: the fix batches by collecting individual load calls within one tick, not by changing the schema or the query the client sends — N+1 is a resolver implementation problem, invisible to (and unfixable from) the client side.",
+        },
+        {
+          kind: "practice",
+          heading: "3. Add cursor-based pagination to a list field",
+          prompt:
+            "`Query.orders` currently returns every order at once: `orders: [Order!]!`. Redesign the schema to paginate it using the cursor-based (edges/node/pageInfo) pattern, and describe — in words, not full resolver code — how the resolver would use an incoming cursor to fetch the next page.",
+          hint:
+            "The connection type wraps the list in edges (each with a node and a cursor) plus a pageInfo object. The resolver needs to translate an opaque cursor argument into \"give me rows after this position, limited to N.\"",
+          solution:
+            "```graphql\ntype OrderConnection {\n  edges: [OrderEdge!]!\n  pageInfo: PageInfo!\n}\n\ntype OrderEdge {\n  node: Order!\n  cursor: String!\n}\n\ntype PageInfo {\n  hasNextPage: Boolean!\n  endCursor: String\n}\n\ntype Query {\n  orders(first: Int!, after: String): OrderConnection!\n}\n```\nResolver behavior: decode `after` (commonly a base64-encoded order id or timestamp) back into a real database position, query for `first + 1` rows starting just after that position (ordered consistently, e.g. by id), use the extra row only to determine `hasNextPage` without including it in the returned edges, and set `endCursor` to the cursor of the last returned edge so the client can pass it back as `after` on the next request.\nKey decision: querying one extra row (`first + 1`) is what lets the resolver answer `hasNextPage` without a separate, second count query — a small trick that avoids doubling the database work just to know whether more data exists.",
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Understanding that a resolver's `parent` argument is the already-resolved object one level up, and that most fields need no custom resolver at all.",
+            "Recognizing the N+1 pattern by its shape (one query per item in a list) and knowing batching, not caching, is the actual fix.",
+            "Designing a list field so it never has to return an unbounded amount of data — pagination is part of a schema's design, not an afterthought bolted on later.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 6,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — testing whether the client-driven, typed-schema mental model actually stuck, not lesson-by-lesson recall.",
+        },
+        {
+          kind: "quiz",
+          heading: "The core problem GraphQL solves",
+          question:
+            "A mobile screen needs a user's name, their 3 most recent orders, and each order's total. In REST this typically takes multiple round trips; what does GraphQL change about this specifically?",
+          options: [
+            "GraphQL is simply a faster network protocol than HTTP, so each round trip completes quicker.",
+            "The client can describe this exact nested shape in a single query, and the server returns exactly those fields in one response — no separate calls per resource, no unused fields shipped either.",
+            "GraphQL automatically caches every REST endpoint response so subsequent requests don't need a round trip at all.",
+            "GraphQL requires the server to pre-define one endpoint per possible combination of fields a client might want.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "GraphQL runs over regular HTTP — it isn't a faster transport. The actual fix for this scenario is structural: one client-shaped query replaces what would otherwise be several REST calls chained together (under-fetching), and it returns only the requested fields rather than each resource's full shape (over-fetching). That's the client-decides-the-shape idea the whole course builds on.",
+        },
+        {
+          kind: "quiz",
+          heading: "Reading schema type syntax",
+          question:
+            "In the schema `orders: [Order!]!`, what does this field guarantee, and what can it still return?",
+          options: [
+            "It guarantees the list itself is never null and contains no null entries — it can still be an empty list, `[]`.",
+            "It guarantees at least one order always exists — an empty list is not a valid response.",
+            "It means orders is optional and may be entirely omitted from the response.",
+            "The `!` after Order means each order can be null, while the outer `!` means the list itself cannot.",
+          ],
+          correctIndex: 0,
+          explanation:
+            "Each `!` is a separate non-null guarantee: the inner one (`Order!`) says no entry in the list can be null, and the outer one (the `]!`) says the list itself can't be null. Neither guarantee rules out an empty list — `[]` satisfies both, since it's a non-null list containing zero (therefore no null) entries.",
+        },
+        {
+          kind: "quiz",
+          heading: "Queries vs. mutations, ordering guarantees",
+          question:
+            "A client sends a mutation with two fields: `deleteOldAddress` followed by `setNewDefaultAddress`. What does the GraphQL spec guarantee about their execution order, and how does this differ from top-level query fields?",
+          options: [
+            "No guarantee either way — GraphQL always executes every top-level field, mutation or query, in parallel.",
+            "Top-level mutation fields execute in the order listed, one after another; top-level query fields carry no such ordering guarantee and may run in parallel.",
+            "Mutations and queries both execute strictly in the order listed, since GraphQL processes every request as one sequential list of instructions.",
+            "The order is determined by the server's resolver file, not by the order fields appear in the request.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "This ordering guarantee exists specifically because mutations are writes, and one write (deleting the old address) plausibly needs to complete before the next one (setting a new default) runs. Query fields, being reads, don't carry this same guarantee and are allowed to execute in parallel, since reads typically don't depend on each other's side effects.",
+        },
+        {
+          kind: "quiz",
+          heading: "Diagnosing an N+1 problem",
+          question:
+            "A query for 200 blog posts, each including its author, causes 201 total database calls. What's the underlying cause, and what's the standard fix?",
+          options: [
+            "The schema is missing non-null markers, which forces extra validation queries — add `!` to every field.",
+            "Each post's author resolver independently queries the database once per post; the fix is batching those individual lookups (commonly with a DataLoader) into one combined query per tick.",
+            "GraphQL mutations are being used where queries should be, which always causes duplicate calls.",
+            "The client's query is malformed and should use a fragment instead of listing author fields directly.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "This is the textbook N+1 shape: one query for the list (1) plus one more per item needing a related lookup (N) — here, 1 for the posts plus 200 for each post's author. Fragments control field reuse, not query batching, so switching to a fragment wouldn't change the resolver call count at all. The actual fix collects the individual per-post author lookups within a tick and issues them as a single batched query.",
+        },
+        {
+          kind: "quiz",
+          heading: "GraphQL vs. REST, choosing deliberately",
+          question:
+            "A small internal tool has one consumer, does simple CRUD on a handful of resources, and occasionally needs to stream a large file download. Which framing best matches this course's guidance?",
+          options: [
+            "GraphQL is a strict upgrade over REST in every case, so it should be used regardless of these details.",
+            "REST is likely the better fit here — a single consumer with simple, stable CRUD needs doesn't need GraphQL's flexibility, and file downloads map awkwardly onto GraphQL's request/response model anyway.",
+            "GraphQL should be used only for the file download endpoint, and REST for everything else, since GraphQL cannot coexist with REST endpoints in the same system.",
+            "Neither is relevant here — file downloads always require a completely separate protocol from both REST and GraphQL.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course is explicit that GraphQL is a real trade-off, not a strict upgrade: it earns its complexity with multiple clients needing different shapes, deeply nested data, or a large evolving graph with many consumers — none of which apply to a single-consumer CRUD tool. File uploads/downloads were specifically called out as mapping awkwardly onto GraphQL's model. And GraphQL and REST endpoints coexisting in one system is common in practice, not mutually exclusive.",
+        },
+        {
+          kind: "summary",
+          heading: "Course takeaways",
+          bullets: [
+            "GraphQL fixes over-fetching and under-fetching by letting the client dictate the exact shape of a response, instead of the server dictating a fixed shape per endpoint.",
+            "A strongly typed schema (with explicit nullability via !) doubles as the API's documentation and lets tooling validate a query before it ever runs.",
+            "Resolvers are per-field functions; most fields need none at all, and parent/args/context are what a custom one actually works with.",
+            "N+1 queries are the most common real GraphQL performance trap, and batching (DataLoader) — not caching or schema changes — is the standard fix.",
+            "Fragments reuse field selections and cursor-based pagination handles unbounded lists — both are what make a schema hold up under real-world query complexity.",
+            "GraphQL vs. REST is a genuine trade-off: client diversity and nested data favor GraphQL; simple CRUD, native HTTP caching, and file transfer often still favor REST.",
+          ],
+        },
+      ],
+    },
   ],
 };
