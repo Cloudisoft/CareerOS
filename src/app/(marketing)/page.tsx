@@ -22,6 +22,7 @@ import { CircularProgress } from "@/components/ui/circular-progress";
 import { CountUp } from "@/components/marketing/count-up";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
 import { ResumeShowcase } from "@/components/marketing/resume-showcase";
+import { HeroExplode } from "@/components/marketing/hero-explode";
 import { AutoApplySteps, AutoApplyAgentCard } from "@/components/marketing/auto-apply-showcase";
 
 const FLOW = [
@@ -123,6 +124,8 @@ export default function MarketingHomePage() {
           className="pointer-events-none absolute -right-24 top-24 h-[420px] w-[420px] animate-float rounded-full blur-3xl"
           style={{ animationDelay: "2.5s", background: "radial-gradient(circle, rgba(223,76,44,0.18), transparent 70%)" }}
         />
+
+        <HeroExplode />
 
         <div className="relative mx-auto max-w-5xl px-6 pt-20 pb-16 text-center sm:pt-28">
           <Reveal>
