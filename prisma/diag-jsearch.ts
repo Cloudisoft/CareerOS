@@ -34,6 +34,23 @@ async function main() {
   );
 
   await tryEndpoint(
+    "search-no-params",
+    "https://jsearch.p.rapidapi.com/search"
+  );
+
+  await tryEndpoint(
+    "search-filters",
+    "https://jsearch.p.rapidapi.com/search-filters?query=software%20engineer"
+  );
+
+  await tryEndpoint("root", "https://jsearch.p.rapidapi.com/");
+
+  await tryEndpoint(
+    "estimated-salary",
+    "https://jsearch.p.rapidapi.com/estimated-salary?job_title=software%20engineer&location=us"
+  );
+
+  await tryEndpoint(
     "job-details",
     "https://jsearch.p.rapidapi.com/job-details?country=us&job_id=TU1SQkRfOURuWDhXVmFWREFBQUFBQT09OkVzd0JDb3dCUVVwcFZEUjBUR0pqWW5CcVdrOVFPVkpUWmpWSVdHNUJOelF4WXpRMlEwaGxPVFZwZUVSM2FsSkNlbEp6TFY5V1duWklabUo2U1hwSlQwZEtaR1U0UTNJd1p5MVdRM1JRWVdkYVMzWmFjR2s0ZEhScldXWTVSelJmV1VkVGVsYzJiMjlrY21aeGVUaGpWRGR0WVVkUkxXczJXSE0wTFdSc2VYbzRjWFJIWVRGUlZtUnFTMEppVEU4M1EwRVNGMGszZERaaGNsZFJUblF5UzNKMVJWQm5PSGsxYlZGUkdpSkJSSE55T1daUmNuWlRUbEpuUXpOYVpERlphbXMxWVVkSmNrSmZRMGN3VW05Qg"
   );
