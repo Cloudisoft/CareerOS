@@ -270,5 +270,237 @@ git branch -d feature/add-search      # delete the now-merged local branch`,
         },
       ],
     },
+    {
+      title: "Rewriting History: Interactive Rebase and Amending Commits",
+      durationMinutes: 8,
+      slides: [
+        {
+          kind: "title",
+          heading: "Rewriting History: Interactive Rebase and Amending Commits",
+          subheading:
+            "Sometimes the commit you just made isn't the one you want in the permanent record. Git gives you real tools to clean that up — as long as you follow the one rule that keeps it safe.",
+        },
+        {
+          kind: "example",
+          heading: "git commit --amend fixes the last commit, not a new one",
+          body: "Forgot a file, or wrote a bad message? --amend replaces the most recent commit entirely, instead of adding a second commit on top of the mistake.",
+          language: "bash",
+          code: `git commit -m "Fix bug"
+# oops — forgot to stage a file, and the message could be clearer
+
+git add forgotten-file.ts
+git commit --amend -m "Fix token refresh bug"
+# the previous commit is replaced entirely — git log still shows one commit here`,
+        },
+        {
+          kind: "example",
+          heading: "Interactive rebase cleans up a string of messy commits",
+          body: "git rebase -i opens an editable list of the last N commits, letting you reorder, combine, reword, or drop them before anyone else sees them.",
+          language: "bash",
+          code: `git log --oneline
+# h7i8j9k Add login form
+# e4f5g6h fix typo
+# a1b2c3d actually fix typo
+
+git rebase -i HEAD~3
+
+# The editor that opens shows:
+#   pick h7i8j9k Add login form
+#   pick e4f5g6h fix typo
+#   pick a1b2c3d actually fix typo
+#
+# Changing the last two "pick" to "squash" combines all three into
+# one commit, then opens a second editor to write its final message.`,
+        },
+        {
+          kind: "bullets",
+          heading: "The interactive rebase vocabulary",
+          bullets: [
+            "pick — keep this commit exactly as it is.",
+            "reword — keep the commit's changes, but edit its message.",
+            "squash — merge this commit into the one directly above it, combining their changes and prompting for one new message.",
+            "fixup — like squash, but silently discards this commit's own message instead of prompting for a combined one.",
+            "drop — remove this commit entirely, as if it had never happened.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Never rewrite history that's already been pushed and shared",
+          body: "Amending or rebasing changes a commit's hash — as far as git is concerned, it's now a different commit, not an edited version of the old one. If a teammate already pulled the original, rewriting it and force-pushing creates a mismatch between your history and theirs that's genuinely painful to untangle. Rewrite freely on commits that are still local and only yours; once something is pushed and someone else might have it, prefer git revert instead.",
+        },
+        {
+          kind: "summary",
+          heading: "What to carry forward",
+          bullets: [
+            "git commit --amend replaces the most recent commit — new message, new staged files, or both.",
+            "git rebase -i HEAD~N opens an editable list of the last N commits; pick, reword, squash, and drop are the everyday commands.",
+            "Rewriting history changes commit hashes — safe on purely local, unpushed commits; risky on anything already shared.",
+            "Squashing a noisy string of \"wip\" and \"fix typo\" commits into one clean commit before opening a pull request is the single most common real-world use of interactive rebase.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Rebasing and Resolving Conflicts",
+      durationMinutes: 13,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Rebasing and Resolving Conflicts",
+          subheading:
+            "Three scenarios — amending a commit, squashing a messy history, and resolving a conflict that needs pieces of both sides.",
+        },
+        {
+          kind: "practice",
+          heading: "Amend a Commit's Message and Add a Missed File",
+          prompt:
+            "You just ran git commit -m \"Add search feature\", then noticed you forgot to stage search.test.ts, and the message should say \"Add search feature with tests\". Write the commands to fix both, ending with one clean commit — not a second commit on top of the first.",
+          hint: "Stage the missed file normally with git add. --amend replaces the most recent commit rather than creating a new one, and accepts a new -m at the same time.",
+          solution: `git add search.test.ts
+git commit --amend -m "Add search feature with tests"
+# the previous commit is replaced entirely — git log shows one commit here, not two`,
+        },
+        {
+          kind: "practice",
+          heading: "Squash Three Commits into One",
+          prompt:
+            "Your branch has three commits, oldest to newest: \"Add login form\", \"fix typo\", \"actually fix typo\". Write the command to start an interactive rebase covering all three, then describe what you'd change in the editor to squash the last two into the first.",
+          hint: "You need to go back far enough to include all three commits — HEAD~3. Change \"pick\" to \"squash\" (or \"s\") on the two commits you want folded into the one above them.",
+          solution: `git rebase -i HEAD~3
+
+# In the editor, change:
+#   pick a1b2c3d Add login form
+#   pick e4f5g6h fix typo
+#   pick h7i8j9k actually fix typo
+# to:
+#   pick a1b2c3d Add login form
+#   squash e4f5g6h fix typo
+#   squash h7i8j9k actually fix typo
+#
+# Save and close — git combines all three, then opens a second
+# editor to write one final commit message for the group.`,
+        },
+        {
+          kind: "practice",
+          heading: "Resolve a Conflict That Needs Both Sides",
+          prompt:
+            "git merge feature/pricing produces this conflict in config.ts:\n\n<<<<<<< HEAD\nexport const TAX_RATE = 0.07;\nexport const FREE_SHIPPING_THRESHOLD = 50;\n=======\nexport const TAX_RATE = 0.0725;\nexport const FREE_SHIPPING_THRESHOLD = 75;\n>>>>>>> feature/pricing\n\nFinance confirmed the new tax rate (0.0725) is correct, but the shipping threshold should stay at 50 — the 75 on the feature branch was a mistake. Write the resolved file content, then the commands to finish the merge.",
+          hint: "Resolving a conflict is a per-line decision, not an all-or-nothing pick of one whole side — you can take TAX_RATE from one side and FREE_SHIPPING_THRESHOLD from the other, as long as every marker is gone before you stage.",
+          solution: `// config.ts, after resolving — markers removed, correct value kept from each side
+export const TAX_RATE = 0.0725;             // taken from feature/pricing
+export const FREE_SHIPPING_THRESHOLD = 50;  // kept from HEAD — 75 was a mistake
+
+// then, to finish the merge:
+git add config.ts
+git commit
+// git already knows this commit completes the merge and pre-fills a merge message`,
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "--amend replaces the last commit outright rather than piling a fix on top of it — useful right up until you've shared that commit with anyone else.",
+            "Interactive rebase's pick and squash turn a messy, incremental history into the clean set of commits a teammate actually wants to read.",
+            "Resolving a conflict is a per-line decision — take what's correct from each side, not an all-or-nothing pick between branches.",
+            "Every conflict marker (<<<<<<<, =======, >>>>>>>) must be gone before staging the resolution — leaving one in is the single most common mistake.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — staging, branches, conflicts, and the history-rewriting tools you just covered.",
+        },
+        {
+          kind: "quiz",
+          heading: "Staging Specific Files",
+          question: "You've edited five files but only want two of them in your next commit. What's the correct sequence?",
+          options: [
+            "git add the two specific files, then git commit",
+            "git commit -m \"...\" then manually remove the other three files' changes",
+            "git stash the other three, git commit -m \"...\", then git stash pop",
+            "There's no way to do this — a commit always includes every changed file",
+          ],
+          correctIndex: 0,
+          explanation:
+            "The staging area exists exactly for this — git add <file> stages only the changes you name, and git commit turns only what's staged into a snapshot. The other three files stay changed but uncommitted in your working directory.",
+        },
+        {
+          kind: "quiz",
+          heading: "What a Branch Actually Is",
+          question: "What is a git branch, technically?",
+          options: [
+            "A full copy of every file in the project at that point",
+            "A separate repository linked to the main one",
+            "A lightweight, movable pointer to a specific commit",
+            "A saved diff between two points in history",
+          ],
+          correctIndex: 2,
+          explanation:
+            "A branch is just a named pointer to a commit — nothing is duplicated when you create one, which is why branching is near-instant even in a huge repository. Switching branches just changes which commit that pointer, and your working directory, currently reflects.",
+        },
+        {
+          kind: "quiz",
+          heading: "When a Merge Conflict Happens",
+          question: "A merge conflict occurs when...",
+          options: [
+            "Two branches changed different files",
+            "Two branches changed the same lines of the same file in different ways",
+            "You run git merge without first running git fetch",
+            "A commit message is missing",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Git merges automatically whenever it safely can — different files, or even different parts of the same file. A conflict only happens when both sides changed the exact same lines differently, and git has no way to guess which change you actually want.",
+        },
+        {
+          kind: "quiz",
+          heading: "The Risk of Rewriting Shared History",
+          question: "Why is it risky to rebase (and force-push) commits a teammate has already pulled?",
+          options: [
+            "Rebasing deletes the file contents of those commits",
+            "Rebase only works on the main branch, never on feature branches",
+            "git rebase requires admin permissions on the remote",
+            "Rebasing changes each commit's hash, so your rewritten history no longer matches the copy your teammate already has",
+          ],
+          correctIndex: 3,
+          explanation:
+            "A rebased commit is technically a brand-new commit with a new hash, even if its content looks identical. Once a teammate has pulled the original, force-pushing the rewritten version creates two diverging histories that are genuinely painful to reconcile — which is why revert, not rebase, is the safer tool once something is shared.",
+        },
+        {
+          kind: "quiz",
+          heading: "Why Pull Requests, Not Direct Pushes",
+          question: "Why do most teams require a pull request instead of pushing directly to main?",
+          options: [
+            "Direct pushes to main are technically disabled by git itself",
+            "It's slower, which discourages too many changes",
+            "It creates a review checkpoint and a place for CI to run before the change becomes permanent",
+            "Pull requests are required for git to track file history at all",
+          ],
+          correctIndex: 2,
+          explanation:
+            "Nothing in git itself prevents pushing straight to main — the pull request is a team process built on top of git, not a git feature. It gives a teammate a chance to read the diff and automated checks a chance to run before the change is merged, catching problems while they're still cheap to fix.",
+        },
+        {
+          kind: "summary",
+          heading: "Course recap",
+          bullets: [
+            "Git records snapshots of the whole project at each commit, chained together as history — not per-file diffs.",
+            "The staging area lets you shape a messy set of edits into one or more clean, focused commits.",
+            "A branch is a cheap, movable pointer — that's what makes isolated, parallel work practical.",
+            "A merge conflict means git needs a human decision on lines both sides changed differently — resolve it, delete the markers, commit.",
+            "git commit --amend and git rebase -i clean up commit history, but only for commits that haven't been shared yet — use git revert once something is already pushed.",
+            "Small feature branches plus pull requests keep main always deployable and give the team a checkpoint for review.",
+          ],
+        },
+      ],
+    },
   ],
 };

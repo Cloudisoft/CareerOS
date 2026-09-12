@@ -403,5 +403,207 @@ ps aux | grep myapp`,
         },
       ],
     },
+    {
+      title: "Finding Things: find, locate, and grep -r",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Finding Things: find, locate, and grep -r",
+          subheading:
+            "Piping, from the last lesson, filters text you already have in front of you. This is the other half — actually locating files and content across a filesystem you're not already looking at.",
+        },
+        {
+          kind: "example",
+          heading: "find searches by name, type, and recency",
+          body: "find walks a directory tree and matches files against whatever conditions you give it — starting from wherever you point it.",
+          language: "bash",
+          code: `find . -name "*.log"
+# recursively finds files ending in .log, starting from the current directory
+
+find /var/log -name "*.log" -mtime -1
+# same, but only files modified in the last day
+
+find . -type d -name "node_modules"
+# find directories (-type d) specifically named node_modules`,
+        },
+        {
+          kind: "example",
+          heading: "Combining find with an action",
+          body: "find can act on every match directly — with real caution, since -delete has no confirmation prompt.",
+          language: "bash",
+          code: `find . -type f -size +100M
+# regular files (-type f) larger than 100 megabytes
+
+find . -name "*.tmp" -delete
+# finds AND deletes every match in one command
+
+find . -name "*.log" -exec rm {} \\;
+# runs rm on each match individually; {} is replaced with the matched filename`,
+        },
+        {
+          kind: "bullets",
+          heading: "find vs. locate vs. grep -r",
+          bullets: [
+            "find searches the live filesystem right now, by name, type, size, or modification time — slower per run, but always current.",
+            "locate searches a prebuilt index instead of the live filesystem — much faster, but can miss a file created moments ago until the index (usually rebuilt daily via updatedb) catches up.",
+            "grep -r \"TODO\" . searches inside file contents recursively, rather than searching filenames — find locates files by metadata, grep -r locates files by what's written inside them.",
+            "grep -rl \"TODO\" . adds -l to print just the matching filenames instead of every matching line — useful when you only need to know which files, not where.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Combine find with xargs for real power",
+          body: "find . -name \"*.log\" | xargs rm removes every matching file in one line, and find . -name \"*.test.ts\" | xargs grep -l \"skip\" finds every test file that mentions \"skip\". Piping find's output into another command is one of the most common real-world patterns for anything that needs to act on many files at once.",
+        },
+        {
+          kind: "summary",
+          heading: "What to carry forward",
+          bullets: [
+            "find searches the live filesystem by name, type, size, or modification time; locate searches a fast but possibly-stale prebuilt index.",
+            "grep -r searches inside file contents recursively — a different job from find, and often chained right after it.",
+            "-exec and piping into xargs both let you run another command against everything find turns up, instead of handling matches one by one by hand.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Locating Files and Content",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Locating Files and Content",
+          subheading:
+            "Three exercises with find and grep -r — narrowing by name and recency, checking before deleting, and searching file contents instead of filenames.",
+        },
+        {
+          kind: "practice",
+          heading: "Find Recently Modified Files by Extension",
+          prompt:
+            "Write a single command to find every .py file inside the scripts/ directory that was modified in the last 7 days.",
+          hint: "-name filters by filename pattern; -mtime -7 means modified less than 7 days ago (the minus sign means \"less than\").",
+          solution: `find scripts/ -name "*.py" -mtime -7`,
+        },
+        {
+          kind: "practice",
+          heading: "Check Before You Delete",
+          prompt:
+            "Find every file under /tmp/build larger than 500MB. Write the command to list them first, then the separate command you'd only run after confirming that list looks right, to actually delete them.",
+          hint: "Run the search alone first to see what matches, then add -delete as a second step — the same \"look before you act\" habit that applies to any destructive command.",
+          solution: `# Step 1: see what would match
+find /tmp/build -type f -size +500M
+
+# Step 2: only after confirming the list is what you expect
+find /tmp/build -type f -size +500M -delete`,
+        },
+        {
+          kind: "practice",
+          heading: "Search File Contents, Not Filenames",
+          prompt:
+            "Search every file under src/ for the text \"DEPRECATED\", and print only the filenames that contain it — not every matching line.",
+          hint: "grep -r searches recursively through file contents; add -l to print matching filenames only, instead of the matching lines themselves.",
+          solution: `grep -rl "DEPRECATED" src/`,
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "-name, -mtime, and -size are find's everyday filters, and they combine — narrowing by name and recency together is a common, realistic search.",
+            "Running a search once to review matches before adding -delete is the same look-before-you-act habit that applies to any destructive command, like rm -rf.",
+            "grep -r searches file contents, not filenames; -l narrows its output to just the matching files when you don't need to see every line that matched.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — navigation, permissions, redirection, processes, and the search tools you just covered.",
+        },
+        {
+          kind: "quiz",
+          heading: "Relative Paths",
+          question: "From /home/alice/projects, what does cd ../shared/docs actually move you to?",
+          options: ["/home/alice/shared/docs", "/home/alice/projects/shared/docs", "/home/shared/docs", "It causes an error — relative paths can't use .."],
+          correctIndex: 0,
+          explanation:
+            ".. moves up one level, from /home/alice/projects to /home/alice, and then shared/docs is read from there — landing at /home/alice/shared/docs. Relative paths are always resolved from your current directory, and .. is a completely normal part of one.",
+        },
+        {
+          kind: "quiz",
+          heading: "Execute on a Directory",
+          question: "A directory has permissions r--r--r-- (read-only, no execute, for everyone). What happens when a user tries to cd into it?",
+          options: [
+            "It works normally, since read access is enough to enter a directory",
+            "It works, but only the owner can see the file names inside",
+            "Directories ignore the execute bit entirely; only files use it",
+            "It fails — without execute, you can't enter the directory or access files inside it by name, even though you can list it",
+          ],
+          correctIndex: 3,
+          explanation:
+            "Execute means something different on a directory than on a file — there, it controls whether you can enter it and reach files inside by name. Read alone lets you list what's in a directory, but not cd into it or open a specific file inside.",
+        },
+        {
+          kind: "quiz",
+          heading: "Redirection Operators",
+          question: "What's the difference between command > file.txt and command >> file.txt?",
+          options: [
+            "> appends, >> overwrites",
+            "> overwrites the file's contents, >> appends without erasing what's there",
+            "They're identical; >> is just an older alias for >",
+            "> only works with text files, >> works with any file type",
+          ],
+          correctIndex: 1,
+          explanation:
+            "> always replaces the file's entire contents with the command's output. >> adds the new output to the end of whatever is already there — the one to reach for when you don't want to lose an existing log or file.",
+        },
+        {
+          kind: "quiz",
+          heading: "kill vs. kill -9",
+          question: "Why would you use kill -9 instead of a plain kill?",
+          options: [
+            "kill -9 is the default and safest way to stop any process",
+            "kill -9 only works on background jobs started with &",
+            "kill -9 (SIGKILL) is a last resort, unconditional stop for a process that isn't responding to a normal termination request — it skips any cleanup the process would otherwise do",
+            "kill -9 pauses a process instead of stopping it",
+          ],
+          correctIndex: 2,
+          explanation:
+            "A plain kill sends SIGTERM, a polite request the process can catch and respond to by cleaning up before exiting. kill -9 sends SIGKILL, which the process cannot intercept or ignore — appropriate only once a normal kill has failed to stop something unresponsive.",
+        },
+        {
+          kind: "quiz",
+          heading: "find vs. grep -r",
+          question: "You want every file under logs/ whose name contains \"error\" — not the lines inside files that mention it. Which command actually answers that?",
+          options: [
+            "find logs/ -name \"*error*\"",
+            "grep -r \"error\" logs/",
+            "ps aux | grep error",
+            "cat logs/* | grep error",
+          ],
+          correctIndex: 0,
+          explanation:
+            "find matches on file metadata like the name itself — -name \"*error*\" finds files whose filename contains that text. grep -r searches inside file contents instead, which answers a different question: which files mention \"error\" somewhere in their text, regardless of what they're named.",
+        },
+        {
+          kind: "summary",
+          heading: "Course recap",
+          bullets: [
+            "One filesystem tree rooted at /; pwd, ls, and cd are the everyday navigation trio, and absolute paths always start with /.",
+            "mkdir, cp, mv, and rm handle everyday file management — rm has no undo, so treat rm -rf with real caution.",
+            "Permissions are three types (read/write/execute) across three groups (owner/group/others); execute on a directory means \"can enter it,\" not \"can run it.\"",
+            "| chains small commands together; > and >> redirect output to a file, overwriting or appending respectively.",
+            "ps, top, and kill inspect and control running processes; find and grep -r locate files by metadata and by content, respectively.",
+          ],
+        },
+      ],
+    },
   ],
 };
