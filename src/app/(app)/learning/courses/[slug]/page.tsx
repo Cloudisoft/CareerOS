@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { LessonContent } from "@/components/learning/lesson-content";
+import { SlideDeck } from "@/components/learning/slide-deck";
+import type { Slide } from "@/lib/learning/slide-types";
 
 interface Lesson {
   id: string;
   title: string;
-  content: string;
+  slides: Slide[];
   order: number;
   durationMinutes: number;
   completed: boolean;
@@ -151,7 +152,7 @@ export default function CourseDetailPage() {
                 </label>
               </div>
 
-              <LessonContent content={activeLesson.content} />
+              <SlideDeck key={activeLesson.id} slides={activeLesson.slides} />
 
               <div className="flex items-center justify-between border-t border-border pt-4">
                 <Button

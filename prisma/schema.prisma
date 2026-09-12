@@ -1144,9 +1144,11 @@ model CourseLesson {
 
   title           String
   /**
-   * Original written lesson content, markdown.
+   * Original written lesson content: an array of structured Slide objects
+   * (see src/lib/learning/slide-types.ts), rendered by a slide-deck player
+   * rather than a single scrolling markdown block.
    */
-  content         String
+  slides          Json
   order           Int
   durationMinutes Int    @default(5)
 
