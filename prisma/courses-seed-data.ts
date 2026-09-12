@@ -13,18 +13,23 @@ import { course as sqlFundamentals } from "./courses/sql-and-database-fundamenta
 
 import { course as javascriptFundamentals } from "./courses/javascript-fundamentals";
 import { course as typescriptFundamentals } from "./courses/typescript-fundamentals";
+import { course as pythonFundamentals } from "./courses/python-fundamentals";
+import { course as gitAndVersionControl } from "./courses/git-and-version-control";
 
 import { course as reactFundamentals } from "./courses/react-fundamentals";
 import { course as nextjsFullStack } from "./courses/nextjs-and-full-stack-react";
+import { course as nodejsFundamentals } from "./courses/nodejs-fundamentals";
+import { course as graphqlFundamentals } from "./courses/graphql-fundamentals";
 
 import { course as dockerInPractice } from "./courses/docker-and-containers-in-practice";
 import { course as kubernetesFundamentals } from "./courses/kubernetes-fundamentals";
+import { course as terraformIac } from "./courses/infrastructure-as-code-with-terraform";
+import { course as systemDesignFundamentals } from "./courses/system-design-fundamentals";
 
-// NOTE: more native courses (Python, Git, Node.js, GraphQL, Terraform, System
-// Design, Machine Learning, Data Analysis, Linux, Agile/Scrum) are in
-// progress and will be added to this list as they land — see the Learning
-// Hub rebuild task. This file intentionally only lists courses that exist
-// as real, complete files today.
+import { course as machineLearningFundamentals } from "./courses/machine-learning-fundamentals";
+import { course as dataAnalysisFundamentals } from "./courses/data-analysis-fundamentals";
+import { course as linuxFundamentals } from "./courses/linux-and-command-line-fundamentals";
+import { course as agileFundamentals } from "./courses/agile-and-scrum-fundamentals";
 
 export const COURSES: CourseSeed[] = [
   resumeWriting,
@@ -38,8 +43,18 @@ export const COURSES: CourseSeed[] = [
   sqlFundamentals,
   javascriptFundamentals,
   typescriptFundamentals,
+  pythonFundamentals,
   reactFundamentals,
   nextjsFullStack,
+  nodejsFundamentals,
+  gitAndVersionControl,
   dockerInPractice,
   kubernetesFundamentals,
+  terraformIac,
+  machineLearningFundamentals,
+  dataAnalysisFundamentals,
+  systemDesignFundamentals,
+  graphqlFundamentals,
+  linuxFundamentals,
+  agileFundamentals,
 ].sort((a, b) => a.order - b.order);
