@@ -8,6 +8,7 @@ import { getEntitlements } from "@/lib/billing/entitlements";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 type ProfileWithCounts = {
   onboardingCompletedAt: Date | null;
@@ -88,7 +89,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <Card>
+          <Card className="transition-all hover:-translate-y-0.5 hover:border-primary/40">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
                 <Briefcase className="h-5 w-5" />
@@ -99,7 +100,7 @@ export default async function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="transition-all hover:-translate-y-0.5 hover:border-primary/40">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
                 <FileText className="h-5 w-5" />
@@ -110,7 +111,7 @@ export default async function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="transition-all hover:-translate-y-0.5 hover:border-primary/40">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
                 <TrendingUp className="h-5 w-5" />
@@ -187,16 +188,16 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      <Card>
+      <Card className="brand-glow overflow-hidden">
         <CardContent className="flex flex-col items-center gap-8 p-8 sm:flex-row sm:justify-between">
-          <div>
+          <div className="w-full sm:max-w-sm">
             <p className="text-sm text-muted-foreground">Career Readiness</p>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               Calculated from your resume, profile completeness, skills, interview practice, and
               job match quality.
             </p>
             {entitlements.careerAnalytics ? (
-              <div className="mt-6 grid grid-cols-3 gap-4">
+              <div className="mt-6 space-y-4">
                 {[
                   ["Resume", profile?.resumeScore ?? 0],
                   ["Profile", profile?.profileScore ?? 0],
@@ -205,8 +206,11 @@ export default async function DashboardPage() {
                   ["Job Match", profile?.jobMatchScore ?? 0],
                 ].map(([label, val]) => (
                   <div key={label as string}>
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p className="text-lg font-semibold text-foreground">{val}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-semibold text-foreground">{val}</span>
+                    </div>
+                    <Progress value={val as number} className="mt-1.5" />
                   </div>
                 ))}
               </div>

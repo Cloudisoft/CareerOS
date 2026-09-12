@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, Search, LineChart, MessageSquare } from "lucide-react";
+import { Users, Search, LineChart, MessageSquare, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHero } from "@/components/marketing/page-hero";
+import { GlowCard } from "@/components/marketing/glow-card";
+import { RevealGroup, RevealItem } from "@/components/marketing/reveal";
 
 export const metadata: Metadata = {
   title: "For Employers",
@@ -34,35 +36,30 @@ const FEATURES = [
 
 export default function EmployersPage() {
   return (
-    <div className="mx-auto max-w-5xl px-6 py-20">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-foreground sm:text-5xl">
-          Hire from a pool that's ready to move
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Candidates on Career OS keep an active, structured Career Profile — not a stale resume
-          upload. Publish jobs, search talent, and manage your pipeline in one place.
-        </p>
-        <div className="mt-8">
-          <Button asChild size="lg">
-            <Link href="/signup">Create an employer account</Link>
+    <>
+      <PageHero
+        eyebrow="For employers"
+        title="Hire from a pool that's ready to move"
+        description="Candidates on Career OS keep an active, structured Career Profile — not a stale resume upload. Publish jobs, search talent, and manage your pipeline in one place."
+        actions={
+          <Button asChild size="lg" className="group">
+            <Link href="/signup">
+              Create an employer account
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="mt-16 grid gap-6 sm:grid-cols-2">
-        {FEATURES.map((feature) => (
-          <Card key={feature.title}>
-            <CardContent className="p-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
-                <feature.icon className="h-5 w-5" />
-              </div>
-              <h2 className="mt-4 text-lg font-semibold text-foreground">{feature.title}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{feature.body}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="mx-auto max-w-5xl px-6 py-16">
+        <RevealGroup className="grid gap-6 sm:grid-cols-2" stagger={0.08}>
+          {FEATURES.map((feature) => (
+            <RevealItem key={feature.title}>
+              <GlowCard icon={feature.icon} title={feature.title} body={feature.body} />
+            </RevealItem>
+          ))}
+        </RevealGroup>
       </div>
-    </div>
+    </>
   );
 }

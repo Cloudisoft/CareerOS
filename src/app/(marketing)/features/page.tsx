@@ -9,7 +9,9 @@ import {
   GraduationCap,
   Users,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHero } from "@/components/marketing/page-hero";
+import { GlowCard } from "@/components/marketing/glow-card";
+import { RevealGroup, RevealItem } from "@/components/marketing/reveal";
 
 export const metadata: Metadata = {
   title: "Features",
@@ -61,30 +63,26 @@ const SECTIONS = [
 
 export default function FeaturesPage() {
   return (
-    <div className="mx-auto max-w-5xl px-6 py-20">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-foreground sm:text-5xl">
-          Every part of your career, <span className="brand-gradient-text">connected</span>
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          Career OS isn't ten disconnected tools wearing one login. It's a single Career Profile
-          that powers matching, resumes, applications, AI, interviews, and learning together.
-        </p>
-      </div>
+    <>
+      <PageHero
+        eyebrow="What's inside"
+        title={
+          <>
+            Every part of your career, <span className="brand-gradient-text">connected</span>
+          </>
+        }
+        description="Career OS isn't ten disconnected tools wearing one login. It's a single Career Profile that powers matching, resumes, applications, AI, interviews, and learning together."
+      />
 
-      <div className="mt-16 grid gap-6 sm:grid-cols-2">
-        {SECTIONS.map((section) => (
-          <Card key={section.title}>
-            <CardContent className="p-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-gradient text-white">
-                <section.icon className="h-5 w-5" />
-              </div>
-              <h2 className="mt-4 text-lg font-semibold text-foreground">{section.title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{section.body}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="mx-auto max-w-5xl px-6 py-16">
+        <RevealGroup className="grid gap-6 sm:grid-cols-2" stagger={0.06}>
+          {SECTIONS.map((section) => (
+            <RevealItem key={section.title}>
+              <GlowCard icon={section.icon} title={section.title} body={section.body} />
+            </RevealItem>
+          ))}
+        </RevealGroup>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PageHero } from "@/components/marketing/page-hero";
+import { RevealGroup, RevealItem } from "@/components/marketing/reveal";
 
 export const metadata: Metadata = {
   title: "FAQ",
@@ -34,16 +36,18 @@ const FAQS = [
 
 export default function FaqPage() {
   return (
-    <div className="mx-auto max-w-3xl px-6 py-20">
-      <h1 className="text-4xl font-bold text-foreground sm:text-5xl">Frequently asked questions</h1>
-      <div className="mt-10 divide-y divide-border">
-        {FAQS.map((item) => (
-          <div key={item.q} className="py-6">
-            <h2 className="text-base font-semibold text-foreground">{item.q}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</p>
-          </div>
-        ))}
+    <>
+      <PageHero eyebrow="FAQ" title="Frequently asked questions" align="left" />
+      <div className="mx-auto max-w-3xl px-6 py-16">
+        <RevealGroup className="divide-y divide-border" stagger={0.05}>
+          {FAQS.map((item) => (
+            <RevealItem key={item.q} className="py-6">
+              <h2 className="text-base font-semibold text-foreground">{item.q}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</p>
+            </RevealItem>
+          ))}
+        </RevealGroup>
       </div>
-    </div>
+    </>
   );
 }

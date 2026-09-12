@@ -358,7 +358,7 @@ export default function MarketingHomePage() {
                 </h2>
                 <p className="mt-4 text-white/85">Create your Career Profile in minutes. Free to start.</p>
                 <div className="mt-8 flex justify-center">
-                  <Button asChild size="lg" className="bg-white text-background hover:bg-white/90">
+                  <Button asChild size="lg" className="bg-white text-neutral-900 hover:bg-white/90">
                     <Link href="/signup">
                       Get Started
                       <ArrowRight className="h-4 w-4" />
