@@ -66,6 +66,7 @@ model User {
   posts               Post[]
   comments            Comment[]
   reactions           Reaction[]
+  circleMemberships   CircleMember[]
   conversationMembers ConversationMember[]
   messages            Message[]
 
@@ -538,6 +539,7 @@ model Job {
   resumeScores      ResumeScore[]
   interviewSessions InterviewSession[]
   targetedResumes   Resume[]           @relation("ResumeTargetJob")
+  posts             Post[]
 
   @@unique([source, externalId])
   @@index([companyId])
@@ -1214,11 +1216,58 @@ model Follow {
   @@map("follows")
 }
 
+model Circle {
+  id          String @id @default(cuid())
+  slug        String @unique
+  name        String
+  description String
+  category    String
+
+  createdAt DateTime @default(now())
+
+  members CircleMember[]
+  posts   Post[]
+
+  @@index([category])
+  @@map("circles")
+}
+
+enum CircleMemberRole {
+  MEMBER
+  ADMIN
+}
+
+model CircleMember {
+  id       String           @id @default(cuid())
+  circleId String
+  circle   Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     CircleMemberRole @default(MEMBER)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([circleId, userId])
+  @@index([userId])
+  @@map("circle_members")
+}
+
 model Post {
   id       String @id @default(cuid())
   authorId String
   author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content  String
+
+  /**
+   * Set when this post was made inside a Circle rather than the general feed.
+   */
+  circleId String?
+  circle   Circle? @relation(fields: [circleId], references: [id], onDelete: SetNull)
+  /**
+   * Set when an employer shares a real open role as a "hiring" post.
+   */
+  jobId    String?
+  job      Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1228,6 +1277,7 @@ model Post {
   reactions Reaction[]
 
   @@index([authorId])
+  @@index([circleId])
   @@map("posts")
 }
 

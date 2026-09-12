@@ -25,6 +25,10 @@ export function apiCatch(error: unknown) {
       BILLING_NOT_CONFIGURED: 503,
       PRICE_NOT_CONFIGURED: 503,
       NEEDS_COMPANY: 409,
+      NOT_A_MEMBER: 403,
+      NOT_VISIBLE: 403,
+      ALREADY_EXISTS: 409,
+      INVALID_TARGET: 400,
     };
     return apiError(err.message, statusByCode[err.code] ?? 400, err.code);
   }

@@ -133,25 +133,50 @@ async function areConnected(userAId: string, userBId: string) {
   return connection?.status === "ACCEPTED";
 }
 
-export async function createPost(authorId: string, content: string) {
-  return prisma.post.create({ data: { authorId, content } });
+const POST_INCLUDE = {
+  author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+  reactions: true,
+  comments: {
+    include: { author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } },
+    orderBy: { createdAt: "asc" as const },
+  },
+  circle: { select: { slug: true, name: true } },
+  job: { select: { id: true, title: true, location: true, workplaceType: true, company: { select: { name: true, slug: true, logoUrl: true } } } },
+};
+
+export async function createPost(authorId: string, content: string, options?: { circleId?: string; jobId?: string }) {
+  if (options?.circleId) {
+    const membership = await prisma.circleMember.findUnique({
+      where: { circleId_userId: { circleId: options.circleId, userId: authorId } },
+    });
+    if (!membership) throw new NetworkError("Join this circle before posting in it.", "NOT_A_MEMBER");
+  }
+  return prisma.post.create({
+    data: { authorId, content, circleId: options?.circleId, jobId: options?.jobId },
+    include: POST_INCLUDE,
+  });
 }
 
-/** Feed = the author's own posts plus posts from their accepted connections. */
+/**
+ * Feed = the user's own posts, posts from accepted connections, and hiring
+ * posts from companies they follow — general feed only (no circle-scoped
+ * posts; those live inside their Circle).
+ */
 export async function getFeed(userId: string) {
-  const connections = await listConnections(userId);
+  const [connections, followedCompanies] = await Promise.all([listConnections(userId), listFollowedCompanies(userId)]);
   const connectionIds = connections.accepted.map((c) => c.id);
+  const companyIds = followedCompanies.map((c) => c.id);
 
   return prisma.post.findMany({
-    where: { authorId: { in: [userId, ...connectionIds] }, deletedAt: null },
-    include: {
-      author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
-      reactions: true,
-      comments: {
-        include: { author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } },
-        orderBy: { createdAt: "asc" },
-      },
+    where: {
+      deletedAt: null,
+      circleId: null,
+      OR: [
+        { authorId: { in: [userId, ...connectionIds] } },
+        ...(companyIds.length ? [{ job: { companyId: { in: companyIds } } }] : []),
+      ],
     },
+    include: POST_INCLUDE,
     orderBy: { createdAt: "desc" },
     take: 50,
   });
@@ -172,6 +197,153 @@ export async function addComment(userId: string, postId: string, content: string
     data: { postId, authorId: userId, content },
     include: { author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } },
   });
+}
+
+// ============================================================
+// CIRCLES — topic communities candidates can join and post in
+// ============================================================
+
+export async function listCircles(userId: string) {
+  const circles = await prisma.circle.findMany({
+    include: { _count: { select: { members: true } }, members: { where: { userId }, select: { userId: true } } },
+    orderBy: { name: "asc" },
+  });
+  return circles.map((c) => ({
+    id: c.id,
+    slug: c.slug,
+    name: c.name,
+    description: c.description,
+    category: c.category,
+    memberCount: c._count.members,
+    isMember: c.members.length > 0,
+  }));
+}
+
+export async function getCircle(userId: string, slug: string) {
+  const circle = await prisma.circle.findUnique({ where: { slug }, include: { _count: { select: { members: true } } } });
+  if (!circle) throw new NetworkError("This circle could not be found.", "NOT_FOUND");
+  const membership = await prisma.circleMember.findUnique({ where: { circleId_userId: { circleId: circle.id, userId } } });
+
+  const posts = await prisma.post.findMany({
+    where: { circleId: circle.id, deletedAt: null },
+    include: POST_INCLUDE,
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  return {
+    id: circle.id,
+    slug: circle.slug,
+    name: circle.name,
+    description: circle.description,
+    category: circle.category,
+    memberCount: circle._count.members,
+    isMember: Boolean(membership),
+    posts,
+  };
+}
+
+export async function joinCircle(userId: string, slug: string) {
+  const circle = await prisma.circle.findUnique({ where: { slug } });
+  if (!circle) throw new NetworkError("This circle could not be found.", "NOT_FOUND");
+  await prisma.circleMember.upsert({
+    where: { circleId_userId: { circleId: circle.id, userId } },
+    update: {},
+    create: { circleId: circle.id, userId },
+  });
+}
+
+export async function leaveCircle(userId: string, slug: string) {
+  const circle = await prisma.circle.findUnique({ where: { slug } });
+  if (!circle) throw new NetworkError("This circle could not be found.", "NOT_FOUND");
+  await prisma.circleMember.deleteMany({ where: { circleId: circle.id, userId } });
+}
+
+// ============================================================
+// COMPANY FOLLOWING
+// ============================================================
+
+export async function followCompany(userId: string, companyId: string) {
+  await prisma.companyFollower.upsert({
+    where: { companyId_userId: { companyId, userId } },
+    update: {},
+    create: { companyId, userId },
+  });
+}
+
+export async function unfollowCompany(userId: string, companyId: string) {
+  await prisma.companyFollower.deleteMany({ where: { companyId, userId } });
+}
+
+export async function listFollowedCompanies(userId: string) {
+  const follows = await prisma.companyFollower.findMany({
+    where: { userId },
+    include: { company: { select: { id: true, slug: true, name: true, logoUrl: true, industry: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  return follows.map((f) => f.company);
+}
+
+// ============================================================
+// PUBLIC PROFILES
+// ============================================================
+
+/**
+ * A candidate's profile as another candidate is allowed to see it — never
+ * exposes email, applications, resumes, or anything beyond what the
+ * candidate has chosen to share. PUBLIC visibility is open to any signed-in
+ * user; anything more restrictive is limited to the owner or an accepted
+ * connection, mirroring how Career Circles' connection model already works.
+ */
+export async function getPublicProfile(viewerId: string, targetUserId: string) {
+  const profile = await prisma.candidateProfile.findUnique({
+    where: { userId: targetUserId },
+    include: {
+      user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+      experiences: { orderBy: { startDate: "desc" }, take: 8 },
+      education: { orderBy: { startDate: "desc" }, take: 5 },
+      skills: { include: { skill: true }, take: 20 },
+    },
+  });
+  if (!profile) throw new NetworkError("This profile could not be found.", "NOT_FOUND");
+
+  const isOwner = viewerId === targetUserId;
+  const canView = isOwner || profile.visibility === "PUBLIC" || (await areConnected(viewerId, targetUserId));
+  if (!canView) throw new NetworkError("This profile isn't visible to you.", "NOT_VISIBLE");
+
+  const connection = isOwner ? null : await findConnection(viewerId, targetUserId);
+
+  return {
+    userId: profile.user.id,
+    firstName: profile.user.firstName,
+    lastName: profile.user.lastName,
+    avatarUrl: profile.user.avatarUrl,
+    headline: profile.headline,
+    bio: profile.bio,
+    location: profile.location,
+    currentTitle: profile.currentTitle,
+    currentCompany: profile.currentCompany,
+    careerLevel: profile.careerLevel,
+    totalExperienceYears: profile.totalExperienceYears,
+    experiences: profile.experiences.map((e) => ({
+      title: e.title,
+      company: e.company,
+      location: e.location,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      isCurrent: e.isCurrent,
+      description: e.description,
+    })),
+    education: profile.education.map((e) => ({
+      school: e.school,
+      degree: e.degree,
+      fieldOfStudy: e.fieldOfStudy,
+      endDate: e.endDate,
+    })),
+    skills: profile.skills.map((s) => s.skill.name),
+    isOwner,
+    connectionStatus: isOwner ? null : connection?.status ?? null,
+  };
 }
 
 export { areConnected };
