@@ -229,7 +229,9 @@ export default function JobGptPage() {
             placeholder="Ask Job GPT, or use the mic…"
             disabled={sending}
           />
-          <MicButton onFinalText={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))} />
+          <div className="relative">
+            <MicButton onFinalText={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))} />
+          </div>
           <Button type="submit" disabled={sending || !input.trim()}>
             <Send className="h-4 w-4" />
           </Button>

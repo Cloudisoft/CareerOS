@@ -343,7 +343,7 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
                       onChange={(e) => updateBullet(i, bi, e.target.value)}
                       className="flex-1"
                     />
-                    <div className="flex flex-col gap-1">
+                    <div className="relative flex flex-col gap-1">
                       <MicButton onFinalText={(text) => updateBullet(i, bi, bullet ? `${bullet} ${text}` : text)} />
                       <Button
                         variant="ghost"

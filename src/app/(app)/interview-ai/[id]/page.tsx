@@ -252,6 +252,7 @@ export default function InterviewSessionPage() {
                 {voice.listening && (
                   <p className="text-xs text-muted-foreground">Listening… speak your answer, then stop when done.</p>
                 )}
+                {voice.error && <p className="text-xs text-destructive">{voice.error}</p>}
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button onClick={submitAnswer} disabled={submitting || !draft.trim()}>
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -73,13 +73,18 @@ class MockAiProvider implements AiProvider {
   }
 }
 
+/** No outbound AI call may hang forever — a stalled provider must become a
+    catchable error so withFallback can retry against the fallback instead
+    of leaving the user's request pending indefinitely. */
+const PROVIDER_TIMEOUT_MS = 45_000;
+
 class AnthropicAiProvider implements AiProvider {
   name: AiProviderName = "anthropic";
   private client: Anthropic;
   private model: string;
 
   constructor(apiKey: string, model: string) {
-    this.client = new Anthropic({ apiKey });
+    this.client = new Anthropic({ apiKey, timeout: PROVIDER_TIMEOUT_MS });
     this.model = model;
   }
 
@@ -126,14 +131,23 @@ class OpenAiCompatibleProvider implements AiProvider {
   ) {}
 
   private async complete(messages: { role: "system" | "user" | "assistant"; content: string }[], maxTokens: number): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({ model: this.model, messages, max_tokens: maxTokens }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({ model: this.model, messages, max_tokens: maxTokens }),
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new Error(`${this.name} request timed out after ${PROVIDER_TIMEOUT_MS / 1000}s`);
+      }
+      throw error;
+    }
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
