@@ -10,4 +10,6 @@ export type Slide =
   | { kind: "bullets"; heading: string; intro?: string; bullets: string[] }
   | { kind: "example"; heading: string; body?: string; code: string; language?: string }
   | { kind: "callout"; heading: string; body: string; tone?: "tip" | "warning" | "insight" }
-  | { kind: "summary"; heading: string; bullets: string[] };
+  | { kind: "summary"; heading: string; bullets: string[] }
+  | { kind: "quiz"; heading: string; question: string; options: string[]; correctIndex: number; explanation: string }
+  | { kind: "practice"; heading: string; prompt: string; hint?: string; solution: string };
