@@ -131,6 +131,16 @@ class OpenAiCompatibleProvider implements AiProvider {
   ) {}
 
   private async complete(messages: { role: "system" | "user" | "assistant"; content: string }[], maxTokens: number): Promise<string> {
+    /**
+     * OpenAI's own Chat Completions endpoint rejects `max_tokens` for its
+     * newer reasoning/GPT-5-family models with a 400 ("Unsupported
+     * parameter") and requires `max_completion_tokens` instead. OpenRouter
+     * and AgentRouter are aggregators with their own stable request
+     * contract — they translate to whatever the underlying model needs, so
+     * they keep taking `max_tokens` regardless of the backend model.
+     */
+    const tokenParam = this.name === "openai" ? "max_completion_tokens" : "max_tokens";
+
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -139,7 +149,7 @@ class OpenAiCompatibleProvider implements AiProvider {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({ model: this.model, messages, max_tokens: maxTokens }),
+        body: JSON.stringify({ model: this.model, messages, [tokenParam]: maxTokens }),
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
     } catch (error) {
