@@ -28,6 +28,17 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "chart",
+          heading: "Illustrative response rates: generic vs. targeted",
+          description: "The gap isn't about working harder — it's the difference between a resume that overlaps a posting for real and one that's a generic mass-send.",
+          chartType: "bar",
+          unit: "% response rate",
+          data: [
+            { label: "High-volume, generic", value: 3 },
+            { label: "Targeted, tailored", value: 14 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "What targeting actually buys you",
           bullets: [
@@ -143,6 +154,18 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "diagram",
+          heading: "The cold outreach flow",
+          description: "Each step earns the next one — skipping to the ask too early is the most common way this goes wrong.",
+          steps: [
+            { label: "Find a specific reason", detail: "A real detail about their path, not \"can we connect\"" },
+            { label: "Ask for something small", detail: "A 15-minute call, not a job" },
+            { label: "Lead with curiosity", detail: "Genuine conversation, no agenda upfront" },
+            { label: "Natural ask", detail: "Openings or a referral usually surface near the end" },
+            { label: "Specific follow-up", detail: "Thank-you referencing something from the conversation" },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "After the conversation",
           bullets: [
@@ -175,6 +198,18 @@ export const course: CourseSeed = {
           heading: "What to actually track",
           body: [
             "For every role past the \"just applied\" stage, track: company, role, stage (applied / screening / interview / offer / closed), the date of the last action, and the next action due. Resist the urge to build something elaborate you won't maintain.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "The pipeline stages worth tracking",
+          description: "Every role in your search sits at exactly one of these stages at any time — the value is in seeing all of them at once, not just the most recent one.",
+          steps: [
+            { label: "Applied", detail: "Submitted, logged with a date" },
+            { label: "Screening", detail: "Recruiter or initial-round contact" },
+            { label: "Interview", detail: "One or more real interview rounds" },
+            { label: "Offer", detail: "Terms on the table" },
+            { label: "Closed", detail: "Accepted, declined, or rejected" },
           ],
         },
         {

@@ -30,6 +30,17 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "diagram",
+          heading: "The STAR shape, as a flow",
+          description: "Action should visibly be the largest step — the other three exist to set it up and land it.",
+          steps: [
+            { label: "Situation", detail: "1-2 sentences of real context" },
+            { label: "Task", detail: "What you specifically owned" },
+            { label: "Action", detail: "What you did, step by step — the bulk of the answer" },
+            { label: "Result", detail: "The outcome, ideally with a number" },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Where people go wrong",
           bullets: [
@@ -146,6 +157,17 @@ company]."`,
           ],
         },
         {
+          kind: "diagram",
+          heading: "The thinking-out-loud loop",
+          description: "The same loop repeats as you work — restate, propose, try, and narrate what happens, rather than going quiet and presenting a finished answer.",
+          steps: [
+            { label: "Restate the problem", detail: "Confirm your understanding before solving" },
+            { label: "Propose an approach", detail: "Say what you'll try and why" },
+            { label: "Work it, narrating", detail: "Talk through wrong turns instead of silently backtracking" },
+            { label: "Land and discuss tradeoffs", detail: "Complexity, edge cases, what you simplified" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Ask clarifying questions early",
@@ -246,6 +268,17 @@ would be glad to talk through it more if useful."`,
             "A generic \"we'll be in touch\" with no timeline isn't necessarily bad news — ask directly: \"Do you have a sense of timeline for next steps?\" rather than trying to read tone in an email.",
             "A long silence past the timeline you were given is worth one polite check-in, not several. If a recruiter said \"early next week\" and it's now the following Friday, a single follow-up is reasonable; a daily one reads as pressure, not interest.",
             "Radio silence after a promised date, with no response to a follow-up either, is itself information — treat the process as likely stalled and keep moving on other opportunities rather than pausing your whole search to wait.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "Reading the post-interview timeline",
+          description: "Each step has a real action attached to it — the goal is never to just wait and guess.",
+          steps: [
+            { label: "Interview ends", detail: "Send a specific thank-you within 24 hours" },
+            { label: "Wait the given timeline", detail: "Don't fill the silence with a weaker follow-up" },
+            { label: "Timeline passes, no word", detail: "One polite check-in asking about timeline" },
+            { label: "Still silent", detail: "Treat as likely stalled; keep other options moving" },
           ],
         },
         {

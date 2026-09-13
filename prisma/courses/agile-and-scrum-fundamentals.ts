@@ -120,6 +120,17 @@ export const course: CourseSeed = {
           body: "Each ceremony answers a distinct question: planning asks \"what can we do,\" the standup asks \"are we still on track and unblocked,\" the review asks \"did we build the right thing,\" and the retro asks \"how do we work better next time.\" If a meeting isn't clearly answering its question, that's worth naming directly rather than just running it out of habit.",
         },
         {
+          kind: "diagram",
+          heading: "The sprint cycle",
+          description: "The daily standup repeats throughout the sprint; review and retro close it out before the next sprint's planning begins.",
+          steps: [
+            { label: "Sprint planning", detail: "Set the sprint goal from the backlog" },
+            { label: "Daily standup", detail: "Repeats each day of the sprint" },
+            { label: "Sprint review", detail: "Demo real, working progress" },
+            { label: "Sprint retrospective", detail: "Agree one or two concrete changes" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "The four ceremonies, briefly",
           bullets: [
@@ -407,6 +418,20 @@ so that I don't have to re-enter it every time I check out.`,
           ],
         },
         {
+          kind: "chart",
+          heading: "A team's velocity, tracked over sprints",
+          description: "This is the kind of stability the course means by \"stable around 30 points a sprint\" — a forecasting baseline, not a target to hit exactly each time.",
+          chartType: "line",
+          unit: "story points completed",
+          data: [
+            { label: "Sprint 1", value: 28 },
+            { label: "Sprint 2", value: 32 },
+            { label: "Sprint 3", value: 29 },
+            { label: "Sprint 4", value: 31 },
+            { label: "Sprint 5", value: 30 },
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "The trap: velocity as a target",
@@ -459,6 +484,17 @@ so that I don't have to re-enter it every time I check out.`,
           hint: "Compare complexity and unknowns, not just \"does it look like more work.\" What's genuinely new here that the 3-point story didn't have to deal with — a scheduler, email delivery, failure handling, a new settings surface?",
           solution:
             "8 points. It reuses the underlying CSV generation from the 3-point story, but adds several genuinely new pieces of complexity: a scheduling mechanism, email delivery integration, failure/retry handling, and a new settings UI — each a real source of uncertainty the original story didn't touch. It's clearly bigger than a 5 (which would suggest one added dimension of complexity) but not so novel it warrants a 13, since none of the individual pieces are unprecedented for the team.",
+        },
+        {
+          kind: "chart",
+          heading: "Sizing the new story against the reference story",
+          description: "Not a claim that it's literally 2.67x the effort — story points are relative buckets on a Fibonacci-like scale, and the gap here reflects real added complexity, not a precise ratio.",
+          chartType: "bar",
+          unit: "story points",
+          data: [
+            { label: "CSV export button (reference)", value: 3 },
+            { label: "Scheduled email export (new)", value: 8 },
+          ],
         },
         {
           kind: "summary",

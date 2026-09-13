@@ -83,6 +83,18 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "chart",
+          heading: "Example: three numbers built from real research",
+          description: "For a role where researched offers cluster between $90k and $120k, the three figures might land like this — grounded in data, not a wish.",
+          chartType: "bar",
+          unit: "base salary ($)",
+          data: [
+            { label: "Walk-away", value: 92000 },
+            { label: "Target", value: 108000 },
+            { label: "Stretch", value: 120000 },
+          ],
+        },
+        {
           kind: "text",
           heading: "Factor in the full picture, not just base salary",
           body: [
@@ -206,6 +218,17 @@ the base. Is there flexibility there?"`,
           ],
         },
         {
+          kind: "diagram",
+          heading: "Working through a genuinely final offer",
+          description: "The check for remaining flexibility comes before the accept/decline decision — and that decision itself runs off your walk-away number, decided in advance.",
+          steps: [
+            { label: "\"This is final\"", detail: "Stated limit on the number itself" },
+            { label: "Check other levers", detail: "Sign-on, start date, equity — without reopening base" },
+            { label: "Compare to walk-away", detail: "Does it clear the number you set beforehand?" },
+            { label: "Accept, decline, or ask for time", detail: "Each is a real, respectable option" },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "What not to do",
           bullets: [
@@ -294,6 +317,20 @@ the base. Is there flexibility there?"`,
           hint: "Walk-away should reflect the minimum you'd seriously reconsider over — often near the bottom of the researched range, not just \"more than I have now.\" Stretch should be defensible if someone asked you to explain it, not just your dream number.",
           solution:
             "Walk-away: $100,000 — at the bottom of the researched range, and barely above current pay once you account for a new-job risk premium. Target: $112,000 — solidly mid-range for the data gathered, comfortably justifiable by referencing the research directly. Stretch: $118,000 — near the top of the range, defensible by pointing to specific relevant experience (e.g., a skill or industry background above the median candidate), used as the opening ask rather than the expected outcome.",
+        },
+        {
+          kind: "chart",
+          heading: "This scenario's numbers, side by side",
+          description: "The offer sits right at the bottom of the researched range — well below even the walk-away number, which is exactly why a counter is worth making here.",
+          chartType: "bar",
+          unit: "base salary ($)",
+          data: [
+            { label: "Current pay", value: 95000 },
+            { label: "Offer received", value: 102000 },
+            { label: "Walk-away", value: 100000 },
+            { label: "Target", value: 112000 },
+            { label: "Stretch (opening ask)", value: 118000 },
+          ],
         },
         {
           kind: "practice",
