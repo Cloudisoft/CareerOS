@@ -139,8 +139,23 @@ class OpenAiCompatibleProvider implements AiProvider {
      * through an aggregator that passes requests through close to verbatim
      * (which is why this was surfacing as a failure via OpenRouter too, not
      * only the direct OpenAI provider).
+     *
+     * These same reasoning models spend part of that token budget on hidden
+     * "thinking" tokens before ever producing visible output — with a small
+     * budget (the app's callers typically ask for ~1024) it's easy for
+     * reasoning alone to consume the whole thing, leaving a 200 OK response
+     * with an entirely empty message.content. Two mitigations, both scoped
+     * to reasoning models only: force a much larger token ceiling so there's
+     * real headroom left after reasoning, and set reasoning_effort to "low"
+     * (the documented lever for these models) so less of the budget goes to
+     * reasoning in the first place.
      */
-    const tokenParam = usesMaxCompletionTokens(this.model) ? "max_completion_tokens" : "max_tokens";
+    const isReasoningModel = usesMaxCompletionTokens(this.model);
+    const tokenParam = isReasoningModel ? "max_completion_tokens" : "max_tokens";
+    const effectiveMaxTokens = isReasoningModel ? Math.max(maxTokens, REASONING_MODEL_MIN_TOKENS) : maxTokens;
+
+    const body: Record<string, unknown> = { model: this.model, messages, [tokenParam]: effectiveMaxTokens };
+    if (isReasoningModel) body.reasoning_effort = "low";
 
     let response: Response;
     try {
@@ -150,7 +165,7 @@ class OpenAiCompatibleProvider implements AiProvider {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({ model: this.model, messages, [tokenParam]: maxTokens }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
     } catch (error) {
@@ -165,9 +180,23 @@ class OpenAiCompatibleProvider implements AiProvider {
       throw new Error(`${this.name} request failed (${response.status} ${response.statusText}): ${body.slice(0, 300)}`);
     }
 
-    const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
+      error?: unknown;
+    };
     const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error(`${this.name} returned no usable text.`);
+    if (!content) {
+      // Surface whatever the provider actually told us — a generic "no
+      // usable text" message hides the real cause (an embedded API error,
+      // a length-truncated response, a moderation refusal, ...).
+      const finishReason = data.choices?.[0]?.finish_reason;
+      const detail = data.error
+        ? JSON.stringify(data.error).slice(0, 300)
+        : finishReason
+          ? `finish_reason=${finishReason}`
+          : JSON.stringify(data).slice(0, 300);
+      throw new Error(`${this.name} returned no usable text (${detail}).`);
+    }
     return content.trim();
   }
 
@@ -196,6 +225,11 @@ class OpenAiCompatibleProvider implements AiProvider {
 function usesMaxCompletionTokens(model: string): boolean {
   return /^(o1|o3|o4|gpt-5)/i.test(model.replace(/^openai\//i, ""));
 }
+
+/** Floor for reasoning-model token budgets — see the comment in `complete`.
+    High enough to leave real room for visible output after low-effort
+    reasoning, without being an unreasonable cost ceiling. */
+const REASONING_MODEL_MIN_TOKENS = 4000;
 
 const PROVIDER_BASE_URL: Record<"openrouter" | "agentrouter" | "openai", string> = {
   openrouter: "https://openrouter.ai/api/v1",
