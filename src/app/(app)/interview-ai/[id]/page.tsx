@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square, Volume2, VolumeX, RotateCcw } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square, Volume2, VolumeX, RotateCcw, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +33,18 @@ interface SessionDetail {
   job: { title: string; company: { name: string } } | null;
 }
 
+/** A real interview has time pressure — 3 minutes to answer each question,
+    same as a typical live screen. Time running out auto-submits whatever's
+    there (or an explicit "no answer" if nothing was written), the way an
+    interviewer would move on rather than wait indefinitely. */
+const ANSWER_TIME_LIMIT_SECONDS = 180;
+
+function formatTime(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 export default function InterviewSessionPage() {
   const params = useParams<{ id: string }>();
   const [session, setSession] = useState<SessionDetail | null>(null);
@@ -42,9 +54,19 @@ export default function InterviewSessionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(ANSWER_TIME_LIMIT_SECONDS);
   const voice = useVoiceInput((text) => setDraft((prev) => (prev ? `${prev} ${text}` : text)));
   const voiceOut = useVoiceOutput();
   const lastSpokenIdRef = useRef<string | null>(null);
+  const draftRef = useRef("");
+  const submittingRef = useRef(false);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+  useEffect(() => {
+    submittingRef.current = submitting;
+  }, [submitting]);
 
   async function load() {
     const res = await fetch(`/api/interview/sessions/${params.id}`);
@@ -74,6 +96,31 @@ export default function InterviewSessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
+  const currentIndex = session ? session.questions.findIndex((q) => q.answer == null) : -1;
+  const current = session && currentIndex !== -1 ? session.questions[currentIndex] : null;
+
+  useEffect(() => {
+    if (!current) return;
+    setTimeLeft(ANSWER_TIME_LIMIT_SECONDS);
+    let fired = false;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          if (!fired && !submittingRef.current) {
+            fired = true;
+            const answer = draftRef.current.trim() || "(No answer was submitted within the time limit.)";
+            performSubmit(answer);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id]);
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -90,19 +137,18 @@ export default function InterviewSessionPage() {
     );
   }
 
-  const currentIndex = session.questions.findIndex((q) => q.answer == null);
-  const current = currentIndex === -1 ? null : session.questions[currentIndex];
   const allAnswered = session.questions.every((q) => q.score != null);
 
-  async function submitAnswer() {
-    if (!current || !draft.trim()) return;
+  async function performSubmit(answerText: string) {
+    if (!current) return;
     voiceOut.stop();
+    if (voice.listening) voice.stop();
     setSubmitting(true);
     setError(null);
     const res = await fetch(`/api/interview/sessions/${params.id}/questions/${current.id}/answer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answer: draft }),
+      body: JSON.stringify({ answer: answerText }),
     });
     const json = await res.json();
     setSubmitting(false);
@@ -112,6 +158,12 @@ export default function InterviewSessionPage() {
     }
     setDraft("");
     load();
+  }
+
+  function submitAnswer() {
+    const trimmed = draft.trim();
+    if (!current || !trimmed) return;
+    performSubmit(trimmed);
   }
 
   async function finishSession() {
@@ -197,7 +249,12 @@ export default function InterviewSessionPage() {
             <Card>
               <CardContent className="space-y-4 p-6">
                 <div className="flex items-start justify-between gap-3">
-                  <Badge variant="outline">{current.category}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{current.category}</Badge>
+                    <Badge variant={timeLeft <= 30 ? "destructive" : "outline"} className="gap-1 tabular-nums">
+                      <Clock className="h-3 w-3" /> {formatTime(timeLeft)}
+                    </Badge>
+                  </div>
                   {voiceOut.supported && (
                     <div className="flex items-center gap-1">
                       <Button

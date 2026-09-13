@@ -33,9 +33,20 @@ function getRecognitionCtor(): (new () => SpeechRecognitionLike) | undefined {
   );
 }
 
+/**
+ * A "denied" error here doesn't always mean the site-level permission is
+ * actually off — if the OS itself hasn't granted the browser app microphone
+ * access at all (macOS/Windows privacy settings, separate from any
+ * per-site permission inside the browser), every getUserMedia call fails
+ * exactly the same way. Point at both, since there's no way to tell them
+ * apart from here.
+ */
+const MIC_DENIED_MESSAGE =
+  "Microphone access was denied. Check two places: the site permission (click the icon in your browser's address bar) and your operating system's microphone privacy settings for this browser (e.g. System Settings → Privacy & Security → Microphone on macOS) — many OSes block the browser app from the mic separately from any per-site permission.";
+
 const ERROR_MESSAGES: Record<string, string> = {
-  "not-allowed": "Microphone access was denied. Allow microphone access for this site in your browser settings, then try again.",
-  "service-not-allowed": "Microphone access was denied. Allow microphone access for this site in your browser settings, then try again.",
+  "not-allowed": MIC_DENIED_MESSAGE,
+  "service-not-allowed": MIC_DENIED_MESSAGE,
   "no-speech": "No speech was detected. Try again and speak right after pressing the mic.",
   "audio-capture": "No microphone was found. Check that a microphone is connected and not in use by another app.",
   network: "A network error interrupted speech recognition. Check your connection and try again.",
@@ -75,10 +86,16 @@ export function useVoiceInput(onFinalText: (text: string) => void) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach((track) => track.stop());
+        // SpeechRecognition acquires its own capture internally right after
+        // this — re-requesting the mic in the same instant the previous
+        // grant was released has been observed to come back as a spurious
+        // denial on some browsers even when permission is genuinely
+        // granted. A brief pause lets the device actually release first.
+        await new Promise((resolve) => setTimeout(resolve, 200));
       } catch (err) {
         const name = err instanceof Error ? err.name : "";
         if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
-          setError("Microphone access was denied. Allow microphone access for this site in your browser settings, then try again.");
+          setError(MIC_DENIED_MESSAGE);
         } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
           setError("No microphone was found. Check that a microphone is connected and not in use by another app.");
         } else {
