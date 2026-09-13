@@ -97,6 +97,18 @@ console.log("This logs before the file finishes reading");`,
           ],
         },
         {
+          kind: "diagram",
+          heading: "One trip through the event loop",
+          description: "What happens to a single async operation, like a file read, from start to its callback running.",
+          steps: [
+            { label: "Code runs synchronously", detail: "Executes until it returns or hands off an operation" },
+            { label: "I/O operation handed off", detail: "e.g. fs.readFile — given to the OS / background thread pool" },
+            { label: "Main thread stays free", detail: "Picks up other pending work — other requests, timers, callbacks" },
+            { label: "Operation completes", detail: "Its callback is queued, ready to run" },
+            { label: "Event loop runs the callback", detail: "Runs on the main thread, in order, once it's next up" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "CPU-heavy work still blocks everything",
@@ -202,6 +214,17 @@ server.listen(3000, () => {
 });`,
         },
         {
+          kind: "terminal",
+          heading: "Running the server and hitting it",
+          description: "Start the server, then make a request against it from another terminal.",
+          lines: [
+            { text: "node server.js" },
+            { text: "Listening on port 3000", output: true },
+            { text: "curl http://localhost:3000" },
+            { text: '{"message":"Hello from Node"}', output: true },
+          ],
+        },
+        {
           kind: "example",
           heading: "A minimal router by hand",
           body: "Without a framework, routing is just checking req.url and req.method yourself — this is exactly the repetitive work that frameworks like Express exist to remove.",
@@ -270,6 +293,19 @@ server.listen(3000, () => {
     "typescript": "^5.5.0"
   }
 }`,
+        },
+        {
+          kind: "terminal",
+          heading: "Installing and running from package.json",
+          description: "npm reads the scripts and dependencies fields to know what to do.",
+          lines: [
+            { text: "npm install" },
+            { text: "added 47 packages in 3s", output: true },
+            { text: "npm run dev" },
+            { text: "> my-api@1.0.0 dev", output: true },
+            { text: "> node --watch server.js", output: true },
+            { text: "Listening on port 3000", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -448,6 +484,29 @@ if (cluster.isPrimary) {
   // the OS/cluster module distributes incoming connections across them
   http.createServer((req, res) => res.end("handled by a worker")).listen(3000);
 }`,
+        },
+        {
+          kind: "diagram",
+          heading: "How cluster distributes incoming connections",
+          description: "One primary process forks a worker per CPU core; each worker runs its own copy of the server.",
+          steps: [
+            { label: "Primary process starts", detail: "cluster.isPrimary — forks one worker per CPU core" },
+            { label: "N worker processes", detail: "Each runs the full server independently, listening on the same port" },
+            { label: "Incoming connection", detail: "The OS / cluster module distributes it to one worker" },
+            { label: "Worker handles the request", detail: "Separate memory — no shared variables with other workers" },
+            { label: "Worker dies?", detail: "The \"exit\" handler forks a replacement to keep the pool at full strength" },
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Throughput: single process vs. cluster",
+          description: "Illustrative requests/sec for an I/O-bound server on a 4-core machine.",
+          chartType: "bar",
+          unit: "requests/sec",
+          data: [
+            { label: "1 process (no cluster)", value: 2500 },
+            { label: "cluster, 4 workers", value: 9000 },
+          ],
         },
         {
           kind: "bullets",

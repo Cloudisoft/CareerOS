@@ -163,6 +163,22 @@ model.fit(X_train, y_train)              # learns only from the training set
 accuracy = model.score(X_test, y_test)   # graded on data it never saw`,
         },
         {
+          kind: "terminal",
+          heading: "The same split, in a live session",
+          description:
+            "The training score and test score are never the same number — the gap between them (91.2% vs. 84.7% here) is exactly what this lesson is about.",
+          lines: [
+            { text: "X_train.shape, X_test.shape" },
+            { text: "((800, 12), (200, 12))", output: true },
+            { text: "model.fit(X_train, y_train)" },
+            { text: "LogisticRegression()", output: true },
+            { text: "model.score(X_train, y_train)" },
+            { text: "0.912", output: true },
+            { text: "model.score(X_test, y_test)" },
+            { text: "0.847", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Refinements worth knowing",
           intro: "A single train/test split is the starting point; two extensions make evaluation more reliable.",
@@ -213,6 +229,22 @@ accuracy = model.score(X_test, y_test)   # graded on data it never saw`,
             "Overfitting signature: high accuracy on training data, noticeably lower accuracy on test data — a big gap between the two.",
             "Underfitting signature: mediocre accuracy on both training and test data — the model isn't even doing well on what it studied from.",
             "A useful mental picture: overfitting is a student who memorized every practice question's exact answer key; underfitting is a student who barely studied the subject at all.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Train vs. test accuracy across the three cases",
+          description:
+            "The gap between the two bars is the tell: huge for overfitting, small-but-mediocre for underfitting, small-and-high for a good fit.",
+          chartType: "bar",
+          unit: "%",
+          data: [
+            { label: "Overfit — train", value: 97 },
+            { label: "Overfit — test", value: 74 },
+            { label: "Underfit — train", value: 61 },
+            { label: "Underfit — test", value: 59 },
+            { label: "Good fit — train", value: 89 },
+            { label: "Good fit — test", value: 87 },
           ],
         },
         {
@@ -286,6 +318,20 @@ After training, the model might find:
   b ≈ 55,000  (a baseline value before sqft is factored in)
 
 price ≈ 148 * square_footage + 55,000`,
+        },
+        {
+          kind: "chart",
+          heading: "Price rises roughly in a straight line with square footage",
+          description: "The same 5 training houses from above — this is the pattern the line is fitted to.",
+          chartType: "line",
+          unit: "$",
+          data: [
+            { label: "1000 sqft", value: 200000 },
+            { label: "1500 sqft", value: 280000 },
+            { label: "2000 sqft", value: 350000 },
+            { label: "2500 sqft", value: 410000 },
+            { label: "3000 sqft", value: 500000 },
+          ],
         },
         {
           kind: "bullets",
@@ -362,6 +408,18 @@ Precision = 85 / (85 + 40)  ≈ 68%
 Recall    = 85 / (85 + 15)  ≈ 85%`,
         },
         {
+          kind: "chart",
+          heading: "Precision and recall from the confusion matrix above",
+          description:
+            "Precision asks how trustworthy a fraud flag is; recall asks how much real fraud gets caught — this model catches more than it accurately flags.",
+          chartType: "bar",
+          unit: "%",
+          data: [
+            { label: "Precision", value: 68 },
+            { label: "Recall", value: 85 },
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Pick the metric that matches the real cost",
@@ -411,6 +469,17 @@ Step 2 — recompute each centroid as the average of its points:
   Centroid A = (12.0, 41.7)   Centroid B = (61.3, 91.7)
 
 Repeat steps 1-2. Assignments stop changing -> converged.`,
+        },
+        {
+          kind: "diagram",
+          heading: "The k-means loop",
+          description: "Steps 1 and 2 from the walkthrough above, repeated until convergence.",
+          steps: [
+            { label: "Pick k centroids", detail: "Chosen at random as a starting point" },
+            { label: "Assign points", detail: "Each point joins its nearest centroid" },
+            { label: "Recompute centroids", detail: "Move each centroid to the mean of its assigned points" },
+            { label: "Repeat", detail: "Until assignments stop changing" },
+          ],
         },
         {
           kind: "bullets",

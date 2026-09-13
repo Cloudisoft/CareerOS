@@ -36,6 +36,24 @@ docker run -d -p 3001:3000 --name myapp-2 myapp:1.0
 docker ps`,
         },
         {
+          kind: "terminal",
+          heading: "What actually prints",
+          lines: [
+            { text: "docker build -t myapp:1.0 ." },
+            { text: "[+] Building 9.4s (9/9) FINISHED", output: true },
+            { text: " => exporting to image", output: true },
+            { text: " => => naming to docker.io/library/myapp:1.0", output: true },
+            { text: "docker run -d -p 3000:3000 --name myapp-1 myapp:1.0" },
+            { text: "a3f8c9e21d4b", output: true },
+            { text: "docker run -d -p 3001:3000 --name myapp-2 myapp:1.0" },
+            { text: "f720b1e5a9c3", output: true },
+            { text: "docker ps" },
+            { text: "CONTAINER ID   IMAGE          PORTS                    NAMES", output: true },
+            { text: "f720b1e5a9c3   myapp:1.0      0.0.0.0:3001->3000/tcp   myapp-2", output: true },
+            { text: "a3f8c9e21d4b   myapp:1.0      0.0.0.0:3000->3000/tcp   myapp-1", output: true },
+          ],
+        },
+        {
           kind: "text",
           heading: "What just happened",
           body: [
@@ -170,6 +188,16 @@ CMD ["node", "dist/server.js"]`,
           heading: "The payoff is measurable",
           body: "It's common to see a single-stage image at 1.2GB shrink to under 200MB after switching to multi-stage — smaller images pull faster, start faster, and shrink your attack surface since tools an attacker could use (compilers, package managers) simply aren't there.",
         },
+        {
+          kind: "chart",
+          heading: "Image size, single-stage vs. multi-stage",
+          chartType: "bar",
+          unit: "MB",
+          data: [
+            { label: "Single-Stage", value: 1200 },
+            { label: "Multi-Stage", value: 180 },
+          ],
+        },
       ],
     },
     {
@@ -199,6 +227,23 @@ docker run -d --name db -v pgdata:/var/lib/postgresql/data postgres:16
 docker run -d --name web \\
   -v $(pwd)/src:/app/src \\
   -p 3000:3000 myapp:1.0`,
+        },
+        {
+          kind: "terminal",
+          heading: "The difference a volume makes, concretely",
+          lines: [
+            { text: "docker exec db psql -U postgres -c \"INSERT INTO users (name) VALUES ('ada');\"" },
+            { text: "INSERT 0 1", output: true },
+            { text: "docker rm -f db" },
+            { text: "db", output: true },
+            { text: "docker run -d --name db -v pgdata:/var/lib/postgresql/data postgres:16" },
+            { text: "2f6a1c9e0b3d", output: true },
+            { text: "docker exec db psql -U postgres -c \"SELECT name FROM users;\"" },
+            { text: " name", output: true },
+            { text: "------", output: true },
+            { text: " ada", output: true },
+            { text: "(1 row)", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -260,6 +305,17 @@ docker run -d --name web --network app-net -p 8080:3000 myapp:1.0
 
 # From inside "web", the database is reachable at the hostname "db" —
 # Docker's embedded DNS resolves container names on a shared network`,
+        },
+        {
+          kind: "terminal",
+          heading: "Proving name resolution works",
+          lines: [
+            { text: "docker exec web getent hosts db" },
+            { text: "172.19.0.2      db", output: true },
+            { text: "docker exec web ping -c 1 db" },
+            { text: "PING db (172.19.0.2): 56 data bytes", output: true },
+            { text: "64 bytes from 172.19.0.2: icmp_seq=0 ttl=64 time=0.089 ms", output: true },
+          ],
         },
         {
           kind: "callout",
@@ -333,6 +389,23 @@ volumes:
 docker compose logs -f web  # tail logs for one service
 docker compose down         # stop and remove containers (volumes are kept)
 docker compose down -v      # also remove named volumes — data is gone`,
+        },
+        {
+          kind: "terminal",
+          heading: "Bringing the stack up",
+          lines: [
+            { text: "docker compose up -d" },
+            { text: "[+] Running 4/4", output: true },
+            { text: " ✔ Network acme_default       Created", output: true },
+            { text: " ✔ Container acme-db-1        Started", output: true },
+            { text: " ✔ Container acme-cache-1     Started", output: true },
+            { text: " ✔ Container acme-web-1       Started", output: true },
+            { text: "docker compose ps" },
+            { text: "NAME            IMAGE            STATUS          PORTS", output: true },
+            { text: "acme-web-1      acme-web         Up 4 seconds    0.0.0.0:8080->3000/tcp", output: true },
+            { text: "acme-db-1       postgres:16      Up 5 seconds    5432/tcp", output: true },
+            { text: "acme-cache-1    redis:7          Up 5 seconds    6379/tcp", output: true },
+          ],
         },
         {
           kind: "summary",

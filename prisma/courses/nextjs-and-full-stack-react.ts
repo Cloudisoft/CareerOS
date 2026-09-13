@@ -49,6 +49,21 @@ export const course: CourseSeed = {
             "Next.js has two routing systems historically — the older Pages Router and the newer App Router. This course covers the App Router, which is the current, actively developed approach and the one new projects should default to.",
           ],
         },
+        {
+          kind: "terminal",
+          heading: "Scaffolding a new App Router project",
+          description: "The quickest way to get a project like the ones in this course running locally.",
+          lines: [
+            { text: "npx create-next-app@latest my-app" },
+            { text: "✔ Would you like to use TypeScript? … Yes", output: true },
+            { text: "✔ Would you like to use App Router? (recommended) … Yes", output: true },
+            { text: "Success! Created my-app at ./my-app", output: true },
+            { text: "cd my-app && npm run dev" },
+            { text: "▲ Next.js 14.2.0", output: true },
+            { text: "- Local:        http://localhost:3000", output: true },
+            { text: "✓ Ready in 1.2s", output: true },
+          ],
+        },
       ],
     },
     {
@@ -83,6 +98,17 @@ export default async function JobPage({ params }) {
   return <h1>{job.title}</h1>;
 }
 // Visiting /jobs/42 renders this with params.id === "42"`,
+        },
+        {
+          kind: "diagram",
+          heading: "How a URL resolves to a page",
+          description: "What happens between a browser request and rendered HTML for a dynamic route.",
+          steps: [
+            { label: "GET /jobs/42", detail: "Browser requests a URL" },
+            { label: "Match app/jobs/[id]/page.tsx", detail: "The file-based router finds the matching segment" },
+            { label: "params.id = \"42\"", detail: "The dynamic segment is passed into the page as a prop" },
+            { label: "Page renders", detail: "getJob(\"42\") resolves and HTML is returned" },
+          ],
         },
         {
           kind: "bullets",
@@ -148,6 +174,17 @@ export function LikeButton() {
 }`,
         },
         {
+          kind: "diagram",
+          heading: "Where the Server/Client boundary actually sits",
+          description: "A Server Component can render a Client Component as a child — only that child's code ships to the browser.",
+          steps: [
+            { label: "Server Component tree", detail: "Renders on the server; can read the database directly" },
+            { label: "Reaches <LikeButton />", detail: "Marked \"use client\" — a boundary starts here" },
+            { label: "Server sends HTML + LikeButton's JS", detail: "The rest of the page ships as plain HTML, no extra JS" },
+            { label: "Browser hydrates LikeButton only", detail: "useState/onClick become interactive; the rest stays static" },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "The practical rule of thumb",
           bullets: [
@@ -207,6 +244,17 @@ export default async function JobsPage() {
           bullets: [
             "Sequential (slow): `const user = await getUser(); const jobs = await getJobs();` — the second request doesn't start until the first finishes, even though neither needs the other's result.",
             "Parallel (faster): `const [user, jobs] = await Promise.all([getUser(), getJobs()]);` — both requests fire at the same time.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Time until both requests resolve",
+          description: "getUser() takes 200ms and getJobs() takes 300ms — neither depends on the other's result.",
+          chartType: "bar",
+          unit: "ms",
+          data: [
+            { label: "Sequential (await, then await)", value: 500 },
+            { label: "Parallel (Promise.all)", value: 300 },
           ],
         },
         {
@@ -386,6 +434,18 @@ export async function createJob(formData: FormData) {
   await db.job.create({ data: { title, status: "open" } });
   revalidatePath("/jobs"); // the jobs list page will show the new job on next visit
 }`,
+        },
+        {
+          kind: "diagram",
+          heading: "A Server Action's request path",
+          description: "What happens between a form submit and the page reflecting the change — no route handler written by hand.",
+          steps: [
+            { label: "Form submit", detail: "<form action={createJob}> — no onSubmit or fetch written" },
+            { label: "Next.js calls the Server Action", detail: "\"use server\" made createJob a callable server endpoint" },
+            { label: "Action runs on the server", detail: "db.job.create(...) writes to the database" },
+            { label: "revalidatePath(\"/jobs\")", detail: "Marks the jobs list's cached data as stale" },
+            { label: "Next visit re-renders /jobs", detail: "The new job now appears" },
+          ],
         },
         {
           kind: "bullets",

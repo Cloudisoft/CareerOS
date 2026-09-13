@@ -42,6 +42,24 @@ cart.push("shoes"); // fine — the array itself is mutated
 cart = ["hat"];      // TypeError — this reassigns the binding`,
         },
         {
+          kind: "terminal",
+          heading: "Try it in the Node REPL",
+          description: "Running the exact example above shows the error, and the mutation, exactly as described.",
+          lines: [
+            { text: "node" },
+            { text: "> const total = 10;", output: true },
+            { text: "undefined", output: true },
+            { text: "> total = 12;", output: true },
+            { text: "Uncaught TypeError: Assignment to constant variable.", output: true },
+            { text: "> const cart = [\"shirt\"];", output: true },
+            { text: "undefined", output: true },
+            { text: "> cart.push(\"shoes\");", output: true },
+            { text: "2", output: true },
+            { text: "> cart", output: true },
+            { text: "[ 'shirt', 'shoes' ]", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "The types you'll use every day",
           bullets: [
@@ -143,6 +161,22 @@ const overTwenty = prices.filter(p => p > 20);
 
 const total = prices.reduce((sum, p) => sum + p, 0);
 // 167`,
+        },
+        {
+          kind: "terminal",
+          heading: "The same pipeline, run live",
+          description: "Pasting the array straight into the Node REPL confirms each method's result without needing to trust the comments.",
+          lines: [
+            { text: "node" },
+            { text: "> const prices = [20, 45, 12, 90];", output: true },
+            { text: "undefined", output: true },
+            { text: "> prices.map(p => p * 1.08);", output: true },
+            { text: "[ 21.6, 48.6, 12.96, 97.2 ]", output: true },
+            { text: "> prices.filter(p => p > 20);", output: true },
+            { text: "[ 45, 90 ]", output: true },
+            { text: "> prices.reduce((sum, p) => sum + p, 0);", output: true },
+            { text: "167", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -290,6 +324,18 @@ if ({}) { /* runs — an empty object is truthy */ }`,
           body: "While an async function is paused on an await, the rest of your program keeps running — a button click still responds, a timer still fires. This is what \"non-blocking\" means in practice, and it's why a slow API call doesn't freeze an entire page.",
         },
         {
+          kind: "diagram",
+          heading: "How the event loop keeps one thread from blocking",
+          description: "This is what's actually happening underneath every await — the call stack hands slow work off, and only comes back to it once the stack is clear.",
+          steps: [
+            { label: "Call stack", detail: "Runs your synchronous code, one frame at a time" },
+            { label: "Web API / Node API", detail: "Timers, network requests, file reads run outside the stack" },
+            { label: "Callback / microtask queue", detail: "A finished promise's .then callback waits here" },
+            { label: "Event loop", detail: "Checks: is the call stack empty yet?" },
+            { label: "Back on the call stack", detail: "The queued callback runs only once the stack is empty" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "The asynchronous ladder",
           bullets: [
@@ -344,6 +390,20 @@ for (let i = 0; i < 3; i++) {
   setTimeout(() => console.log(i), 100);
 }
 // logs 0, 1, 2`,
+        },
+        {
+          kind: "terminal",
+          heading: "Confirming the var bug for real",
+          description: "Save both loops to a file and run it — the timing difference described above is exactly what prints, in exactly this order.",
+          lines: [
+            { text: "node loop-bug.js" },
+            { text: "3", output: true },
+            { text: "3", output: true },
+            { text: "3", output: true },
+            { text: "0", output: true },
+            { text: "1", output: true },
+            { text: "2", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -522,6 +582,16 @@ function slowSquare(n) {
 const fastSquare = memoize(slowSquare);
 fastSquare(5); // logs "computing...", returns 25
 fastSquare(5); // no log — returned straight from the cache`,
+        },
+        {
+          kind: "chart",
+          heading: "What memoization actually saves",
+          description: "Calling fastSquare(5) twice: the first call has to compute; the second is a cache hit and skips slowSquare entirely.",
+          chartType: "bar",
+          data: [
+            { label: "1st call", value: 1 },
+            { label: "2nd call", value: 0 },
+          ],
         },
         {
           kind: "practice",

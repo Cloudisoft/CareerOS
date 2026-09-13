@@ -33,6 +33,20 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "diagram",
+          heading: "The seven layers, bottom to top",
+          description: "Troubleshooting works the same direction — confirm the bottom layer works before assuming a failure further up.",
+          steps: [
+            { label: "Physical", detail: "Cables, radio, electrical signals" },
+            { label: "Data Link", detail: "MAC addresses, switches" },
+            { label: "Network", detail: "IP addresses, routers" },
+            { label: "Transport", detail: "TCP/UDP, ports" },
+            { label: "Session", detail: "Connection lifecycle" },
+            { label: "Presentation", detail: "Data format, TLS encryption" },
+            { label: "Application", detail: "HTTP, DNS, SMTP" },
+          ],
+        },
+        {
           kind: "text",
           heading: "Why this ordering is the practically useful part",
           body: [
@@ -70,6 +84,18 @@ export const course: CourseSeed = {
           bullets: [
             "TCP — establishes a connection, guarantees delivery and ordering, retransmits lost packets. Used for web browsing, file transfer, email.",
             "UDP — no connection setup, no delivery guarantee. Faster, used for video calls, live streaming, gaming.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Why a video call prefers UDP",
+          description:
+            "TCP's retransmissions add real latency when a packet is lost; UDP just drops it and moves on — better for a live call, worse for a file that must arrive intact.",
+          chartType: "bar",
+          unit: "ms",
+          data: [
+            { label: "UDP (packet dropped, call continues)", value: 40 },
+            { label: "TCP (packet lost, waits for retransmit)", value: 220 },
           ],
         },
         {
@@ -120,6 +146,20 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "terminal",
+          heading: "Resolving a domain from the command line",
+          description: "dig returns exactly the record type you ask for — here an A record, then an MX record.",
+          lines: [
+            { text: "dig example.com +short" },
+            { text: "93.184.216.34", output: true },
+            { text: "dig example.com MX +short" },
+            { text: "10 mail.example.com.", output: true },
+            { text: "dig example.com NS +short" },
+            { text: "a.iana-servers.net.", output: true },
+            { text: "b.iana-servers.net.", output: true },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why DNS problems are so often misdiagnosed",
@@ -154,6 +194,23 @@ export const course: CourseSeed = {
             "Can it reach something outside the local network? Ping a known public IP (8.8.8.8).",
             "Does DNS resolve? Run nslookup or dig against the domain.",
             "Is the specific port/service reachable? telnet to the host on the target port, or curl -v against the URL.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Running the checklist against a real connection",
+          description: "Each command tests the next step down the list — gateway, then internet, then DNS, then the actual service.",
+          lines: [
+            { text: "ping -c 1 192.168.1.1" },
+            { text: "1 packets transmitted, 1 received, 0% packet loss", output: true },
+            { text: "ping -c 1 8.8.8.8" },
+            { text: "1 packets transmitted, 1 received, 0% packet loss", output: true },
+            { text: "nslookup example.com" },
+            { text: "Server:  8.8.8.8", output: true },
+            { text: "Address: 93.184.216.34", output: true },
+            { text: "curl -v https://example.com" },
+            { text: "* Connected to example.com (93.184.216.34) port 443", output: true },
+            { text: "< HTTP/1.1 200 OK", output: true },
           ],
         },
         {
@@ -217,6 +274,17 @@ Common prefixes:
 192.168.1.192/26  (192.168.1.193 - 192.168.1.254)  - Servers
 
 Each /26 = 64 addresses total, 62 usable (2 reserved per subnet).`,
+        },
+        {
+          kind: "diagram",
+          heading: "One /24 split into four department subnets",
+          description: "Each /26 is its own broadcast domain — a router or firewall between them enforces the isolation.",
+          steps: [
+            { label: "192.168.1.0/26", detail: "Engineering — 62 usable" },
+            { label: "192.168.1.64/26", detail: "Sales — 62 usable" },
+            { label: "192.168.1.128/26", detail: "Guest wifi — 62 usable" },
+            { label: "192.168.1.192/26", detail: "Servers — 62 usable" },
+          ],
         },
         {
           kind: "bullets",

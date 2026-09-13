@@ -34,6 +34,23 @@ print(type(age))    # <class 'int'>
 print(type(height)) # <class 'float'>`,
         },
         {
+          kind: "terminal",
+          heading: "Confirming it in the Python REPL",
+          description: "Typing the same assignments straight into python3 shows exactly what the comments above claim.",
+          lines: [
+            { text: "python3" },
+            { text: ">>> name = \"Ada\"", output: true },
+            { text: ">>> age = 30", output: true },
+            { text: ">>> height = 1.7", output: true },
+            { text: ">>> type(name)", output: true },
+            { text: "<class 'str'>", output: true },
+            { text: ">>> type(age)", output: true },
+            { text: "<class 'int'>", output: true },
+            { text: ">>> type(height)", output: true },
+            { text: "<class 'float'>", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "The core built-in types",
           bullets: [
@@ -285,6 +302,17 @@ print(acct)  # "Ada's account: $150"`,
     def apply_interest(self):
         self.balance += self.balance * self.rate`,
         },
+        {
+          kind: "diagram",
+          heading: "What super().__init__ sets up before anything else",
+          description: "SavingsAccount reuses Account's constructor instead of duplicating it — this is the call order when SavingsAccount(\"Grace\", 1000, 0.03) runs.",
+          steps: [
+            { label: "SavingsAccount.__init__ called", detail: "owner, balance, rate passed in" },
+            { label: "super().__init__(owner, balance)", detail: "Runs Account's constructor first" },
+            { label: "self.owner, self.balance set", detail: "Done inside Account.__init__" },
+            { label: "self.rate = rate", detail: "Back in SavingsAccount, runs after super() returns" },
+          ],
+        },
       ],
     },
     {
@@ -313,6 +341,17 @@ for n in numbers:
 # The idiomatic version
 squares = [n * n for n in numbers if n % 2 == 0]
 # [4, 16, 36]`,
+        },
+        {
+          kind: "terminal",
+          heading: "Confirming the comprehension result",
+          description: "Typed straight into the REPL, the comprehension evaluates to exactly the list the comment above promises.",
+          lines: [
+            { text: "python3" },
+            { text: ">>> numbers = [1, 2, 3, 4, 5, 6]", output: true },
+            { text: ">>> [n * n for n in numbers if n % 2 == 0]", output: true },
+            { text: "[4, 16, 36]", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -388,6 +427,22 @@ parse_age("30")      # 30
 parse_age("thirty")  # prints message, returns None`,
         },
         {
+          kind: "terminal",
+          heading: "Same functions, live in the REPL",
+          description: "Calling each one directly shows the print happening and the None being swallowed silently by the prompt.",
+          lines: [
+            { text: "python3" },
+            { text: ">>> get_first_item([1, 2, 3])", output: true },
+            { text: "1", output: true },
+            { text: ">>> get_first_item([])", output: true },
+            { text: "The list is empty", output: true },
+            { text: ">>> parse_age(\"30\")", output: true },
+            { text: "30", output: true },
+            { text: ">>> parse_age(\"thirty\")", output: true },
+            { text: "'thirty' isn't a valid number", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Catching the right thing, the right way",
           bullets: [
@@ -416,6 +471,17 @@ parse_age("thirty")  # prints message, returns None`,
     finally:
         # always runs, success or failure
         print("Finished attempting to read config")`,
+        },
+        {
+          kind: "diagram",
+          heading: "The try/except/else/finally flow",
+          description: "Only one of except and else ever runs for a given call — but finally runs every time, regardless of which path was taken.",
+          steps: [
+            { label: "try", detail: "Code that might raise an exception runs first" },
+            { label: "except (if raised)", detail: "Runs only when the named exception actually happens" },
+            { label: "else (if not raised)", detail: "Runs only when try completed with no exception at all" },
+            { label: "finally", detail: "Always runs last, success or failure" },
+          ],
         },
         {
           kind: "example",

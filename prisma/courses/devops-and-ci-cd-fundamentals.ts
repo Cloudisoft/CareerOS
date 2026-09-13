@@ -66,6 +66,21 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "terminal",
+          heading: "What a CI run actually looks like",
+          description: "The four checks from the previous slide, running in order and failing fast.",
+          lines: [
+            { text: "npm ci" },
+            { text: "added 412 packages in 8s", output: true },
+            { text: "npm run lint" },
+            { text: "✔ No ESLint warnings or errors", output: true },
+            { text: "npm test" },
+            { text: "Tests: 118 passed, 118 total", output: true },
+            { text: "npm audit --audit-level=high" },
+            { text: "found 0 high severity vulnerabilities", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Continuous Delivery vs. Continuous Deployment",
           bullets: [
@@ -82,6 +97,21 @@ export const course: CourseSeed = {
             "Run smoke tests against staging.",
             "Deploy to production, often using a strategy that limits blast radius.",
             "Post-deploy verification — automated health checks.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "A commit's path through the pipeline",
+          description: "Each stage from this lesson, in the order it actually runs.",
+          steps: [
+            { label: "Push", detail: "Triggers CI" },
+            { label: "Build & Lint", detail: "Compile, install deps, style check" },
+            { label: "Test", detail: "Unit, then integration" },
+            { label: "Security Scan", detail: "Known-vulnerability check" },
+            { label: "Deploy Staging", detail: "Mirrors production" },
+            { label: "Smoke Test", detail: "Confirms staging works" },
+            { label: "Deploy Production", detail: "Rolling, blue-green, or canary" },
+            { label: "Health Check", detail: "Post-deploy verification" },
           ],
         },
         {
@@ -116,6 +146,20 @@ export const course: CourseSeed = {
           body: "A Docker image is a snapshot — the packaged application and dependencies, built once. A container is a running instance of that image. You can run many containers from the same image.",
           code: `docker build -t my-app:1.0 .
 docker run -p 3000:3000 my-app:1.0`,
+        },
+        {
+          kind: "terminal",
+          heading: "What that build and run actually print",
+          lines: [
+            { text: "docker build -t my-app:1.0 ." },
+            { text: "[+] Building 14.2s (10/10) FINISHED", output: true },
+            { text: " => [internal] load build definition from Dockerfile", output: true },
+            { text: " => [4/5] RUN npm ci --omit=dev", output: true },
+            { text: " => exporting to image", output: true },
+            { text: " => => naming to docker.io/library/my-app:1.0", output: true },
+            { text: "docker run -p 3000:3000 my-app:1.0" },
+            { text: "Server listening on port 3000", output: true },
+          ],
         },
         {
           kind: "text",
@@ -177,6 +221,19 @@ docker run -p 3000:3000 my-app:1.0`,
           ],
         },
         {
+          kind: "chart",
+          heading: "Roughly how much traffic sees a bad release before rollback",
+          description:
+            "Not a hard rule — but it's why canary is usually the first strategy reached for on higher-risk changes.",
+          chartType: "bar",
+          unit: "% of users initially exposed",
+          data: [
+            { label: "Canary", value: 5 },
+            { label: "Rolling (4 instances)", value: 25 },
+            { label: "Blue-Green", value: 100 },
+          ],
+        },
+        {
           kind: "text",
           heading: "Feature flags, as a complementary tool",
           body: [
@@ -216,6 +273,19 @@ docker run -p 3000:3000 my-app:1.0`,
           heading: "Why \"it's deployed\" isn't the same as \"it's fine\"",
           body: [
             "A deploy can succeed — containers started, the process is running, a basic health check passed — while the application is actually broken for a subset of users, or failing silently on a code path the health check never exercises. Only real signals about actual behavior catch that gap.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "A passing health check next to a broken log stream",
+          description: "Both of these are true at the same time — that's the gap observability closes.",
+          lines: [
+            { text: "curl -s -o /dev/null -w '%{http_code}\\n' https://api.acme.com/healthz" },
+            { text: "200", output: true },
+            { text: "tail -n 3 /var/log/app/checkout.log" },
+            { text: "2024-03-11T14:02:01Z ERROR checkout: payment provider timeout after 3 retries", output: true },
+            { text: "2024-03-11T14:02:03Z ERROR checkout: payment provider timeout after 3 retries", output: true },
+            { text: "2024-03-11T14:02:05Z ERROR checkout: payment provider timeout after 3 retries", output: true },
           ],
         },
         {

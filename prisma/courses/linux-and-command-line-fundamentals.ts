@@ -57,6 +57,25 @@ pwd
           ],
         },
         {
+          kind: "terminal",
+          heading: "Putting the shortcuts to use",
+          description: "cd ~ jumps home, cd - jumps right back, and ls -la shows what's actually in the directory you land in.",
+          lines: [
+            { text: "pwd" },
+            { text: "/home/alice/projects/src", output: true },
+            { text: "cd ~" },
+            { text: "pwd" },
+            { text: "/home/alice", output: true },
+            { text: "cd -" },
+            { text: "/home/alice/projects/src", output: true },
+            { text: "ls -la" },
+            { text: "drwxr-xr-x  4 alice alice  128 Mar 14 10:02 .", output: true },
+            { text: "drwxr-xr-x  6 alice alice  192 Mar 14 09:40 ..", output: true },
+            { text: "-rw-r--r--  1 alice alice   45 Mar 14 09:55 .env", output: true },
+            { text: "-rw-r--r--  1 alice alice 1.2K Mar 14 10:02 index.js", output: true },
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Tab completion is not optional",
@@ -179,6 +198,18 @@ chmod 754 deploy.sh             # owner: rwx(7), group: r-x(5), others: r--(4)
 chown alice:engineering deploy.sh   # change owner and group`,
         },
         {
+          kind: "terminal",
+          heading: "Watching chmod change the string",
+          description: "The same file, before and after — the permissions string in ls -l is exactly what chmod edits.",
+          lines: [
+            { text: "ls -l deploy.sh" },
+            { text: "-rw-r--r-- 1 alice engineering 812 Mar 14 deploy.sh", output: true },
+            { text: "chmod +x deploy.sh" },
+            { text: "ls -l deploy.sh" },
+            { text: "-rwxr-xr-x 1 alice engineering 812 Mar 14 deploy.sh", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Why execute matters differently for directories",
           intro: "The execute bit means something distinct on a directory versus a file — a common source of confusion.",
@@ -238,6 +269,16 @@ cat access.log | grep "ERROR" | wc -l
 
 ls -la | sort -k5 -n
 # lists files, then sorts that listing numerically by size (column 5)`,
+        },
+        {
+          kind: "terminal",
+          heading: "What that pipeline actually prints",
+          description: "ps aux | grep node in a real terminal — note that grep even matches its own process line, a common first surprise.",
+          lines: [
+            { text: "ps aux | grep node" },
+            { text: "alice     1821  0.3  1.2  912344  98212 ?  Sl  09:41   0:12 node server.js", output: true },
+            { text: "alice     2290  0.0  0.0    6408     712 pts/0  S+  10:15   0:00 grep --color=auto node", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -319,6 +360,17 @@ nohup long-running-task.sh &
 # keeps running even if the terminal session itself closes`,
         },
         {
+          kind: "diagram",
+          heading: "What kill and kill -9 actually do",
+          description: "A plain kill asks; SIGKILL doesn't — this is why one is the default and the other is a last resort.",
+          steps: [
+            { label: "kill <PID>", detail: "Sends SIGTERM — a polite request" },
+            { label: "Process handles it", detail: "Closes files, saves state, exits cleanly (if it chooses to)" },
+            { label: "Still running?", detail: "If it ignored SIGTERM, escalate" },
+            { label: "kill -9 <PID>", detail: "Sends SIGKILL — the kernel stops it immediately, no cleanup" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "kill -9 is a blunt instrument",
@@ -350,6 +402,20 @@ nohup long-running-task.sh &
           heading: "A realistic scenario",
           body: [
             "A web application's log file is growing suspiciously fast, and a teammate reports the site feels slow. Nothing here is a single command — it's a short sequence of the tools from this course used in order.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Why it got everyone's attention",
+          description: "access.log's size over the last few hours — the growth rate alone was enough to start digging.",
+          chartType: "line",
+          unit: " MB",
+          data: [
+            { label: "9am", value: 40 },
+            { label: "10am", value: 52 },
+            { label: "11am", value: 70 },
+            { label: "12pm", value: 410 },
+            { label: "1pm", value: 960 },
           ],
         },
         {

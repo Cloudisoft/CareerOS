@@ -85,6 +85,26 @@ export const course: CourseSeed = {
           body: "Staging lets you build one clean, focused commit out of a messier set of edits — you can change five files but only stage and commit the two that belong together, then stage and commit the rest separately. It's what makes git log readable months later instead of a wall of \"various fixes.\"",
         },
         {
+          kind: "terminal",
+          heading: "Seeing the three areas at once",
+          description: "git status names exactly these three areas in its own output — staged, unstaged, and untracked.",
+          lines: [
+            { text: "git status" },
+            { text: "On branch main", output: true },
+            { text: "Changes to be committed:", output: true },
+            { text: "  (use \"git restore --staged <file>...\" to unstage)", output: true },
+            { text: "        modified:   src/auth.ts", output: true },
+            { text: "", output: true },
+            { text: "Changes not staged for commit:", output: true },
+            { text: "  (use \"git add <file>...\" to update what will be committed)", output: true },
+            { text: "        modified:   src/routes.ts", output: true },
+            { text: "", output: true },
+            { text: "Untracked files:", output: true },
+            { text: "  (use \"git add <file>...\" to include in what will be committed)", output: true },
+            { text: "        src/new-feature.ts", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "A branch is just a movable pointer",
           bullets: [
@@ -128,6 +148,17 @@ git commit -m "Fix token refresh timing bug"
 
 git push                    # send your commits to the remote (e.g. GitHub)
 git pull                    # fetch and merge in others' commits`,
+        },
+        {
+          kind: "terminal",
+          heading: "What git log looks like after that commit",
+          description: "Each commit gets its own hash, author, and message — exactly the chain the earlier lesson described.",
+          lines: [
+            { text: "git log --oneline" },
+            { text: "a1b2c3d (HEAD -> main, origin/main) Fix token refresh timing bug", output: true },
+            { text: "e4f5g6h Add retry logic to API client", output: true },
+            { text: "h7i8j9k Initial commit", output: true },
+          ],
         },
         {
           kind: "example",
@@ -187,6 +218,24 @@ const MAX_RETRIES = 5;
 >>>>>>> feature/retry-logic`,
         },
         {
+          kind: "terminal",
+          heading: "What git tells you mid-conflict",
+          description: "git status names the exact file in conflict and reminds you how to proceed — it isn't just the markers inside the file.",
+          lines: [
+            { text: "git merge feature/retry-logic" },
+            { text: "Auto-merging config.ts", output: true },
+            { text: "CONFLICT (content): Merge conflict in config.ts", output: true },
+            { text: "Automatic merge failed; fix conflicts and then commit the result.", output: true },
+            { text: "git status" },
+            { text: "On branch main", output: true },
+            { text: "You have unmerged paths.", output: true },
+            { text: "  (fix conflicts and run \"git commit\")", output: true },
+            { text: "", output: true },
+            { text: "Unmerged paths:", output: true },
+            { text: "        both modified:   config.ts", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "The resolution steps",
           bullets: [
@@ -240,6 +289,22 @@ git push -u origin feature/add-search # publish the branch to the remote
 git checkout main
 git pull                              # after the PR merges, catch main up
 git branch -d feature/add-search      # delete the now-merged local branch`,
+        },
+        {
+          kind: "terminal",
+          heading: "What git prints when you publish a branch",
+          description: "The -u flag is what makes plain git push and git pull work on this branch afterward, without naming origin/feature/add-search every time.",
+          lines: [
+            { text: "git push -u origin feature/add-search" },
+            { text: "Enumerating objects: 9, done.", output: true },
+            { text: "Counting objects: 100% (9/9), done.", output: true },
+            { text: "Delta compression using up to 8 threads", output: true },
+            { text: "Compressing objects: 100% (5/5), done.", output: true },
+            { text: "Writing objects: 100% (6/6), 1.42 KiB | 1.42 MiB/s, done.", output: true },
+            { text: "To github.com:org/project.git", output: true },
+            { text: " * [new branch]      feature/add-search -> feature/add-search", output: true },
+            { text: "branch 'feature/add-search' set up to track 'origin/feature/add-search'.", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -311,6 +376,17 @@ git rebase -i HEAD~3
 #
 # Changing the last two "pick" to "squash" combines all three into
 # one commit, then opens a second editor to write its final message.`,
+        },
+        {
+          kind: "diagram",
+          heading: "Three commits become one",
+          description: "Squashing folds each later commit's changes into the one above it, then asks for a single combined message.",
+          steps: [
+            { label: "Add login form", detail: "pick — kept as the base commit" },
+            { label: "fix typo", detail: "squash — folded into the commit above" },
+            { label: "actually fix typo", detail: "squash — folded in as well" },
+            { label: "One commit", detail: "\"Add login form\" — with one new combined message" },
+          ],
         },
         {
           kind: "bullets",

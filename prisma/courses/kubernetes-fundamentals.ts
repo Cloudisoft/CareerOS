@@ -73,6 +73,17 @@ spec:
         - containerPort: 3000`,
         },
         {
+          kind: "terminal",
+          heading: "Applying that Pod",
+          lines: [
+            { text: "kubectl apply -f pod.yaml" },
+            { text: "pod/web-app created", output: true },
+            { text: "kubectl get pods" },
+            { text: "NAME      READY   STATUS    RESTARTS   AGE", output: true },
+            { text: "web-app   1/1     Running   0          4s", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Why a wrapper around containers at all",
           bullets: [
@@ -155,6 +166,27 @@ kubectl rollout status deployment/web-app
 kubectl rollout undo deployment/web-app`,
         },
         {
+          kind: "terminal",
+          heading: "What the rollout actually prints",
+          lines: [
+            { text: "kubectl scale deployment web-app --replicas=5" },
+            { text: "deployment.apps/web-app scaled", output: true },
+            { text: "kubectl set image deployment/web-app web=myregistry/web-app:1.5" },
+            { text: "deployment.apps/web-app image updated", output: true },
+            { text: "kubectl rollout status deployment/web-app" },
+            {
+              text: "Waiting for deployment \"web-app\" rollout to finish: 2 out of 5 new replicas have been updated...",
+              output: true,
+            },
+            { text: "deployment \"web-app\" successfully rolled out", output: true },
+            { text: "kubectl logs -l app=web-app --tail=1" },
+            { text: "web-app-7d9f6c5b8d-4kx2p 2024-03-11T10:02:01Z Server listening on port 3000", output: true },
+            { text: "web-app-7d9f6c5b8d-8j5nq 2024-03-11T10:02:03Z Server listening on port 3000", output: true },
+            { text: "kubectl rollout undo deployment/web-app" },
+            { text: "deployment.apps/web-app rolled back", output: true },
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Rolling updates, under the hood",
@@ -195,6 +227,16 @@ spec:
             "selector: app: web-app is the same label-matching mechanism from the Deployment — the Service continuously tracks which Pods currently carry that label.",
             "Other things in the cluster reach this Service at a stable DNS name (web-app) and it load-balances across whichever Pods are healthy right now — callers never need a Pod's actual IP.",
             "port is what callers connect to; targetPort is the port the container actually listens on — they don't have to match, same as `docker run -p`.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "A request's path through a Service",
+          description: "Callers never target a Pod directly — the Service picks a healthy one every time.",
+          steps: [
+            { label: "Client", detail: "Connects to web-app:80" },
+            { label: "Service (ClusterIP)", detail: "Load-balances across Pods matching app: web-app" },
+            { label: "Pod (any of 3)", detail: "Whichever is currently healthy and labeled correctly" },
           ],
         },
         {
@@ -300,6 +342,17 @@ spec:
           ],
         },
         {
+          kind: "diagram",
+          heading: "One Deployment, from kubectl apply to a running container",
+          steps: [
+            { label: "kubectl apply", detail: "Sent to the API server" },
+            { label: "etcd", detail: "Desired state stored: 3 replicas" },
+            { label: "Controller manager", detail: "Notices 0 of 3 Pods exist, creates them" },
+            { label: "Scheduler", detail: "Assigns each Pod to a node" },
+            { label: "kubelet", detail: "Starts the container via the runtime" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "What to remember",
           bullets: [
@@ -372,6 +425,21 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
             failureThreshold: 3`,
+        },
+        {
+          kind: "terminal",
+          heading: "A readiness failure, from kubectl's point of view",
+          description: "The Pod is Running, but not Ready — the Service will not send it traffic until this clears.",
+          lines: [
+            { text: "kubectl get pods" },
+            { text: "NAME                       READY   STATUS    RESTARTS   AGE", output: true },
+            { text: "web-app-7d9f6c5b8d-4kx2p   0/1     Running   0          12s", output: true },
+            { text: "kubectl describe pod web-app-7d9f6c5b8d-4kx2p" },
+            {
+              text: "Warning  Unhealthy  8s (x2 over 18s)  kubelet  Readiness probe failed: HTTP probe failed with statuscode: 503",
+              output: true,
+            },
+          ],
         },
         {
           kind: "callout",

@@ -35,6 +35,27 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "terminal",
+          heading: "Querying the two linked tables",
+          description:
+            "orders.customer_id points at customers.id — that foreign key is the link, not a repeated copy of each customer's name and email.",
+          lines: [
+            { text: "SELECT * FROM customers;" },
+            { text: " id | name       | email             ", output: true },
+            { text: "----+------------+-------------------", output: true },
+            { text: "  1 | Jane Smith | jane@example.com  ", output: true },
+            { text: "  2 | Alex Kim   | alex@example.com  ", output: true },
+            { text: "(2 rows)", output: true },
+            { text: "SELECT * FROM orders;" },
+            { text: " id | customer_id | total ", output: true },
+            { text: "----+-------------+-------", output: true },
+            { text: "  1 |           1 | 42.50 ", output: true },
+            { text: "  2 |           1 | 18.00 ", output: true },
+            { text: "  3 |           2 | 99.99 ", output: true },
+            { text: "(3 rows)", output: true },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why normalize instead of one giant table",
@@ -68,6 +89,22 @@ WHERE signup_date > '2026-01-01'
 ORDER BY signup_date DESC
 LIMIT 10;`,
           language: "sql",
+        },
+        {
+          kind: "terminal",
+          heading: "The SELECT query's actual output",
+          description: "Same query as above, run against real data — the newest signups come back first.",
+          lines: [
+            {
+              text: "SELECT name, email FROM customers WHERE signup_date > '2026-01-01' ORDER BY signup_date DESC LIMIT 10;",
+            },
+            { text: "    name     |        email        ", output: true },
+            { text: "--------------+----------------------", output: true },
+            { text: " Priya Nair   | priya@example.com    ", output: true },
+            { text: " Marcus Chen  | marcus@example.com   ", output: true },
+            { text: " Dana Ruiz    | dana@example.com     ", output: true },
+            { text: "(3 rows)", output: true },
+          ],
         },
         {
           kind: "example",
@@ -145,6 +182,32 @@ HAVING COUNT(*) > 5;`,
           body: "EXPLAIN (or EXPLAIN ANALYZE) shows how a query will actually be executed — whether it's using an index or falling back to a full scan.",
         },
         {
+          kind: "terminal",
+          heading: "EXPLAIN before and after adding an index",
+          description:
+            "Same query against a 2-million-row orders table — the sequential scan touches every row; the index scan jumps straight to the matching ones.",
+          lines: [
+            { text: "EXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 4471;" },
+            {
+              text: "Seq Scan on orders  (cost=0.00..48280.00 rows=6 width=72) (actual time=0.02..8123.40 rows=6 loops=1)",
+              output: true,
+            },
+            { text: "  Filter: (customer_id = 4471)", output: true },
+            { text: "  Rows Removed by Filter: 1999994", output: true },
+            { text: "Planning Time: 0.11 ms", output: true },
+            { text: "Execution Time: 8123.61 ms", output: true },
+            { text: "CREATE INDEX idx_orders_customer_id ON orders (customer_id);" },
+            { text: "EXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 4471;" },
+            {
+              text: "Index Scan using idx_orders_customer_id on orders  (cost=0.42..8.55 rows=6 width=72) (actual time=0.03..0.05 rows=6 loops=1)",
+              output: true,
+            },
+            { text: "  Index Cond: (customer_id = 4471)", output: true },
+            { text: "Planning Time: 0.09 ms", output: true },
+            { text: "Execution Time: 0.07 ms", output: true },
+          ],
+        },
+        {
           kind: "summary",
           heading: "The practical habit",
           bullets: [
@@ -182,6 +245,18 @@ UPDATE accounts SET balance = balance - 100 WHERE id = 1;
 UPDATE accounts SET balance = balance + 100 WHERE id = 2;
 COMMIT;`,
           language: "sql",
+        },
+        {
+          kind: "diagram",
+          heading: "A transaction's all-or-nothing lifecycle",
+          description:
+            "If any step between BEGIN and COMMIT fails, every change since BEGIN is rolled back — including the first UPDATE that already succeeded.",
+          steps: [
+            { label: "BEGIN", detail: "Start the transaction" },
+            { label: "UPDATE accounts (-100)", detail: "Debit account 1" },
+            { label: "UPDATE accounts (+100)", detail: "Credit account 2" },
+            { label: "COMMIT", detail: "Both changes saved together — or ROLLBACK undoes both" },
+          ],
         },
         {
           kind: "text",
@@ -228,6 +303,25 @@ FROM employees;
 -- Every employee row is still present — dept_rank is just an
 -- added column, unlike GROUP BY which would leave only one row
 -- per department.`,
+        },
+        {
+          kind: "terminal",
+          heading: "RANK() OVER output — every row stays, ranked within its group",
+          description:
+            "dept_rank restarts at 1 for each new department; a tie (Tom and Jun) shares rank 2 and the next rank jumps to 4, not 3.",
+          lines: [
+            {
+              text: "SELECT employee_name, department, salary, RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS dept_rank FROM employees;",
+            },
+            { text: " employee_name |  department | salary | dept_rank", output: true },
+            { text: "----------------+-------------+--------+-----------", output: true },
+            { text: " Maria Alvarez  | Engineering | 145000 |         1", output: true },
+            { text: " Tom Weiss      | Engineering | 132000 |         2", output: true },
+            { text: " Jun Park       | Engineering | 132000 |         2", output: true },
+            { text: " Alicia Brooks  | Sales       |  98000 |         1", output: true },
+            { text: " Devon Hughes   | Sales       |  91000 |         2", output: true },
+            { text: "(5 rows)", output: true },
+          ],
         },
         {
           kind: "example",

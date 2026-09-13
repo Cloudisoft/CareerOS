@@ -55,6 +55,17 @@ export const course: CourseSeed = {
           body: "React keeps a lightweight in-memory representation of the UI, compares it to the previous version when something changes, and only touches the real DOM where something actually differs. This matters for performance, but it's an implementation detail — you almost never need to think about it directly. The mental model that actually matters day to day is simpler: given this state, what should render?",
         },
         {
+          kind: "diagram",
+          heading: "One trip through the render-commit cycle",
+          description: "What actually happens between a state change and the screen updating.",
+          steps: [
+            { label: "State or props change", detail: "e.g. a setCount call schedules an update" },
+            { label: "Render", detail: "React calls the component function to get a new UI description" },
+            { label: "Diff", detail: "The new description is compared against the previous one (virtual DOM)" },
+            { label: "Commit", detail: "Only the real DOM nodes that actually differ get updated" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
@@ -399,6 +410,17 @@ function Child() {
 }`,
         },
         {
+          kind: "diagram",
+          heading: "Why Child re-renders even though nothing changed for it",
+          description: "A parent's state change cascades to its children by default, regardless of their own props.",
+          steps: [
+            { label: "Parent state changes", detail: "setCount(count + 1) runs inside Parent" },
+            { label: "Parent re-renders", detail: "React re-runs Parent's function" },
+            { label: "Child re-renders too", detail: "Every child re-renders by default when its parent does" },
+            { label: "Diff & commit", detail: "The real DOM updates only where the description actually changed" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "\"Re-render\" is not the same as \"DOM update\"",
@@ -492,6 +514,17 @@ function Parent({ items }) {
 }`,
         },
         {
+          kind: "chart",
+          heading: "RowButton re-renders across 10 unrelated theme toggles",
+          description: "Same list of rows, only the theme changes each time — RowButton's props never actually change.",
+          chartType: "bar",
+          unit: "re-renders",
+          data: [
+            { label: "Without useCallback", value: 10 },
+            { label: "With useCallback + React.memo", value: 0 },
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "Memoization is not free, and it's not the default you should reach for first",
@@ -543,6 +576,17 @@ function Parent({ items }) {
             "The filter/sort only actually needs to rerun when items or query change — toggling showFilters shouldn't trigger it at all. What hook exists specifically to skip recomputing a value when its dependencies haven't changed?",
           solution:
             "Wrap the filter+sort in useMemo with `[items, query]` as its dependency array, so toggling `showFilters` (which changes state but not items or query) no longer reruns it.\n\n```jsx\nfunction SearchResults({ items, query }) {\n  const [showFilters, setShowFilters] = useState(false);\n\n  const results = useMemo(\n    () =>\n      items\n        .filter((item) => item.name.toLowerCase().includes(query.toLowerCase()))\n        .sort((a, b) => a.name.localeCompare(b.name)),\n    [items, query]\n  );\n\n  return (\n    <div>\n      <button onClick={() => setShowFilters(!showFilters)}>Toggle filters</button>\n      {showFilters && <FilterPanel />}\n      <ul>\n        {results.map((item) => (\n          <li key={item.id}>{item.name}</li>\n        ))}\n      </ul>\n    </div>\n  );\n}\n```\nKey decision: the dependency array only lists the two values the computation actually reads — `showFilters` is deliberately left out, because including it would make the memoization rerun on exactly the render we're trying to skip.",
+        },
+        {
+          kind: "chart",
+          heading: "Filter/sort recomputations across 10 filter-panel toggles",
+          description: "Toggling showFilters changes state, but not items or query — the computation shouldn't rerun for it at all.",
+          chartType: "bar",
+          unit: "recomputations of the 10,000-item list",
+          data: [
+            { label: "Without useMemo", value: 10 },
+            { label: "With useMemo([items, query])", value: 0 },
+          ],
         },
         {
           kind: "practice",

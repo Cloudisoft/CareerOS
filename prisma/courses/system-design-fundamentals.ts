@@ -85,6 +85,17 @@ export const course: CourseSeed = {
           body: "For a server to be one of several interchangeable copies, it generally can't hold state a specific user's next request depends on — session data belongs in a shared store like Redis, not an in-memory dictionary on one server, or that user's next request might land on a different machine that's never heard of them. This property — statelessness — is what makes \"just add more servers\" actually work.",
         },
         {
+          kind: "diagram",
+          heading: "A stateless request, end to end",
+          description: "Any of the servers can handle any request, because none of them holds state the request depends on.",
+          steps: [
+            { label: "Client request", detail: "Could be handled by any of the servers behind the load balancer" },
+            { label: "Load balancer picks a server", detail: "Server A, B, or C — interchangeable" },
+            { label: "Server handles the request", detail: "Reads/writes session state from a shared store, not its own memory" },
+            { label: "Shared store (e.g. Redis)", detail: "Any server's next request can read the same session data" },
+          ],
+        },
+        {
           kind: "text",
           heading: "In practice",
           body: [
@@ -109,6 +120,18 @@ export const course: CourseSeed = {
           bullets: [
             "Cache-aside (lazy loading) — the application checks the cache first; on a miss, it reads from the database, then writes that result into the cache for next time. Simple, and the cache only ever holds data that's actually been requested.",
             "Write-through — every write goes to the cache and the database together, so the cache is never stale immediately after a write, at the cost of every write paying the latency of both.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "Cache-aside, on a read",
+          description: "The most common pattern: check the cache first, and only go to the database on a miss.",
+          steps: [
+            { label: "Request arrives", detail: "The app needs a piece of data" },
+            { label: "Check the cache", detail: "Cache-aside: look here first" },
+            { label: "Cache miss → read the database", detail: "The source of truth" },
+            { label: "Write the result into the cache", detail: "So the next request for this key is a hit" },
+            { label: "Return to the caller", detail: "Same response either way" },
           ],
         },
         {
@@ -163,6 +186,17 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "diagram",
+          heading: "The health check loop",
+          description: "What makes horizontal scaling self-healing instead of just \"more capacity.\"",
+          steps: [
+            { label: "Load balancer pings each server", detail: "On a regular interval, e.g. every 5 seconds" },
+            { label: "Server responds healthy", detail: "Stays in the rotation for new requests" },
+            { label: "Server fails to respond", detail: "Load balancer marks it unhealthy" },
+            { label: "Traffic stops routing to it", detail: "Remaining healthy servers absorb the load until it recovers" },
+          ],
+        },
+        {
           kind: "text",
           heading: "L4 vs. L7, briefly",
           body: [
@@ -194,6 +228,17 @@ export const course: CourseSeed = {
             "One primary (leader) database handles all writes; one or more replicas (followers) continuously copy those writes and can serve read queries.",
             "This directly matches a read-heavy workload — spread read traffic across several replicas while writes stay funneled through one primary that stays consistent.",
             "Replication is asynchronous in most setups, which means a replica can lag slightly behind the primary — a read immediately after a write can, briefly, return stale data. Worth naming as a trade-off, not glossing over.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "Writes vs. reads under replication",
+          description: "One primary handles every write; replicas absorb read traffic and can lag slightly behind.",
+          steps: [
+            { label: "Write request", detail: "INSERT/UPDATE — goes to the primary only" },
+            { label: "Primary commits the write", detail: "Then streams the change to replicas" },
+            { label: "Replicas apply the change", detail: "Asynchronously — a brief lag is possible" },
+            { label: "Read requests", detail: "Routed to any replica, spreading read load" },
           ],
         },
         {
@@ -267,6 +312,19 @@ Read path (redirect):
   client -> load balancer -> app server -> check cache
     cache hit  -> redirect immediately (~99% of requests)
     cache miss -> read replica -> populate cache -> redirect`,
+        },
+        {
+          kind: "diagram",
+          heading: "The read path, the request that happens a billion times a day",
+          description: "A redirect — by far the dominant traffic for this system, given the 1000:1 read/write ratio.",
+          steps: [
+            { label: "Client requests short URL", detail: "GET /abc123" },
+            { label: "Load balancer → app server", detail: "Any stateless app server can handle it" },
+            { label: "Check the cache", detail: "code → long_url lookup" },
+            { label: "Cache hit (~99%)", detail: "Redirect immediately, no database hit at all" },
+            { label: "Cache miss → read replica", detail: "Looked up on a replica, not the write primary" },
+            { label: "Populate cache, then redirect", detail: "The next request for this code is a cache hit" },
+          ],
         },
         {
           kind: "summary",

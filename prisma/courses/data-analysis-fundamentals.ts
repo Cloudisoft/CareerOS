@@ -103,6 +103,18 @@ customer_state | order_total | order_date
 (missing state row flagged for follow-up, not silently dropped)`,
         },
         {
+          kind: "diagram",
+          heading: "The cleaning pipeline for the export above",
+          description: "Each stage is a deliberate decision, not a blind delete.",
+          steps: [
+            { label: "Raw export", detail: "Inconsistent casing, a duplicate row, an ambiguous date format" },
+            { label: "Standardize formats", detail: "Unify state codes and date formats" },
+            { label: "Remove true duplicates", detail: "Confirmed via a real unique ID, not just appearance" },
+            { label: "Resolve missing values", detail: "Investigate before dropping — check if missingness is random" },
+            { label: "Clean dataset", detail: "Ready for calculation" },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Deciding what to do with missing values",
           intro: "There's no single right answer — the right choice depends on why the data is missing.",
@@ -159,6 +171,25 @@ Median = $55k   (the middle value)
 
 The median is a far better description of a "typical" household
 here — the mean is distorted by a single outlier.`,
+        },
+        {
+          kind: "chart",
+          heading: "The 9 household incomes",
+          description:
+            "One household ($620k) towers over the other eight — that single value is what drags the mean up to $116.7k while the median stays at $55k.",
+          chartType: "bar",
+          unit: "$k",
+          data: [
+            { label: "House 1", value: 45 },
+            { label: "House 2", value: 48 },
+            { label: "House 3", value: 50 },
+            { label: "House 4", value: 52 },
+            { label: "House 5", value: 55 },
+            { label: "House 6", value: 58 },
+            { label: "House 7", value: 60 },
+            { label: "House 8", value: 62 },
+            { label: "House 9", value: 620 },
+          ],
         },
         {
           kind: "bullets",
@@ -289,6 +320,22 @@ Actual driver: a third variable — summer weather —
 raises both independently.`,
         },
         {
+          kind: "chart",
+          heading: "Both curves move together, month by month",
+          description:
+            "Neither metric causes the other — both simply rise and fall with a third factor (summer weather) that drives them at the same time.",
+          chartType: "bar",
+          unit: "index (0-100)",
+          data: [
+            { label: "Ice cream — Jan", value: 20 },
+            { label: "Drowning — Jan", value: 2 },
+            { label: "Ice cream — Jun", value: 70 },
+            { label: "Drowning — Jun", value: 18 },
+            { label: "Ice cream — Aug", value: 95 },
+            { label: "Drowning — Aug", value: 25 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Common shapes this trap takes at work",
           intro: "The ice cream example is obvious; the workplace version is usually much subtler.",
@@ -412,6 +459,17 @@ A z-score above ~1.96 is the common threshold for
 close, but not quite there.`,
         },
         {
+          kind: "chart",
+          heading: "Version A vs. Version B conversion rate",
+          description: "A real-looking 0.6-point lift — the z-score above is what decides whether that's signal or noise.",
+          chartType: "bar",
+          unit: "%",
+          data: [
+            { label: "Version A", value: 5.0 },
+            { label: "Version B", value: 5.6 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "What this result actually tells you",
           bullets: [
@@ -471,6 +529,23 @@ List every data quality issue you see, and for each one say what you'd do about 
           hint: "Calculate both first, then think about what a single very large but real value does to each.",
           solution:
             "Mean = (2+3+3+4+4+5+6+41)/8 = 68/8 = 8.5 hours. Median (sorted: 2,3,3,4,4,5,6,41 — average of the 4th and 5th values) = (4+4)/2 = 4 hours. Report the median (4 hours) as \"typical\" — the mean is pulled far upward by the single 41-hour outlier and would badly overstate what a normal ticket actually looks like. But don't report only the median: mention the mean and the outlier alongside it (e.g., \"typical resolution time is 4 hours; one complex case took 41 hours and pulled the average up to 8.5\"), since dropping the outlier from the story entirely would hide a real, legitimate case that leadership may want visibility into.",
+        },
+        {
+          kind: "chart",
+          heading: "The 8 resolution times",
+          description: "One ticket (41 hours) dwarfs the rest — that's why the mean (8.5h) overstates a typical case far more than the median (4h) does.",
+          chartType: "bar",
+          unit: "hours",
+          data: [
+            { label: "Ticket 1", value: 2 },
+            { label: "Ticket 2", value: 3 },
+            { label: "Ticket 3", value: 3 },
+            { label: "Ticket 4", value: 4 },
+            { label: "Ticket 5", value: 4 },
+            { label: "Ticket 6", value: 5 },
+            { label: "Ticket 7", value: 6 },
+            { label: "Ticket 8", value: 41 },
+          ],
         },
         {
           kind: "practice",

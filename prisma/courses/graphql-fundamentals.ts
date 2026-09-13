@@ -53,6 +53,17 @@ query {
 }`,
         },
         {
+          kind: "chart",
+          heading: "Round trips to render one screen",
+          description: "Fetching a user and their orders — REST's separate endpoints vs. one GraphQL query.",
+          chartType: "bar",
+          unit: "requests",
+          data: [
+            { label: "REST (/users/42 + /users/42/orders)", value: 2 },
+            { label: "GraphQL (one query)", value: 1 },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "GraphQL moves the decision from server to client",
@@ -156,6 +167,17 @@ type Query {
 }`,
         },
         {
+          kind: "terminal",
+          heading: "Calling the GraphQL endpoint directly",
+          description: "GraphQL has exactly one HTTP endpoint — POST a query or mutation as JSON.",
+          lines: [
+            {
+              text: `curl -X POST http://localhost:4000/graphql -H "Content-Type: application/json" -d '{"query":"{ user(id: \\"42\\") { name } }"}'`,
+            },
+            { text: '{"data":{"user":{"name":"Priya"}}}', output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Variables: don't hand-build query strings",
           intro: "Real applications pass dynamic values as variables rather than string-interpolating them directly into the query:",
@@ -210,6 +232,17 @@ type Query {
 };`,
         },
         {
+          kind: "diagram",
+          heading: "How a query resolves, field by field",
+          description: "For { user(id: \"42\") { name orders { total } } }.",
+          steps: [
+            { label: "Query arrives", detail: "user(id: \"42\") { name orders { total } }" },
+            { label: "Query.user resolver runs", detail: "context.db.user.findUnique({ where: { id: \"42\" } })" },
+            { label: "User.orders resolver runs", detail: "parent = the already-resolved user; context.db.order.findMany(...)" },
+            { label: "Response assembled", detail: "Shaped to match exactly what the query asked for" },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "The four resolver arguments, briefly",
           bullets: [
@@ -224,6 +257,17 @@ type Query {
           tone: "warning",
           heading: "The N+1 query trap",
           body: "Naively written, resolving `orders` for each of 50 users in a single query result triggers 50 separate database calls — one per user — plus the original query, instead of one efficient batched call. This N+1 problem is one of the most common real GraphQL performance issues, and it's usually solved with a batching layer (a \"DataLoader\" pattern) that collects individual resolver requests within a tick and issues one combined query instead.",
+        },
+        {
+          kind: "chart",
+          heading: "Database queries to resolve 50 users' orders",
+          description: "One resolver, two very different outcomes depending on whether it's batched.",
+          chartType: "bar",
+          unit: "database queries",
+          data: [
+            { label: "Naive (1 per user)", value: 51 },
+            { label: "Batched with DataLoader", value: 2 },
+          ],
         },
       ],
     },
@@ -345,6 +389,18 @@ type Query {
 #     pageInfo { hasNextPage endCursor }
 #   }
 # }`,
+        },
+        {
+          kind: "diagram",
+          heading: "Paging through a large list with a cursor",
+          description: "Each request asks for the next page relative to where the last one left off.",
+          steps: [
+            { label: "First request", detail: "orders(first: 20) — no cursor yet" },
+            { label: "Server returns 20 edges + endCursor", detail: "pageInfo.hasNextPage: true" },
+            { label: "Client requests again", detail: "orders(first: 20, after: endCursor)" },
+            { label: "Server returns the next 20", detail: "Positioned after that cursor, even if rows changed" },
+            { label: "Repeat until hasNextPage: false", detail: "Client knows it has reached the end" },
+          ],
         },
         {
           kind: "bullets",

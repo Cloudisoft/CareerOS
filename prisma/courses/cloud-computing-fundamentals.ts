@@ -43,6 +43,18 @@ export const course: CourseSeed = {
           body: "Functions-as-a-Service (AWS Lambda, Azure Functions, Google Cloud Functions) takes PaaS further: you deploy individual functions, the platform handles provisioning, scaling, and teardown entirely, and you pay per invocation rather than for idle capacity. The tradeoff is cold-start latency and execution time limits.",
         },
         {
+          kind: "diagram",
+          heading: "Increasing abstraction, decreasing control",
+          description:
+            "Each step hands more operational responsibility to the provider — and takes away a corresponding amount of low-level control.",
+          steps: [
+            { label: "IaaS", detail: "You manage the OS, runtime, and everything above it" },
+            { label: "PaaS", detail: "Provider manages the OS and runtime; you deploy code" },
+            { label: "FaaS", detail: "Provider manages everything except individual functions" },
+            { label: "SaaS", detail: "Provider manages the entire application" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "The practical takeaway",
           bullets: [
@@ -78,6 +90,22 @@ export const course: CourseSeed = {
             "Object storage (unstructured files, accessed via API): S3 (AWS), Blob Storage (Azure), Cloud Storage (GCP).",
             "Block storage (attached disks for VMs): EBS (AWS), Managed Disks (Azure), Persistent Disk (GCP).",
             "File storage (shared network filesystems): EFS (AWS), Azure Files, Filestore (GCP).",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "The same operation, three CLIs",
+          description:
+            "Listing object storage buckets looks different on each provider's CLI, but it's the same underlying concept — this is the pattern that repeats across almost every service.",
+          lines: [
+            { text: "aws s3 ls" },
+            { text: "2024-01-15 09:32:11 acme-monthly-reports", output: true },
+            { text: "2024-02-03 14:07:45 acme-app-assets", output: true },
+            { text: "az storage account list --output table" },
+            { text: "Name              ResourceGroup    Location    Kind", output: true },
+            { text: "acmestorage001    acme-rg          eastus      StorageV2", output: true },
+            { text: "gcloud storage buckets list --format='value(name)'" },
+            { text: "acme-monthly-reports-gcs", output: true },
           ],
         },
         {
@@ -117,12 +145,41 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "chart",
+          heading: "Reserved vs. on-demand pricing, roughly",
+          description:
+            "Committing to a term cuts the hourly rate substantially — the tradeoff is flexibility, not risk of a worse deal.",
+          chartType: "bar",
+          unit: "$/month (equivalent instance)",
+          data: [
+            { label: "On-Demand", value: 70 },
+            { label: "1-Year Reserved", value: 49 },
+            { label: "3-Year Reserved", value: 21 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Common cost traps",
           bullets: [
             "Orphaned resources. A deleted VM's attached storage volume keeps billing indefinitely until someone notices.",
             "Over-provisioned instances. Defaulting to a large instance \"to be safe\" when a smaller one would fit.",
             "Cross-region or cross-AZ data transfer inside your own architecture, often billed even though it feels \"internal.\"",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Finding orphaned EBS volumes",
+          description:
+            "The exact command that turns \"orphaned storage\" from a vague warning into a concrete, billable list.",
+          lines: [
+            {
+              text: "aws ec2 describe-volumes --filters Name=status,Values=available --query 'Volumes[].[VolumeId,Size,CreateTime]' --output table",
+            },
+            { text: "----------------------------------------------------------------", output: true },
+            { text: "|  vol-0a1b2c3d4e5f6g7h8  |  100  |  2023-11-02T03:14:22Z  |", output: true },
+            { text: "|  vol-0f9e8d7c6b5a4321f  |   50  |  2024-01-19T22:41:07Z  |", output: true },
+            { text: "|  vol-0123abc456def7890  |  200  |  2024-02-27T11:05:53Z  |", output: true },
+            { text: "----------------------------------------------------------------", output: true },
           ],
         },
         {
@@ -207,6 +264,25 @@ export const course: CourseSeed = {
             "Spreading compute across at least two AZs, behind a load balancer that only routes to instances passing a health check — one AZ going down removes its instances from rotation instead of taking the app down.",
             "Managed databases with multi-AZ replication (e.g., RDS Multi-AZ) that fail over to a synced standby in a different AZ automatically, instead of a single-AZ database with a nightly backup and hours of recovery time.",
             "Auto Scaling Groups that replace a failed instance and can add capacity under load — the same self-healing pattern as a Kubernetes Deployment, applied at the VM level.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Checking target health across Availability Zones",
+          description:
+            "This is what \"only routes to instances passing a health check\" looks like from the command line — one AZ's instance dropping out of rotation without anyone paging.",
+          lines: [
+            {
+              text: "aws elbv2 describe-target-health --target-group-arn arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/web-app/6d0ecf831eec9f09",
+            },
+            { text: "TargetHealthDescriptions:", output: true },
+            { text: "  - Target: i-0a1b2c3d4e5f6g7h8 (us-east-1a)  State: healthy", output: true },
+            { text: "  - Target: i-0f9e8d7c6b5a4321f (us-east-1a)  State: healthy", output: true },
+            {
+              text: "  - Target: i-0123abc456def7890 (us-east-1b)  State: unhealthy  Reason: Target.Timeout",
+              output: true,
+            },
+            { text: "  - Target: i-0987fed654cba3210 (us-east-1b)  State: healthy", output: true },
           ],
         },
         {

@@ -83,6 +83,20 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "chart",
+          heading: "Breaches by initial vector",
+          description: "The human vector dwarfs the purely technical ones — which is exactly why awareness training is treated as a real control, not a formality.",
+          chartType: "bar",
+          unit: "% of breaches",
+          data: [
+            { label: "Phishing / social engineering", value: 36 },
+            { label: "Misconfiguration", value: 18 },
+            { label: "Credential stuffing / brute force", value: 20 },
+            { label: "Injection (SQLi / XSS)", value: 15 },
+            { label: "Other", value: 11 },
+          ],
+        },
+        {
           kind: "summary",
           heading: "The practical implication",
           bullets: [
@@ -123,6 +137,17 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "diagram",
+          heading: "Defense in depth, layer by layer",
+          description: "An attacker has to get through every layer, not just one, before reaching the actual data.",
+          steps: [
+            { label: "Network", detail: "Firewall rules" },
+            { label: "Application", detail: "Input validation, authentication, authorization" },
+            { label: "Data", detail: "Encryption at rest" },
+            { label: "Monitoring", detail: "Logging and alerting" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why both principles together matter",
@@ -148,6 +173,17 @@ export const course: CourseSeed = {
             "Multi-factor authentication (MFA) — a stolen password alone shouldn't be enough. MFA stops the overwhelming majority of credential-based attacks even when a password is compromised.",
             "Backups, tested — a backup never tested for restoration isn't reliable, it's an assumption. Ransomware specifically targets backups, which is why an offline or immutable backup copy matters.",
             "Logging and monitoring — a breach not noticed for months does far more damage than one caught within hours. Centralized logging and basic alerting turns \"we found out three months later\" into \"we caught this within the hour.\"",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Mean time to detect a breach",
+          description: "\"We found out three months later\" versus \"we caught this within the hour\" — the difference is centralized logging and alerting, not luck.",
+          chartType: "bar",
+          unit: "days",
+          data: [
+            { label: "No centralized logging", value: 90 },
+            { label: "With logging & alerting", value: 1 },
           ],
         },
         {
@@ -213,6 +249,23 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "terminal",
+          heading: "Hashing vs. encrypting from the command line",
+          description:
+            "The hash below can never be turned back into the original password — only compared against. The encrypted file below can be decrypted back, but only by someone who has the same symmetric key.",
+          lines: [
+            { text: "openssl dgst -sha256 <<< 'CorrectHorseBatteryStaple'" },
+            {
+              text: "SHA2-256(stdin)= 2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a",
+              output: true,
+            },
+            { text: "openssl enc -aes-256-cbc -salt -in report.csv -out report.csv.enc -k SecretKey123" },
+            { text: "openssl enc -d -aes-256-cbc -in report.csv.enc -out report.csv.dec -k SecretKey123" },
+            { text: "diff report.csv report.csv.dec" },
+            { text: "(no output — the decrypted file is byte-for-byte identical)", output: true },
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "Hashing and encryption are not interchangeable",
@@ -265,6 +318,18 @@ export const course: CourseSeed = {
           hint: "The phishing click is the trigger, but least privilege is about limiting what a compromised account can reach regardless of how it got compromised.",
           solution:
             "What went wrong: the analyst's account has far more access than her job requires — a marketing role has no legitimate need to read HR and finance documents, but the broad \"All Staff\" group grants it anyway. This is a least-privilege failure, not just a phishing failure — the phishing email is only the trigger; the actual damage (reach into HR/finance data) came from over-broad access that had nothing to do with her actual job. Fixes: (1) Restructure group membership so \"All Staff\" grants only what every employee genuinely needs (e.g., the company directory, HR self-service for their own records) and move sensitive document access to narrower, role-specific groups — this directly limits the blast radius of any single compromised account, regardless of how it's compromised. (2) Add MFA on top of the password, so a phished password alone isn't sufficient to log in at all — this is a defense-in-depth layer independent of the access-scoping fix, so even if the least-privilege fix were somehow incomplete, this second control still blocks the specific attack described.",
+        },
+        {
+          kind: "diagram",
+          heading: "Responding to the compromised account above",
+          description: "The same five stages apply whether the trigger was phishing, a leaked credential, or a misconfiguration.",
+          steps: [
+            { label: "Detect", detail: "Alert fires on an unusual login or access pattern" },
+            { label: "Contain", detail: "Disable the account, revoke active sessions" },
+            { label: "Eradicate", detail: "Reset credentials, close the phishing/access gap" },
+            { label: "Recover", detail: "Restore access scoped to least privilege, not the old broad grant" },
+            { label: "Review", detail: "Audit group membership so the same over-broad access can't recur" },
+          ],
         },
         {
           kind: "summary",

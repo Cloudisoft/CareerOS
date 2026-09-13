@@ -45,6 +45,23 @@ applyDiscount(100, "10");
 // to parameter of type 'number'.`,
         },
         {
+          kind: "terminal",
+          heading: "What tsc actually prints",
+          description: "Running the type checker directly shows the exact error your editor is underlining live — before the code ever ships.",
+          lines: [
+            { text: "npx tsc discount.ts" },
+            {
+              text: "discount.ts:5:19 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.",
+              output: true,
+            },
+            { text: "", output: true },
+            { text: "5 applyDiscount(100, \"10\");", output: true },
+            { text: "                    ~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in discount.ts:5", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "What types actually buy you",
           bullets: [
@@ -104,6 +121,20 @@ function handleUnknown(value: unknown) {
     value.toUpperCase(); // fine — TypeScript now knows it's a string
   }
 }`,
+        },
+        {
+          kind: "terminal",
+          heading: "Compiling the any vs. unknown example",
+          description: "Only the unknown version stops the compiler — the any version compiles with zero complaints, which is exactly the danger.",
+          lines: [
+            { text: "npx tsc types.ts --noEmit" },
+            { text: "types.ts:6:9 - error TS18046: 'value' is of type 'unknown'.", output: true },
+            { text: "", output: true },
+            { text: "6   value.toUpperCase();", output: true },
+            { text: "          ~~~~~~~~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in types.ts:6", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -257,6 +288,18 @@ const num = firstElementBad([1, 2, 3]);
 num.toUpperCase(); // no error — but this crashes at runtime!`,
         },
         {
+          kind: "terminal",
+          heading: "It compiles cleanly — then blows up at runtime",
+          description: "This is exactly the gap type safety is supposed to close: tsc finds nothing wrong here, but running the compiled JavaScript crashes.",
+          lines: [
+            { text: "npx tsc bad.ts --noEmit" },
+            { text: "(no output — 0 errors)", output: true },
+            { text: "node bad.js" },
+            { text: "TypeError: num.toUpperCase is not a function", output: true },
+            { text: "    at Object.<anonymous> (bad.js:4:1)", output: true },
+          ],
+        },
+        {
           kind: "example",
           heading: "The same function, generic",
           body: "T is a placeholder for \"whatever type gets passed in.\" TypeScript fills it in at the call site and keeps the connection between input and output type.",
@@ -270,6 +313,20 @@ num.toUpperCase();                        // Error — correctly caught!
 
 const name = firstElement(["Ada", "Grace"]); // T is inferred as string
 name.toUpperCase();                          // fine — TypeScript knows it's a string`,
+        },
+        {
+          kind: "terminal",
+          heading: "This time tsc catches it before node ever runs",
+          description: "Same mistake, generic version — the exact bug from the previous slide is now a compile error instead of a runtime crash.",
+          lines: [
+            { text: "npx tsc good.ts --noEmit" },
+            { text: "good.ts:4:5 - error TS2339: Property 'toUpperCase' does not exist on type 'number'.", output: true },
+            { text: "", output: true },
+            { text: "4 num.toUpperCase();", output: true },
+            { text: "      ~~~~~~~~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in good.ts:4", output: true },
+          ],
         },
         {
           kind: "bullets",
@@ -330,6 +387,18 @@ function render(state: LoadState) {
       return state.message; // .message only exists here
   }
 }`,
+        },
+        {
+          kind: "diagram",
+          heading: "Narrowing a discriminated union",
+          description: "state.kind is checked once, and every branch below narrows to only the fields that variant actually has.",
+          steps: [
+            { label: "state: LoadState", detail: "Could be any of the three variants" },
+            { label: "switch (state.kind)", detail: "TypeScript narrows based on this one check" },
+            { label: "case \"loading\"", detail: "state has no other fields here" },
+            { label: "case \"success\"", detail: "state.data is now known to exist" },
+            { label: "case \"error\"", detail: "state.message is now known to exist" },
+          ],
         },
         {
           kind: "bullets",
