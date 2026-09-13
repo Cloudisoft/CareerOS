@@ -55,12 +55,37 @@ export function useVoiceInput(onFinalText: (text: string) => void) {
     setSupported(Boolean(getRecognitionCtor()));
   }, []);
 
-  function start() {
+  async function start() {
     setError(null);
     const Ctor = getRecognitionCtor();
     if (!Ctor) {
       setError("Your browser doesn't support voice dictation. Try Chrome or Edge.");
       return;
+    }
+
+    /**
+     * Explicitly requesting the mic via getUserMedia first — rather than
+     * just calling recognition.start() and hoping the browser surfaces its
+     * own prompt — guarantees the standard native "Allow microphone access"
+     * dialog appears up front, and lets us react to a denial immediately
+     * with a clear message instead of waiting on SpeechRecognition's own
+     * (less consistent, browser-dependent) permission handling.
+     */
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (err) {
+        const name = err instanceof Error ? err.name : "";
+        if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+          setError("Microphone access was denied. Allow microphone access for this site in your browser settings, then try again.");
+        } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+          setError("No microphone was found. Check that a microphone is connected and not in use by another app.");
+        } else {
+          setError("Couldn't access your microphone. Please try again.");
+        }
+        return;
+      }
     }
 
     const recognition = new Ctor();

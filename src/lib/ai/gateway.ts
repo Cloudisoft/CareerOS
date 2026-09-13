@@ -132,14 +132,15 @@ class OpenAiCompatibleProvider implements AiProvider {
 
   private async complete(messages: { role: "system" | "user" | "assistant"; content: string }[], maxTokens: number): Promise<string> {
     /**
-     * OpenAI's own Chat Completions endpoint rejects `max_tokens` for its
-     * newer reasoning/GPT-5-family models with a 400 ("Unsupported
-     * parameter") and requires `max_completion_tokens` instead. OpenRouter
-     * and AgentRouter are aggregators with their own stable request
-     * contract — they translate to whatever the underlying model needs, so
-     * they keep taking `max_tokens` regardless of the backend model.
+     * OpenAI's reasoning/GPT-5-family models reject `max_tokens` with a 400
+     * ("Unsupported parameter") and require `max_completion_tokens` instead
+     * — and this is a constraint of the underlying MODEL, not the transport,
+     * so it applies whether that model is reached directly or proxied
+     * through an aggregator that passes requests through close to verbatim
+     * (which is why this was surfacing as a failure via OpenRouter too, not
+     * only the direct OpenAI provider).
      */
-    const tokenParam = this.name === "openai" ? "max_completion_tokens" : "max_tokens";
+    const tokenParam = usesMaxCompletionTokens(this.model) ? "max_completion_tokens" : "max_tokens";
 
     let response: Response;
     try {
@@ -188,6 +189,14 @@ class OpenAiCompatibleProvider implements AiProvider {
   }
 }
 
+/** OpenAI's o-series reasoning models and the GPT-5 family all require
+    `max_completion_tokens` instead of `max_tokens` — matched on the model
+    name itself (stripping any router-style "openai/" prefix) since the
+    constraint follows the model regardless of which provider serves it. */
+function usesMaxCompletionTokens(model: string): boolean {
+  return /^(o1|o3|o4|gpt-5)/i.test(model.replace(/^openai\//i, ""));
+}
+
 const PROVIDER_BASE_URL: Record<"openrouter" | "agentrouter" | "openai", string> = {
   openrouter: "https://openrouter.ai/api/v1",
   agentrouter: "https://agentrouter.org/v1",
@@ -219,58 +228,48 @@ function buildProvider(name: AiProviderName): AiProvider | null {
   }
 }
 
-let cachedPrimary: AiProvider | null | undefined;
-let cachedFallback: AiProvider | null | undefined;
+let cachedProviders: AiProvider[] | undefined;
 
-function getPrimaryProvider(): AiProvider {
-  if (cachedPrimary !== undefined) return cachedPrimary ?? new MockAiProvider();
+/**
+ * Every configured provider, in resolution order — not just a primary plus
+ * one hardcoded fallback. With OpenRouter, AgentRouter, and OpenAI all
+ * holding real keys (a common real-world setup), a single provider having a
+ * bad day — rate limits, a transient 5xx, a model-specific quirk — no
+ * longer fails the whole request; withFallback walks the rest of this list
+ * before giving up.
+ */
+function getAvailableProviders(): AiProvider[] {
+  if (cachedProviders !== undefined) return cachedProviders;
 
   const requested = process.env.AI_PROVIDER as AiProviderName | undefined;
   const resolutionOrder: AiProviderName[] = requested
     ? [requested]
     : ["anthropic", "openrouter", "agentrouter", "openai"];
 
-  cachedPrimary = null;
-  for (const name of resolutionOrder) {
-    const provider = buildProvider(name);
-    if (provider) {
-      cachedPrimary = provider;
-      break;
-    }
-  }
-  return cachedPrimary ?? new MockAiProvider();
-}
-
-/**
- * OpenAI (direct) is the standing fallback for every OpenAI-compatible or
- * Anthropic primary — it's only skipped when OPENAI_API_KEY is unset or it
- * IS the primary provider already.
- */
-function getFallbackProvider(primary: AiProvider): AiProvider | null {
-  if (cachedFallback !== undefined) return cachedFallback && cachedFallback.name !== primary.name ? cachedFallback : null;
-
-  cachedFallback = buildProvider("openai");
-  return cachedFallback && cachedFallback.name !== primary.name ? cachedFallback : null;
+  cachedProviders = resolutionOrder.map(buildProvider).filter((p): p is AiProvider => p !== null);
+  return cachedProviders;
 }
 
 async function withFallback<T>(run: (provider: AiProvider) => Promise<T>): Promise<{ result: T; provider: AiProviderName }> {
-  const primary = getPrimaryProvider();
-  try {
-    return { result: await run(primary), provider: primary.name };
-  } catch (primaryError) {
-    if (primary.name === "mock") throw primaryError;
+  const providers = getAvailableProviders();
+  if (providers.length === 0) return { result: await run(new MockAiProvider()), provider: "mock" };
 
-    const fallback = getFallbackProvider(primary);
-    if (!fallback) throw primaryError;
-
-    console.error(`AI provider "${primary.name}" failed, retrying against fallback "${fallback.name}":`, primaryError);
+  let lastError: unknown;
+  for (let i = 0; i < providers.length; i++) {
+    const provider = providers[i];
     try {
-      return { result: await run(fallback), provider: fallback.name };
-    } catch (fallbackError) {
-      console.error(`AI fallback provider "${fallback.name}" also failed:`, fallbackError);
-      throw fallbackError;
+      return { result: await run(provider), provider: provider.name };
+    } catch (error) {
+      lastError = error;
+      const isLast = i === providers.length - 1;
+      if (isLast) {
+        console.error(`AI provider "${provider.name}" failed (last available provider):`, error);
+        break;
+      }
+      console.error(`AI provider "${provider.name}" failed, trying next provider "${providers[i + 1].name}":`, error);
     }
   }
+  throw lastError;
 }
 
 export async function generateText(input: GenerateTextInput): Promise<GenerateTextResult> {
