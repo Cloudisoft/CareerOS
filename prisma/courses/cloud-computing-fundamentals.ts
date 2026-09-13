@@ -43,6 +43,31 @@ export const course: CourseSeed = {
           body: "Functions-as-a-Service (AWS Lambda, Azure Functions, Google Cloud Functions) takes PaaS further: you deploy individual functions, the platform handles provisioning, scaling, and teardown entirely, and you pay per invocation rather than for idle capacity. The tradeoff is cold-start latency and execution time limits.",
         },
         {
+          kind: "bullets",
+          heading: "A concrete decision framework",
+          intro: "Same Node.js API, three layers — the right one depends on the shape of the traffic and the team, not on which is \"more modern\":",
+          bullets: [
+            "Steady, predictable traffic and a team that wants full control over the runtime (custom system packages, a specific kernel tuning) — IaaS (EC2). You own patching, but nothing about the environment is guessed at.",
+            "Steady traffic, no need for OS-level control, and a team that wants to stop thinking about servers — PaaS (Elastic Beanstalk, App Engine). You deploy code and the platform keeps the instances patched and running.",
+            "Spiky or unpredictable traffic — bursts a few times a day, long idle stretches overnight — FaaS (Lambda). You pay only for the milliseconds of actual execution, instead of an EC2 instance idling at 2am.",
+            "A live video-processing pipeline with strict, consistent low-latency requirements — usually IaaS or containers on Kubernetes, because cold starts and per-invocation overhead make serverless a poor fit for sustained, latency-sensitive workloads.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Moving up the stack trades control for lock-in",
+          body: "A Lambda function written against AWS's event and context objects, IAM execution role, and API Gateway integration doesn't move to Azure Functions with a find-and-replace — the surrounding plumbing is provider-specific. An EC2 instance running a standard Linux distro migrates to another cloud (or on-prem) far more easily, because there's less proprietary surface area between your code and the raw compute. Neither choice is wrong, but \"just use serverless, it's easier\" quietly signs you up for a harder exit later.",
+        },
+        {
+          kind: "text",
+          heading: "Where the math on serverless flips",
+          body: [
+            "Serverless pricing looks cheap because idle time is free — but at sustained high volume, per-invocation billing can cost more than a reserved instance running the same workload continuously. A function handling 50 million invocations a month, each running for a few hundred milliseconds, can easily cost more on Lambda than a couple of reserved t3.large instances handling the same steady load.",
+            "The rule of thumb: serverless wins on spiky or low-volume traffic where you'd otherwise pay for idle capacity; reserved or on-demand compute wins once traffic is high enough and steady enough that you'd be running near-continuously anyway.",
+          ],
+        },
+        {
           kind: "diagram",
           heading: "Increasing abstraction, decreasing control",
           description:
@@ -114,6 +139,35 @@ export const course: CourseSeed = {
           body: [
             "Each provider offers managed relational databases (AWS RDS, Azure SQL Database, Cloud SQL) and managed NoSQL options (DynamoDB, Cosmos DB, Firestore/Bigtable) — the managed part is the key value: automated backups, patching, and failover without running the database software yourself.",
             "All three share the same core networking concepts under different names: a virtual private network (VPC in AWS/GCP, VNet in Azure), subnets, security groups/firewall rules, load balancers, and a managed DNS service (Route 53, Azure DNS, Cloud DNS).",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Storage tiers: the same cost lever, three names",
+          intro: "Object storage isn't one price — every provider lets you pick a tier based on how often you'll actually read the data, and picking the wrong one is a recurring, easy-to-miss cost mistake:",
+          bullets: [
+            "AWS S3: Standard (frequent access) → Standard-IA (infrequent, cheaper storage, per-GB retrieval fee) → Glacier (archival, retrieval takes minutes to hours).",
+            "Azure Blob Storage: Hot → Cool → Archive — same shape, same tradeoff: cheaper storage in exchange for a retrieval cost and, for Archive, a rehydration delay.",
+            "GCP Cloud Storage: Standard → Nearline → Coldline → Archive, with the same pattern extended one tier further.",
+            "The trap: leaving rarely-accessed data (old logs, backups) in the default \"Standard\" tier indefinitely — a lifecycle policy that auto-transitions objects after N days is the fix, not manually reviewing buckets.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Messaging and eventing",
+          intro: "Decoupling services with a queue or event bus follows the same mapping as everything else:",
+          bullets: [
+            "Message queues (point-to-point, one consumer processes each message): SQS (AWS), Service Bus Queues (Azure), Pub/Sub with a single subscriber (GCP).",
+            "Pub/sub fan-out (one event, many independent consumers): SNS (AWS, usually paired with SQS per subscriber), Event Grid (Azure), Pub/Sub (GCP, natively many-subscriber).",
+            "The concept that matters more than any product name: decoupling a producer from a consumer through a durable broker, so a downstream service being slow or down doesn't block or lose the request that triggered it.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "IAM and identity — the part most people skim past",
+          body: [
+            "Every provider has an identity and access layer controlling who (or what service) can do what: IAM (AWS), Azure AD/Entra ID with role-based access control (Azure), Cloud IAM (GCP). The concepts map directly — a user or service identity, a role or policy defining allowed actions, and a binding attaching that role to that identity on a specific resource.",
+            "The default failure mode is identical across all three: attaching a broad, pre-built \"admin\" or \"contributor\" role to a service account because scoping a custom policy down to the three actions it actually needs takes more effort. That gap between granted and needed permission is where most real cloud breaches start — not from the provider's IAM system being weak.",
           ],
         },
         {
