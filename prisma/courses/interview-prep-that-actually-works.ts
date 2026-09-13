@@ -41,6 +41,26 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "example",
+          heading: "A complete STAR answer, for scale",
+          body: "Notice how little space Situation and Task take relative to Action — that proportion is the whole point of the shape.",
+          code: `Q: "Tell me about a time you managed a tight deadline."
+
+S/T: "Our team had three weeks to migrate a client's data
+before a contract deadline, and I was the one coordinating
+the technical handoff."
+
+A: "I mapped every dependency first, found that two steps
+could run in parallel instead of sequentially, negotiated a
+day of contractor help for the highest-risk piece, and ran
+daily 10-minute check-ins so we caught two blockers early
+instead of at the deadline."
+
+R: "We delivered two days ahead of schedule with zero data
+issues post-migration, and the parallel-run approach became
+the template for the next three migrations."`,
+        },
+        {
           kind: "bullets",
           heading: "Where people go wrong",
           bullets: [
@@ -49,6 +69,12 @@ export const course: CourseSeed = {
             "Skipping Result entirely. An answer that ends on an action with no outcome leaves the interviewer to guess whether it worked.",
             "Picking a story that's actually about someone else. If your best example of \"handling conflict\" is really a story where your manager resolved it, it doesn't answer the question that was asked.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "\"What I would do\" isn't an answer",
+          body: "A behavioral question asks for a real, past example — answering in the hypothetical (\"I would probably talk to the person directly and try to find common ground\") dodges the actual question, even when it's not intentional. If you catch yourself sliding into hypothetical language, stop and ask which real situation you're actually describing before continuing.",
         },
         {
           kind: "text",
@@ -81,12 +107,28 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "callout",
+          tone: "warning",
+          heading: "The trap of starting too far back",
+          body: "A common failure mode is opening with \"So I grew up in...\" or \"I went to college for...\" — starting from the most distant point in your history instead of where you are now. It buries the relevant information at the end of a long answer, right when the interviewer's attention is starting to drift. Always start with your current role, then work backward only as far as the story actually needs.",
+        },
+        {
           kind: "bullets",
           heading: "What to leave out",
           bullets: [
             "Personal life details unrelated to the role (this isn't the moment for them, even framed positively).",
             "A full chronological work history — that's what the resume is for.",
             "Self-deprecating framing (\"I don't know, I guess I just kind of fell into this\") that undercuts an otherwise strong background.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Adjusting the answer for your situation",
+          bullets: [
+            "Career changer: spend slightly more time on \"how you got here,\" since the through-line is doing real work connecting two things that don't obviously relate — but still land on \"why this role\" clearly.",
+            "Internal move or referral: you can assume more shared context, so trim the \"how you got here\" section further and spend more time on why this specific role, since the interviewer likely already knows your background.",
+            "A panel or group interview: keep it just as tight, but make eye contact around the room rather than fixating on whoever asked — this is a small thing interviewers do notice.",
+            "If asked this in a later round after already giving it once: don't repeat the same script verbatim to someone new in the loop — that's fine and expected — but do tighten it further, since by this stage they've likely already read your resume closely.",
           ],
         },
         {
@@ -122,10 +164,47 @@ company]."`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "More questions, same underlying pattern",
+          intro: "The specific wording changes, but each one is still testing a trait, not asking for a story for its own sake.",
+          bullets: [
+            "\"Tell me about a time you had to persuade someone who disagreed with you.\" → Influence without authority — whether you build a case and bring people along, rather than just repeating your position louder.",
+            "\"Tell me about a time you missed a deadline.\" → Ownership and how you handle it in the moment, not whether you've ever missed one — everyone has. What matters is whether you flagged it early, mitigated the impact, and what changed afterward.",
+            "\"Tell me about a time you received difficult feedback.\" → Coachability. The strongest answers show a real behavior change afterward, not just \"I took it well.\"",
+            "\"Tell me about a time you had to lead without formal authority.\" → Whether you can drive an outcome through influence and clarity, not a title — common for cross-functional and early-management scenarios.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "The same question, a weak answer and a strong one",
+          body: "The weak version isn't dishonest — it's just vague enough that the interviewer can't actually evaluate anything from it.",
+          code: `Q: "Tell me about a conflict with a coworker."
+
+Weak: "I had a disagreement with a coworker once about how to
+approach a project, but we talked it out and it was fine in
+the end."
+
+Strong: "A coworker and I disagreed on whether to rebuild a
+reporting tool from scratch or patch the existing one. I asked
+to walk through their reasoning first, then proposed we each
+timebox a half-day spike to compare real effort. The spike
+showed patching was faster, which they hadn't expected — we
+went with it, and the direct comparison meant neither of us
+had to just defer to the other's opinion."`,
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "The trap: the answer that avoids the question",
           body: "A common failure mode is answering \"tell me about a failure\" with a humble-brag disguised as a weakness (\"I just work too hard and forget to take breaks\"). Interviewers hear this often enough to recognize it immediately, and it reads as evasive rather than self-aware.",
+        },
+        {
+          kind: "text",
+          heading: "Why interviewers ask about failure and conflict at all",
+          body: [
+            "It can feel like a trap, but the reasoning is straightforward: everyone has failed and everyone has had conflict, so these questions are less about the topic and more about whether you can talk about a real weak moment honestly and specifically — a skill that correlates with how you'll actually handle the next hard moment on the job.",
+            "There's a calibration problem on both ends. Underdisclosing (a fake-flaw humble-brag, as covered above) reads as evasive. Overdisclosing — a story so raw or severe it makes the interviewer uncomfortable, or one where you're clearly still upset about it — can read as poor judgment about what's appropriate to share in a professional setting. The target is a real, specific example, told with enough distance that you sound reflective rather than defensive or raw.",
+          ],
         },
         {
           kind: "text",
@@ -134,6 +213,12 @@ company]."`,
             "Know your story bank, but don't memorize word-for-word scripts — you'll sound stiff, and a follow-up question will throw you off.",
             "Instead, know the shape of each story well enough that you could tell it starting from any point, because interviewers often ask a targeted follow-up like \"what would you do differently?\" that a memorized script doesn't cover.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Expect the follow-up question",
+          body: "A common second question after any behavioral answer is some version of \"what would you do differently?\" or \"how did the other person react?\" A rehearsed script usually only covers the first version of the story and falls apart under a follow-up — knowing your story well enough to improvise from any point (not memorizing it word for word) is what actually holds up here.",
         },
       ],
     },
@@ -157,6 +242,23 @@ company]."`,
           ],
         },
         {
+          kind: "example",
+          heading: "What narrating actually sounds like",
+          body: "None of this is more \"correct\" than staying silent and thinking — it's slower in the moment and evaluates better, because the interviewer can follow the reasoning instead of just the destination.",
+          code: `"So if I'm understanding this right, I need to find the two
+numbers in this list that sum to the target — got it.
+
+I'll start with the brute-force approach first, just to make
+sure I have something working: check every pair, which is
+O(n²). Let me code that up quickly.
+
+...Okay, that works on the example. Now, I think I can do
+better with a hash map — as I iterate, I can check whether the
+complement I need has already been seen, which gets this down
+to O(n) time at the cost of O(n) space. Let me rewrite it that
+way."`,
+        },
+        {
           kind: "diagram",
           heading: "The thinking-out-loud loop",
           description: "The same loop repeats as you work — restate, propose, try, and narrate what happens, rather than going quiet and presenting a finished answer.",
@@ -168,10 +270,27 @@ company]."`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Case interviews: the same principle, a different shape",
+          intro: "Business case interviews (common in consulting, strategy, and some product roles) reward the same thinking-out-loud habit, applied to a different kind of problem.",
+          bullets: [
+            "Clarify the actual objective before structuring anything — \"grow revenue\" and \"grow profit\" call for different analyses, and guessing wrong wastes the whole case.",
+            "Structure the problem into a small number of clear buckets out loud (e.g., \"I'd look at this through pricing, volume, and cost\") before diving into any one of them — this is the case-interview equivalent of narrating your plan before coding.",
+            "State assumptions explicitly and ask if they're reasonable, rather than silently picking a number: \"I'll assume average order value is roughly $50 unless you have a real figure — does that seem right?\"",
+            "Land on a clear recommendation at the end, not just an analysis — a case that ends in \"so there are a few options\" without a stated call is an unfinished answer.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Ask clarifying questions early",
           body: "Jumping straight to a solution on an underspecified problem is a common mistake. A question like \"what's the expected scale here?\" or \"should I assume the data is already cleaned?\" often matters more to the evaluation than the eventual answer, because it shows you don't assume — you check.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The mistake of solving before planning",
+          body: "Jumping straight into code or a spreadsheet before stating an approach out loud is one of the most common ways a technically correct answer still evaluates poorly — the interviewer loses the thread of your reasoning and is left inferring your process from the result alone. State the plan first, even briefly, before executing it.",
         },
         {
           kind: "text",
@@ -214,12 +333,43 @@ company]."`,
         },
         {
           kind: "bullets",
+          heading: "Matching the question to who's asking",
+          intro: "The best question for a recruiter screen isn't always the best one for a peer interview or a hiring-manager round — tailor which questions you lead with.",
+          bullets: [
+            "Recruiter screen: process and timeline questions fit naturally here — \"what does the full interview process look like?\" or \"what's the typical timeline from here?\" — without feeling out of place.",
+            "Hiring manager: lead with questions about the role's success metrics, priorities, and how the team is structured — they're the person best positioned to answer with real specifics.",
+            "Peer / would-be teammate: ask what they'd want someone new on the team to hit the ground running on, or what they'd change about how the team works if they could — peers tend to answer more candidly than a manager would.",
+            "Skip-level or executive round: broader questions about company direction or how the team's work ties to larger goals land better here than day-to-day process questions.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Following an answer instead of moving to the next question",
+          body: "The follow-up is what separates a real conversation from a list being read off a notes app — and it costs nothing but genuine attention to what they just said.",
+          code: `Interviewer: "The biggest challenge right now is probably
+that we're scaling faster than our onboarding docs can keep
+up with."
+
+Weak: [moves straight to the next prepared question]
+
+Better: "That's interesting — is that more a documentation
+problem, or is the process itself still evolving too fast to
+document well yet?"`,
+        },
+        {
+          kind: "bullets",
           heading: "Questions to avoid in most first rounds",
           bullets: [
             "Anything answerable from the company's website or the job posting — it signals you didn't prepare.",
             "Compensation and benefits specifics, unless the interviewer raises it first.",
             "Yes/no questions that don't open a real conversation.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Some questions land better later in the process",
+          body: "Asking about PTO policy, remote-work exceptions, or how performance reviews handle underperformance in a first-round screen can read as more concerned with the downside than the role itself — the same question in a later round, once mutual interest is established, reads as normal due diligence. Timing changes how a reasonable question is heard.",
         },
         {
           kind: "callout",

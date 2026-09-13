@@ -28,6 +28,17 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "example",
+          heading: "Something only possible outside a browser",
+          body: "Reading an arbitrary file from disk directly — no such capability exists in browser JavaScript at all, sandboxed deliberately for security. It's a small, concrete illustration of \"different capabilities, same language.\"",
+          code: `const fs = require("fs");
+
+const contents = fs.readFileSync("config.json", "utf8");
+console.log(JSON.parse(contents));
+// A browser tab has no equivalent — it can't reach an arbitrary file on the
+// visitor's disk, and for good reason.`,
+        },
+        {
           kind: "bullets",
           heading: "What that unlocks",
           bullets: [
@@ -37,10 +48,31 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "Node isn't the only JavaScript runtime outside a browser",
+          bullets: [
+            "Deno, from one of Node's original creators, ships TypeScript support and stricter security (no filesystem or network access by default) built in, aiming to fix some of Node's early design decisions.",
+            "Bun focuses heavily on raw startup and execution speed, and bundles a bundler and test runner into the runtime itself rather than treating them as separate tools.",
+            "Node remains the overwhelming default in production because of its maturity and its ecosystem — the same reason an established language rarely gets displaced purely on technical merits alone.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why \"non-blocking\" was the original pitch",
           body: "Node was built around a specific bet: that for a huge share of real server workloads — waiting on a database, a file, or a network call — a server spends most of its time waiting, not computing. Traditional server models often handled this by spinning up a new thread per connection, which gets expensive at scale. Node instead uses a single main thread that never sits idle waiting on I/O — it starts the operation, moves on, and comes back when the result is ready. The next lesson covers exactly how that works.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "global instead of window",
+          body: "A value that would live on `window` in a browser lives on `global` in Node — but reaching for it directly is rare in practice; well-written Node code deals in modules and explicit imports rather than implicit globals. The one Node global you'll actually see constantly is `process` — access to environment variables, command-line arguments, and the running process itself.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Why the npm ecosystem matters here",
+          body: "Node ships with a deliberately small standard library. Most day-to-day capability — web frameworks, database clients, testing tools — comes from npm packages layered on top, covered in a later lesson. This is a real design trade: a lean core plus an enormous package ecosystem filling in the rest, rather than a large batteries-included standard library the way some other languages ship by default.",
         },
         {
           kind: "summary",
@@ -87,6 +119,24 @@ fs.readFile("large-file.txt", (err, data) => {
 console.log("This logs before the file finishes reading");`,
         },
         {
+          kind: "example",
+          heading: "Microtasks run before the next macrotask, every time",
+          body: "Promise callbacks (microtasks) are drained completely before Node moves on to the next timer or I/O callback (a macrotask) — which is why this logs in an order that looks surprising at first glance.",
+          code: `console.log("1: sync");
+
+setTimeout(() => console.log("4: setTimeout"), 0);
+
+Promise.resolve().then(() => console.log("3: promise"));
+
+console.log("2: sync");
+
+// Actual output:
+// 1: sync
+// 2: sync
+// 3: promise      <- microtask, runs before any macrotask, even a 0ms timer
+// 4: setTimeout    <- macrotask, runs only after all pending microtasks drain`,
+        },
+        {
           kind: "bullets",
           heading: "The event loop, at a practical level",
           bullets: [
@@ -109,10 +159,26 @@ console.log("This logs before the file finishes reading");`,
           ],
         },
         {
+          kind: "text",
+          heading: "libuv: the engine underneath the event loop",
+          body: [
+            "The event loop itself isn't implemented in JavaScript — it's provided by libuv, a C library Node is built on top of, which is also what actually hands I/O operations off to the operating system or a background thread pool in the first place. You don't interact with libuv directly, but it's worth knowing the event loop is a real, separate piece of engineering underneath the JavaScript you write, not just a metaphor for \"async stuff happens later.\"",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "CPU-heavy work still blocks everything",
           body: "Non-blocking I/O only helps with waiting — it does nothing for a genuinely long computation running on the main thread, like sorting a huge array or hashing something expensive synchronously. That kind of work still blocks the single thread completely, and every other request stalls behind it, exactly like the synchronous file read above. Real CPU-bound work belongs in a worker thread or a separate process, not on the main thread of a server handling requests.",
+        },
+        {
+          kind: "bullets",
+          heading: "A timer's delay is a minimum, not a guarantee",
+          bullets: [
+            "setTimeout(fn, 1000) schedules fn to run no sooner than 1 second from now, not exactly at 1 second. If the main thread is busy with other work when that time arrives, the timer's callback waits until the thread is actually free.",
+            "This is a direct consequence of the single-threaded model: the event loop can't interrupt currently running code to fire a timer early, so a busy thread delays every pending timer equally.",
+            "process.nextTick (a Node-specific addition, not part of the general microtask queue) runs even before other microtasks like resolved promises — worth knowing the name so it doesn't seem mysterious in library code, though direct use in typical application code is uncommon.",
+          ],
         },
         {
           kind: "summary",

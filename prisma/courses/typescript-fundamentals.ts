@@ -62,6 +62,28 @@ applyDiscount(100, "10");
           ],
         },
         {
+          kind: "example",
+          heading: "TypeScript checks shape, not name — this is \"structural typing\"",
+          body: "Unlike languages where a type has to be explicitly declared as implementing an interface, TypeScript only cares whether a value has the right shape. Two unrelated types with identical fields are freely interchangeable.",
+          language: "typescript",
+          code: `interface Point { x: number; y: number }
+
+function distanceFromOrigin(p: Point): number {
+  return Math.sqrt(p.x ** 2 + p.y ** 2);
+}
+
+// This has nothing to do with Point by name — never declared as one —
+// but it has the right shape, so TypeScript accepts it without complaint
+const dot = { x: 3, y: 4, color: "red" };
+distanceFromOrigin(dot); // 5 — extra fields like color are simply ignored`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Types adopt gradually — you don't need a big-bang rewrite",
+          body: "A .js file can be renamed to .ts and will usually produce a handful of errors, not hundreds — TypeScript infers what it can and only complains where something is genuinely ambiguous. Most real migrations go file by file, and tsconfig's allowJs option even lets plain .js and typed .ts files coexist in the same project while it happens.",
+        },
+        {
           kind: "bullets",
           heading: "What types actually buy you",
           bullets: [
@@ -108,6 +130,20 @@ let anything: unknown = fetchSomeValue(); // safer alternative to "any"`,
         },
         {
           kind: "example",
+          heading: "const infers a narrower type than let does",
+          body: "This trips people up the first time they see it. let assumes you'll reassign, so TypeScript widens the type to the general string. const can never be reassigned, so TypeScript keeps the exact literal value as the type.",
+          language: "typescript",
+          code: `let status = "active";      // inferred as: string (could become anything else later)
+const role = "admin";       // inferred as: "admin" (this exact literal, forever)
+
+function setRole(role: "admin" | "editor") { /* ... */ }
+
+setRole(role);   // fine — role's type is literally "admin"
+let r = "admin";
+setRole(r);       // Error — r's type widened to string, not the literal "admin"`,
+        },
+        {
+          kind: "example",
           heading: "any vs unknown — the difference that matters",
           body: "any turns off type checking entirely for that value — it's an escape hatch that can hide real bugs. unknown says \"could be anything,\" but forces you to check before using it, which is almost always what you actually want.",
           language: "typescript",
@@ -135,6 +171,45 @@ function handleUnknown(value: unknown) {
             { text: "", output: true },
             { text: "Found 1 error in types.ts:6", output: true },
           ],
+        },
+        {
+          kind: "example",
+          heading: "Type assertions: telling the compiler what you already know",
+          body: "as overrides TypeScript's own inference when you're confident about a type it can't figure out on its own — reading from the DOM is the classic case. It's not a runtime conversion or a safety check; it only affects what the compiler believes, so an incorrect assertion compiles fine and fails at runtime instead.",
+          language: "typescript",
+          code: `const input = document.getElementById("email") as HTMLInputElement;
+input.value; // TypeScript now knows this has a .value property
+
+// The non-null assertion (!) is a narrower version of the same idea —
+// it tells TypeScript "this is never null/undefined here, trust me":
+function getUser(id: string): User | undefined { /* ... */ return undefined; }
+const user = getUser("123")!; // asserts the result isn't undefined
+user.name; // compiles — but throws at runtime if getUser really did return undefined
+
+// Prefer a real check over ! whenever you can — it fails loudly instead
+// of asserting past a bug that a narrowing check would have caught`,
+        },
+        {
+          kind: "example",
+          heading: "Enums vs union literals for a fixed set of values",
+          body: "TypeScript has a built-in enum construct, but most modern codebases prefer a plain union of string literals for the same job — it's simpler, and the values are the actual strings you'd log or send over the network, not an indirect numeric reference.",
+          language: "typescript",
+          code: `// enum — generates real runtime JavaScript, and by default backs each
+// member with a number, not the label you typed:
+enum Status { Pending, Active, Cancelled }
+Status.Active; // 1 — not the string "Active"
+
+// Union of string literals — no runtime code generated, and the value
+// really is the readable string you compare against:
+type StatusLiteral = "pending" | "active" | "cancelled";
+const s: StatusLiteral = "active";
+s === "active"; // reads naturally, matches what you'd log or send over the wire`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A tuple's fixed length isn't fully enforced by array methods",
+          body: "let coords: [number, number] = [40.7, -74.0] correctly rejects coords = [1, 2, 3] as too many elements. But coords.push(99) compiles without complaint — push isn't aware of the tuple's fixed arity, so the array can still grow past its declared length at runtime. Tuples type-check assignment and indexed access well; they don't fully protect against mutation methods.",
         },
         {
           kind: "bullets",
@@ -180,6 +255,20 @@ function greet(user: User) {
 }`,
         },
         {
+          kind: "example",
+          heading: "readonly locks a field after the object is created",
+          body: "Marking a field readonly means it can be set when the object is built, but reassigning it afterward is a compile error — useful for an id or createdAt that should never legitimately change once the object exists.",
+          language: "typescript",
+          code: `interface Invoice {
+  readonly id: string;
+  total: number;
+}
+
+const invoice: Invoice = { id: "inv_1", total: 100 };
+invoice.total = 150;  // fine — total isn't readonly
+invoice.id = "inv_2";  // Error: Cannot assign to 'id' because it is a read-only property`,
+        },
+        {
           kind: "bullets",
           heading: "When the difference actually matters",
           bullets: [
@@ -202,6 +291,48 @@ function setStatus(status: Status) {
 
 setStatus("active");   // fine
 setStatus("archived"); // Error: not assignable to type 'Status'`,
+        },
+        {
+          kind: "example",
+          heading: "Intersection types: combining shapes with &",
+          body: "Where a union means \"one of these,\" an intersection means \"all of these at once.\" It's the type-only equivalent of the spread pattern you'd use at runtime to merge two objects, and it's how you attach extra fields to a type you don't control.",
+          language: "typescript",
+          code: `type Timestamped = { createdAt: Date; updatedAt: Date };
+type User = { id: string; name: string };
+
+type TimestampedUser = User & Timestamped;
+// has every field from both: id, name, createdAt, updatedAt — all required
+
+const u: TimestampedUser = {
+  id: "1",
+  name: "Ada",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}; // missing any one of the four fields is a compile error`,
+        },
+        {
+          kind: "example",
+          heading: "Index signatures type an object used as a dictionary",
+          body: "When you don't know the exact keys ahead of time — a config object, a lookup built from user input — an index signature says \"every key is a string, and every value has this type,\" without listing the keys individually.",
+          language: "typescript",
+          code: `interface WordCounts {
+  [word: string]: number;
+}
+
+const counts: WordCounts = {};
+counts.the = 12;
+counts.and = 5;
+counts["a-word-with-dashes"] = 1; // bracket syntax works for any string key
+
+function totalWords(counts: WordCounts): number {
+  return Object.values(counts).reduce((sum, n) => sum + n, 0);
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Object literals get checked more strictly than variables",
+          body: "Passing an object literal directly to a function triggers TypeScript's \"excess property check\": greet({ name: \"Ada\", extra: true }) errors immediately if greet expects only { name: string }. But store that same object in a variable first — const obj = { name: \"Ada\", extra: true }; greet(obj); — and it compiles, because the check only applies to literals written right at the call site, not to values assigned earlier. Both are equally wrong at runtime; only the literal form catches it at compile time.",
         },
         {
           kind: "callout",
@@ -242,6 +373,28 @@ function findUser(id: string): User | undefined {
             "They document the contract for every caller without needing comments.",
             "For a public or shared function, an explicit return type is cheap insurance — TypeScript can infer it, but making it explicit means a future edit that accidentally changes the return shape gets flagged right there.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "Async functions are typed by what they resolve to, not a promise you write yourself",
+          body: "An async function's return type is automatically wrapped in Promise<...> — you annotate the resolved value, never Promise<T> directly on the function signature itself, since TypeScript adds that wrapper for you.",
+          language: "typescript",
+          code: `async function getUser(id: string): Promise<User> {
+  const response = await fetch(\`/api/users/\${id}\`);
+  return response.json(); // TypeScript trusts this is a User — worth validating at runtime too
+}
+
+// Calling code awaits it to get the resolved User, not a Promise<User>
+const user: User = await getUser("123");
+
+// Writing Promise<Promise<User>> by hand would be a mistake here —
+// an async function never returns a nested promise; it's flattened automatically`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A callback typed to return void can still return anything",
+          body: "type Listener = () => void looks like it enforces \"don't return a value,\" but TypeScript actually allows any return value there — it just ignores it. This exists so array.forEach(item => items.push(item)) type-checks even though push returns a number: the void return type means \"the return value will be ignored,\" not \"nothing may be returned.\" It only becomes a real restriction if you explicitly assign a function expression to that type and then try to use its return value.",
         },
         {
           kind: "example",

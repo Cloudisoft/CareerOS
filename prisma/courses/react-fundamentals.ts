@@ -49,10 +49,37 @@ export const course: CourseSeed = {
 // <Greeting name="Priya" />`,
         },
         {
+          kind: "bullets",
+          heading: "Composition: how components combine",
+          intro: "Real UIs aren't one component — they're many small ones nested inside each other. A few patterns show up constantly:",
+          bullets: [
+            "Children as a prop: any component can render whatever's nested between its opening and closing tags via `props.children` — this is how generic wrappers (a Card, a Modal, a Layout) stay agnostic about what's actually inside them.",
+            "Composition over configuration: instead of one Button component with fifty boolean props trying to handle every possible variant, most React codebases favor composing smaller, more specific pieces — a PrimaryButton that wraps Button with specific styling, rather than one component trying to branch on every case internally.",
+            "A tree, not a list: the browser eventually sees one flat DOM, but your source describes a nested tree of function calls — `<Page><Sidebar /><Content><Article /></Content></Page>` — and that nesting is exactly what the render-commit cycle below walks.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Composing with children",
+          body: "Any component can accept whatever JSX is nested inside it via the special `children` prop. This is what makes wrapper components reusable without hardcoding what goes inside them.",
+          code: `function Card({ children }) {
+  return <div className="card">{children}</div>;
+}
+
+// <Card><h2>Title</h2><p>Body text</p></Card>
+// Card doesn't know or care what's inside it — it just wraps whatever is passed.`,
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Where the virtual DOM fits",
           body: "React keeps a lightweight in-memory representation of the UI, compares it to the previous version when something changes, and only touches the real DOM where something actually differs. This matters for performance, but it's an implementation detail — you almost never need to think about it directly. The mental model that actually matters day to day is simpler: given this state, what should render?",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Where class components fit today",
+          body: "Older React code and tutorials often use class components — defined with `class Foo extends React.Component`, using `this.state` and lifecycle methods like `componentDidMount` instead of hooks. Function components with hooks (covered starting next lesson) can do everything class components can, are shorter to write and read, and are what virtually all new React code uses today. You'll still run into class components in older codebases, but there's no real reason to write new ones.",
         },
         {
           kind: "diagram",
@@ -110,6 +137,36 @@ const element = React.createElement(
             "Attributes with multiple words are camelCase: `onClick`, `tabIndex`, `strokeWidth`.",
             "Anything inside curly braces `{}` is a plain JavaScript expression — a variable, a function call, a ternary. Statements like `if` or `for` don't work directly inside JSX; use expressions instead (ternaries, `&&`, array `.map`).",
             "Every tag must be closed, including ones that are self-closing in HTML: `<img />`, `<br />`.",
+            "Comments inside JSX use a JS comment wrapped in curly braces — `{/* like this */}` — not HTML's `<!-- like this -->`, which would render as literal visible text instead of being stripped out.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Rendering a list with .map()",
+          body: "JSX has no built-in loop syntax, so a list is rendered by mapping an array to an array of elements — the same plain-JavaScript-expression approach as the conditional rendering below, just applied to arrays instead of booleans.",
+          code: `function ItemList({ items }) {
+  return (
+    <ul>
+      {items.map((item) => (
+        <li key={item.id}>{item.name}</li>
+      ))}
+    </ul>
+  );
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Why every list item needs a `key`",
+          body: "The `key` prop above isn't optional styling — React uses it to match each rendered item to the same item on the next render. Skip it and React falls back to matching by position, which quietly causes real bugs once a list gets reordered, filtered, or has items inserted or removed from the middle (the \"Why Components Re-render\" lesson later in this course covers exactly why).",
+        },
+        {
+          kind: "bullets",
+          heading: "A few more syntax details worth knowing",
+          bullets: [
+            "Spreading an object onto a JSX element applies each of its properties as an attribute at once: `<input {...inputProps} />` is shorthand for listing every property of inputProps individually as `name={inputProps.name} value={inputProps.value}` and so on.",
+            "false, null, undefined, and true all render as nothing at all — this is exactly what makes `{condition && <Thing />}` work: when condition is false, React renders nothing rather than the literal word \"false\" appearing on the page.",
+            "Self-closing custom components work the same as built-in tags: `<UserAvatar />` is valid whenever a component doesn't need any children passed into it.",
           ],
         },
         {
@@ -169,6 +226,14 @@ const element = React.createElement(
           ],
         },
         {
+          kind: "text",
+          heading: "Giving props sensible defaults",
+          body: [
+            "Not every prop needs to be required. A default value keeps a component usable without every caller having to pass every option explicitly: `function Counter({ label = \"Count\", step = 1 })` falls back to those values whenever a caller omits them.",
+            "This is plain JavaScript default-parameter syntax applied to a destructured props object — nothing React-specific about it — but it's the idiomatic way a component signals \"this is optional, and here's what happens if you don't set it.\"",
+          ],
+        },
+        {
           kind: "example",
           heading: "Both, side by side",
           body: "`label` here is a prop — it comes from whoever renders `Counter`. `count` is state — the component owns it and updates it itself.",
@@ -194,6 +259,22 @@ const element = React.createElement(
             "The parent then passes the value down as a prop, and passes a function down as a prop for children to call when they want to change it.",
             "This is the main pattern for sharing state in React without reaching for an external state library — and for small-to-medium apps, it's often all you need.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "Prop drilling, and when it's worth solving",
+          intro: "Lifting state up works cleanly for two or three levels of nesting. It gets uncomfortable past that:",
+          bullets: [
+            "Passing a prop through several intermediate components that don't use it themselves — just to get it to a deeply nested child — is called prop drilling. Every intermediate component now has to know about data it doesn't actually care about.",
+            "For a small amount of drilling, it's usually still the right call: explicit data flow, even a little repetitive, is easier to trace through a codebase than a hidden alternative.",
+            "For state genuinely needed by many components scattered across the tree (a logged-in user, a theme setting), React's Context API exists specifically to skip the drilling — outside this course's scope, but worth knowing it's the next tool to reach for once lifting state up gets unwieldy.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Don't mirror a prop into state",
+          body: "A common early mistake: copying an incoming prop into state with `useState(initialValue)`, intending to keep the two in sync. They immediately diverge — updating the prop later does not update the state you copied from it once, so the component quietly keeps showing stale data unless you add an effect just to resync them, which is fragile and easy to get subtly wrong. If a value can be computed directly from props, compute it during render instead of storing a separate copy in state at all — there's nothing to keep in sync if there was never a second copy.",
         },
         {
           kind: "callout",
@@ -226,6 +307,39 @@ const element = React.createElement(
     </button>
   );
 }`,
+        },
+        {
+          kind: "example",
+          heading: "Functional updates avoid stale state",
+          body: "Calling the setter with a function instead of a plain value receives the actual latest state as its argument, rather than whatever value was in scope when the handler was created. This matters most when an update depends on the previous value, especially across a rapid sequence of calls.",
+          code: `// Risky if called multiple times before a re-render commits — each call
+// closes over the same "count" from when the function was defined:
+setCount(count + 1);
+
+// Safer: always operates on the actual latest value, not a captured one
+setCount((prevCount) => prevCount + 1);
+
+function addThree() {
+  setCount((c) => c + 1);
+  setCount((c) => c + 1);
+  setCount((c) => c + 1); // this reliably adds 3, the value-based version wouldn't
+}`,
+        },
+        {
+          kind: "example",
+          heading: "Lazy initial state for an expensive computation",
+          body: "Passing a function to useState, instead of a computed value directly, means that function runs exactly once — on the first render — instead of being recomputed and immediately discarded on every subsequent re-render.",
+          code: `// expensiveParse() runs on every single render, even though only the first result is ever used
+const [data, setData] = useState(expensiveParse(rawInput));
+
+// expensiveParse() runs exactly once, on mount
+const [data, setData] = useState(() => expensiveParse(rawInput));`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "React batches state updates",
+          body: "Multiple setState calls inside the same event handler are batched into a single re-render rather than one re-render per call — React 18 extended this batching to cover updates inside promises, timeouts, and native event listeners too, not just React's own handlers. This is why the addThree example above causes only one re-render, not three, and why reading a state variable immediately after calling its setter still shows the old value — the update has been scheduled, not applied yet.",
         },
         {
           kind: "bullets",
@@ -282,6 +396,15 @@ useEffect(() => {
           body: "If an effect uses a variable from the component (a prop, a piece of state) but that variable isn't listed in the dependency array, the effect can run with a stale, outdated value from an earlier render — a bug that's notoriously hard to trace because everything looks correct in the code. The reliable fix is almost always to include every value the effect actually uses in its dependency array, rather than omitting one to control timing.",
         },
         {
+          kind: "bullets",
+          heading: "Two more useEffect mistakes beyond a missing dependency",
+          bullets: [
+            "An object or array literal recreated fresh every render (`[{ id }]`, `[items.filter(x => x.active)]`) never equals the previous render's version by reference, so the effect re-runs on every single render — an infinite loop if the effect itself triggers another re-render.",
+            "Forgetting a cleanup function for anything that persists past one render — a subscription, an interval, an event listener — leaks it: the component unmounts, but the subscription keeps running and can reference state that no longer exists.",
+            "Not every side effect belongs in useEffect at all: something that only needs to happen in direct response to a specific user action (a click, a form submit) belongs in that event handler itself, not in an effect watching for the state that handler happens to set.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
@@ -312,6 +435,14 @@ useEffect(() => {
           ],
         },
         {
+          kind: "bullets",
+          heading: "A couple of other common events worth knowing",
+          bullets: [
+            "onKeyDown fires for every key press and exposes which key via `e.key` — commonly used to submit a search on Enter, or close a modal on Escape.",
+            "onBlur fires when a field loses focus — a common place to run validation that would be distracting to show on every single keystroke, like flagging an email field as empty only once someone's actually done typing in it.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "The parentheses mistake everyone makes once",
@@ -332,6 +463,35 @@ useEffect(() => {
     />
   );
 }`,
+        },
+        {
+          kind: "example",
+          heading: "One handler for many fields",
+          body: "Instead of a separate onChange handler per field, a single handler keyed off `e.target.name` scales to any number of fields without repeating the same three lines for each one.",
+          code: `function SignupForm() {
+  const [values, setValues] = useState({ email: "", password: "" });
+
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setValues((prev) => ({ ...prev, [name]: value }));
+  }
+
+  return (
+    <form>
+      <input name="email" value={values.email} onChange={handleChange} />
+      <input name="password" type="password" value={values.password} onChange={handleChange} />
+    </form>
+  );
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "Checkboxes, radios, and selects work slightly differently",
+          bullets: [
+            "A checkbox's controlled value is `checked`, not `value`, and its onChange reads `e.target.checked` (a boolean) instead of `e.target.value`.",
+            "A `<select>` is controlled the same way as a text input — `value` goes on the select itself, matched against the `value` of whichever `<option>` should be selected.",
+            "Radio buttons in the same group share a `name` and are each controlled by comparing their own value against one shared piece of state: `checked={selected === \"option-a\"}` on each radio, driven by a single selected variable.",
+          ],
         },
         {
           kind: "example",
@@ -358,6 +518,12 @@ useEffect(() => {
     </form>
   );
 }`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Client-side validation is a UX nicety, not a security boundary",
+          body: "Disabling a submit button until a field looks valid, or showing an inline error while someone types, meaningfully improves the experience — but any request can bypass the browser entirely (curl, a modified request, a malicious client), so the server must independently validate and reject bad data regardless of what the form allowed through. Treat client-side validation as helpful feedback for honest users, not protection against dishonest ones.",
         },
         {
           kind: "bullets",
@@ -425,6 +591,28 @@ function Child() {
           tone: "insight",
           heading: "\"Re-render\" is not the same as \"DOM update\"",
           body: "When a component re-renders, React re-runs its function to get a new description of the UI — that's cheap. It then compares that description to the previous one and only touches the real DOM where something actually changed. So a component can re-render often without causing visible or expensive DOM work; the two are related but distinct, and it's usually not worth optimizing against re-renders until you've confirmed they're actually causing a real performance problem.",
+        },
+        {
+          kind: "example",
+          heading: "Changing key remounts a component entirely",
+          body: "React matches a component across renders by its key (and position and type). Deliberately changing that key is a common, deliberate trick to force a full reset — React treats the new key as a brand new component instance rather than updating the existing one, so all of that component's own state resets.",
+          code: `// Same UserForm component, but a brand new instance — and fresh internal
+// state — every time userId changes, instead of updating in place
+<UserForm key={userId} userId={userId} />`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Why components seem to render twice in development",
+          body: "In development, React's StrictMode intentionally renders many components twice in a row to help surface components with impure render logic — side effects happening during render, or mutating something a render shouldn't. This is development-only behavior and does not happen in production, so counting console.log calls while running the dev server can overstate how often a component actually re-renders for real users.",
+        },
+        {
+          kind: "bullets",
+          heading: "How to actually observe a re-render, not just reason about it",
+          bullets: [
+            "A console.log at the top of a component's body (not inside an event handler or effect) logs on every render of that component — the simplest way to check your mental model of when something re-renders against what's actually happening.",
+            "React DevTools' Profiler tab records a session and highlights which components rendered and why — props changed, state changed, a parent re-rendered — the practical tool for finding a real, measured re-render problem worth fixing, instead of guessing from reading code.",
+          ],
         },
         {
           kind: "bullets",
@@ -531,10 +719,45 @@ function Parent({ items }) {
           body: "Every useMemo and useCallback call costs a comparison and a bit of retained memory, and React.memo costs a props comparison on every parent render. Wrapping everything in memoization by default usually makes code harder to read without measurably helping performance — most components are cheap enough that re-rendering them is a non-issue. Reach for these tools when you've identified a specific, measured slowdown (a large list, an expensive computation, a component that's costly enough that skipping its render actually matters), not as a reflexive habit applied to every component you write.",
         },
         {
+          kind: "example",
+          heading: "Often a cheaper fix than memoization: restructure instead",
+          body: "The expensive-render problem sometimes isn't really a memoization problem at all — it's that an expensive component sits underneath state that changes often. Passing it in as `children` instead means a different, non-re-rendering component creates it, so React doesn't need to re-render it just because a sibling's state changed, with no memoization involved.",
+          code: `// ExpensiveChart re-renders every time isOpen toggles, because it's
+// created fresh inside Panel's own render function every single time
+function Panel() {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div>
+      <button onClick={() => setIsOpen(!isOpen)}>{isOpen ? "Close" : "Open"}</button>
+      {isOpen && <ExpensiveChart />}
+    </div>
+  );
+}
+
+// ExpensiveChart is created once by whoever renders Panel, and passed down
+// as children — Panel's own re-renders don't recreate or re-render it at all
+function Panel({ children }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div>
+      <button onClick={() => setIsOpen(!isOpen)}>{isOpen ? "Close" : "Open"}</button>
+      {isOpen && children}
+    </div>
+  );
+}
+// <Panel><ExpensiveChart /></Panel>`,
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "A dependency array mistake that silently defeats memoization",
           body: "useMemo and useCallback compare dependency arrays the same way useEffect does — by reference for objects, arrays, and functions. Passing a freshly created object as a dependency (`useMemo(() => x, [{ id }])`) recreates that dependency every render, so the cache never actually hits. The values inside the array need to themselves be stable (primitives, or things already memoized) for the memoization to do anything at all.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Memoization is a hint, not a guarantee",
+          body: "useMemo and useCallback are documented as a performance optimization, not a semantic guarantee — React is allowed, in principle, to discard a memoized value and recompute it anyway, for instance under future concurrent-rendering features that trade memory for responsiveness. Never rely on useMemo to skip a computation for correctness reasons, like avoiding a side effect from running — only ever rely on it for performance, and make sure the surrounding code stays correct even on a render where the \"memoized\" value gets recomputed anyway.",
         },
         {
           kind: "summary",

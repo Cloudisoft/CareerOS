@@ -30,6 +30,12 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "let and const exist before their line runs, but you can't touch them yet",
+          body: "Every let/const in a scope is registered the moment that scope starts — this is why they don't leak like var does. But between the start of the scope and the actual declaration line, referencing the variable throws a ReferenceError instead of quietly returning undefined. That gap is called the \"temporal dead zone,\" and in practice it's a feature, not a bug: it catches the case where you'd otherwise use a variable before it was meant to be set.",
+        },
+        {
           kind: "example",
           heading: "const doesn't mean \"unchangeable\" — it means \"can't be reassigned\"",
           body: "const locks the binding, not the contents. An array or object declared with const can still have its contents changed — you just can't point the variable at a different value entirely.",
@@ -69,13 +75,52 @@ cart = ["hat"];      // TypeError — this reassigns the binding`,
             "undefined — a variable that's been declared but not given a value yet.",
             "null — an intentional \"no value,\" set explicitly by your code.",
             "object — everything structured: plain objects, arrays, functions, dates.",
+            "bigint — for integers too large for number to represent safely, written with an n suffix: 9007199254740993n. You'll rarely need it outside cryptography or precise large-number math.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "Template literals: strings that build themselves",
+          body: "Backtick strings do two things regular quotes can't: interpolate values directly with ${...}, and span multiple lines without \\n. Both matter constantly once you're building real output — error messages, HTML fragments, log lines.",
+          language: "javascript",
+          code: `const name = "Ada";
+const score = 97;
+
+// Old way — clunky string concatenation
+const line1 = "Result for " + name + ": " + score + "%";
+
+// Template literal — same result, reads naturally
+const line2 = \`Result for \${name}: \${score}%\`;
+
+// Expressions work too, not just variables
+const status = \`\${score >= 90 ? "Pass" : "Fail"} (\${score}%)\`;
+
+// And they span multiple lines as written, no \\n needed
+const block = \`Name: \${name}
+Score: \${score}\`;`,
         },
         {
           kind: "callout",
           tone: "warning",
           heading: "typeof null is \"object\"",
           body: "This is a decades-old bug baked permanently into the language — typeof null returns \"object\", not \"null\". If you need to check for null specifically, compare directly: value === null. Don't rely on typeof for it.",
+        },
+        {
+          kind: "example",
+          heading: "== silently converts types; === doesn't",
+          body: "== (\"loose equality\") coerces both sides to a common type before comparing, which produces results most developers find surprising. === (\"strict equality\") never converts — it's false the instant the types differ. Default to === everywhere; reach for == only if you deliberately want the coercion.",
+          language: "javascript",
+          code: `0 == "0"        // true  — string coerced to number
+0 == ""         // true  — empty string coerced to 0
+0 == false      // true  — boolean coerced to number
+null == undefined // true — a special case, just between these two
+null === undefined // false — different types, no coercion
+
+"5" + 3   // "53" — + with a string triggers concatenation
+"5" - 3   // 2    — but - forces numeric coercion, no concatenation exists
+
+0 === "0"        // false — different types, no coercion
+1 === 1.0        // true  — numbers, no int/float distinction in JS`,
         },
       ],
     },
@@ -108,6 +153,12 @@ const add2 = function (a, b) {
 const add3 = (a, b) => a + b;`,
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "Only one of these three can be called before its definition",
+          body: "function declarations are fully hoisted — the whole function, not just the name, is available anywhere in its scope, even above where it's written. Function expressions and arrow functions are not: the variable holding them follows normal let/const or var rules, so calling add2() or add3() before that line throws or gives undefined, not the function itself.",
+        },
+        {
           kind: "bullets",
           heading: "Arrow function shortcuts worth knowing",
           bullets: [
@@ -119,9 +170,65 @@ const add3 = (a, b) => a + b;`,
         },
         {
           kind: "callout",
+          tone: "warning",
+          heading: "A line break after return can silently return undefined",
+          body: "JavaScript automatically inserts a semicolon after return if a newline immediately follows it — so `return\\n{ value: 1 };` actually means `return;` followed by an unreachable object literal, and the function returns undefined instead of the object. This bites regular functions and multi-line arrow bodies alike. The fix is to open the brace or parenthesis on the same line as return, or wrap a multi-line expression in parens: return (\\n  { value: 1 }\\n);",
+        },
+        {
+          kind: "example",
+          heading: "IIFEs: a function that runs itself, once, immediately",
+          body: "Before block scope existed (before let/const), wrapping code in an Immediately Invoked Function Expression was the standard way to create a private scope. It's rarer now that { } does the same job for let/const, but you'll still see it in older code and in some module/bundler output.",
+          language: "javascript",
+          code: `(function () {
+  const secret = "only exists in here";
+  console.log("ran immediately, no separate call needed");
+})();
+
+// Arrow function version, equally valid:
+(() => {
+  console.log("also runs immediately");
+})();
+
+// Modern equivalent for "give me a private scope" is usually just:
+{
+  const secret = "block-scoped, no IIFE needed";
+}`,
+        },
+        {
+          kind: "callout",
           tone: "insight",
           heading: "Default parameters replace a common old pattern",
           body: "Before default parameters existed, people wrote `function greet(name) { name = name || \"friend\"; }`. Now you write `function greet(name = \"friend\") { ... }` directly in the signature — clearer, and it only kicks in when the argument is actually undefined, not for every falsy value.",
+        },
+        {
+          kind: "example",
+          heading: "Rest parameters collect the leftover arguments into a real array",
+          body: "Before rest parameters, variable-length argument lists relied on the built-in arguments object — array-like, but not a real array, and unavailable in arrow functions at all. Rest parameters fix both problems.",
+          language: "javascript",
+          code: `// Old way: the arguments object (function-only, not a real array)
+function sumOld() {
+  let total = 0;
+  for (let i = 0; i < arguments.length; i++) total += arguments[i];
+  return total; // arguments.map(...) would throw — it has no array methods
+}
+
+// Modern way: rest parameters — a genuine array, works in arrow functions too
+function sum(...numbers) {
+  return numbers.reduce((total, n) => total + n, 0);
+}
+sum(1, 2, 3); // 6
+
+const sumArrow = (...numbers) => numbers.reduce((t, n) => t + n, 0);
+sumArrow(4, 5); // 9`,
+        },
+        {
+          kind: "bullets",
+          heading: "Choosing between the three forms in practice",
+          bullets: [
+            "Function declarations for top-level, named functions you want hoisted — utilities you might call from code written above them in the same file.",
+            "Function expressions when the function is conditional, or needs to be assigned to an object property or reassigned later.",
+            "Arrow functions for callbacks (array methods, promise chains, event handlers) and short one-off logic — but avoid them for object methods that need their own `this`.",
+          ],
         },
         {
           kind: "bullets",
@@ -133,6 +240,12 @@ const add3 = (a, b) => a + b;`,
             "That makes arrow functions the right choice inside callbacks (like array methods or setTimeout) where you want `this` to keep meaning what it meant outside.",
             "It makes them the wrong choice for object methods that need `this` to refer to the object itself.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Arrow functions don't have their own arguments object either",
+          body: "Just like `this`, an arrow function reaches out to the nearest enclosing regular function's arguments object rather than getting one of its own. Writing const f = () => arguments; at the top level throws a ReferenceError. If a function needs arguments, give it rest parameters (...args) instead — they work identically in both function forms and are the modern default regardless.",
         },
       ],
     },
@@ -179,6 +292,40 @@ const total = prices.reduce((sum, p) => sum + p, 0);
           ],
         },
         {
+          kind: "example",
+          heading: "Beyond map/filter/reduce: find, some, every, and the sort() trap",
+          body: "These four cover most of what's left. sort() is the one to be careful with — it mutates the original array in place, and its default comparison converts everything to strings, so numbers sort wrong unless you pass a comparator.",
+          language: "javascript",
+          code: `const users = [{ name: "Ada", age: 30 }, { name: "Grace", age: 25 }];
+
+users.find(u => u.age < 28);      // { name: "Grace", age: 25 } — first match
+users.some(u => u.age < 28);      // true — at least one matches
+users.every(u => u.age < 28);     // false — not all match
+[10, 20, 30].includes(20);        // true
+
+const nums = [10, 1, 21, 2];
+nums.sort();
+// [1, 10, 2, 21] — sorted as strings: "1" < "10" < "2" < "21" lexically
+
+nums.sort((a, b) => a - b); // [1, 2, 10, 21] — correct numeric sort`,
+        },
+        {
+          kind: "example",
+          heading: "Array.from and flat: turning things into arrays, and un-nesting them",
+          body: "Array.from converts array-like or iterable values (a NodeList, a Set, a string) into a real array so map/filter/reduce become available. flat and flatMap handle the opposite common annoyance: arrays of arrays.",
+          language: "javascript",
+          code: `Array.from("abc");            // ["a", "b", "c"]
+Array.from({ length: 3 }, (_, i) => i * 2); // [0, 2, 4] — with a mapping fn
+
+const nested = [[1, 2], [3, 4], [5]];
+nested.flat();                 // [1, 2, 3, 4, 5] — one level deep
+[[1, [2, 3]]].flat(2);         // [1, 2, 3] — pass a depth for deeper nesting
+
+// flatMap = map then flat(1) in one pass — common for "one item becomes many"
+const words = ["hello world", "foo bar"];
+words.flatMap(s => s.split(" ")); // ["hello", "world", "foo", "bar"]`,
+        },
+        {
           kind: "bullets",
           heading: "Objects: the everyday shape of data",
           bullets: [
@@ -187,6 +334,12 @@ const total = prices.reduce((sum, p) => sum + p, 0);
             "Objects can nest arrays and other objects freely — most real-world data (an API response, a form's state) is a tree of these.",
             "Object.keys(), Object.values(), and Object.entries() turn an object into an array you can then map/filter/reduce over.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Optional chaining and nullish coalescing keep nested access safe",
+          body: "user?.address?.city reads city only if user and address both exist — it short-circuits to undefined instead of throwing \"Cannot read properties of undefined\" the moment one link in the chain is missing. Pair it with ?? for a default: user?.address?.city ?? \"Unknown\". It also works for optional method calls: user.greet?.() calls greet only if it exists.",
         },
         {
           kind: "example",
@@ -208,10 +361,39 @@ function printUser({ name, age }) {
 }`,
         },
         {
+          kind: "example",
+          heading: "Destructuring defaults, renaming, and skipping",
+          body: "Three refinements that come up constantly once destructuring is second nature: a fallback value for a missing field, a different local name than the property has, and skipping array positions you don't need.",
+          language: "javascript",
+          code: `const config = { host: "localhost" };
+const { host, port = 3000 } = config; // port falls back since it's missing
+
+const account = { name: "Ada" };
+const { name: accountName } = account; // local variable is accountName, not name
+
+const rgb = [255, 0, 128];
+const [red, , blue] = rgb; // skip the middle value entirely
+// red = 255, blue = 128`,
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Spread makes copying and merging painless",
           body: "const updated = { ...user, age: 31 } creates a new object with every field from user, then overwrites age. The same { ...arr } / [...arr] pattern works for arrays. It's the standard way to update state without mutating the original — critical in frameworks like React, but useful everywhere.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Spread only copies one level deep",
+          body: "{ ...user } creates a new top-level object, but any nested object or array inside it is still the same reference as the original — mutating updated.address.city would also change user.address.city, because both point at the same nested object. For real independence at every level you need a deep copy: structuredClone(user) (built into modern JS and Node) or JSON.parse(JSON.stringify(user)) for simple, function-free data.",
+        },
+        {
+          kind: "bullets",
+          heading: "Two checks that trip people up",
+          bullets: [
+            "Arrays are objects too — typeof [1, 2, 3] returns \"object\", not \"array\". To actually test for an array, use Array.isArray(value).",
+            "Object.freeze(obj) prevents adding, removing, or reassigning top-level properties, but like spread it's shallow — a frozen object's nested objects can still be mutated.",
+          ],
         },
       ],
     },
@@ -237,6 +419,29 @@ function printUser({ name, age }) {
         },
         {
           kind: "example",
+          heading: "switch without break falls through to the next case",
+          body: "Once a case matches, execution keeps running downward through every case after it until it hits a break — or the end of the switch. This is occasionally useful (grouping cases), but forgetting break by accident is a common bug.",
+          language: "javascript",
+          code: `function describe(day) {
+  switch (day) {
+    case "Sat":
+    case "Sun":
+      return "Weekend"; // return exits early, so no break needed here
+    case "Mon":
+      console.log("Start of week"); // no break — falls through!
+    case "Tue":
+      return "Weekday";
+    default:
+      return "Unknown";
+  }
+}
+
+describe("Mon");
+// logs "Start of week", THEN falls into "Tue" and returns "Weekday" —
+// probably not what was intended if "Mon" was meant to be handled alone`,
+        },
+        {
+          kind: "example",
           heading: "Truthy and falsy decide every condition",
           body: "JavaScript doesn't require a boolean in an if — it converts whatever you give it. Exactly six values are falsy; everything else is truthy.",
           language: "javascript",
@@ -255,6 +460,28 @@ if ({}) { /* runs — an empty object is truthy */ }`,
           body: "New JavaScript developers often write `if (myArray)` expecting it to check for an empty list, and are surprised when it's true even for []. To check for emptiness, check the length explicitly: if (myArray.length === 0).",
         },
         {
+          kind: "example",
+          heading: "for...of and for...in loop over completely different things",
+          body: "They look similar and get confused constantly. for...of gives you values from an iterable (arrays, strings, Maps) — it's what you want almost always. for...in gives you enumerable property keys, which for an array means index strings, and it also walks up the prototype chain.",
+          language: "javascript",
+          code: `const colors = ["red", "green", "blue"];
+
+for (const color of colors) {
+  console.log(color); // "red", "green", "blue" — the values
+}
+
+for (const index in colors) {
+  console.log(index); // "0", "1", "2" — string keys, not numbers
+}
+
+// for...in on an object works as expected, since objects don't have
+// a built-in iteration order the way arrays do:
+const user = { name: "Ada", role: "engineer" };
+for (const key in user) {
+  console.log(key, user[key]); // "name Ada", "role engineer"
+}`,
+        },
+        {
           kind: "bullets",
           heading: "&& and || do double duty",
           intro: "Beyond combining conditions, they're used constantly for short-circuiting:",
@@ -263,6 +490,12 @@ if ({}) { /* runs — an empty object is truthy */ }`,
             "a || b returns a if a is truthy, otherwise b — used to fall back to a default: const name = input || \"Guest\".",
             "?? (nullish coalescing) is the safer version of || for defaults — it only falls back on null or undefined, not on every falsy value like 0 or \"\".",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Ternaries are for values, not for actions",
+          body: "condition ? doA() : doB() to pick between two side effects compiles fine but reads badly — a ternary should produce a value you assign or return, like const label = age >= 18 ? \"adult\" : \"minor\". If you're not using the result, or either branch has more than one statement's worth of logic, reach for a plain if/else instead.",
         },
       ],
     },
@@ -303,6 +536,31 @@ if ({}) { /* runs — an empty object is truthy */ }`,
         },
         {
           kind: "example",
+          heading: "Promise.all runs independent work concurrently instead of one-by-one",
+          body: "The .then chain above is sequential by necessity — each step needs the previous one's result. But when several promises don't depend on each other, awaiting them one at a time wastes time. Promise.all starts them all at once and resolves when every one of them has.",
+          language: "javascript",
+          code: `// Sequential — each request waits for the last one to finish first.
+// If each takes 200ms, this takes roughly 600ms total.
+const userA = await getUser(1);
+const userB = await getUser(2);
+const userC = await getUser(3);
+
+// Concurrent — all three requests fire immediately, in parallel.
+// Total time is roughly 200ms: as long as the slowest single request.
+const [a, b, c] = await Promise.all([getUser(1), getUser(2), getUser(3)]);
+
+// Note: if ANY promise in the array rejects, Promise.all rejects
+// immediately with that error — use Promise.allSettled(...) instead
+// if you need every result even when some fail.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "forEach doesn't wait for async callbacks — a very common bug",
+          body: "items.forEach(async (item) => { await save(item); }) looks like it processes items one at a time, but forEach ignores whatever its callback returns, including a promise. Every callback fires immediately, all at once, and the outer code moves on before any of them finish. For sequential processing, use a plain for...of loop with await inside it; for concurrent processing, use await Promise.all(items.map(item => save(item))) instead.",
+        },
+        {
+          kind: "example",
           heading: "async/await: promises that read like normal code",
           body: "async/await doesn't replace promises — it's syntax built on top of them. An async function always returns a promise, and await pauses that function (not the whole program) until the promise settles.",
           language: "javascript",
@@ -319,9 +577,21 @@ if ({}) { /* runs — an empty object is truthy */ }`,
         },
         {
           kind: "callout",
+          tone: "warning",
+          heading: "An async function always returns a promise — even a plain value gets wrapped",
+          body: "return invoice.total inside an async function doesn't hand the caller a number directly — it hands them a promise that resolves to that number. Calling loadInvoiceTotal(id) without await gives you a Promise object, not the total, which is a frequent source of \"why is this [object Promise]\" bugs when someone forgets the await at the call site.",
+        },
+        {
+          kind: "callout",
           tone: "insight",
           heading: "await only pauses the function it's in",
           body: "While an async function is paused on an await, the rest of your program keeps running — a button click still responds, a timer still fires. This is what \"non-blocking\" means in practice, and it's why a slow API call doesn't freeze an entire page.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A rejected promise with no .catch and no try/catch crashes silently — or loudly",
+          body: "In Node, an unhandled promise rejection now terminates the process by default. In a browser, it logs an \"Uncaught (in promise)\" error to the console but the page keeps running. Either way it's a bug you want to see immediately, not discover later — every promise chain needs a .catch, and every await needs to sit inside a try/catch or a function whose caller handles the rejection.",
         },
         {
           kind: "diagram",
@@ -334,6 +604,42 @@ if ({}) { /* runs — an empty object is truthy */ }`,
             { label: "Event loop", detail: "Checks: is the call stack empty yet?" },
             { label: "Back on the call stack", detail: "The queued callback runs only once the stack is empty" },
           ],
+        },
+        {
+          kind: "terminal",
+          heading: "Proof that promises jump the queue ahead of setTimeout",
+          description: "Promise callbacks (microtasks) always run before timer callbacks (macrotasks), even when the timer is set to 0ms — the microtask queue is drained completely before the event loop even looks at the timer queue.",
+          lines: [
+            { text: "node ordering.js" },
+            { text: "1  // synchronous code runs first, top to bottom", output: true },
+            { text: "4  // synchronous code, still running", output: true },
+            { text: "3  // Promise.resolve().then(...) — a microtask, runs next", output: true },
+            { text: "2  // setTimeout(..., 0) — a macrotask, runs last of all", output: true },
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Promise.race: a simple timeout for a slow request",
+          body: "Promise.race resolves or rejects as soon as the first of its promises settles — the rest keep running but their results are ignored. Racing a real request against a timer that rejects is a common, dependency-free way to add a timeout to something that has no built-in one.",
+          language: "javascript",
+          code: `function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Timed out")), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
+try {
+  const user = await withTimeout(getUser(id), 3000);
+} catch (error) {
+  console.error(error.message); // "Timed out" if getUser took over 3s
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "await works outside async functions too, at the top of a module",
+          body: "Modern JavaScript modules (ESM) support top-level await — you can await directly in a module's top-level code, no wrapping async function required. It's useful for one-time setup (loading config, opening a connection) that later code in the module depends on. It doesn't work in a CommonJS require()-based file or inside a regular script tag without type=\"module\".",
         },
         {
           kind: "summary",
@@ -377,6 +683,26 @@ counter(); // 3 — count persisted between calls`,
         },
         {
           kind: "example",
+          heading: "{ } creates a new scope for let/const, but not for var",
+          body: "This is the root cause of most scope confusion. let and const are block-scoped — confined to the nearest { }. var ignores block boundaries entirely and is scoped to the nearest function (or the global scope, outside any function).",
+          language: "javascript",
+          code: `if (true) {
+  let blockScoped = "inside";
+  var functionScoped = "leaks out";
+}
+
+console.log(functionScoped); // "leaks out" — var doesn't respect the if block
+console.log(blockScoped);    // ReferenceError — blockScoped doesn't exist here
+
+function example() {
+  if (true) {
+    var x = 1;
+  }
+  console.log(x); // 1 — var is visible anywhere in the enclosing function
+}`,
+        },
+        {
+          kind: "example",
           heading: "The classic var-in-a-loop bug",
           body: "This is the single most common closure trap. var is function-scoped, so every callback in the loop shares the same i — by the time any of them run, the loop has already finished and i is 3.",
           language: "javascript",
@@ -406,6 +732,35 @@ for (let i = 0; i < 3; i++) {
           ],
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "A closure keeps its variables alive for as long as the closure itself is reachable",
+          body: "Normally, a function's local variables are freed once the function returns. But if an inner function that references them escapes — gets returned, stored, or passed as a callback — the JavaScript engine keeps those variables in memory for as long as that inner function might still be called. This is exactly what makes makeCounter work, but it's also a real source of memory leaks: an event listener or long-lived callback that closes over a large object keeps that object alive until the listener itself is removed.",
+        },
+        {
+          kind: "example",
+          heading: "WeakMap: private data keyed by object, without blocking garbage collection",
+          body: "A closure is one way to keep private state; a WeakMap is another, useful when you want to associate private data with an object from outside its class entirely. Unlike a regular Map, a WeakMap doesn't keep its keys alive — once nothing else references the object, it and its entry are freed together.",
+          language: "javascript",
+          code: `const privateData = new WeakMap();
+
+class Account {
+  constructor(owner, balance) {
+    this.owner = owner;
+    privateData.set(this, { balance }); // stored outside the instance
+  }
+
+  getBalance() {
+    return privateData.get(this).balance;
+  }
+}
+
+const acct = new Account("Ada", 100);
+acct.getBalance(); // 100
+// privateData has no public way to list its keys, and once acct is no
+// longer referenced anywhere, its entry is garbage collected automatically`,
+        },
+        {
           kind: "bullets",
           heading: "Two more traps worth knowing by name",
           bullets: [
@@ -413,6 +768,21 @@ for (let i = 0; i < 3; i++) {
             "NaN is never equal to itself — NaN === NaN is false. To check for it, use Number.isNaN(value), never ===.",
             "Comparing objects and arrays with === checks identity, not contents — [1,2] === [1,2] is false because they're two different arrays in memory, even though they look the same.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "Comparing objects by contents, not identity",
+          body: "There's no built-in deep-equality operator. JSON.stringify is a common quick fix, but it has its own trap: it's sensitive to key order, so two objects with the same data written in a different order compare unequal. For anything beyond a quick script, reach for a tested library instead.",
+          language: "javascript",
+          code: `const a = { x: 1, y: 2 };
+const b = { y: 2, x: 1 }; // same data, different key order
+
+a === b; // false — different objects in memory
+JSON.stringify(a) === JSON.stringify(b); // false! key order differs
+
+// A structural check needs to compare keys independently of order,
+// which is exactly what libraries like lodash's isEqual(a, b) do —
+// worth reaching for once objects nest more than one level deep.`,
         },
         {
           kind: "summary",
@@ -485,6 +855,89 @@ console.log(savings.balance);            // 1030
 console.log(savings instanceof Account); // true`,
         },
         {
+          kind: "example",
+          heading: "Private fields and static members",
+          body: "A # prefix makes a field truly private — unlike the this.balance convention used above, it's completely inaccessible from outside the class, enforced by the language itself, not just a naming convention. static puts a member on the class itself rather than on instances, useful for shared counters or factory-style helpers.",
+          language: "javascript",
+          code: `class BankAccount {
+  #balance; // private — only code inside this class can touch it
+  static #accountCount = 0; // private, shared across every instance
+
+  constructor(owner, balance = 0) {
+    this.owner = owner;
+    this.#balance = balance;
+    BankAccount.#accountCount++;
+  }
+
+  deposit(amount) {
+    this.#balance += amount;
+    return this.#balance;
+  }
+
+  static getAccountCount() {
+    return BankAccount.#accountCount;
+  }
+}
+
+const acct = new BankAccount("Ada", 100);
+acct.deposit(50);
+// acct.#balance;              // SyntaxError — not accessible outside the class
+console.log(BankAccount.getAccountCount()); // 1`,
+        },
+        {
+          kind: "example",
+          heading: "Getters and setters: methods that read like properties",
+          body: "get and set let a method be accessed with property syntax instead of a function call — useful for a computed value, or for validating a value on the way in.",
+          language: "javascript",
+          code: `class Temperature {
+  constructor(celsius) {
+    this._celsius = celsius;
+  }
+
+  get fahrenheit() {
+    return this._celsius * (9 / 5) + 32;
+  }
+
+  set fahrenheit(value) {
+    this._celsius = (value - 32) * (5 / 9);
+  }
+}
+
+const temp = new Temperature(100);
+temp.fahrenheit;       // 212 — read like a property, no () needed
+temp.fahrenheit = 32;
+temp._celsius;          // 0 — the setter did the conversion`,
+        },
+        {
+          kind: "example",
+          heading: "Making a class work with for...of",
+          body: "for...of only works on values that implement the iterator protocol — a method named [Symbol.iterator] that returns an object with a next() method. Arrays and strings have this built in; give your own class one and for...of, spread, and destructuring all start working on it for free.",
+          language: "javascript",
+          code: `class Range {
+  constructor(start, end) {
+    this.start = start;
+    this.end = end;
+  }
+
+  [Symbol.iterator]() {
+    let current = this.start;
+    const end = this.end;
+    return {
+      next() {
+        return current <= end
+          ? { value: current++, done: false }
+          : { value: undefined, done: true };
+      },
+    };
+  }
+}
+
+for (const n of new Range(1, 3)) {
+  console.log(n); // 1, 2, 3
+}
+[...new Range(1, 3)]; // [1, 2, 3] — spread works too, same protocol`,
+        },
+        {
           kind: "bullets",
           heading: "What's really happening: prototypes",
           intro:
@@ -501,6 +954,12 @@ console.log(savings instanceof Account); // true`,
           tone: "warning",
           heading: "A method detached from its instance loses `this`",
           body: "const deposit = acct.deposit; deposit(50); doesn't behave like acct.deposit(50) — a class method's `this` still depends on how it's called, exactly like a regular function's. Passing acct.deposit directly as a callback (button.addEventListener(\"click\", acct.deposit)) is a classic version of this bug. Fix it with acct.deposit.bind(acct), or wrap it in an arrow function: () => acct.deposit(50).",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Classes aren't the only way to bundle state with behavior",
+          body: "A closure-based factory function (like makeCounter from the previous lesson) achieves similar goals — private state plus functions that operate on it — without new, this, or prototypes at all. Classes tend to win when you need instanceof checks, inheritance hierarchies, or many instances sharing methods efficiently via the prototype. Factory functions tend to win when you want true privacy without the # syntax, or when this-binding bugs aren't worth the tradeoff. Neither is \"more correct\" — plenty of production codebases lean almost entirely on one or the other.",
         },
         {
           kind: "summary",

@@ -42,6 +42,36 @@ export const course: CourseSeed = {
           heading: "What DevOps is not",
           body: "Not a job title alone, and not simply \"using Docker\" or \"using Kubernetes\" — a team can use every modern tool and still not practice DevOps if deployments are manual, infrequent, and owned by a separate team from the people who wrote the code.",
         },
+        {
+          kind: "bullets",
+          heading: "The four DORA metrics: measuring this instead of guessing",
+          intro: "The DevOps Research and Assessment (DORA) team's research ties four measurable metrics to actual organizational performance — this is how \"we're doing DevOps well\" stops being a feeling:",
+          bullets: [
+            "Deployment frequency — how often code reaches production. Elite teams deploy on-demand, multiple times a day; low performers deploy monthly or less.",
+            "Lead time for changes — time from a commit landing to it running in production. Hours for elite teams, versus weeks or months elsewhere.",
+            "Change failure rate — the percentage of deployments that cause a production failure requiring a fix. Lower is better, and it's the metric that keeps \"deploy faster\" honest.",
+            "Time to restore service — how long it takes to recover once a deployment does cause an incident. This is the metric that matters most when something inevitably goes wrong.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "\"You build it, you run it\"",
+          body: "The phrase, associated with Amazon's Werner Vogels, captures the ownership half of DevOps concretely: the engineers who write a service also carry its on-call pager. That single structural change is what actually forces the cultural shift — nobody writes code they're comfortable being woken up for at 3am without also caring about its monitoring, its rollback plan, and its failure modes.",
+        },
+        {
+          kind: "text",
+          heading: "Blameless postmortems, the practice that makes shared ownership survive an incident",
+          body: [
+            "When something breaks, a blameless postmortem asks \"what in our systems and processes allowed this to happen\" instead of \"who broke it.\" The distinction isn't just being nice — a team that fears blame stops reporting near-misses and small mistakes, which is exactly the information that prevents the next, bigger incident. Shared ownership only holds up as a real practice if failure is treated as a systems problem to fix, not a person to blame.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "A concrete before/after",
+          body: "Before: a developer opens a ticket for the ops queue to deploy their change; three weeks later, on-call gets paged for a bug in code they didn't write and can't read; a postmortem names the developer who introduced it. After: the same developer merges, watches their own CI/CD pipeline deploy it within the hour, gets paged directly if it misbehaves, and a blameless retro afterward asks why the test suite didn't catch it. Nothing about the tooling has to differ between these two — the difference is entirely who owns what.",
+        },
       ],
     },
     {
@@ -81,6 +111,40 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "Build once, promote everywhere",
+          body: [
+            "A common mistake: rebuilding the application separately for staging and for production. Even with identical source code, a separate build can pull a slightly different dependency version, use a different base image tag, or hit a flaky network blip — meaning what you actually tested in staging isn't bit-for-bit what reaches production.",
+            "The fix is to build one versioned artifact (a Docker image tagged with the git SHA, or a compiled binary) after CI passes, push it to a registry, and promote that exact artifact through staging and then production — only the environment configuration changes between stages, never the artifact itself.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Caching dependencies to cut CI time",
+          language: "yaml",
+          body: "Re-downloading every dependency on every run wastes minutes per build — caching keyed on the lockfile hash skips that when nothing's changed:",
+          code: `- uses: actions/cache@v4
+  with:
+    path: ~/.npm
+    key: npm-\${{ hashFiles('package-lock.json') }}
+    restore-keys: npm-`,
+        },
+        {
+          kind: "bullets",
+          heading: "Secrets in CI: the credentials the pipeline itself needs",
+          bullets: [
+            "A CI job that deploys to production needs real credentials — cloud API keys, a registry push token — stored as encrypted secrets in the CI platform (GitHub Actions secrets, not hardcoded in the workflow file or committed to the repo).",
+            "Scope those credentials to exactly what the job needs (push to one specific ECR repo, not full account access) — a compromised CI pipeline with overly broad credentials is a direct path to the production account, not just to the codebase.",
+            "Secrets never appear in logs by default on major CI platforms (they're masked), but a poorly written script that echoes an environment variable for \"debugging\" can leak one anyway — worth checking before merging any workflow change that touches secret-bearing steps.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Flaky tests erode trust in the whole pipeline faster than you'd expect",
+          body: "A test that fails intermittently for reasons unrelated to the actual change (timing, shared test-database state, network calls that should have been mocked) trains engineers to re-run CI until it goes green rather than investigate failures — which means a real failure gets re-run away too. Quarantine known-flaky tests into a separate, non-blocking job immediately, track them, and fix or delete them; don't let \"just retry it\" become the team's default response to red CI.",
+        },
+        {
           kind: "bullets",
           heading: "Continuous Delivery vs. Continuous Deployment",
           bullets: [
@@ -98,6 +162,29 @@ export const course: CourseSeed = {
             "Deploy to production, often using a strategy that limits blast radius.",
             "Post-deploy verification — automated health checks.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "Running CI jobs in parallel with a matrix",
+          language: "yaml",
+          body: "Testing against multiple Node versions sequentially wastes time when they don't depend on each other — a matrix runs them concurrently instead:",
+          code: `jobs:
+  test:
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: \${{ matrix.node-version }}
+      - run: npm ci && npm test`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Split slow test suites instead of just parallelizing versions",
+          body: "The same matrix mechanism splits one long test suite into several parallel shards (matrix: shard: [1, 2, 3, 4] with each job running a quarter of the tests) — a 20-minute suite becomes a 5-minute one on four runners. The catch: shards need to be balanced by actual runtime, not just file count, or one slow shard becomes the bottleneck the others wait on anyway.",
         },
         {
           kind: "diagram",
@@ -178,6 +265,47 @@ docker run -p 3000:3000 my-app:1.0`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Registries: where images actually live",
+          intro: "A build on your laptop is only useful elsewhere once it's pushed somewhere other machines can pull it from:",
+          bullets: [
+            "Docker Hub is the default public registry; most teams running production workloads use a private one instead — Amazon ECR, Google Artifact Registry, or a self-hosted registry.",
+            "An image name encodes its registry and tag: 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:1.4.2 — no registry prefix at all means Docker Hub by default.",
+            "The :latest tag is a convenience, not a version — it silently points at whatever was most recently pushed, which is exactly why production deployments should always reference an explicit, immutable tag (a version number or a git SHA) instead.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Basic troubleshooting commands",
+          description: "The first three commands anyone reaches for when a running container isn't behaving.",
+          lines: [
+            { text: "docker ps" },
+            { text: "CONTAINER ID   IMAGE          STATUS          PORTS", output: true },
+            { text: "a1b2c3d4e5f6   my-app:1.0     Up 3 minutes    0.0.0.0:3000->3000/tcp", output: true },
+            { text: "docker logs -f a1b2c3d4e5f6" },
+            { text: "2024-03-11T14:02:01Z ERROR checkout: payment provider timeout", output: true },
+            { text: "docker exec -it a1b2c3d4e5f6 sh" },
+            { text: "/app # ", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Images build in layers — and layers get reused",
+          bullets: [
+            "Each Dockerfile instruction (FROM, RUN, COPY) produces one immutable, cacheable layer, stacked on top of the previous one — the final image is the sum of all of them.",
+            "Layers are content-addressed, so if two images share the exact same base-image layers, Docker (and the registry) only stores and transfers those shared layers once — this is why images built from a common base pull much faster the second time.",
+            "docker history my-app:1.0 shows every layer in an image with its size — the fastest way to spot an accidentally bloated layer (a stray apt-get cache, a copied node_modules) that's inflating every image built from that Dockerfile.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Containers share a kernel — that's the speed, and the security caveat",
+          body: [
+            "Because containers share the host's OS kernel rather than each running their own, they start in milliseconds and use a fraction of a VM's memory overhead. The tradeoff: isolation between containers is weaker than between VMs — a kernel-level vulnerability can, in principle, let a process escape its container and reach the host or other containers, in a way a hypervisor boundary between VMs is specifically designed to prevent.",
+            "In practice this means: don't run containers as root when avoidable, don't treat a container boundary as a substitute for real security controls on genuinely untrusted code, and keep the host kernel patched — the container doesn't insulate you from that.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Where this connects to orchestration",
@@ -204,6 +332,19 @@ docker run -p 3000:3000 my-app:1.0`,
           ],
         },
         {
+          kind: "terminal",
+          heading: "A rolling update pausing itself automatically",
+          description: "On Kubernetes, a rollout that starts failing its readiness checks halts on its own — this is what \"a problem partway through can pause the rollout\" actually looks like.",
+          lines: [
+            { text: "kubectl rollout status deployment/checkout" },
+            { text: "Waiting for deployment \"checkout\" rollout to finish: 2 out of 5 new replicas have been updated...", output: true },
+            { text: "Waiting for deployment \"checkout\" rollout to finish: 2 out of 5 new replicas have been updated...", output: true },
+            { text: "error: deployment \"checkout\" exceeded its progress deadline", output: true },
+            { text: "kubectl rollout undo deployment/checkout" },
+            { text: "deployment.apps/checkout rolled back", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Blue-green deployment",
           bullets: [
@@ -211,6 +352,12 @@ docker run -p 3000:3000 my-app:1.0`,
             "Traffic switches from blue to green all at once after green is verified healthy.",
             "Switching back is immediate if needed. Costs more since two environments run simultaneously.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The database is the part blue-green doesn't neatly solve",
+          body: "Instantly cutting traffic back to blue after a bad green release is only truly instant if both environments can safely talk to the same database schema. A migration that drops a column green no longer needs, but blue still reads, breaks the instant-rollback guarantee the moment you switch back. The standard fix is expand/contract migrations — add new columns and dual-write in one release, remove the old ones only in a later release once nothing references them — so both versions of the app can run against the same schema simultaneously.",
         },
         {
           kind: "bullets",
@@ -239,6 +386,21 @@ docker run -p 3000:3000 my-app:1.0`,
           body: [
             "A feature flag lets new code ship to production dark, then get turned on for specific users or ramped up gradually — independent of the deployment itself.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "Recreate deployment: the naive baseline these all improve on",
+          intro: "Worth naming explicitly, since it's the default a team falls into before adopting any of the above:",
+          bullets: [
+            "All old instances are stopped, then all new instances are started — the simplest possible strategy, and the one with the worst blast radius: 100% of users see downtime during the gap, and 100% of users are exposed the instant the new version starts, good or bad.",
+            "It's still a reasonable choice for a low-traffic internal tool, a batch job, or anything where a short downtime window is genuinely fine — the other strategies exist to avoid a cost that isn't always worth paying to avoid.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Canary is about safety, A/B testing is about a decision",
+          body: "The two look similar — both route a percentage of traffic to a variant — but they answer different questions. A canary asks \"is this new version safe to release?\" and gets rolled forward to 100% or rolled back entirely based on error rate and latency. An A/B test asks \"which of these two versions do users prefer?\" and can run for weeks with both variants staying live simultaneously, judged on a business metric like conversion rate rather than error rate.",
         },
         {
           kind: "summary",
@@ -287,6 +449,30 @@ docker run -p 3000:3000 my-app:1.0`,
             { text: "2024-03-11T14:02:03Z ERROR checkout: payment provider timeout after 3 retries", output: true },
             { text: "2024-03-11T14:02:05Z ERROR checkout: payment provider timeout after 3 retries", output: true },
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "Structured logging: what makes logs actually searchable",
+          intro: "A log line like \"payment failed\" is nearly useless once you have thousands of requests a minute — structured logging fixes that:",
+          bullets: [
+            "Log as JSON key-value fields (level, timestamp, request_id, user_id, message) instead of a free-text sentence, so a log aggregator can filter and group on any field instead of grepping for substrings.",
+            "Propagate a single request_id (or correlation ID) generated at the edge through every downstream service call and into every log line it produces — this is what lets you pull every log entry tied to one specific failing request across five microservices in one query.",
+            "Without a shared request ID, reconstructing what happened to one user's request across services means manually correlating log lines by timestamp and hoping nothing else happened at the same moment.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "SLIs, SLOs, and error budgets: what alerting thresholds should be based on",
+          body: [
+            "An SLI (Service Level Indicator) is a specific measured metric — request latency, error rate. An SLO (Service Level Objective) is the target for it — \"99.9% of requests succeed in a rolling 30-day window.\" The gap between 100% and that target is the error budget: a 99.9% SLO allows about 43 minutes of full downtime (or an equivalent amount of partial degradation) per month before you've breached it.",
+            "This reframes alerting from arbitrary thresholds to a real budget: burning error budget fast (a spike using up a week's allowance in an hour) pages immediately; burning it slowly might just need a ticket. It also gives teams a principled way to say no to a risky release — \"we're out of error budget this month\" is a harder argument to wave away than a vague feeling that things have been shaky.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "High-cardinality labels can quietly blow up your metrics bill",
+          body: "Adding user_id or request_id as a label on a Prometheus metric seems harmless, but each unique label value creates a new time series — millions of users means millions of time series, which can crash a metrics backend or make queries unusably slow. Keep high-cardinality identifiers in logs and traces, where they belong, and keep metric labels to bounded, low-cardinality dimensions like status_code, method, or region.",
         },
         {
           kind: "example",

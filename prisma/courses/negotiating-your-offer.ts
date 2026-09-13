@@ -28,13 +28,28 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "The fear that stops most people: will they pull the offer?",
+          body: [
+            "This is the single biggest reason people don't ask. In reality, a professional, reasonable counter — asking a genuine question rather than issuing an ultimatum — essentially never causes a company to withdraw an offer. Rescinding an offer over a polite counter would be an unusual, reputation-damaging move a company has little reason to make.",
+            "The exception is when the ask itself is unreasonable in tone or scale — a demand rather than a question, or a number wildly outside any researched range. That's a real risk, but it's a risk created by how you ask, not by the act of asking at all.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "What actually changes an outcome",
           bullets: [
             "Having a specific, researched number, not a vague \"I was hoping for more.\"",
             "Being willing to have the conversation at all. A large share of the gap between people who get more and people who don't is simply asking versus not asking.",
             "Framing it as a genuine question, not a demand. \"Is there flexibility on the base?\" invites a conversation; \"I need $15k more or I walk\" invites a standoff.",
+            "Understanding which employers have real room and which don't — publicly funded roles and some large companies with strict, published pay bands genuinely have less flexibility than a venture-backed startup setting an offer case-by-case; calibrate your expectation, not your decision to ask, accordingly.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Giving a range instead of a number",
+          body: "\"I was hoping for something in the $95k-$110k range\" feels safer than naming one figure, but a reasonable counterpart will simply anchor to the bottom of it — you've effectively asked for $95k. If you want to signal some flexibility, give your specific number and let the conversation, not your opening ask, introduce the range.",
         },
         {
           kind: "callout",
@@ -74,6 +89,15 @@ export const course: CourseSeed = {
         },
         {
           kind: "bullets",
+          heading: "Adjusting for factors that shift the range",
+          bullets: [
+            "Location: a role posted as \"remote\" doesn't always mean location-agnostic pay — some companies band by your location, others by a single national or role-based band regardless of where you sit. Ask directly if it's unclear before anchoring your number to the wrong data.",
+            "Company stage and funding: a well-funded, later-stage company can often pay closer to the top of a range than an early-stage startup with more equity and less cash — factor this in when a single source's range feels too generic to be useful.",
+            "Your own leverage relative to the role: a role that's hard for the company to fill (niche skill, urgent need) generally has more real room than a role with a deep, easy-to-fill candidate pool, even at the same nominal level.",
+          ],
+        },
+        {
+          kind: "bullets",
           heading: "Build a range, not a single number",
           intro: "Land on three figures:",
           bullets: [
@@ -96,11 +120,33 @@ export const course: CourseSeed = {
         },
         {
           kind: "text",
+          heading: "When your sources disagree",
+          body: [
+            "Comp-site data, recruiter conversations, and your network won't always line up — a comp site might show $90k-$115k while a recruiter mentions $105k-$130k for the same rough role. When that happens, weight direct, role-specific conversations (a recruiter naming an actual band, a real acquaintance's real offer) above aggregated site data, since site data often blends job titles that don't map perfectly onto the specific role and level you're targeting.",
+            "If sources genuinely conflict and you can't resolve it with more research, it's reasonable to set your walk-away number toward the more conservative end and let your stretch number reflect the more optimistic one — the range itself becomes useful information, not a problem to eliminate before you can act.",
+          ],
+        },
+        {
+          kind: "text",
           heading: "Factor in the full picture, not just base salary",
           body: [
             "Total compensation includes base, bonus target, equity (and its vesting schedule), sign-on bonus, and benefits.",
             "A lower base with strong equity can be a better deal than a higher base with none — but only if you actually understand the equity's real value and vesting terms rather than taking the headline number at face value.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "Comparing two offers that split base and equity differently",
+          body: "Neither number tells the whole story alone — the comparison only works once you've translated equity into a real, if imperfect, annualized estimate.",
+          code: `Offer A: $130k base, minimal equity.
+Offer B: $115k base, equity estimated at roughly $20k/year
+value over a 4-year vest, at a company you believe in.
+
+Rough total comp: A ≈ $130k/year. B ≈ $135k/year, if the
+equity estimate holds — but B's number carries real
+uncertainty (vesting cliffs, valuation risk) that A's doesn't.
+The right choice depends on how much of that uncertainty
+you're willing to hold, not just which total is bigger on paper.`,
         },
         {
           kind: "callout",
@@ -129,6 +175,16 @@ to look everything over properly — can I follow up by
 [specific day]?"`,
         },
         {
+          kind: "bullets",
+          heading: "Written vs. spoken: same content, different care",
+          bullets: [
+            "A phone or video counter can be slightly more casual in delivery, but should still hit the same three beats: gratitude, a specific number, a genuine question about flexibility.",
+            "A written counter (email) is worth drafting and re-reading before sending — tone is harder to read in text, and a message that feels natural spoken can read as blunt or presumptuous in writing if it's not phrased carefully.",
+            "Keep it to the recruiter or the person who actually extended the offer, not a wider group — negotiating compensation isn't a conversation to loop in a future manager or team members on, even if they're cc'd on other threads.",
+            "If the conversation started on the phone, a brief written follow-up confirming what was discussed protects both sides and avoids relying on memory for numbers.",
+          ],
+        },
+        {
           kind: "example",
           heading: "The counter-offer conversation",
           body: "Notice what this does: it confirms genuine interest, gives a specific number, and grounds it in something other than \"I want more.\"",
@@ -139,6 +195,25 @@ skill/background], I was hoping we could get closer to $X on
 the base. Is there flexibility there?"`,
         },
         {
+          kind: "example",
+          heading: "A written counter-offer",
+          body: "Same three beats as the spoken version — gratitude, a specific ask, a genuine question — just formatted for an email a recruiter can forward internally if needed.",
+          code: `Subject: Re: Offer — [Your Name]
+
+Hi [Recruiter],
+
+Thank you again for the offer — I'm genuinely excited about
+the team and the role. After looking over the details and
+comparing against my research into the market for this
+position, I was hoping we could get closer to $X on the base.
+Is there flexibility there?
+
+Happy to hop on a call if that's easier to discuss.
+
+Best,
+[Your Name]`,
+        },
+        {
           kind: "bullets",
           heading: "Handling common responses",
           bullets: [
@@ -146,6 +221,12 @@ the base. Is there flexibility there?"`,
             "\"That's above our band for this level.\" — Ask what would move you into a higher band, or whether other levers (sign-on, equity, title, start date) have more room.",
             "A partial yes. — A move from a firm \"no\" to \"let me see what I can do\" is real progress, even before a number changes.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "The recruiter is usually a messenger, not the decision-maker",
+          body: "A recruiter relaying \"let me check\" isn't stalling — they're genuinely taking your ask to a hiring manager or a comp team who sets the real limits. Getting frustrated at a recruiter for not having an immediate answer misreads their role in the process; they're often more useful as an ally who wants the deal to close than as an obstacle.",
         },
         {
           kind: "callout",

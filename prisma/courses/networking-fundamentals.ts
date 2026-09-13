@@ -59,6 +59,49 @@ export const course: CourseSeed = {
           heading: "A concrete example",
           body: "\"I can't reach this website\" could mean: no physical connection, no IP address (DHCP failure), DNS isn't resolving, the server's port isn't reachable, or the server returns an error. Each is diagnosable with a specific tool (ping, ipconfig/ifconfig, nslookup/dig, telnet/curl).",
         },
+        {
+          kind: "bullets",
+          heading: "A common mistake: treating the seven layers as how real software is actually built",
+          intro:
+            "The OSI model is a teaching reference, not a literal blueprint every protocol follows layer-by-layer.",
+          bullets: [
+            "The protocols you actually work with day to day are usually described with the simpler, four-layer TCP/IP model instead: Network Access (Physical + Data Link combined), Internet (Network), Transport, and Application (Session + Presentation + Application combined) — OSI's extra layers rarely appear as distinct pieces of real software.",
+            "TLS, for example, doesn't cleanly live \"at\" the Presentation layer the way the OSI chart suggests — in practice it sits between Transport and Application, and plenty of real protocol stacks blur OSI's boundaries the same way.",
+            "The value of OSI isn't perfect layer-by-layer accuracy against real implementations — it's the discipline of asking \"which layer's job would have to be failing to produce this symptom,\" which is exactly as useful whether you're picturing seven layers or four.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Why layers matter even when a tool tells you the wrong thing",
+          body: "A browser's generic \"This site can't be reached\" error looks identical whether the problem is a dead cable, a DHCP failure, a DNS outage, or the server itself being down — the application layer's error message can't distinguish between causes several layers below it. Working the layers bottom-up is what actually distinguishes them, since each layer's tools (link status, ipconfig, ping, nslookup) test something the layer above it can't see into.",
+        },
+        {
+          kind: "example",
+          heading: "Walking one symptom through the checklist",
+          body: "\"The app is down\" turns into a specific, ordered set of checks — each one either clears a layer or points straight at the culprit.",
+          code: `Symptom: "I can't load the internal dashboard."
+
+1. Physical/Data Link: is wifi connected? (yes — connected to office SSID)
+2. Network: does ipconfig show a real IP, not 169.254.x.x? (yes — 10.2.4.18)
+3. Transport/Network beyond local: can I ping the gateway, then 8.8.8.8?
+   (both succeed — internet-bound traffic works)
+4. Application (DNS): does nslookup dashboard.internal resolve?
+   (FAILS — "server can't find dashboard.internal")
+
+Conclusion: everything below DNS resolution is confirmed working.
+The problem is isolated to one specific thing — an internal DNS
+record — not "the network," which is what it felt like at first.`,
+        },
+        {
+          kind: "summary",
+          heading: "The OSI model, in short",
+          bullets: [
+            "Use it as a bottom-to-top checklist for isolating a failure, not a literal description of how every real protocol is implemented.",
+            "Confirming each lower layer works before assuming a higher-layer failure turns a vague \"the network is broken\" into a specific, testable claim.",
+            "The four-layer TCP/IP model is what most real troubleshooting and protocol discussions actually reference — OSI's extra granularity is a teaching tool layered on top of it.",
+          ],
+        },
       ],
     },
     {
@@ -106,11 +149,48 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "diagram",
+          heading: "The TCP three-way handshake",
+          description: "This exchange happens before a single byte of the actual request is sent — it's what makes TCP a \"connection\" rather than just a stream of unrelated packets.",
+          steps: [
+            { label: "SYN", detail: "Client: \"I'd like to connect, here's my starting sequence number\"" },
+            { label: "SYN-ACK", detail: "Server: \"Acknowledged, here's mine\"" },
+            { label: "ACK", detail: "Client: \"Acknowledged — connection established\"" },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "NAT: how a whole office shares one public IP",
+          intro:
+            "Private IP ranges (like 192.168.x.x) aren't routable on the public internet — NAT (Network Address Translation) is the router-level trick that lets them still reach it.",
+          bullets: [
+            "The router rewrites each outgoing packet's private source IP to its own single public IP, and remembers the mapping (private IP + port) so it knows which internal device a reply belongs to.",
+            "This is also why an unsolicited inbound connection generally can't reach a device behind NAT by default — there's no existing mapping for the router to route it through, which incidentally works as a basic filter against unsolicited traffic.",
+            "Port forwarding is the deliberate exception: manually telling the router \"anything arriving on public port 8080 goes to 192.168.1.50 port 80\" for a specific internal service that needs to be reachable from outside.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A common mistake: blaming \"the network\" for a blocked port",
+          body: "A service that works fine locally but is unreachable from another network is very often a firewall rule blocking a specific port, not a routing or DNS problem — the IP resolves fine, the ping to the host might even succeed, but the specific port the service listens on never gets a response. This is exactly why the troubleshooting checklist later in this course tests connectivity at the port/service level (via telnet or curl) as its own explicit step, separate from just confirming the host is reachable at all.",
+        },
+        {
+          kind: "text",
+          heading: "Packet fragmentation: another way a connection stalls without an obvious error",
+          body: [
+            "Every network link has a maximum transmission unit (MTU) — the largest packet size it can carry without splitting it up, typically 1500 bytes on standard Ethernet. A packet larger than the MTU of some link along the path either gets fragmented into smaller pieces (adding overhead) or, if a router along the way is configured to not fragment, silently dropped.",
+            "This shows up in practice as a connection that establishes fine (the three-way handshake succeeds, since those packets are small) but then hangs on any request carrying a larger payload — a classic, hard-to-diagnose symptom on VPN connections specifically, since a VPN's own encapsulation overhead can push an otherwise normal-sized packet just over the path's real MTU.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Putting it together",
           bullets: [
             "A web request is a TCP connection to a specific IP on port 443, carrying an HTTP request.",
             "It's broken into packets routed independently and reassembled in order at the destination.",
+            "The three-way handshake (SYN, SYN-ACK, ACK) establishes a TCP connection before any real data is sent — this is part of why TCP has more overhead than UDP for a single small exchange.",
+            "NAT lets many private-IP devices share one public IP, which is why an internal service usually needs explicit port forwarding to be reachable from outside the network.",
           ],
         },
       ],
@@ -172,6 +252,44 @@ export const course: CourseSeed = {
             "When a DNS record changes, cached copies persist until their TTL expires — changes can take minutes to a day or more to be visible everywhere.",
           ],
         },
+        {
+          kind: "diagram",
+          heading: "Where a DNS answer gets cached along the way",
+          description: "A cached answer at any of these points means the resolution never reaches the authoritative nameserver at all — which is usually good for speed, and occasionally the reason a change isn't visible yet.",
+          steps: [
+            { label: "Browser cache", detail: "Often seconds to minutes" },
+            { label: "OS resolver cache", detail: "Follows the record's TTL" },
+            { label: "ISP / public resolver (e.g. 8.8.8.8)", detail: "Also follows TTL, shared across many users" },
+            { label: "Authoritative nameserver", detail: "The source of truth, only queried on a real cache miss" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A common mistake: forgetting to lower TTL before a planned migration",
+          body: "If a domain's A record has a TTL of 24 hours, cutting over to a new server and immediately decommissioning the old one means anyone whose resolver cached the old answer in the last 24 hours gets nothing until their cache expires. The standard practice is lowering the TTL (to something like 300 seconds) a day or more before a planned migration, waiting for that shorter TTL to fully propagate, making the cutover, and only then raising the TTL back up and decommissioning the old server — skipping this step is one of the most common causes of a migration that looks broken for a subset of users for no obvious reason.",
+        },
+        {
+          kind: "example",
+          heading: "Checking a record's TTL directly",
+          body: "The TTL is right there in the dig output — no guessing needed before deciding whether it's safe to make a change.",
+          code: `dig example.com +noall +answer
+
+example.com.  300  IN  A  93.184.216.34
+
+The "300" is the TTL in seconds (5 minutes) — a resolver that
+already cached this answer will re-query the authoritative
+nameserver again once those 5 minutes are up, not before.`,
+        },
+        {
+          kind: "summary",
+          heading: "DNS, in short",
+          bullets: [
+            "Resolution walks from a local cache up through the authoritative chain (root → TLD → domain nameservers) only when there's a cache miss at every level above it.",
+            "Different record types serve different jobs — A/AAAA for addresses, CNAME for aliases, MX for mail routing, TXT for verification and email security.",
+            "A record's TTL controls how long a stale answer can keep being served after a change — lower it in advance of a planned migration, not after.",
+          ],
+        },
       ],
     },
     {
@@ -225,6 +343,44 @@ export const course: CourseSeed = {
           tone: "tip",
           heading: "The habit worth building",
           body: "Running through this order mentally before diving deep saves real time — most \"network is broken\" problems resolve by identifying which of these six steps actually fails.",
+        },
+        {
+          kind: "bullets",
+          heading: "A common mistake: skipping straight to the layer you assume is guilty",
+          intro:
+            "It's tempting to jump straight to \"it's probably DNS\" or \"it's probably the firewall\" based on a hunch — the checklist exists precisely because hunches are often wrong.",
+          bullets: [
+            "Jumping straight to an application-level fix (restarting the app, clearing a browser cache) when the real problem is a lower layer (no IP address at all) wastes time and sometimes masks the real cause temporarily.",
+            "Working the checklist in order costs almost nothing when everything's fine — each step that passes takes seconds — and it means the step that fails is found directly instead of guessed at.",
+            "The order matters specifically because each step assumes the ones before it: there's no point troubleshooting DNS if the device doesn't have a valid IP address yet, since DNS queries themselves depend on basic IP connectivity working first.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A second scenario: intermittent, not total, failure",
+          body: "Not every problem is a clean pass/fail at one step — packet loss partway through the checklist looks different from a hard failure and points to a different kind of cause.",
+          code: `ping -c 20 8.8.8.8
+20 packets transmitted, 14 received, 30% packet loss
+round-trip min/avg/max = 18.2/94.6/310.4 ms
+
+30% loss and a wide swing between the fastest and slowest
+reply (18ms to 310ms) suggests congestion or a flaky link
+somewhere between the device and the destination — not a
+clean "broken" or "working" step like a DNS failure would be.
+This calls for a different next move than the binary checklist:
+testing from a different network (isolate whether it's local),
+and checking for a saturated wifi channel or a failing cable
+rather than re-running nslookup or curl, which aren't the
+right tools for an intermittent, partial failure.`,
+        },
+        {
+          kind: "summary",
+          heading: "Troubleshooting, in short",
+          bullets: [
+            "Work bottom to top: link, IP, gateway, wider internet, DNS, then the specific port/service — each step assumes the ones before it already work.",
+            "A clean pass/fail at one step is the easy case; intermittent or partial failure (packet loss, wide latency swings) points toward congestion or a flaky link rather than a single broken layer.",
+            "Resist jumping straight to a hunch about which layer is guilty — the checklist is cheap to run in order and avoids wasted effort chasing the wrong layer.",
+          ],
         },
       ],
     },
@@ -301,6 +457,34 @@ Each /26 = 64 addresses total, 62 usable (2 reserved per subnet).`,
           tone: "insight",
           heading: "Subnetting is a security tool, not just an addressing tool",
           body: "Splitting a network into subnets lets you put a firewall or router between them — so guest wifi traffic never reaches the finance subnet at the network level, regardless of any application-level permissions. This is the practical reason subnetting comes up as often in security discussions as in pure networking ones.",
+        },
+        {
+          kind: "bullets",
+          heading: "A common mistake: sizing every subnet the same regardless of actual need",
+          intro:
+            "Splitting a /24 into four equal /26s is simple, but real departments rarely need exactly the same number of addresses.",
+          bullets: [
+            "Variable Length Subnet Masking (VLSM) allows different-sized subnets carved from the same address block — a 400-person office floor gets a /23 (510 usable), while a 2-device server closet gets a /30 (2 usable), instead of forcing both into the same fixed size.",
+            "Sizing every subnet identically either wastes large amounts of address space on small subnets, or under-provisions a subnet that turns out to need more devices than expected — both are avoidable with a little upfront planning.",
+            "The planning question that actually matters: list each subnet's expected device count (with reasonable headroom for growth) before picking prefix lengths, rather than dividing evenly and hoping it fits.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "VLSM: right-sizing three very different needs from one /24",
+          body: "The same 192.168.1.0/24 block, split unevenly this time based on what each group actually needs.",
+          code: `192.168.1.0/24 split with VLSM:
+
+192.168.1.0/25    (126 usable) - Main office floor (est. 100 devices)
+192.168.1.128/28  (14 usable)  - Server rack (est. 10 devices)
+192.168.1.144/28  (14 usable)  - Network equipment (est. 8 devices)
+192.168.1.160/27  (30 usable)  - Guest wifi (est. 20 devices)
+192.168.1.192/26  (62 usable)  - Unallocated, reserved for growth
+
+Compare to splitting evenly into four /26s (62 usable each):
+the server rack and network equipment subnets would each waste
+around 50 addresses they'll never use, while still leaving no
+clean room to grow the main office floor later.`,
         },
         {
           kind: "summary",

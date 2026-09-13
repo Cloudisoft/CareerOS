@@ -34,6 +34,7 @@ export const course: CourseSeed = {
           heading: "The core idea",
           body: [
             "Infrastructure as code means your servers, networks, databases, and permissions are described in files, checked into version control, exactly like application code. Terraform is one tool for doing this: you write what you want infrastructure to look like, and Terraform figures out the API calls to a cloud provider needed to make reality match.",
+            "\"Declarative\" is the key word — you describe the end state you want, not the sequence of steps to get there. A shell script that calls aws ec2 run-instances is imperative: run it twice and you get two instances. A Terraform resource block is declarative: run terraform apply twice against no changes and nothing happens, because Terraform compares desired state against what already exists before acting.",
           ],
         },
         {
@@ -41,6 +42,32 @@ export const course: CourseSeed = {
           tone: "insight",
           heading: "The real advantage isn't automation for its own sake",
           body: "It's that a pull request against a .tf file gets reviewed like any other code change — a teammate can read the diff, see exactly what resource is being created or changed, and catch a mistake before it touches a real account. A console click has no diff to review.",
+        },
+        {
+          kind: "bullets",
+          heading: "Terraform isn't the only option",
+          intro: "Worth knowing the landscape, even if this course focuses on Terraform:",
+          bullets: [
+            "CloudFormation (AWS-only) and ARM/Bicep (Azure-only) — provider-native, tightly integrated, but locked to one cloud. Terraform's provider model covers AWS, Azure, GCP, and hundreds of other systems (Datadog, GitHub, Kubernetes itself) with one tool and one workflow.",
+            "Pulumi — infrastructure as code in a general-purpose language (TypeScript, Python, Go) instead of HCL, trading Terraform's declarative-only simplicity for real loops, functions, and your existing language tooling.",
+            "Ansible and similar config-management tools solve a related but different problem — configuring software on servers that already exist, not provisioning the servers themselves. Terraform and Ansible are frequently used together, not as alternatives to each other.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Why Terraform specifically tends to win by default",
+          body: "Multi-cloud support without rewriting your tooling per provider, a huge existing library of community and provider-maintained modules, and a plan step that shows you a preview before anything touches real infrastructure — that combination is why it's become the default choice for teams that don't already have a hard reason to pick something else.",
+        },
+        {
+          kind: "bullets",
+          heading: "What \"IaC\" gets you beyond the diff itself",
+          bullets: [
+            "Disaster recovery becomes mechanical instead of heroic — if a region-level outage takes out your whole VPC, \"rebuild it\" means terraform apply against the same config in a new region, not a person trying to remember every setting from memory under pressure.",
+            "Onboarding a new engineer to \"how is production actually set up\" means reading the .tf files, not a wiki page that's been stale since the last unrecorded console change.",
+            "Consistent environments stop being an aspiration — staging and production come from the same module with different variable values, instead of drifting apart because someone clicked a setting in one and not the other.",
+            "Compliance and audit questions (\"prove that encryption was enabled the whole time\") get answered by git history and a diff, not by someone's memory of what they clicked in March.",
+          ],
         },
       ],
     },
@@ -111,6 +138,30 @@ Plan: 1 to add, 0 to change, 0 to destroy.`,
           tone: "tip",
           heading: "Read every plan before you type yes",
           body: "The symbols matter: + creates, ~ modifies in place, and -/+ destroys and recreates — the last one means downtime for that resource. A one-line config change can silently turn into \"destroy and recreate the production database.\" The plan is telling you that in advance; skimming past it is how avoidable outages happen.",
+        },
+        {
+          kind: "bullets",
+          heading: "Flags that change what plan and apply actually do",
+          bullets: [
+            "terraform plan -out=tfplan saves the exact plan to a file. terraform apply tfplan then applies precisely that plan — no re-evaluation, no risk of infrastructure changing between plan and apply. This is the standard pattern in CI, not two loosely-connected commands.",
+            "terraform apply -auto-approve skips the interactive yes/no prompt — necessary for CI, dangerous run by hand, since it removes the last human checkpoint before a destroy.",
+            "terraform apply -target=aws_instance.web applies changes to only that resource and its dependencies, skipping everything else in the plan. It's an escape hatch for a genuine emergency, not a routine workflow — used habitually, it lets your applied state and your full configuration quietly diverge.",
+            "terraform plan -destroy previews a full teardown without running it — the safe way to sanity-check terraform destroy before you actually run it.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "fmt and validate: the pre-commit hygiene layer",
+          body: [
+            "terraform fmt rewrites your files to Terraform's canonical formatting (indentation, alignment of = signs) — run it before every commit so diffs show actual changes, not whitespace noise. terraform validate checks the configuration is syntactically valid and internally consistent (references resolve, required arguments are present) without touching any real infrastructure or even needing valid cloud credentials, which makes it cheap to run in CI on every push, well before a plan step that does need credentials.",
+            "Most teams wire both into a pre-commit hook and a CI check — catching a typo in fmt or validate takes seconds; catching the same typo three minutes into a plan against production credentials wastes a CI slot and a teammate's patience.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Idempotency is the property that makes any of this safe",
+          body: "Run terraform apply against a configuration with no changes, and Terraform does nothing — plan reports zero changes because reality already matches desired state. This is what makes it safe to run apply repeatedly, in CI, on a schedule, or by hand without worrying about duplicating resources — the opposite of running a shell script that calls a cloud API's \"create\" action, where running it twice creates two of everything. Every resource type in Terraform is built to compare-then-act rather than always-act, and that guarantee is the entire reason a plan step can be trusted before you type yes.",
         },
       ],
     },
@@ -194,6 +245,48 @@ resource "aws_instance" "web" {
             { label: "Create web instance", detail: "Waits for the security group's real ID before it can be created" },
           ],
         },
+        {
+          kind: "bullets",
+          heading: "Meta-arguments: options every resource block accepts",
+          bullets: [
+            "count = 3 creates three copies of a resource, addressed by index (aws_instance.web[0], [1], [2]) — simple, but fragile: deleting the middle item shifts every index after it, and Terraform reads that as destroying and recreating them.",
+            "for_each over a map or set creates one resource per key, addressed by that key (aws_instance.web[\"staging\"]) — removing one entry only affects that one resource, which is why for_each is generally preferred over count once you're managing more than a couple of near-identical resources.",
+            "lifecycle { prevent_destroy = true } makes Terraform refuse to destroy that resource even if a plan calls for it — a guardrail worth putting on anything genuinely catastrophic to lose, like a production database.",
+            "lifecycle { create_before_destroy = true } flips the default order on a replace: the new resource is created first and the old one destroyed only after, avoiding a gap where neither exists.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "for_each in practice: one bucket per environment",
+          language: "hcl",
+          code: `resource "aws_s3_bucket" "reports" {
+  for_each = toset(["staging", "production"])
+  bucket   = "acme-reports-\${each.key}"
+}
+
+# Referenced elsewhere as aws_s3_bucket.reports["staging"].id
+# and aws_s3_bucket.reports["production"].id`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "count's index-shifting is a real production gotcha",
+          body: "With count = 3 addressing servers as [0], [1], [2] by list position, removing the second entry from that list doesn't just delete one server — Terraform sees [1] and [2] as changed identities and plans to destroy and recreate both, not just drop the one you removed. for_each avoids this entirely because each resource is keyed by a stable value, not a position that shifts when the list does.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Provider version pinning matters as much as module version pinning",
+          body: "The required_providers block's version = \"~> 5.0\" allows any 5.x release but blocks 6.0 — the ~> operator pins the left-most non-zero component you specify. Leaving version unconstrained means a fresh terraform init on a new machine or in CI can silently pull a newer major provider version with breaking changes to resource schemas, which is how \"it works on my machine\" turns into a broken pipeline on someone else's.",
+        },
+        {
+          kind: "text",
+          heading: "Aliased providers: talking to more than one account or region at once",
+          body: [
+            "A single provider \"aws\" block configures one region and one set of credentials by default — but real setups often need a second one, most commonly to put a CloudFront distribution's ACM certificate in us-east-1 while the rest of the stack lives in eu-west-1, or to replicate a resource into a second account entirely.",
+            "The pattern: a second provider block with alias = \"us_east_1\", then any resource that needs it adds provider = aws.us_east_1 as an argument. Without the alias, Terraform has no way to know which of two same-type provider configurations a given resource should use — it isn't inferred from context.",
+          ],
+        },
       ],
     },
     {
@@ -262,6 +355,24 @@ resource "aws_instance" "web" {
           tone: "tip",
           heading: "What remote state buys you",
           body: "The state lives in one shared location every teammate and CI job reads from, so everyone sees the same picture. The dynamodb_table adds locking — while one apply is running, a second one is blocked from starting, instead of two applies racing each other and corrupting the state.",
+        },
+        {
+          kind: "bullets",
+          heading: "Editing state directly — rare, but you'll need it eventually",
+          bullets: [
+            "terraform state list — prints every resource currently tracked in state, useful for confirming what Terraform thinks it manages before a risky change.",
+            "terraform state show aws_instance.web — prints every attribute Terraform has recorded for that resource, including ones not in your config, like the real generated ID.",
+            "terraform state mv — renames a resource in state without destroying and recreating it, essential after refactoring a resource's name or moving it into a module without an actual infrastructure change.",
+            "terraform state rm — removes a resource from state without destroying the real infrastructure, the correct way to stop managing something without deleting it.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Workspaces: one configuration, multiple state files",
+          body: [
+            "terraform workspace new staging creates a separate, isolated state file for that workspace while reusing the same .tf configuration — terraform workspace select switches between them. This lets one set of Terraform files manage staging and production as genuinely separate infrastructure, each with its own state, instead of copy-pasting the whole configuration per environment.",
+            "The common gotcha: workspaces isolate state, not variable values — you still need a mechanism (a .tfvars file per workspace, or a lookup keyed on terraform.workspace) to give staging a smaller instance size than production. Forgetting that step means workspaces silently deploy identical infrastructure to both environments.",
+          ],
         },
         {
           kind: "terminal",
@@ -344,6 +455,45 @@ module "production_web" {
           ],
         },
         {
+          kind: "example",
+          heading: "Sourcing a module from a git tag, pinned",
+          language: "hcl",
+          code: `module "vpc" {
+  source = "git::https://github.com/acme-eng/tf-modules.git//vpc?ref=v2.3.0"
+
+  cidr_block = "10.0.0.0/16"
+}
+
+# Or from the public Terraform Registry, also pinned:
+module "vpc_registry" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "5.8.1"
+
+  cidr = "10.0.0.0/16"
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "An unpinned module source is a silent supply chain risk",
+          body: "source = \"git::https://...//vpc\" with no ?ref, or version = \">= 5.0\" instead of an exact version, means the next terraform init can pull in changes nobody on your team reviewed — including a breaking change, or in the worst case a compromised module. Pin to an exact tag or version, and bump it deliberately, the same way you'd pin a package dependency rather than let npm install grab whatever's newest.",
+        },
+        {
+          kind: "bullets",
+          heading: "What makes a module worth extracting",
+          bullets: [
+            "A module should do one thing well — \"our standard web server\" or \"our standard VPC,\" not \"every possible AWS resource we might ever need,\" which turns into an unmaintainable pile of optional toggles nobody fully understands.",
+            "Extract a module the second or third time you write the same resource pattern, not preemptively on the first — a module built before you know its real variations tends to guess wrong about what should be configurable.",
+            "Sensible defaults in variables.tf matter as much as the resources themselves — a module that requires 15 inputs to use at all defeats the point of making it reusable.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Changing a published module is a versioned, backward-compatible change — or it should be",
+          body: "Once a module is used by more than one team, treat its inputs and outputs like a public API: renaming a variable or removing an output breaks every caller silently at their next terraform init, often long after you've forgotten the change. Add new optional variables with defaults rather than renaming existing required ones, deprecate before removing, and bump the module's major version (following semver) on any breaking change so callers pinned to an older version aren't affected until they choose to upgrade.",
+        },
+        {
           kind: "summary",
           heading: "What to take away",
           bullets: [
@@ -416,6 +566,40 @@ resource "aws_subnet" "app" {
             { text: "      ~ acl = \"private\" -> \"public-read\"", output: true },
             { text: "    }", output: true },
             { text: "Plan: 0 to add, 1 to change, 0 to destroy.", output: true },
+          ],
+        },
+        {
+          kind: "example",
+          heading: "The modern alternative: a declarative import block",
+          body: "Terraform 1.5+ lets you write the import as configuration instead of a one-off CLI command — reviewable in a pull request like everything else:",
+          language: "hcl",
+          code: `import {
+  to = aws_s3_bucket.reports
+  id = "acme-monthly-reports"
+}
+
+resource "aws_s3_bucket" "reports" {
+  bucket = "acme-monthly-reports"
+}
+
+# terraform plan -generate-config-out=generated.tf
+# generates a best-effort resource block for you from the real
+# resource's current settings — a starting point, not a finished config`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Data sources are re-queried on every plan, and can fail plan-time",
+          body: "A data \"aws_vpc\" block isn't cached after the first read — Terraform calls out to the provider again on every plan and apply. If the thing it's filtering for doesn't exist yet (a VPC not created until earlier in the same apply, or deleted out from under you), the data source lookup fails and the whole plan fails with it — before Terraform gets anywhere near the resources that actually depend on it. This is why a data source referencing something another Terraform config manages needs that other config's resource to already exist and be stable, not mid-flight.",
+        },
+        {
+          kind: "bullets",
+          heading: "Deciding between data source, import, and a fresh resource",
+          bullets: [
+            "Something another team's Terraform (or a different tool entirely) owns and will keep managing — use a data source. You read it; you never touch it.",
+            "Something created by hand or by a retired tool, that your configuration should own going forward — use import (or the import block) to adopt it, then hand-write a matching resource block.",
+            "Something that doesn't exist yet — write a plain resource block; there's nothing to look up or adopt.",
+            "Getting this wrong in the data-source direction (writing a resource block for something another team already manages) is the more dangerous mistake: Terraform will try to create a duplicate, or fight the configuration that already owns it, on every apply from then on.",
           ],
         },
         {

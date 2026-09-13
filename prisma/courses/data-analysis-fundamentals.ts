@@ -53,6 +53,37 @@ export const course: CourseSeed = {
           body: "A team that jumps straight into a dashboard often produces an answer to a question nobody asked, presented confidently enough that it gets acted on anyway. Fifteen minutes spent writing the actual question down first is cheap insurance against that.",
         },
         {
+          kind: "bullets",
+          heading: "A common mistake: writing the question after seeing the answer",
+          intro:
+            "This one is subtle because it doesn't feel dishonest while it's happening.",
+          bullets: [
+            "It's called HARKing (Hypothesizing After the Results are Known) — you explore the data first, notice something that looks interesting, then write up a question as if that had been the plan all along.",
+            "The problem isn't the exploring — noticing patterns is normal and useful. The problem is presenting a pattern found by browsing as if it had been predicted in advance, which makes it look far more solid than it is.",
+            "With enough columns to scan, some pattern will look real by pure chance — a hypothesis written down before looking is what lets you tell a genuine signal from something you'd have found in random noise too.",
+            "A practical fix: if you do explore first and find something promising, say so explicitly (\"this emerged from exploratory analysis and needs a follow-up test to confirm\") rather than writing it up as if it were the original, pre-registered question.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Turning a vague topic into a workable question, step by step",
+          body: "The gap between these usually closes with three questions: what metric, compared to what, over what window.",
+          code: `Starting point: "How's the new checkout flow doing?"
+
++ What metric?          -> cart abandonment rate
++ Compared to what?     -> the old checkout flow
++ Over what window?     -> the 4 weeks since rollout
+
+Workable question: "Is cart abandonment lower on the new
+checkout flow than the old one, measured over the 4 weeks
+since rollout, for the same traffic mix?"
+
+That last clause — "for the same traffic mix" — matters too:
+if the new flow launched during a holiday sale, a lower
+abandonment rate might just reflect more motivated shoppers,
+not a better flow.`,
+        },
+        {
           kind: "summary",
           heading: "Before you open the data",
           bullets: [
@@ -129,6 +160,30 @@ customer_state | order_total | order_date
           tone: "warning",
           heading: "The mistake that's easy to make under time pressure",
           body: "Silently dropping every row with any issue is the fastest way to clean data and one of the easiest ways to bias it — if the rows with problems aren't random (say, they're disproportionately from one region's data feed), you've quietly changed what the remaining data represents.",
+        },
+        {
+          kind: "bullets",
+          heading: "A quieter version of the same mistake: a placeholder value that looks real",
+          intro:
+            "Blank cells get noticed. A placeholder disguised as a real number usually doesn't — until it's already dragged a calculation off.",
+          bullets: [
+            "A legacy system exporting \"-1\" for an unknown age, or \"0\" for an unrecorded order total, will happily average into your \"mean order value\" as if it were a real $0 order — quietly dragging the average down without any obvious error appearing.",
+            "The tell is usually a suspicious spike at one exact value — a histogram with an odd cluster at exactly 0, exactly -1, or exactly 9999 is a strong signal that value is a stand-in for missing, not a real measurement.",
+            "Before running any summary statistic on a numeric column, check its minimum, maximum, and the frequency of its most common value — a placeholder disguised as data usually reveals itself in that first look.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "How one placeholder value moves a real number",
+          body: "12 orders, one of them a \"0\" that actually means \"total wasn't recorded,\" not \"a free order.\"",
+          code: `Order totals: 42, 38, 55, 61, 47, 0, 50, 44, 39, 58, 46, 41
+
+Mean including the placeholder:    $43.4
+Mean after excluding the "0" row:  $47.4
+
+A 9% swing in "average order value" from a single miscoded
+row — small enough to not look obviously wrong on a dashboard,
+large enough to change which region looks like it's underperforming.`,
         },
         {
           kind: "summary",
@@ -216,6 +271,32 @@ here — the mean is distorted by a single outlier.`,
           body: "Whenever you report a single summary number — a mean, a median, an average conversion rate — ask whether the underlying data has a long tail or unusual spread that the single number is hiding. If you're not sure, look at the distribution before presenting the summary.",
         },
         {
+          kind: "bullets",
+          heading: "Percentiles: a sharper tool than mean or median alone",
+          intro:
+            "The median is technically the 50th percentile — percentiles more broadly let you describe any point in the distribution, not just the middle.",
+          bullets: [
+            "The 90th percentile (\"p90\") response time of 800ms means 90% of requests were faster than that and 10% were slower — this is why engineering teams track p95 or p99 latency instead of average latency: the average can look fine while a meaningful slice of real users have a genuinely bad experience.",
+            "The interquartile range (IQR) — the gap between the 25th and 75th percentiles — describes the spread of the \"typical middle\" of the data while deliberately ignoring extreme values at both ends, making it a more robust spread measure than standard deviation when outliers are present.",
+            "A common outlier-detection rule of thumb: flag any value more than 1.5×IQR beyond the 25th or 75th percentile as worth a second look — not necessarily wrong, but worth checking before it's included in a summary uncritically.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Average latency hides what p95 reveals",
+          body: "Same 10 page-load times — the average looks perfectly fine while one in ten users had a genuinely slow experience.",
+          code: `Load times (ms): 180, 190, 200, 195, 210, 185, 205, 190, 200, 2100
+
+Mean = 445ms   (dragged way up by the one 2,100ms load)
+p50 (median) = 197.5ms
+p90 = 205ms   (90% of loads were at or below this)
+
+Reporting only the mean (445ms) makes the page look
+consistently slow. Reporting only the median (197.5ms) hides
+that roughly 1 in 10 loads took over 2 seconds — the real
+story needs both the typical case and the tail.`,
+        },
+        {
           kind: "summary",
           heading: "Descriptive stats, briefly",
           bullets: [
@@ -275,6 +356,16 @@ Misleading:  y-axis 50% to 54%
           tone: "warning",
           heading: "The audience test",
           body: "Before finalizing a chart, ask: could someone glancing at this for five seconds walk away with a wrong impression, even though every number on it is technically correct? If the honest answer is yes, the chart — not the data — needs to change.",
+        },
+        {
+          kind: "bullets",
+          heading: "Two chart types worth knowing beyond the basics",
+          intro: "Bar, line, and scatter cover most cases, but two more situations come up often enough to name specifically.",
+          bullets: [
+            "Showing the shape of a distribution (not a comparison between categories) → a histogram, which groups continuous values into bins and shows how many fall in each — this is what actually reveals a long tail or a skew, something a single mean or median number can't show on its own.",
+            "A stacked bar chart can compare totals across categories and show composition at once, but it's genuinely hard to compare the size of a middle segment across bars — only the bottom segment and the overall total are easy to read accurately, because everything else floats on a shifting baseline.",
+            "When the comparison that actually matters is between one specific segment across categories (not the totals), a grouped (side-by-side) bar chart or small multiples usually communicates it more honestly than a stacked one.",
+          ],
         },
         {
           kind: "summary",
@@ -361,6 +452,24 @@ raises both independently.`,
           body: "When you find a real correlation without solid causal evidence, say exactly that: X and Y are correlated; we haven't established that changing X would change Y. That sentence is more useful — and more honest — than an overconfident causal claim that turns out to be wrong once acted on.",
         },
         {
+          kind: "example",
+          heading: "Simpson's paradox: when the trend flips depending on how you group it",
+          body: "A drug's overall recovery rate can look worse than a placebo's, while it's actually better in every single patient subgroup — the trap here isn't a confounder pulling in an obvious direction, it's aggregation itself hiding the real pattern.",
+          code: `Overall:
+  Drug:     78% recovery   (78 of 100 patients)
+  Placebo:  83% recovery   (83 of 100 patients)
+  -> Drug looks worse
+
+By severity:
+  Mild cases —  Drug: 93% (of 15)   Placebo: 87% (of 85)
+  Severe cases — Drug: 73% (of 85)  Placebo: 40% (of 15)
+  -> Drug wins in BOTH subgroups
+
+The drug was given to more severe cases (where recovery is
+harder regardless of treatment), which dragged its overall
+average down even though it outperformed within each group.`,
+        },
+        {
           kind: "summary",
           heading: "Keeping the two separate",
           bullets: [
@@ -412,6 +521,33 @@ controlled test to confirm load time is the actual cause."`,
           tone: "tip",
           heading: "Lead with the answer, not the process",
           body: "Most audiences want the conclusion first, with the methodology available if someone asks, not the other way around. A report that opens with here's what we found and what we'd do about it gets read and acted on far more often than one that opens with here's how we approached the data.",
+        },
+        {
+          kind: "bullets",
+          heading: "Matching your confidence in the finding to your confidence in the recommendation",
+          intro:
+            "Not every finding deserves the same weight of action, and pretending otherwise is its own kind of dishonesty.",
+          bullets: [
+            "A finding from a controlled A/B test with a clear statistically significant result supports a confident recommendation — \"ship this.\"",
+            "A finding from a correlational analysis on a modest sample supports a hedged recommendation — \"this is promising, worth a small controlled test before a full rollout,\" not an immediate company-wide change.",
+            "A common failure mode goes the other direction too: burying a solid, well-supported finding under so many caveats that a reader can't tell it apart from a shaky one — caveats should be proportional to actual uncertainty, not a reflexive hedge added to every sentence out of caution.",
+            "One practical habit: state your confidence level explicitly (\"high confidence,\" \"moderate, worth validating further,\" \"early signal only\") rather than leaving the reader to infer it from tone.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Same underlying finding, calibrated two different ways",
+          body: "The words \"significant\" and \"promising\" are doing real work here — swapping them would misrepresent how solid each finding actually is.",
+          code: `High confidence (controlled A/B test, 50,000 users, p < 0.01):
+"The new onboarding flow reduced 30-day churn by 4 points.
+Recommendation: roll out to 100% of new signups."
+
+Lower confidence (correlational, 400 users, no controlled test):
+"Customers who attended a live demo show 4 points lower
+30-day churn than those who didn't. This is promising but
+correlational — demo attendees may simply be more engaged
+already. Recommendation: run a proper test before investing
+in scaling live demos."`,
         },
         {
           kind: "summary",
@@ -483,6 +619,23 @@ close, but not quite there.`,
           tone: "warning",
           heading: "Peeking early inflates false positives",
           body: "Checking a test's results every day and stopping as soon as it looks significant is one of the most common ways teams fool themselves — random noise will cross a significance threshold temporarily just by chance if you check often enough. Decide the sample size (or run time) needed before starting, and don't act on the result until you get there.",
+        },
+        {
+          kind: "bullets",
+          heading: "Confidence intervals: a more honest way to report the result",
+          intro:
+            "A single number (\"5.6% conversion\") implies more precision than a sample actually gives you — a confidence interval reports the range instead.",
+          bullets: [
+            "A 95% confidence interval of [5.0%, 6.2%] around Version B's 5.6% conversion rate means: if you re-ran this exact test many times, about 95% of the intervals you'd calculate would contain the true underlying conversion rate.",
+            "If Version A's rate (5.0%) falls inside Version B's confidence interval, that's another way of seeing the same thing the z-score showed — the two results overlap enough that chance is a plausible explanation for the difference.",
+            "Reporting a range instead of a single point is more honest about how much the sample size actually constrains what you know — a wide interval is itself useful information, not something to round away.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The multiple-comparisons trap",
+          body: "Testing 20 independent metrics at once at the standard 95% confidence bar means, on average, about 1 of them will look \"significant\" purely by chance even if nothing real changed — that's what a 5% false-positive rate implies when you run enough comparisons. Running an A/B test and then scanning dozens of sub-segments (by region, device, age group...) for one that shows significance is a common, tempting version of this mistake — with enough slices, one will look significant by luck alone. The fix is deciding your key metric before the test starts, or using a stricter significance bar when deliberately checking many segments.",
         },
         {
           kind: "summary",

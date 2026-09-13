@@ -41,6 +41,49 @@ export const course: CourseSeed = {
           heading: "A concrete example",
           body: "Encrypting a database protects confidentiality but does nothing for availability — a ransomware attack can still lock you out of your own encrypted data. Real security posture layers multiple protections.",
         },
+        {
+          kind: "example",
+          heading: "Classifying three real incidents by which property failed",
+          body: "The same skill used throughout this course: naming precisely what broke, instead of a vague \"we got hacked.\"",
+          code: `Incident 1: An attacker steals a database export containing
+customer emails and hashed passwords. Nothing is changed or
+taken offline.
+  -> Confidentiality failure. Data that should have stayed
+     private did not.
+
+Incident 2: An attacker doesn't steal anything, but silently
+alters shipping addresses in an orders database so future
+shipments get redirected.
+  -> Integrity failure. The data itself became untrustworthy,
+     even though nobody's access was ever "breached" in the
+     traditional sense.
+
+Incident 3: An attacker floods a company's login page with
+traffic until legitimate users can't reach it.
+  -> Availability failure. Nothing was read or changed — the
+     system just stopped being usable by the people who
+     needed it.`,
+        },
+        {
+          kind: "bullets",
+          heading: "A common mistake: treating \"more security\" as always meaning \"more confidentiality\"",
+          intro:
+            "Confidentiality gets the most attention (breaches make headlines), which quietly biases some teams to over-invest there.",
+          bullets: [
+            "Locking data down so aggressively that legitimate employees can't do their jobs efficiently is a self-inflicted availability problem — security that makes a system unusable pushes people toward risky workarounds (shared passwords, data copied to personal devices) that undermine confidentiality anyway.",
+            "A system can be technically airtight on confidentiality (perfect encryption, strict access control) and still fail badly on integrity if it never checks whether stored data was tampered with by someone who did have legitimate access.",
+            "The useful habit: for any proposed security control, ask which of the three properties it actually improves, and whether it comes at a real cost to one of the other two — a genuinely good control rarely helps all three equally.",
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "The CIA triad, in short",
+          bullets: [
+            "Confidentiality, integrity, and availability are three separate properties — a real incident usually violates one specifically, not all three at once, and naming which one clarifies what actually needs fixing.",
+            "Different systems legitimately weight the three differently — a public status page and a medical records system have very different right answers for how much each property matters.",
+            "A security control that strengthens one property can come at a real cost to another — genuine security posture balances all three deliberately, rather than maximizing confidentiality alone.",
+          ],
+        },
       ],
     },
     {
@@ -76,11 +119,48 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "example",
+          heading: "What SQL injection actually looks like",
+          body: "The vulnerable version trusts whatever the user typed enough to paste it directly into a query — the fixed version never lets user input become part of the query's structure at all.",
+          language: "sql",
+          code: `Vulnerable (string concatenation):
+  query = "SELECT * FROM users WHERE username = '" + input + "'"
+
+  If input is:  ' OR '1'='1
+  The query becomes:
+  SELECT * FROM users WHERE username = '' OR '1'='1'
+  -- '1'='1' is always true, so this returns every user row —
+  -- an attacker just bypassed the login check entirely.
+
+Fixed (parameterized query):
+  query = "SELECT * FROM users WHERE username = ?"
+  db.execute(query, [input])
+  -- The database treats input strictly as a data value being
+  -- compared, never as part of the query's own logic — the
+  -- same malicious string just fails to match any real username.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Malware, ransomware, and the supply chain",
+          bullets: [
+            "Malware — software installed without informed consent to spy, damage, or gain unauthorized access; ransomware is the subset that encrypts a victim's own data and demands payment for the key.",
+            "Ransomware specifically targets backups as part of the attack, which is exactly why a tested, offline or immutable backup (covered in the hygiene lesson) is the difference between a bad day and an existential one.",
+            "Supply-chain attacks compromise a trusted vendor or software dependency instead of the target directly — a malicious update pushed through a widely-used library or IT management tool can compromise thousands of downstream organizations that never did anything wrong themselves.",
+            "This is why patching quickly matters even for software you trust completely — the vulnerability being patched might be in a dependency three layers deep that your own team never directly chose or reviewed.",
+          ],
+        },
+        {
           kind: "text",
           heading: "Misconfiguration",
           body: [
             "A publicly exposed storage bucket, an admin panel with default credentials, an overly permissive firewall rule — not sophisticated exploits, just mistakes an attacker only has to find.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A common mistake: assuming a firewall makes internal systems safe to leave unpatched",
+          body: "A vulnerability inside the network perimeter is often treated as low-priority — \"an attacker would need to already be inside to exploit it.\" But a single successful phishing email (the single most common entry vector) puts an attacker exactly there. Internal systems need to be patched and hardened as if they'll eventually be reached directly, not just as a second line of defense behind a firewall nobody expects to fail — this thinking is also the practical bridge to the next lesson's defense-in-depth principle.",
         },
         {
           kind: "chart",

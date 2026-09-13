@@ -58,6 +58,31 @@ IF spam_score > threshold THEN mark as spam`,
           body: "A hand-written rule is transparent — you can read exactly why it fired. A learned model is a set of statistical patterns extracted from data — often more accurate on complex problems, but harder to fully explain, and only as good as the data it learned from.",
         },
         {
+          kind: "bullets",
+          heading: "A common mistake: reaching for ML before ruling out simpler options",
+          intro:
+            "Teams under deadline pressure often jump straight to \"train a model\" when a much cheaper fix would get most of the value.",
+          bullets: [
+            "Before training anything, ask whether a lookup table, a single threshold, or a handful of if-statements already covers most real cases — a surprising number of \"ML problems\" are rule problems wearing an ML label.",
+            "A model is also a standing maintenance commitment: someone has to monitor it, retrain it as real-world data drifts away from what it was trained on, and decide what happens when it's confidently wrong. A rule doesn't silently degrade the way a model trained on stale data does.",
+            "The real signal that ML is worth that overhead is that the rule-based version would need constant hand-tuning as new patterns emerge faster than a person can write rules for them — fraud and spam are like this; a shipping-cost calculator generally isn't.",
+            "A model that's only marginally more accurate than a simple rule, but far harder to explain to an auditor, a regulator, or a frustrated customer asking \"why was I denied,\" is frequently a net loss even when the accuracy number on a slide looks better.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "The maintenance cost hides in plain sight",
+          body: "Same spam problem, tracked over three years — the ML version isn't necessarily smarter on day one, but the rule-based version's upkeep cost grows in a way the ML version's doesn't.",
+          code: `Rule-based filter, year 1: 40 keyword rules, easy to reason about
+Rule-based filter, year 3: 2,200 rules, several contradicting each
+  other, nobody remembers why half of them were added
+
+ML filter, year 1: trained on 50,000 labeled emails
+ML filter, year 3: retrained monthly on fresh labeled data;
+  accuracy holds roughly steady as spammers change tactics,
+  without anyone hand-editing a growing rule list`,
+        },
+        {
           kind: "summary",
           heading: "The shift in one line",
           bullets: [
@@ -118,6 +143,35 @@ Unsupervised question:
           tone: "tip",
           heading: "A quick test you can apply to any problem",
           body: "Ask: \"if I handed a person 1,000 rows of this data, could they write down the correct answer for each one?\" If yes, you likely have (or can get) labels — treat it as supervised. If the honest answer is there is no single correct answer, we're just looking for patterns, it's unsupervised.",
+        },
+        {
+          kind: "bullets",
+          heading: "A common mistake in supervised learning: trusting a flawed proxy label",
+          intro:
+            "Having a label column doesn't automatically mean it measures what you think it measures.",
+          bullets: [
+            "\"Will this customer churn?\" often gets trained on a proxy like \"did the subscription lapse,\" which also fires for someone who switched to an annual plan or paused seasonally — the model then learns to predict the proxy, not real churn.",
+            "\"Is this a good hire?\" trained on \"got promoted within 2 years\" bakes in whatever biases already shaped past promotion decisions — the model reproduces the pattern in the label, not some objective notion of quality.",
+            "Before trusting a labeled dataset, ask specifically how each label was generated, and whether cases exist where the label is technically true but means something different than the question you're actually trying to answer.",
+            "This is a bigger source of real-world model failure than most algorithm choices — a perfectly tuned model trained on the wrong label is still answering the wrong question, just very confidently.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "One more distinction inside supervised learning: regression vs. classification",
+          body: "Both are supervised, but the type of label determines which one you're doing — and picking the wrong framing early on causes real rework later.",
+          code: `Regression — the label is a number:
+  predict a house's sale price ($214,000)
+  predict tomorrow's demand (1,840 units)
+
+Classification — the label is a category:
+  predict spam / not-spam
+  predict which of 3 support-ticket categories a message belongs to
+
+A model built for one doesn't transfer to the other without
+changing its output layer and its evaluation metric — deciding
+which type of label you actually have comes before choosing
+an algorithm.`,
         },
         {
           kind: "summary",
@@ -195,6 +249,34 @@ accuracy = model.score(X_test, y_test)   # graded on data it never saw`,
           body: "If any information from the test set — even indirectly, like a normalization step calculated across the full dataset before splitting — influences training, the test score becomes falsely optimistic. Always split first, then do any data preparation that involves calculating statistics from the data, fit only on the training portion.",
         },
         {
+          kind: "bullets",
+          heading: "A second leakage trap: near-duplicate rows split across train and test",
+          intro:
+            "This one is easy to miss because nothing about the split itself looks wrong.",
+          bullets: [
+            "If a dataset has multiple rows per customer (several purchases, several support tickets), a plain random split can put some of a customer's rows in training and others in test — the model effectively \"met\" that customer already, just through a different row.",
+            "The fix is a group-aware split: keep every row belonging to the same customer (or same patient, same device) entirely in training or entirely in test, never both.",
+            "The same risk shows up with near-duplicate records from copy-pasted data entry, or images that are near-identical crops of the same source photo — a test score built on data the model has effectively already seen looks great and means almost nothing.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Stratified splitting for imbalanced classes",
+          body: "A plain random split can accidentally put almost none of the minority class into the test set — stratified splitting keeps the same class ratio in both pieces.",
+          language: "python",
+          code: `# Fraud dataset: 2% of rows are fraud (imbalanced)
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    features, labels, test_size=0.2,
+    stratify=labels, random_state=42
+)
+# stratify=labels keeps ~2% fraud in both X_train and X_test —
+# without it, a small or unlucky split could land a test set
+# with almost no fraud examples, making the test score
+# meaningless for the case that actually matters.`,
+        },
+        {
           kind: "summary",
           heading: "The one-sentence rule",
           bullets: [
@@ -269,6 +351,28 @@ Overfit:   a wiggly line that passes through every single point exactly
             "Fixing underfitting: use a more expressive model, add more relevant features, or train for longer / with less aggressive simplification.",
             "In both cases, cross-validation (previous lesson) is how you actually detect which problem you have before it costs you in production.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "What regularization actually does to the math",
+          body: "Regularization adds a penalty term to the error the model is trying to minimize, so it has to \"earn\" the right to rely heavily on any single feature.",
+          code: `Plain error (what least squares minimizes):
+  error = sum((actual - predicted)^2)
+
+Regularized error (L2 / \"ridge\"):
+  error = sum((actual - predicted)^2) + lambda * sum(coefficient^2)
+
+Turning lambda up pushes coefficients toward zero — the model
+is penalized for using a feature unless that feature earns its
+keep by meaningfully reducing the original error. Too small a
+lambda barely helps overfitting; too large a lambda starts
+causing underfitting by suppressing real signal too.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A real-world consequence of missing this",
+          body: "A home-resale price model trained mainly on data from a hot seller's market can overfit to conditions specific to that period — it learns \"homes near this school district reliably sell 8% over asking\" as if it were a stable rule, when it was really a temporary artifact of low inventory. When the market cools, the model keeps confidently overpaying based on a pattern that no longer holds — a costly failure that a train/test split within the same hot period would never have caught, since both halves shared the same temporary conditions.",
         },
         {
           kind: "summary",
@@ -350,6 +454,29 @@ price ≈ 148 * square_footage + 55,000`,
           body: "Linear regression is rarely the most accurate model for a hard problem, but its transparency is genuinely valuable — you can look at m (the coefficient) directly and say each extra square foot is worth about $148 in this dataset, which is much harder to say plainly about many more complex models.",
         },
         {
+          kind: "example",
+          heading: "Extending to multiple features",
+          body: "Real problems rarely use just one input — multiple linear regression adds a coefficient per feature, but the underlying idea (a weighted sum, fitted by least squares) doesn't change.",
+          code: `price = m1*square_footage + m2*bedrooms + m3*distance_to_downtown + b
+
+After training, the model might find:
+  m1 ≈ 140   (price per additional sqft, holding the rest constant)
+  m2 ≈ 8,000 (price per additional bedroom)
+  m3 ≈ -3,200 (price drop per mile from downtown)
+  b  ≈ 40,000
+
+Each coefficient is read "holding everything else fixed" — m1
+is smaller here than in the single-feature model because some
+of what square footage used to explain alone is now explained
+partly by bedroom count instead.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The trap multiple features introduces: multicollinearity",
+          body: "When two features are highly correlated with each other — square footage and bedroom count usually are — the model can't cleanly tell which one deserves credit for the price change, and their individual coefficients can become unstable or even flip sign, even though the model's overall predictions still look fine. The practical fix is checking correlation between input features before training, and dropping or combining redundant ones rather than trusting an individual coefficient at face value when this is present.",
+        },
+        {
           kind: "bullets",
           heading: "Where a straight line breaks down",
           bullets: [
@@ -426,6 +553,32 @@ Recall    = 85 / (85 + 15)  ≈ 85%`,
           body: "A spam filter that misses a spam email (low recall) is mildly annoying. A medical screening test that misses a real case (low recall) is far more serious than one that produces some false alarms. Decide what a mistake costs in the real system before deciding which metric to optimize.",
         },
         {
+          kind: "bullets",
+          heading: "When you genuinely can't pick just one: F1 score, and the threshold behind every classification",
+          intro:
+            "Most classifiers don't just output \"fraud\" or \"not fraud\" — they output a probability, and a threshold decides where that probability gets rounded to a decision.",
+          bullets: [
+            "F1 score is the harmonic mean of precision and recall — it's a reasonable single number when both matter roughly equally and you need one metric to compare models, though it still hides which of the two is driving a low score.",
+            "Almost every classification model actually outputs a probability (\"73% likely fraud\") — the usual 50% cutoff for calling something \"fraud\" is a choice, not a law, and moving it directly trades precision for recall.",
+            "Lowering the threshold (flagging anything over, say, 20% likely fraud) catches more real fraud but also flags more false alarms — raising recall at the direct expense of precision, with no retraining required.",
+            "This is often the fastest lever to pull when a stakeholder says \"we need to catch more fraud\" or \"we need fewer false alarms\" — before reaching for a different model entirely, check whether the current model's threshold is simply set wrong for the actual cost tradeoff.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "The same model, three thresholds",
+          body: "Same underlying model and the same 2,000 transactions — only the cutoff for calling something \"fraud\" changes.",
+          code: `Threshold 0.7 (strict): Precision 82%   Recall 61%
+Threshold 0.5 (default): Precision 68%   Recall 85%
+Threshold 0.3 (loose):   Precision 51%   Recall 94%
+
+Nothing was retrained between these three rows — moving the
+threshold from 0.5 to 0.3 traded 17 points of precision for
+9 points of recall. Whether that's a good trade depends
+entirely on what a missed fraud case costs versus what an
+unnecessary manual review costs.`,
+        },
+        {
           kind: "summary",
           heading: "Closing the loop on the fundamentals",
           bullets: [
@@ -492,6 +645,23 @@ Repeat steps 1-2. Assignments stop changing -> converged.`,
             "The random starting centroids matter: different starting points can converge to different final clusters, which is why most implementations run the algorithm several times and keep the best result.",
             "Features on very different scales (e.g., income in dollars next to age in years) will let the larger-scale feature dominate distance calculations — scaling features first is close to mandatory.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "When k-means is the wrong tool, and what to reach for instead",
+          intro:
+            "K-means' round-cluster assumption is a real limitation, not a minor footnote — knowing when to switch algorithms matters as much as knowing k-means itself.",
+          bullets: [
+            "DBSCAN groups points by density instead of distance-to-a-center, so it naturally handles oddly-shaped clusters and doesn't force every point into a group — points in sparse regions are labeled as noise instead of being crammed into the nearest cluster.",
+            "Hierarchical clustering builds a tree of nested clusters rather than a fixed k, which is useful when you genuinely don't know how many groups exist and want to inspect several possible groupings (cutting the tree at different heights) before committing.",
+            "Prefer k-means when clusters are roughly round and you have a rough sense of k already — it's fast and scales well to large datasets. Prefer DBSCAN when cluster shape is unknown or irregular and some points genuinely shouldn't belong to any group. Prefer hierarchical clustering when you want to explore multiple possible values of k rather than commit to one upfront.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A real-world consequence of the round-cluster assumption",
+          body: "A retailer ran k-means on customer purchase data expecting to find a small \"high-value, low-frequency\" segment — big spenders who buy rarely. Because that group formed a thin, elongated shape in the data (spend and frequency trading off against each other) rather than a round blob, k-means split it apart and merged pieces of it into two larger, more typically-shaped clusters instead. The segment was real; k-means' shape assumption just couldn't see it. Switching to DBSCAN on the same data recovered it as a distinct, if smaller, group.",
         },
         {
           kind: "callout",

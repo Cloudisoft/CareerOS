@@ -37,6 +37,25 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "example",
+          heading: "What routing looked like before a framework handled it",
+          body: "Plain React needs a separate router library, configured entirely by hand, just to map a URL to a component — exactly the repetitive setup a framework's file-based routing (covered next lesson) exists to remove.",
+          code: `// A common pattern with React Router, wired up manually
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/jobs" element={<JobsList />} />
+        <Route path="/jobs/:id" element={<JobDetail />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}`,
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "\"Full-stack React\" is the point",
@@ -48,6 +67,23 @@ export const course: CourseSeed = {
           body: [
             "Next.js has two routing systems historically — the older Pages Router and the newer App Router. This course covers the App Router, which is the current, actively developed approach and the one new projects should default to.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "Next.js isn't the only answer to this question",
+          intro: "Several frameworks solve the same three problems, with different opinions about how:",
+          bullets: [
+            "Remix takes a broadly similar approach but leans more heavily on web platform standards — native form submissions, HTTP caching headers — than on framework-specific conventions.",
+            "Gatsby popularized static-site generation for React years before Next.js's ISR existed, though it's less commonly reached for on new projects today.",
+            "Create React App, now deprecated, was the previous default starting point for plain, client-only React — explicitly not a framework in this sense, since it left routing and data fetching entirely up to you.",
+            "Routing, rendering strategy, and data fetching are the actual comparison points between any of these frameworks, not a specific feature checklist — every one of them is answering the same three questions differently.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Choosing a framework is a real commitment, not a config toggle",
+          body: "Adopting Next.js means adopting its file-based routing conventions, its Server/Client Component model, and its build tooling — genuinely useful defaults, but ones a project can't easily walk back from later without a substantial rewrite. That's a reasonable trade for most teams building a full application, which is exactly why frameworks exist at all, but it's worth naming as a real decision rather than a purely technical one.",
         },
         {
           kind: "terminal",
@@ -100,6 +136,26 @@ export default async function JobPage({ params }) {
 // Visiting /jobs/42 renders this with params.id === "42"`,
         },
         {
+          kind: "bullets",
+          heading: "A few more routing conventions worth knowing",
+          bullets: [
+            "Route groups — wrapping a folder name in parentheses, like `(marketing)`, groups routes for organization (say, a shared layout for /about and /pricing) without that folder name appearing in the URL at all.",
+            "Catch-all segments — `[...slug]` matches any number of remaining path segments (/docs/a/b/c all match one route), and the double-bracket `[[...slug]]` variant additionally matches the base path with zero segments (/docs itself).",
+            "Private folders — prefixing a folder with an underscore, like `_components`, excludes it from routing entirely, a convention for co-locating helper components or utilities next to the routes that use them without accidentally creating a route out of them.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Catch-all segments for arbitrarily deep paths",
+          body: "A catch-all segment captures everything after it as an array — useful for something like documentation pages with an arbitrary folder depth, without a separate route file for every possible depth.",
+          code: `// app/docs/[...slug]/page.tsx
+export default async function DocsPage({ params }) {
+  const { slug } = await params; // e.g. ["guides", "getting-started"] for /docs/guides/getting-started
+  const doc = await getDoc(slug.join("/"));
+  return <article>{doc.content}</article>;
+}`,
+        },
+        {
           kind: "diagram",
           heading: "How a URL resolves to a page",
           description: "What happens between a browser request and rendered HTML for a dynamic route.",
@@ -120,10 +176,39 @@ export default async function JobPage({ params }) {
           ],
         },
         {
+          kind: "example",
+          heading: "Nested layouts, concretely",
+          body: "Layouts nest the same way routes do — a layout.tsx inside app/jobs wraps every page under /jobs, while the root layout.tsx wraps the entire app. Both render at once, outer to inner, with the innermost matching layout closest to the actual page.",
+          code: `// app/layout.tsx — wraps every single page in the app
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body><Nav />{children}</body>
+    </html>
+  );
+}
+
+// app/jobs/layout.tsx — wraps only pages under /jobs, nested inside RootLayout
+export default function JobsLayout({ children }) {
+  return (
+    <div className="jobs-shell">
+      <JobsSidebar />
+      {children}
+    </div>
+  );
+}`,
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Think in nested layouts, not repeated headers",
           body: "A common mistake coming from a single-page-app background is copying the same navigation bar or wrapper into every page component. In the App Router, that belongs in a `layout.tsx` once, at the right level of nesting — every page under it inherits it automatically, and it doesn't re-render on navigation between pages that share it.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Per-page metadata for SEO",
+          body: "A page or layout can export a `metadata` object (or an async `generateMetadata` function when the values depend on fetched data, like a product's name) to set that page's title, description, and social preview tags. The framework handles rendering it into the actual `<head>` for you, and it composes with nested layouts the same way the visible UI does — a layout's metadata applies to everything nested under it unless a page overrides a specific field.",
         },
       ],
     },
@@ -194,6 +279,49 @@ export function LikeButton() {
           ],
         },
         {
+          kind: "example",
+          heading: "A Client Component receiving a Server Component as children",
+          body: "This is how a Client Component can still \"contain\" server-rendered content without importing and rendering a Server Component directly — the parent, still a Server Component, does the actual rendering and simply hands the result down as children.",
+          code: `// app/page.tsx (a Server Component)
+import { ThemeToggle } from "./theme-toggle";
+import { ServerRenderedStats } from "./stats"; // itself a Server Component
+
+export default function Page() {
+  return (
+    <ThemeToggle>
+      <ServerRenderedStats />
+    </ThemeToggle>
+  );
+}
+
+// theme-toggle.tsx
+"use client";
+export function ThemeToggle({ children }) {
+  const [theme, setTheme] = useState("light");
+  return (
+    <div className={theme}>
+      <button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>Toggle</button>
+      {children /* rendered once as static HTML, untouched by this component's own re-renders */}
+    </div>
+  );
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Props crossing the Server-to-Client boundary must be serializable",
+          body: "A Server Component can pass props to a Client Component, but only values that survive being serialized across that boundary — strings, numbers, plain objects and arrays, and React elements themselves. Functions and class instances generally can't cross as plain props (a Server Action, covered later in this course, is the specific framework-supported exception for functions). Passing an ordinary callback function down from a Server Component to a Client Component is a common early mistake, and it produces a confusing serialization error rather than quietly working the way an equivalent prop would in plain client-only React.",
+        },
+        {
+          kind: "bullets",
+          heading: "Why this actually reduces what ships to the browser",
+          bullets: [
+            "Every component that stays a Server Component contributes zero bytes to the client JavaScript bundle — not a smaller version of its code, none of it at all.",
+            "For a typical content-heavy page (a job listing, a blog post), most of the UI is often static markup — headings, text, images — with only a small slice (a like button, a dropdown) genuinely needing interactivity.",
+            "This is why pushing \"use client\" as far down the tree as possible isn't just tidiness — every level it moves down is code that no longer needs to be sent to, parsed by, and executed in the browser at all.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "The common mistake: \"use client\" at the top of everything",
@@ -229,6 +357,14 @@ export default async function JobsPage() {
 }`,
         },
         {
+          kind: "text",
+          heading: "Next.js caches fetch results by default",
+          body: [
+            "A plain fetch call inside a Server Component isn't just async — by default, Next.js caches its result and can reuse it across requests, similar to how a static asset would be cached. This is part of what makes static rendering possible for a page that fetches data at all: unless told otherwise, Next.js treats fetched data as safe to reuse rather than refetching it on every single visit.",
+            "Opting out is explicit: `fetch(url, { cache: \"no-store\" })` forces a fresh request every time, which is exactly what a page reading personalized or must-be-current data needs — one of the signals, covered in the next lesson, that pushes a page into fully dynamic rendering.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Why this is a real shift, not just new syntax",
           bullets: [
@@ -256,6 +392,44 @@ export default async function JobsPage() {
             { label: "Sequential (await, then await)", value: 500 },
             { label: "Parallel (Promise.all)", value: 300 },
           ],
+        },
+        {
+          kind: "example",
+          heading: "Streaming a slow section with Suspense",
+          body: "Not every piece of a page needs to block the initial response. Wrapping a slow-loading section in Suspense lets Next.js send the rest of the page immediately and stream in the slow part — with its own fallback — the moment it's ready.",
+          code: `import { Suspense } from "react";
+
+export default function DashboardPage() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      {/* Renders immediately, doesn't wait on the slow section below */}
+      <Suspense fallback={<p>Loading recent activity…</p>}>
+        <SlowActivityFeed />
+      </Suspense>
+    </div>
+  );
+}
+
+async function SlowActivityFeed() {
+  const activity = await getActivity(); // a genuinely slow query
+  return <ActivityList items={activity} />;
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "When a Suspense boundary is actually worth adding",
+          bullets: [
+            "A section of a page depends on a slow, somewhat independent data source (analytics, a third-party API) that shouldn't hold up everything else the user could otherwise see right away.",
+            "Multiple independent Suspense boundaries let different sections of the same page stream in at their own pace, instead of the entire page waiting on the single slowest fetch.",
+            "It's not needed for every fetch — a page that's already fast end-to-end gains nothing from the added complexity of a boundary and a fallback UI just for the sake of having one.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Request memoization avoids duplicate fetches within one render",
+          body: "If two different components in the same render both call fetch() for the exact same URL, Next.js deduplicates them into a single actual network request for that render pass — so passing a data-fetching function down to several nested components doesn't cost multiple round trips, as long as it's the same fetch call with the same arguments each time.",
         },
         {
           kind: "text",
@@ -300,6 +474,39 @@ export async function POST(request) {
   const job = await db.job.create({ data: body });
   return Response.json(job, { status: 201 });
 }`,
+        },
+        {
+          kind: "example",
+          heading: "Reading dynamic segments and query params in a route handler",
+          body: "Route handlers receive the same params object a page would, plus a NextRequest with easy access to the URL's search params.",
+          code: `// app/api/jobs/[id]/route.ts
+import { NextRequest } from "next/server";
+
+export async function GET(request: NextRequest, { params }) {
+  const { id } = await params;
+  const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "true";
+
+  const job = await db.job.findUnique({ where: { id } });
+  if (!job || (job.archived && !includeArchived)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+  return Response.json(job);
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "Beyond GET and POST",
+          bullets: [
+            "PUT and PATCH follow the same exported-function convention for updates — PUT typically replacing a whole resource, PATCH updating part of one, though the distinction is a convention rather than something Next.js enforces for you.",
+            "DELETE handles removal the same way, and by convention often returns a 204 (No Content) status with an empty body, since there's nothing left to describe once the resource is gone.",
+            "A route handler that doesn't export a function for a given method returns a 405 (Method Not Allowed) automatically — you don't need to write that check yourself.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Route handlers can be cached too, not just Server Component fetches",
+          body: "A GET route handler with no dynamic behavior — no reading cookies, headers, or other request-specific data — can be cached and reused the same way a static page is, rather than re-running on every request. The moment it reads something request-specific, Next.js treats it the same way it treats a dynamic page: computed fresh per request. It's the same static-vs-dynamic reasoning from elsewhere in this course, just applied to an API endpoint instead of a page.",
         },
         {
           kind: "example",
@@ -361,6 +568,48 @@ async function applyToJob(jobId) {
   });
   return res.json();
 }`,
+        },
+        {
+          kind: "bullets",
+          heading: "Two ways to trigger revalidation, not just a timer",
+          bullets: [
+            "Time-based (ISR): the revalidate option shown above — a page refreshes automatically after N seconds have passed, regardless of whether the underlying data actually changed.",
+            "On-demand: calling revalidatePath or revalidateTag from a Server Action or route handler invalidates a specific page's cache the instant a known write happens, rather than waiting out a timer — the pattern this course's Server Actions lesson relies on for a mutation to show up immediately.",
+            "On-demand fits best when you know exactly when data changes (a form submission, a webhook); time-based fits data that changes from a source you don't directly control, like an external API you have no change notification from.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Pre-rendering a dynamic route at build time with generateStaticParams",
+          body: "A dynamic route like app/jobs/[id] is dynamic by default, but if the set of possible ids is knowable ahead of time, generateStaticParams tells Next.js to pre-render each of those specific pages at build time instead — combining a dynamic route's flexibility with a static page's speed.",
+          code: `// app/jobs/[id]/page.tsx
+export async function generateStaticParams() {
+  const jobs = await db.job.findMany({ select: { id: true } });
+  return jobs.map((job) => ({ id: job.id })); // one static page per id, built ahead of time
+}
+
+export default async function JobPage({ params }) {
+  const { id } = await params;
+  const job = await getJob(id);
+  return <h1>{job.title}</h1>;
+}`,
+        },
+        {
+          kind: "chart",
+          heading: "Typical time-to-first-byte by rendering strategy",
+          description: "Illustrative, relative time-to-first-byte for the same page rendered each way.",
+          chartType: "bar",
+          unit: "ms",
+          data: [
+            { label: "Static / ISR (cache hit)", value: 20 },
+            { label: "Dynamic (rendered per request)", value: 180 },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Rendering strategy is set per route, not per app",
+          body: "One Next.js application commonly mixes all three strategies — a marketing homepage rendered statically, a product catalog on ISR, and a checkout page fully dynamic — because the right answer to \"how stale can this be\" differs by page, not by application as a whole. There's no single project-wide switch; each route's own data-fetching code is what determines its own strategy.",
         },
         {
           kind: "callout",

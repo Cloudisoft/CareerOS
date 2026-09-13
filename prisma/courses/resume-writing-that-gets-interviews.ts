@@ -32,6 +32,28 @@ export const course: CourseSeed = {
         },
         {
           kind: "bullets",
+          heading: "Contact info and summary: the details that trip people up",
+          intro: "Two lines at the top of the page carry more silent judgment than their size suggests.",
+          bullets: [
+            "Use an email address that looks professional — firstname.lastname@... beats a leftover handle from years ago. Recruiters do notice, even if they never say so.",
+            "Skip the physical street address entirely; city and state (or \"Remote\" / \"Open to relocation\") is what a hybrid or remote-first hiring process actually needs.",
+            "Add a portfolio, GitHub, or work-samples link only if it's genuinely worth a click — a stale, half-finished profile linked prominently does more harm than no link at all.",
+            "A summary earns its place only when the title alone undersells you: a career change, a return from a gap, or a senior scope a generic title doesn't capture. If your title and first bullet already say it, a summary is redundant weight at the top of the page.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "When the standard order should flex",
+          intro: "The five-section order is the right default, not a rigid law — a few situations genuinely call for reordering it.",
+          bullets: [
+            "Students and recent grads: Education moves above Experience, since it's currently the strongest signal you have.",
+            "Highly technical roles: a Skills or Technical Skills section often moves up to just below the summary, since a recruiter scanning for specific tools wants that upfront, not three jobs down.",
+            "Portfolio-driven fields (design, some engineering roles): a short Projects or Selected Work section can sit above Experience if the work itself is the strongest evidence of skill.",
+            "Whatever you reorder, keep Contact info first and keep the order consistent with what a scanning reader expects to find where — don't invent a sixth, unfamiliar section name for something that fits cleanly into one of the standard five.",
+          ],
+        },
+        {
+          kind: "bullets",
           heading: "What breaks the scan",
           bullets: [
             "Burying the job title in a paragraph instead of a clear heading line.",
@@ -39,6 +61,24 @@ export const course: CourseSeed = {
             "Inconsistent dates — \"2021-2023\" next to \"March 2021 - Present\" reads as careless.",
             "Two-column layouts with graphics — they can scramble an ATS's reading order entirely.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "A summary line that earns its place",
+          body: "The difference isn't tone — it's information. The second version tells a reader something the job title alone can't.",
+          code: `Weak: "Results-driven professional with strong communication
+skills seeking a challenging opportunity to grow."
+
+Earns its place: "Product marketer moving into full-stack PMM
+after two years running go-to-market for B2B SaaS launches —
+bringing hands-on experience with pricing, positioning, and
+cross-functional launch execution."`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "How far back Experience should go",
+          body: "As a rough default, keep detailed bullets to the last 10-15 years. Older roles can either drop off entirely or compress into a single \"Earlier Experience\" line with just titles and companies — this isn't about hiding age, it's that a role from decades ago rarely tells a hiring manager anything about what you can do today, and the space is worth more spent on recent, relevant work.",
         },
         {
           kind: "callout",
@@ -79,6 +119,24 @@ triage process, cutting average response time from 18 hours to 4."`,
           ],
         },
         {
+          kind: "callout",
+          tone: "warning",
+          heading: "A number without context is still weak",
+          body: "\"Increased sales by 20%\" sounds like impact until someone asks the obvious follow-up: 20% of what, over what period, compared to what baseline? A number that can't survive that question reads as decoration. \"Grew regional sales from $1.2M to $1.44M over two quarters, ahead of a flat market\" survives it — it's specific enough to be checked and precise enough to be believed.",
+        },
+        {
+          kind: "example",
+          heading: "The same rewrite pattern on a role without an obvious number",
+          body: "Not every job produces a clean dollar figure — the skeleton still works when the measurable change is operational rather than financial.",
+          code: `Duty: "Responsible for scheduling and coordinating meetings
+for a 12-person department."
+
+Impact: "Rebuilt the department's meeting-scheduling process
+around a shared calendar system, cutting the average time to
+book a cross-team meeting from three days of back-and-forth
+email to under an hour."`,
+        },
+        {
           kind: "bullets",
           heading: "A repeatable rewrite pattern",
           intro: "For each bullet, answer three things, then use this skeleton:",
@@ -91,12 +149,29 @@ triage process, cutting average response time from 18 hours to 4."`,
         },
         {
           kind: "bullets",
+          heading: "Two small habits that make bullets read faster",
+          bullets: [
+            "Front-load the strongest word. A scanning reader reads the first word of each bullet far more carefully than the rest — \"Led\" or \"Cut\" at the start does more work than the same fact buried mid-sentence.",
+            "Keep verb tense consistent within a job: past tense for roles you've left, present tense for your current role, and don't mix the two within the same block.",
+            "Match bullet length to importance, not to filling the line — a one-line bullet for a minor task next to a two-line bullet for your biggest win signals proportion correctly; making every bullet the same length hides which ones actually matter.",
+          ],
+        },
+        {
+          kind: "bullets",
           heading: "When you don't have a clean number",
           intro: "A fabricated metric is worse than none — it costs credibility the moment someone asks you to walk through it.",
           bullets: [
             "Use scale instead: \"across 12 markets,\" \"for a team of 40,\" \"serving 3,000 monthly users.\"",
             "Use before/after in words: \"went from manual spreadsheet tracking to an automated weekly report.\"",
             "Use relative impact: \"the fastest-growing account on the team that quarter.\"",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "How this compares to other formulas you'll see",
+          body: [
+            "You'll also see this called CAR (Context-Action-Result) or the XYZ formula (\"Accomplished X, measured by Y, by doing Z\") in other advice. They're the same underlying idea in a different order — name the situation briefly, name the action clearly, name the measurable outcome.",
+            "Pick whichever ordering makes the sentence read most naturally for a given bullet; the skeleton in this course leads with the action because that's usually the most interesting part to a scanning reader, but there's nothing wrong with leading with result when the number itself is the strongest hook: \"Cut release time from two days to four hours by redesigning the deployment pipeline.\"",
           ],
         },
         {
@@ -149,10 +224,17 @@ triage process, cutting average response time from 18 hours to 4."`,
           body: "White-text keyword stuffing gets flagged by some systems and is instantly visible to any human who opens the file differently. Listing keywords you can't speak to in an interview wastes the interview you got.",
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "One overlooked detail: headers and footers",
+          body: "Contact info placed in a document header or footer is invisible to a large share of ATS parsers — they often skip those regions entirely. Keep your name and contact details in the main body of the first page, not tucked into a header, even though it looks fine to a human eye either way.",
+        },
+        {
           kind: "text",
           heading: "The honest keyword pass",
           body: [
             "Before submitting, read the posting once for required skills and tools, then check your resume actually contains the ones you truly have — not to invent matches, but to make sure real, relevant experience isn't described in different words than the posting uses for the same thing.",
+            "Spell out acronyms the first time and include both forms where space allows — \"Search Engine Optimization (SEO)\" — since some parsers match the exact string a posting uses, and you don't know in advance whether that posting wrote out the long form or the abbreviation.",
           ],
         },
         {
@@ -179,6 +261,14 @@ triage process, cutting average response time from 18 hours to 4."`,
             "\"Keep it to one page\" is good advice for most early-to-mid-career resumes and bad advice for a lot of senior ones. The real rule is narrower.",
         },
         {
+          kind: "text",
+          heading: "Why the one-page rule exists in the first place",
+          body: [
+            "The rule isn't about page count for its own sake — it's a proxy for information density. A recruiter spending 20-40 seconds on an initial scan can absorb roughly one page of well-organized content in that time; a second page they never reach might as well not exist.",
+            "That's why the real question is never \"how many pages,\" it's \"is every line on this page worth the reader's limited attention\" — a dense, padded one-pager can actually be worse than a lean two-pager, because padding dilutes the signal the reader is scanning for.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "When one page is right",
           bullets: [
@@ -195,6 +285,39 @@ triage process, cutting average response time from 18 hours to 4."`,
             "Multiple distinct career chapters (e.g., individual contributor then people management).",
             "Executive and technical-leadership resumes, where one page forces cutting context a committee actually needs.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "Forcing one page the wrong way",
+          bullets: [
+            "Shrinking font below 10.5pt or margins below half an inch to squeeze in one more line — it reads as visibly cramped and makes the whole page harder to scan, working against the exact goal the page count was meant to serve.",
+            "Keeping every job you've ever had at equal length instead of compressing older, less relevant roles to a single line each.",
+            "Listing every task from a role instead of the 3-4 that actually show impact — a bullet that doesn't clear the cut test below is exactly what should go first.",
+            "The better move, in order: cut low-value bullets, then compress older roles, then trim margins slightly, then reduce font — never in the reverse order.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Compressing an older role instead of cutting or cramming",
+          body: "This preserves the signal (what the role was, roughly when) without spending five lines on a job from over a decade ago that no longer needs bullet-level detail.",
+          code: `Before (full detail, still at 5 bullets):
+Marketing Coordinator, Acme Co. — 2011-2013
+• Managed social media accounts
+• Coordinated with design team on campaign assets
+• Assisted with email marketing calendar
+• Tracked campaign performance metrics
+• Supported trade show logistics
+
+After (compressed to one line):
+Marketing Coordinator, Acme Co. — 2011-2013
+Social media, email campaigns, and event support for a
+15-person marketing team.`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "A two-page resume isn't the only option for extra context",
+          body: "If you're right on the edge — not quite 12+ years, but genuinely losing something relevant by cutting to one page — a cover letter can sometimes carry context a resume shouldn't, rather than stretching to a second page for it. The resume stays a scan; the letter is where a fuller story belongs.",
         },
         {
           kind: "callout",
@@ -225,12 +348,27 @@ triage process, cutting average response time from 18 hours to 4."`,
           ],
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "What spell-check misses",
+          body: "A spell-checker won't catch a real word used wrong — \"manger\" instead of \"manager,\" \"complimentary\" instead of \"complementary,\" or a company name spelled as a different real word. These are exactly the errors a bottom-to-top read and a name-specific pass are designed to catch, because your eye stops auto-correcting once it's reading out of normal order.",
+        },
+        {
           kind: "bullets",
           heading: "Three passes worth doing",
           bullets: [
             "Consistency pass — tense, date format, bullet punctuation, all matching.",
             "Name pass — company, tool, and product names spelled and capitalized exactly right.",
             "Fresh-eyes pass — wait a few hours or a day before the final read.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Using grammar and AI tools without losing your voice",
+          bullets: [
+            "A grammar checker is good at catching mechanical errors — subject-verb agreement, comma splices, tense mismatches — and worth running as one of your passes, not a replacement for a human read.",
+            "Be careful with AI \"improve this\" rewrites on a resume — they tend to smooth every bullet into the same generic, slightly inflated register, which is the opposite of the specific, plainspoken impact language this course argues for.",
+            "If you do use one, check that every fact and number it touched is still exactly true — a rewrite optimizing for flow has quietly changed the meaning of a bullet more than once.",
           ],
         },
         {
@@ -271,6 +409,27 @@ triage process, cutting average response time from 18 hours to 4."`,
             "For an unstructured gap, a single factual phrase is enough on the resume itself: \"Family caregiving leave, 2022-2023.\" Save the fuller story, if anyone asks, for the interview.",
             "Never fabricate a title or a company to paper over the months. It's discoverable, and it costs you more than the honest gap would have.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "A layoff isn't something to soften or hide",
+          body: "Widespread layoffs mean hiring managers no longer read a layoff as a signal about individual performance the way they might have a decade ago. There's no need to euphemize it in a cover letter or interview (\"my position was eliminated in a company-wide restructuring\" is enough) — and there's nothing to disclose on the resume itself at all, since the resume already just shows the role ending on a given date.",
+        },
+        {
+          kind: "example",
+          heading: "Brief on the page, fuller in conversation",
+          body: "The resume's job is to not raise a red flag, not to fully resolve the reader's curiosity — save the complete story for a conversation where you control the framing directly.",
+          code: `Too much on the page: "Left the workforce in 2022 to care for
+a family member following an unexpected diagnosis, which
+required intensive at-home support and coordination with
+multiple specialists over an 18-month period before returning
+to full-time work."
+
+Right amount on the page: "Family caregiving leave, 2022-2023"
+
+(The fuller version above is worth having ready — just for the
+interview, not the resume.)`,
         },
         {
           kind: "bullets",

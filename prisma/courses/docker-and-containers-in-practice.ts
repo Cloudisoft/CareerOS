@@ -63,6 +63,34 @@ docker ps`,
         },
         {
           kind: "bullets",
+          heading: "Tags are mutable pointers — digests aren't",
+          intro: "myapp:1.0 and the underlying image it points to are two different things:",
+          bullets: [
+            "A tag like 1.0 or latest is just a label someone can move — `docker push` to the same tag again replaces what it points to, and every future `docker pull myapp:1.0` gets the new one.",
+            "A digest (myapp@sha256:4f2a...) is a content hash of the image itself — it can never point anywhere else, because changing the content changes the hash. Pulling by digest instead of tag is how you guarantee production runs the exact bytes that were tested, not whatever 1.0 happens to mean today.",
+            "`docker images --digests` shows both side by side — worth running once to see that a tag you assumed was stable is actually a moving target.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Inspecting what docker build actually produced",
+          description: "Confirming the image's real ID, digest, and size before trusting it in a deploy pipeline.",
+          lines: [
+            { text: "docker images myapp" },
+            { text: "REPOSITORY   TAG   IMAGE ID       CREATED         SIZE", output: true },
+            { text: "myapp        1.0   3a1f9e2b4c7d   2 minutes ago   187MB", output: true },
+            { text: "docker inspect --format='{{.Id}}' myapp:1.0" },
+            { text: "sha256:3a1f9e2b4c7d8e6f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "-d is detached mode, not \"run it and forget it\"",
+          body: "docker run -d starts the container in the background and hands your terminal back immediately, instead of streaming its output until you Ctrl+C. The container's stdout/stderr aren't gone — `docker logs -f myapp-1` re-attaches to that same output stream at any point afterward. Forgetting -d means a long-running server ties up your terminal session for as long as it runs; forgetting that logs still work after -d means unnecessarily restarting a container just to see what it's printing.",
+        },
+        {
+          kind: "bullets",
           heading: "The mistake this distinction prevents",
           bullets: [
             "Editing a file inside a running container, then wondering why a fresh `docker run` doesn't have that edit — it's gone, because you changed the container's writable layer, not the image.",

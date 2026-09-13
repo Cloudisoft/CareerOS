@@ -62,10 +62,44 @@ export const course: CourseSeed = {
           body: "Storing everything in one flat table means a customer's email appears once per order — updating it means updating potentially hundreds of rows, and inconsistency becomes a real bug. Splitting into linked tables (normalization) means each fact is stored once.",
         },
         {
+          kind: "bullets",
+          heading: "Constraints: making the database itself enforce the rules",
+          intro:
+            "A well-designed schema doesn't just organize data — it makes certain kinds of bad data impossible to insert in the first place.",
+          bullets: [
+            "NOT NULL — a column can't be left empty. Applying this to customer_id on the orders table means an order without a customer is rejected at write time, not caught later by a report showing orphaned rows.",
+            "UNIQUE — no two rows can share a value in that column. An email column with a UNIQUE constraint stops the exact-duplicate-signup problem before it ever becomes a data-cleaning task.",
+            "FOREIGN KEY (with a reference constraint) — the database refuses to insert an order with a customer_id that doesn't actually exist in customers, and by default refuses to delete a customer who still has orders referencing them.",
+            "CHECK — a custom condition, like CHECK (total >= 0) on orders, which rejects a negative order total at the database level regardless of which application code path tried to insert it.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "What a constraint violation looks like",
+          body: "The database — not application code — is what actually stops this insert.",
+          language: "sql",
+          code: `INSERT INTO orders (customer_id, total) VALUES (999, -50);
+
+ERROR: insert or update on table "orders" violates foreign key
+constraint "orders_customer_id_fkey"
+DETAIL: Key (customer_id)=(999) is not present in table "customers".
+
+-- Even if customer 999 existed, a CHECK (total >= 0) constraint
+-- would separately reject the negative total — two different
+-- rules, each enforced regardless of which part of the app wrote this row.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A common mistake: denormalizing before you have a reason to",
+          body: "Copying a customer's name onto every order row (instead of joining to look it up) can look like a reasonable performance shortcut, but it recreates the update-anomaly problem normalization exists to avoid — the name can now drift out of sync across old orders after a legitimate name change. Denormalizing deliberately, for a measured performance reason, on a mature schema is a real technique; doing it upfront because joins feel like extra work is how data integrity bugs get built in from day one.",
+        },
+        {
           kind: "summary",
           heading: "The mental model worth keeping",
           bullets: [
             "A relational database is a structured way of representing real-world entities and their relationships, enforced through keys and constraints.",
+            "Constraints (NOT NULL, UNIQUE, FOREIGN KEY, CHECK) push data-quality rules into the database itself, so bad data is rejected at write time instead of caught later.",
           ],
         },
       ],
@@ -136,6 +170,69 @@ FROM orders
 GROUP BY customer_id
 HAVING COUNT(*) > 5;`,
           language: "sql",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The NULL comparison mistake almost everyone makes at least once",
+          body: "WHERE email = NULL never matches anything, even for rows where email genuinely is NULL — NULL means \"unknown,\" and \"unknown = NULL\" is itself unknown, not true, so the row is silently excluded. The correct check is WHERE email IS NULL (or IS NOT NULL). This one mistake is a common, quiet source of a query that runs without error and simply returns the wrong rows.",
+        },
+        {
+          kind: "example",
+          heading: "Subqueries: a query inside a query",
+          body: "A subquery answers a question the main query needs first — here, \"which customers have placed at least one order over $100,\" used to filter a different query.",
+          language: "sql",
+          code: `SELECT name, email FROM customers
+WHERE id IN (
+  SELECT customer_id FROM orders WHERE total > 100
+);
+
+-- Equivalent using a JOIN instead:
+SELECT DISTINCT customers.name, customers.email
+FROM customers
+JOIN orders ON orders.customer_id = customers.id
+WHERE orders.total > 100;
+
+-- Both return the same customers. The JOIN version needs
+-- DISTINCT because a customer with three qualifying orders
+-- would otherwise appear three times; the IN version doesn't,
+-- because the subquery only ever returns a list of IDs, not
+-- one row per matching order.`,
+        },
+        {
+          kind: "bullets",
+          heading: "A few habits that separate a working query from a production-ready one",
+          bullets: [
+            "Avoid SELECT * in application code — it fetches columns you don't use, breaks silently if someone adds a large new column, and makes it unclear to the next reader which fields the code actually depends on. Name the columns you need.",
+            "LIKE '%text%' (wildcards on both sides) can't use a standard index efficiently, since the database can't know where in the string to start looking — it forces a full scan on large tables. LIKE 'text%' (wildcard only at the end) can still use an index.",
+            "DISTINCT removes duplicate rows from a result, but it's often a sign a JOIN produced more rows than intended (as in the subquery example above) — worth checking whether the real fix is the JOIN's join condition, not slapping DISTINCT on top.",
+            "COUNT(*) counts every row including NULLs; COUNT(column_name) only counts rows where that specific column isn't NULL — using the wrong one silently changes the number in a report without any error.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "COUNT(*) vs. COUNT(column) on the same table",
+          description: "3 orders total, but only 2 have a discount_code recorded — COUNT(*) and COUNT(discount_code) disagree for exactly that reason.",
+          lines: [
+            { text: "SELECT COUNT(*) FROM orders;" },
+            { text: " count ", output: true },
+            { text: "-------", output: true },
+            { text: "     3", output: true },
+            { text: "SELECT COUNT(discount_code) FROM orders;" },
+            { text: " count ", output: true },
+            { text: "-------", output: true },
+            { text: "     2", output: true },
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "The core statements, tied together",
+          bullets: [
+            "SELECT reads, filtered by WHERE, sorted by ORDER BY, limited by LIMIT.",
+            "JOIN combines rows across tables via a shared key; INSERT/UPDATE/DELETE change data, and a missing WHERE on the latter two affects every row in the table.",
+            "GROUP BY / HAVING summarize rows into groups; a subquery or JOIN can answer \"give me rows related to rows matching some other condition.\"",
+            "NULL comparisons need IS NULL, not = NULL, and COUNT(*) vs. COUNT(column) is not an interchangeable choice — both are easy, quiet ways to get a technically-running query to return the wrong answer.",
+          ],
         },
       ],
     },
@@ -208,10 +305,48 @@ HAVING COUNT(*) > 5;`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Composite indexes: order matters",
+          intro:
+            "An index on more than one column follows a strict left-to-right rule, the same way a phone book is only useful if you already know the last name.",
+          bullets: [
+            "An index on (customer_id, order_date) can be used to filter by customer_id alone, or by customer_id and order_date together — but it can't be used efficiently to filter by order_date alone, the same way a phone book sorted by last-name-then-first-name doesn't help you find everyone born in March.",
+            "This is why the column order in a composite index should match the most common query pattern — usually the equality filter (customer_id = X) first, and a range or sort column (order_date) second.",
+            "A covering index goes a step further: if every column a query needs is present in the index itself, the database can answer the query straight from the index without ever touching the actual table rows — a meaningful speedup on a hot query path.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A classic real-world trap: indexing the wrong side of a function",
+          body: "WHERE LOWER(email) = 'jane@example.com' can't use a plain index on email, because the index stores the original values, not their lowercased form — the database would have to lowercase every row to compare, which defeats the index entirely. The fix is either storing emails pre-lowercased and indexing that, or creating a functional index (CREATE INDEX ON customers (LOWER(email))) that indexes the transformed value directly. This exact pattern — wrapping an indexed column in a function inside WHERE — is one of the most common reasons a table \"has an index\" but a specific query still runs a full scan.",
+        },
+        {
+          kind: "example",
+          heading: "Composite index in action",
+          body: "Same orders table — the composite index on (customer_id, order_date) serves this query's WHERE and ORDER BY in one pass, with no separate sort step needed.",
+          code: `CREATE INDEX idx_orders_cust_date ON orders (customer_id, order_date);
+
+EXPLAIN ANALYZE
+SELECT * FROM orders
+WHERE customer_id = 4471
+ORDER BY order_date DESC;
+
+Index Scan Backward using idx_orders_cust_date on orders
+  (cost=0.42..9.10 rows=6 width=72) (actual time=0.03..0.04 rows=6 loops=1)
+  Index Cond: (customer_id = 4471)
+Execution Time: 0.05 ms
+
+-- "Scan Backward" is the planner reading the index in reverse
+-- to satisfy DESC, still without a separate sort step.`,
+        },
+        {
           kind: "summary",
           heading: "The practical habit",
           bullets: [
             "Add indexes deliberately, based on queries a table actually needs to serve well.",
+            "In a composite index, column order determines which query patterns it can actually serve — put the equality filter first, the sort/range column second.",
+            "Wrapping an indexed column in a function inside WHERE silently defeats a plain index — match the index to how the column is actually queried, or index the transformed expression directly.",
           ],
         },
       ],
@@ -270,6 +405,46 @@ COMMIT;`,
           tone: "insight",
           heading: "Isolation levels, briefly",
           body: "Full isolation has a real performance cost, so most databases offer configurable isolation levels (e.g., PostgreSQL's \"read committed\" vs. \"serializable\").",
+        },
+        {
+          kind: "bullets",
+          heading: "What weaker isolation actually lets happen",
+          intro:
+            "Isolation levels exist because the strongest guarantee is also the slowest — the weaker levels each permit a specific, named kind of anomaly in exchange for speed.",
+          bullets: [
+            "Dirty read: transaction A reads a value that transaction B has changed but not yet committed — if B then rolls back, A acted on a value that never actually existed. Prevented by \"read committed,\" the default in most databases.",
+            "Non-repeatable read: transaction A reads the same row twice within one transaction and gets two different values, because B committed a change in between. Prevented by \"repeatable read.\"",
+            "Phantom read: transaction A runs the same query twice and gets a different set of rows the second time, because B inserted a new row that now matches the query's condition. Prevented by \"serializable,\" the strictest and slowest level.",
+            "The practical rule: use the default (\"read committed\") unless a specific piece of logic actually depends on the data not shifting underneath it mid-transaction — e.g., a financial reconciliation job that reads the same balance twice and needs both reads to agree.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A real-world consequence: the double-spend race condition",
+          body: "Without a transaction (or the right isolation level), two concurrent requests can both read the same starting balance before either one's update is visible to the other.",
+          code: `Account balance: $100. Two withdrawal requests for $80 arrive
+at nearly the same instant.
+
+Request A: reads balance ($100)
+Request B: reads balance ($100)   <- reads before A's write lands
+Request A: balance is enough, withdraws $80, writes $20
+Request B: balance is enough (it read $100), withdraws $80,
+           writes -$60
+
+Result: $160 was withdrawn from a $100 balance. Wrapping the
+read-then-write in a transaction with row-level locking (e.g.,
+SELECT ... FOR UPDATE) forces Request B to wait for Request A's
+transaction to finish, so it reads the updated $20 balance and
+correctly rejects the second withdrawal.`,
+        },
+        {
+          kind: "summary",
+          heading: "Transactions, in short",
+          bullets: [
+            "ACID guarantees mean a group of statements behaves as one all-or-nothing unit, safe from partial failure.",
+            "Weaker isolation levels trade correctness guarantees (dirty reads, non-repeatable reads, phantom reads) for speed — pick based on what the specific operation actually requires.",
+            "A read-then-write sequence without a transaction and appropriate locking is a race condition waiting to happen under real concurrent load, not just a theoretical risk.",
+          ],
         },
       ],
     },
@@ -357,6 +532,31 @@ ORDER BY order_date;`,
   FROM employees
 )
 SELECT * FROM ranked WHERE dept_rank <= 3;`,
+        },
+        {
+          kind: "example",
+          heading: "LAG() for month-over-month comparison",
+          body: "LAG() reaches back to the previous row in the ordering — here, the previous month's revenue — so each row can compute its own change without a self-join.",
+          language: "sql",
+          code: `SELECT month, revenue,
+       LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+       revenue - LAG(revenue) OVER (ORDER BY month) AS change
+FROM monthly_sales
+ORDER BY month;
+
+-- month=Jan  revenue=40,000  prev=NULL     change=NULL
+-- month=Feb  revenue=45,000  prev=40,000   change=5,000
+-- month=Mar  revenue=42,000  prev=45,000   change=-3,000
+--
+-- The first row's LAG is NULL because there's no prior row —
+-- this is expected, not a bug, and needs handling (e.g. COALESCE)
+-- if a downstream calculation can't tolerate a NULL.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A common mistake: assuming the default frame is the whole partition",
+          body: "SUM(amount) OVER (ORDER BY order_date) — without an explicit ROWS BETWEEN clause — doesn't sum the whole table by default when ORDER BY is present; it defaults to \"unbounded preceding to current row,\" which is actually the running-total behavior. The confusion runs the other way too: leaving out ORDER BY entirely changes the default frame to the whole partition, turning what looked like a running total into a flat, repeated grand total on every row. Always pair SUM()/AVG() OVER with an explicit ORDER BY (and ROWS BETWEEN, if the intent isn't obvious from context) rather than relying on the implicit default — it's one of the most common sources of a window function returning the wrong shape of answer, silently.",
         },
         {
           kind: "summary",
