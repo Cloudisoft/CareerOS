@@ -13,7 +13,10 @@ export class InterviewError extends Error {
   }
 }
 
-export const QUESTIONS_PER_SESSION = 5;
+/** 7 rather than a token 5 — long enough to actually walk a candidate
+    through a real difficulty arc (warm-up -> depth -> job-specific/senior)
+    instead of ending just as it gets interesting. */
+export const QUESTIONS_PER_SESSION = 7;
 
 const TYPE_LABEL: Record<InterviewType, string> = {
   BEHAVIORAL: "behavioral (STAR-style: situation, task, action, result)",
@@ -49,6 +52,28 @@ interface AnsweredTurn {
 }
 
 /**
+ * A real interview escalates: it doesn't open with the hardest question it
+ * has, and it doesn't stay easy the whole way through either. Split the
+ * session into thirds — warm-up, then rising difficulty, then a late stretch
+ * that's either tied directly to the target job's actual responsibilities
+ * (when one is attached) or pushed to a senior/strategic bar (when it
+ * isn't) — so the arc is real instead of every question landing at the same
+ * medium difficulty regardless of position in the session.
+ */
+function difficultyGuidance(questionNumber: number, total: number, hasJob: boolean): string {
+  const progress = questionNumber / total;
+  if (progress <= 0.35) {
+    return "DIFFICULTY: this is an early, warm-up-tier question — foundational and approachable (background, motivation, a straightforward past experience). Keep it easy enough that the candidate can answer confidently and settle in.";
+  }
+  if (progress <= 0.75) {
+    return "DIFFICULTY: this is a mid-interview question — raise the bar meaningfully above the opening questions. Push for real depth: trade-offs they weighed, a harder scenario, a more demanding technical or behavioral challenge.";
+  }
+  return hasJob
+    ? "DIFFICULTY: this is a late-interview question — make it specific to the target job below (its actual responsibilities, required skills, or domain), held to a senior, high-difficulty bar. This is where the interview should feel like it's really testing fit for this exact role."
+    : "DIFFICULTY: this is a late-interview question — make it the hardest and most senior-level question of the session: a strategic trade-off, a system-level or leadership scenario, or something that would clearly separate a strong candidate from an average one.";
+}
+
+/**
  * Generates ONE question at a time, live — question 1 opens the interview;
  * every question after that is generated only once the candidate has
  * answered the previous one, reading their actual answer and deciding
@@ -63,12 +88,14 @@ async function generateQuestion(
   questionNumber: number
 ): Promise<GeneratedQuestion> {
   const label = TYPE_LABEL[type];
+  const phaseGuidance = difficultyGuidance(questionNumber, QUESTIONS_PER_SESSION, Boolean(jobContext));
   const system = `You are an expert interviewer conducting a live ${label} mock interview with a candidate, one question at a time — this is question ${questionNumber} of ${QUESTIONS_PER_SESSION}.
 Ground every question only in the candidate's real background (CareerContext) below and, if given, the target job — never invent facts about them.
+${phaseGuidance}
 ${
   history.length > 0
-    ? "You have already asked the questions below and the candidate answered each. Read their most recent answer closely: if it left something specific worth probing — a vague claim, an interesting detail, a result stated without a number, a decision they glossed over — ask a genuine, natural follow-up question about exactly that. Otherwise, move on to a new angle you haven't covered yet. Don't repeat ground already covered."
-    : "This is the opening question of the interview — set a natural, welcoming tone."
+    ? "You have already asked the questions below and the candidate answered each. Read their most recent answer closely: if it left something specific worth probing — a vague claim, an interesting detail, a result stated without a number, a decision they glossed over — ask a genuine, natural follow-up question about exactly that (while still honoring the DIFFICULTY guidance above for this point in the interview). Otherwise, move on to a new angle you haven't covered yet. Don't repeat ground already covered."
+    : "This is the opening question of the interview — set a natural, welcoming tone consistent with the DIFFICULTY guidance above."
 }
 Respond with ONLY a JSON object, no markdown code fences, no prose, in exactly this shape:
 {"category": "string", "question": "string"}`;
