@@ -220,6 +220,7 @@ model CandidateProfile {
   location String?
   headline String?
   bio      String?
+  coverUrl String?
 
   // Professional
   currentTitle         String?
@@ -1257,6 +1258,15 @@ model Post {
   authorId String
   author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content  String
+
+  /**
+   * An uploaded image, stored as a data: URL — see src/lib/upload/image.ts.
+   */
+  imageUrl String?
+  /**
+   * An external video link (YouTube/Vimeo/Loom) shown as an embed.
+   */
+  videoUrl String?
 
   /**
    * Set when this post was made inside a Circle rather than the general feed.

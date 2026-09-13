@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { getOrCreateCandidateProfile } from "@/lib/profile/service";
 import { ProfileEditor } from "@/components/profile/profile-editor";
+import { ProfileHeaderCard } from "@/components/profile/profile-header-card";
 import { VisibilityCard } from "@/components/profile/visibility-card";
 import type { OnboardingData } from "@/components/onboarding/wizard";
 
@@ -48,6 +49,12 @@ export default async function ProfilePage() {
           This is the source of truth Career OS uses for matching, resumes, and applications.
         </p>
       </div>
+      <ProfileHeaderCard
+        firstName={user.firstName}
+        lastName={user.lastName}
+        initialAvatarUrl={user.avatarUrl}
+        initialCoverUrl={profile.coverUrl}
+      />
       <div className="mb-6">
         <VisibilityCard initialVisibility={profile.visibility} />
       </div>

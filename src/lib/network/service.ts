@@ -144,7 +144,11 @@ const POST_INCLUDE = {
   job: { select: { id: true, title: true, location: true, workplaceType: true, company: { select: { name: true, slug: true, logoUrl: true } } } },
 };
 
-export async function createPost(authorId: string, content: string, options?: { circleId?: string; jobId?: string }) {
+export async function createPost(
+  authorId: string,
+  content: string,
+  options?: { circleId?: string; jobId?: string; imageUrl?: string; videoUrl?: string }
+) {
   if (options?.circleId) {
     const membership = await prisma.circleMember.findUnique({
       where: { circleId_userId: { circleId: options.circleId, userId: authorId } },
@@ -152,7 +156,14 @@ export async function createPost(authorId: string, content: string, options?: { 
     if (!membership) throw new NetworkError("Join this circle before posting in it.", "NOT_A_MEMBER");
   }
   return prisma.post.create({
-    data: { authorId, content, circleId: options?.circleId, jobId: options?.jobId },
+    data: {
+      authorId,
+      content,
+      circleId: options?.circleId,
+      jobId: options?.jobId,
+      imageUrl: options?.imageUrl,
+      videoUrl: options?.videoUrl,
+    },
     include: POST_INCLUDE,
   });
 }
@@ -318,6 +329,7 @@ export async function getPublicProfile(viewerId: string, targetUserId: string) {
     firstName: profile.user.firstName,
     lastName: profile.user.lastName,
     avatarUrl: profile.user.avatarUrl,
+    coverUrl: profile.coverUrl,
     headline: profile.headline,
     bio: profile.bio,
     location: profile.location,

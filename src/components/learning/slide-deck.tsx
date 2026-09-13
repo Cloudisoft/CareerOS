@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Lightbulb, AlertTriangle, Sparkles, CheckCircle2, HelpCircle, X, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lightbulb, AlertTriangle, Sparkles, CheckCircle2, HelpCircle, X, Wrench, ArrowRight, TerminalSquare } from "lucide-react";
 import type { Slide } from "@/lib/learning/slide-types";
 import { cn } from "@/lib/utils";
 
@@ -112,6 +112,136 @@ function PracticeSlide({ slide }: { slide: Extract<Slide, { kind: "practice" }> 
   );
 }
 
+function TerminalSlide({ slide }: { slide: Extract<Slide, { kind: "terminal" }> }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <TerminalSquare className="h-4 w-4 shrink-0 text-primary" />
+        <h3 className="text-xl font-semibold text-foreground">{slide.heading}</h3>
+      </div>
+      {slide.description && <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{slide.description}</p>}
+      <div className="mt-4 overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center gap-1.5 border-b border-border bg-surface-raised px-3 py-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-destructive/50" aria-hidden />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#f5b942]/70" aria-hidden />
+          <span className="h-2.5 w-2.5 rounded-full bg-success/50" aria-hidden />
+        </div>
+        <div className="overflow-x-auto bg-surface p-4 font-mono text-[13px] leading-relaxed">
+          {slide.lines.map((line, i) => (
+            <div key={i} className="whitespace-pre">
+              {line.output ? (
+                <span className="text-muted-foreground">{line.text}</span>
+              ) : (
+                <span className="text-foreground">
+                  <span className="text-success">$ </span>
+                  {line.text}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChartSlide({ slide }: { slide: Extract<Slide, { kind: "chart" }> }) {
+  const width = 480;
+  const height = 220;
+  const padding = { top: 12, right: 12, bottom: 28, left: 12 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+  const maxValue = Math.max(...slide.data.map((d) => d.value), 1);
+
+  return (
+    <div>
+      <h3 className="text-xl font-semibold text-foreground">{slide.heading}</h3>
+      {slide.description && <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{slide.description}</p>}
+      <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-surface p-4">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: 320 }} role="img" aria-label={slide.heading}>
+          {[0, 0.5, 1].map((t) => {
+            const y = padding.top + chartH * (1 - t);
+            return <line key={t} x1={padding.left} x2={width - padding.right} y1={y} y2={y} className="stroke-border" strokeWidth={1} />;
+          })}
+          {slide.chartType === "bar" ? (
+            slide.data.map((d, i) => {
+              const slot = chartW / slide.data.length;
+              const barW = slot * 0.55;
+              const x = padding.left + i * slot + (slot - barW) / 2;
+              const barH = (d.value / maxValue) * chartH;
+              const y = padding.top + chartH - barH;
+              return (
+                <g key={d.label}>
+                  <rect x={x} y={y} width={barW} height={Math.max(barH, 1)} rx={3} className="fill-primary" />
+                  <text x={x + barW / 2} y={height - padding.bottom + 16} textAnchor="middle" className="fill-muted-foreground text-[10px]">
+                    {d.label}
+                  </text>
+                  <text x={x + barW / 2} y={y - 5} textAnchor="middle" className="fill-foreground text-[10px] font-medium">
+                    {d.value}
+                    {slide.unit ?? ""}
+                  </text>
+                </g>
+              );
+            })
+          ) : (
+            <>
+              <polyline
+                fill="none"
+                className="stroke-primary"
+                strokeWidth={2}
+                points={slide.data
+                  .map((d, i) => {
+                    const x = padding.left + (chartW / Math.max(slide.data.length - 1, 1)) * i;
+                    const y = padding.top + chartH - (d.value / maxValue) * chartH;
+                    return `${x},${y}`;
+                  })
+                  .join(" ")}
+              />
+              {slide.data.map((d, i) => {
+                const x = padding.left + (chartW / Math.max(slide.data.length - 1, 1)) * i;
+                const y = padding.top + chartH - (d.value / maxValue) * chartH;
+                const anchor = i === 0 ? "start" : i === slide.data.length - 1 ? "end" : "middle";
+                return (
+                  <g key={d.label}>
+                    <circle cx={x} cy={y} r={3} className="fill-primary" />
+                    <text x={x} y={height - padding.bottom + 16} textAnchor={anchor} className="fill-muted-foreground text-[10px]">
+                      {d.label}
+                    </text>
+                    <text x={x} y={y - 8} textAnchor={anchor} className="fill-foreground text-[10px] font-medium">
+                      {d.value}
+                      {slide.unit ?? ""}
+                    </text>
+                  </g>
+                );
+              })}
+            </>
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function DiagramSlide({ slide }: { slide: Extract<Slide, { kind: "diagram" }> }) {
+  return (
+    <div>
+      <h3 className="text-xl font-semibold text-foreground">{slide.heading}</h3>
+      {slide.description && <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{slide.description}</p>}
+      <div className="mt-5 flex flex-wrap items-stretch gap-2">
+        {slide.steps.map((step, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="flex min-w-[120px] max-w-[190px] flex-col rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <p className="text-sm font-semibold text-foreground">{step.label}</p>
+              {step.detail && <p className="mt-1 text-xs text-muted-foreground">{step.detail}</p>}
+            </div>
+            {i < slide.steps.length - 1 && <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SlideBody({ slide }: { slide: Slide }) {
   switch (slide.kind) {
     case "title":
@@ -202,6 +332,15 @@ function SlideBody({ slide }: { slide: Slide }) {
 
     case "practice":
       return <PracticeSlide slide={slide} />;
+
+    case "terminal":
+      return <TerminalSlide slide={slide} />;
+
+    case "chart":
+      return <ChartSlide slide={slide} />;
+
+    case "diagram":
+      return <DiagramSlide slide={slide} />;
   }
 }
 

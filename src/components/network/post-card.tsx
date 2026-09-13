@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/utils";
+import { toEmbedUrl } from "@/lib/upload/video-embed";
 
 interface PostAuthor {
   id: string;
@@ -21,6 +22,8 @@ export interface FeedPost {
   content: string;
   createdAt: string;
   author: PostAuthor;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
   reactions: { userId: string }[];
   comments: { id: string; content: string; author: PostAuthor }[];
   circle: { slug: string; name: string } | null;
@@ -94,6 +97,31 @@ export function PostCard({ post, currentUserId }: { post: FeedPost; currentUserI
         </div>
 
         <p className="whitespace-pre-line text-sm text-foreground">{post.content}</p>
+
+        {post.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- data: URL / stored upload, not an optimizable remote asset
+          <img src={post.imageUrl} alt="" className="max-h-[420px] w-full rounded-lg border border-border object-cover" />
+        )}
+
+        {post.videoUrl &&
+          (() => {
+            const embedUrl = toEmbedUrl(post.videoUrl);
+            return embedUrl ? (
+              <div className="aspect-video w-full overflow-hidden rounded-lg border border-border">
+                <iframe
+                  src={embedUrl}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Post video"
+                />
+              </div>
+            ) : (
+              <a href={post.videoUrl} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                Watch video ↗
+              </a>
+            );
+          })()}
 
         {post.job && (
           <Link href={`/jobs/${post.job.id}`}>

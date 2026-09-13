@@ -15,6 +15,7 @@ interface PublicProfile {
   firstName: string;
   lastName: string;
   avatarUrl: string | null;
+  coverUrl: string | null;
   headline: string | null;
   bio: string | null;
   location: string | null;
@@ -79,11 +80,17 @@ export default function PublicProfilePage() {
         <ArrowLeft className="h-4 w-4" /> Back to network
       </Link>
 
-      <Card>
+      <Card className="overflow-hidden">
+        <div className="h-28 bg-brand-gradient sm:h-32">
+          {profile.coverUrl && (
+            // eslint-disable-next-line @next/next/no-img-element -- stored upload, not an optimizable remote asset
+            <img src={profile.coverUrl} alt="" className="h-full w-full object-cover" />
+          )}
+        </div>
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
+              <Avatar className="-mt-12 h-16 w-16 border-4 border-surface">
                 {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} />}
                 <AvatarFallback className="text-lg">{initials(profile.firstName, profile.lastName)}</AvatarFallback>
               </Avatar>

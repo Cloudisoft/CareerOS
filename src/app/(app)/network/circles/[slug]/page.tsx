@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Loader2, ArrowLeft, Users, Check, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { PostCard, type FeedPost } from "@/components/network/post-card";
+import { PostComposer } from "@/components/network/post-composer";
 
 interface CircleDetail {
   id: string;
@@ -26,8 +26,6 @@ export default function CircleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [posting, setPosting] = useState(false);
   const [membershipBusy, setMembershipBusy] = useState(false);
 
   async function load() {
@@ -54,19 +52,14 @@ export default function CircleDetailPage() {
     setMembershipBusy(false);
   }
 
-  async function submitPost() {
-    if (!circle || !draft.trim()) return;
-    setPosting(true);
+  async function submitPost(input: { content: string; imageUrl?: string; videoUrl?: string }) {
+    if (!circle) return;
     const res = await fetch(`/api/network/circles/${circle.slug}/posts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: draft }),
+      body: JSON.stringify(input),
     });
-    setPosting(false);
-    if (res.ok) {
-      setDraft("");
-      load();
-    }
+    if (res.ok) load();
   }
 
   if (loading) {
@@ -111,16 +104,8 @@ export default function CircleDetailPage() {
 
       {circle.isMember && (
         <Card className="mb-4">
-          <CardContent className="space-y-3 p-4">
-            <Textarea
-              rows={3}
-              placeholder={`Share something with ${circle.name}…`}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-            />
-            <Button size="sm" onClick={submitPost} disabled={posting || !draft.trim()}>
-              Post
-            </Button>
+          <CardContent className="p-4">
+            <PostComposer placeholder={`Share something with ${circle.name}…`} onSubmit={submitPost} />
           </CardContent>
         </Card>
       )}

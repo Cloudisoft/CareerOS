@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { MessengerWidget } from "@/components/messaging/messenger-widget";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -16,6 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Topbar user={user} />
         <main className="flex-1 p-6">{children}</main>
       </div>
+      {user.role === "CANDIDATE" && <MessengerWidget />}
     </div>
   );
 }

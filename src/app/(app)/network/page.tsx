@@ -6,10 +6,10 @@ import { Loader2, UserPlus, Check, X, Send, Search, Users, Building2 } from "luc
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PostCard, type FeedPost } from "@/components/network/post-card";
+import { PostComposer } from "@/components/network/post-composer";
 import { initials } from "@/lib/utils";
 
 interface Person {
@@ -93,8 +93,6 @@ export default function NetworkPage() {
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [circles, setCircles] = useState<CircleSummary[]>([]);
   const [following, setFollowing] = useState<FollowedCompany[]>([]);
-  const [newPost, setNewPost] = useState("");
-  const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState("feed");
@@ -146,16 +144,12 @@ export default function NetworkPage() {
     loadAll();
   }
 
-  async function submitPost() {
-    if (!newPost.trim()) return;
-    setPosting(true);
+  async function submitPost(input: { content: string; imageUrl?: string; videoUrl?: string }) {
     await fetch("/api/network/posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: newPost }),
+      body: JSON.stringify(input),
     });
-    setNewPost("");
-    setPosting(false);
     loadAll();
   }
 
@@ -234,16 +228,8 @@ export default function NetworkPage() {
 
           <TabsContent value="feed">
             <Card className="mb-4">
-              <CardContent className="space-y-3 p-4">
-                <Textarea
-                  rows={3}
-                  placeholder="Share something with your network…"
-                  value={newPost}
-                  onChange={(e) => setNewPost(e.target.value)}
-                />
-                <Button size="sm" onClick={submitPost} disabled={posting || !newPost.trim()}>
-                  Post
-                </Button>
+              <CardContent className="p-4">
+                <PostComposer placeholder="Share something with your network…" onSubmit={submitPost} />
               </CardContent>
             </Card>
 
