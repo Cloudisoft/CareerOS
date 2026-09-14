@@ -84,6 +84,22 @@ the template for the next three migrations."`,
             "Most behavioral questions map onto one of these — you're not memorizing scripts, you're making sure you don't have to invent an example under pressure.",
           ],
         },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "One story can usually answer two or three different questions",
+          body: "You don't need a separate story for every possible question — a well-chosen example of, say, disagreeing with a manager about scope can also answer \"tell me about a time you influenced without authority\" or \"tell me about managing a tight deadline,\" just told with a different emphasis. Before an interview, look at your 6-8 core stories and note which 2-3 questions each one could plausibly answer, so you're not caught flat-footed by an unexpected phrasing of something you'd actually prepared for.",
+        },
+        {
+          kind: "bullets",
+          heading: "When you don't have a clean number for Result",
+          intro: "Not every story has a tidy metric — that's fine, as long as the outcome is still concrete.",
+          bullets: [
+            "If there's a real number, use it — but don't force a fake-precise one (\"improved efficiency by 23%\") if you're actually estimating; \"cut the review time roughly in half\" is more credible than false precision.",
+            "Without a metric, name a concrete change instead: a process that's still used, a decision that got made because of what you found, a relationship that improved measurably in how it functions day to day.",
+            "\"It went well\" isn't a Result — \"my manager asked me to run the same approach on the next two projects\" is, even with zero numbers attached.",
+          ],
+        },
       ],
     },
     {
@@ -140,6 +156,12 @@ the job most relevant here]. Before that, I [the 1-2 sentence
 version of how you got there]. What's drawing me to this role
 specifically is [genuine, specific reason tied to the job or
 company]."`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "If you're between jobs, address it in one sentence and move on",
+          body: "An employment gap doesn't need a defensive explanation or an apology — a brief, factual sentence (\"I left my last role in March and have spent the time since focused on X\") followed by moving straight into why you're excited about this role reads as confident. Dwelling on it, over-explaining, or getting defensive about it draws more attention to it than the gap itself ever would.",
         },
       ],
     },
@@ -309,6 +331,21 @@ way."`,
             "This is usually worth more than perfecting the first solution to a shine.",
           ],
         },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "If you genuinely don't know, say what you'd do to find out",
+          body: "Not knowing a specific algorithm, API, or piece of domain knowledge outright isn't the failure — going silent or bluffing is. \"I don't remember the exact time complexity of that off the top of my head, but I'd expect it to be roughly O(n log n) because of the sort, and I'd verify that before relying on it\" shows real reasoning even without a memorized fact. Interviewers are generally far more forgiving of an honest gap handled well than a confident wrong answer.",
+        },
+        {
+          kind: "bullets",
+          heading: "System design rounds run on the same principle, at a different altitude",
+          bullets: [
+            "Clarify scale and constraints before proposing an architecture — \"how many requests per second, roughly?\" changes the right answer as much as any technical detail does.",
+            "Narrate tradeoffs explicitly as you make them (\"I'm picking eventual consistency here because the availability requirement matters more than instant accuracy for this use case\") rather than presenting one architecture as the only option.",
+            "Draw the system as you talk, even roughly — a shared diagram keeps you and the interviewer looking at the same mental model instead of two different ones.",
+          ],
+        },
       ],
     },
     {
@@ -438,6 +475,20 @@ would be glad to talk through it more if useful."`,
           body: "A thoughtful follow-up rarely costs you anything, even in a process that was already going to end in a rejection. Skipping it costs you nothing when things go well, but occasionally costs you a genuine edge when a decision is close. It's a small, low-risk action with only upside.",
         },
         {
+          kind: "text",
+          heading: "Handling a rejection well is also part of the process",
+          body: [
+            "A rejection isn't the end of the relationship with that company, and how you respond is visible. A short, gracious reply — thanking them for the opportunity and, if genuinely true, saying you'd welcome being considered for future roles — costs little and occasionally leads somewhere: hiring needs shift, another role opens, or the recruiter moves to a company you'd want to work at next.",
+            "It's also reasonable to ask for feedback, framed as genuine interest in improving rather than a challenge to the decision: \"I really appreciated the conversation — if you're able to share any feedback on where I could have been stronger, I'd value it.\" Many recruiters won't have bandwidth to answer in detail, and that's fine; asking costs nothing and occasionally gets a genuinely useful answer.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "A LinkedIn connection request is a low-effort, low-risk follow-up",
+          body: "Connecting with interviewers on LinkedIn after the process ends — win or lose — with a brief personal note keeps a door open with minimal effort. It's a much lower bar than asking for feedback or checking in again, and it means the relationship doesn't just vanish the moment the recruiting process closes the loop.",
+        },
+        {
           kind: "summary",
           heading: "Following up, briefly",
           bullets: [
@@ -445,6 +496,7 @@ would be glad to talk through it more if useful."`,
             "Ask directly about timeline instead of guessing from tone or silence.",
             "One polite check-in past a missed date is reasonable; repeated ones aren't.",
             "Treat unexplained silence as real information and keep your other options moving.",
+            "A gracious response to a rejection, and a LinkedIn connection either way, keep the relationship open for the future at almost no cost.",
           ],
         },
       ],
@@ -487,6 +539,30 @@ would be glad to talk through it more if useful."`,
             "\"Our team was tasked with cutting customer churn, which was trending up quarter over quarter. [Situation/Task] The team ran several workstreams — I specifically owned the onboarding-email analysis, and proposed and built a revised email sequence with clearer setup guidance after finding that most churned customers had never completed a key setup step. [Action] I ran it as an A/B test against the old sequence before rolling it out fully. [Result] The new sequence lifted setup completion by 22% for new customers, and churn in that segment dropped by roughly a third over the following two quarters — a change that's still the default onboarding flow today.\"",
         },
         {
+          kind: "practice",
+          heading: "Draft your \"time you had to learn something quickly\" answer",
+          prompt:
+            "Draft a STAR answer to \"Tell me about a time you had to learn something quickly to get a job done.\" This question is testing adaptability and your approach to the unfamiliar, not the specific subject matter — pick a real example where you can describe how you learned, not just that you eventually knew it.",
+          hint: "Show your actual learning process — what you tried first, how you found the right resources or people, and how you validated you'd actually learned it correctly before relying on it.",
+          solution:
+            "\"When our team's data analyst left unexpectedly two weeks before a board presentation, I was asked to take over a SQL-heavy reporting pipeline I'd never touched. [Situation/Task] I spent the first afternoon just reading through existing queries to understand the data model rather than immediately trying to change anything, then found the two people on other teams who'd used the same pipeline before and asked for 20 minutes each to walk me through the parts I still didn't follow. I built one report end to end and had it reviewed by someone familiar with the pipeline before trusting it fully. [Action] I had the full reporting suite running correctly by the deadline, [Result] and documented what I'd learned so the next person covering it wouldn't have to start from zero the way I did.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Draft a story with a genuinely fuzzy Result",
+          prompt:
+            "Pick a real accomplishment where you don't have a clean number to cite as the Result — something like improving a process, a relationship, or a team dynamic. Draft the STAR answer, paying particular attention to making the Result concrete and credible without inventing a fake statistic.",
+          hint: "A Result without a number still needs to be specific and verifiable — a changed behavior, a decision made because of your work, or something someone else said or did as a direct consequence.",
+          solution:
+            "\"Our two engineering pods had drifted into rarely talking to each other, which caused repeated duplicate work and conflicting technical decisions. [Situation/Task] I started a biweekly 30-minute sync between a rotating pair from each pod, focused specifically on upcoming work that might overlap, rather than a general status meeting nobody would find useful. I kept it small and concrete on purpose, since a previous attempt at a full-team sync had fizzled out after a month. [Action] Six months later the sync was still running without me having to drive it, two other teams had adopted the same format after hearing about it, and we hadn't had a duplicate-work incident since it started — [Result] a real change in how the teams worked together, even without a single metric to point to.\"",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Review your story bank every few months, not just once",
+          body: "Stories go stale — a project that felt significant a year ago might have a newer, stronger example that's replaced it, and details fade if you don't revisit them. Before a new round of interviews, spend 20 minutes reading back through your story bank and swapping in anything more current or more relevant to the specific roles you're now targeting, rather than reusing the same set indefinitely.",
+        },
+        {
           kind: "summary",
           heading: "What a strong story bank has in common",
           bullets: [
@@ -494,6 +570,7 @@ would be glad to talk through it more if useful."`,
             "\"I\" clearly separated from \"we\" in every Action section.",
             "A Result that names what changed, and ideally what you'd still improve — not just \"and it worked out.\"",
             "Answers you could start from any point in, not a memorized script you'd lose your place in.",
+            "A bank that gets revisited and refreshed periodically, not written once and left untouched for years.",
           ],
         },
       ],
@@ -576,6 +653,36 @@ would be glad to talk through it more if useful."`,
           correctIndex: 0,
           explanation:
             "The course's guidance is one polite follow-up past a missed timeline, not repeated ones — a single check-in reads as reasonable interest, while daily follow-ups read as pressure rather than genuine engagement.",
+        },
+        {
+          kind: "quiz",
+          heading: "\"Tell me about yourself\"",
+          question:
+            "According to this course, what's the biggest structural mistake candidates make when answering \"tell me about yourself\"?",
+          options: [
+            "Talking for too short a time — under 30 seconds",
+            "Starting too far back in their history instead of with their current role",
+            "Not mentioning their salary expectations",
+            "Failing to name every job they've ever held",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course specifically calls out opening with something like \"So I grew up in...\" as a common failure — it buries the relevant, current information at the end of a long answer. Starting with where you are now and working backward only as far as needed keeps the answer tight and relevant.",
+        },
+        {
+          kind: "quiz",
+          heading: "Following up without a number",
+          question:
+            "A candidate wants to describe a real accomplishment for a STAR answer, but has no clean metric for the Result. What does this course recommend?",
+          options: [
+            "Skip that story and only use accomplishments with a number attached",
+            "Invent a plausible-sounding statistic to make the answer stronger",
+            "Name a concrete, verifiable outcome even without a number — a changed process, a decision made because of the work, or a specific behavior change",
+            "End the answer on the Action step and let the interviewer infer the outcome",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course is explicit that a Result doesn't require a number to be strong — it requires being concrete and credible. \"It went well\" isn't a Result, but a specific change that resulted from the work is, even with zero statistics attached.",
         },
         {
           kind: "summary",

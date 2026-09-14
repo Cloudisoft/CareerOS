@@ -467,6 +467,37 @@ server.listen(3000, () => {
           body: "node_modules is regenerated from package.json and package-lock.json by running `npm install` — it's large, machine-specific in places, and entirely reproducible. It should be in .gitignore, not committed. If a project is missing that entry and node_modules gets committed by accident, it bloats the repository significantly and causes painful merge conflicts on a file nobody should be hand-editing.",
         },
         {
+          kind: "bullets",
+          heading: "Version range syntax, beyond the caret",
+          bullets: [
+            "^4.19.2 (caret) — allows minor and patch updates (4.x.x, staying below 5.0.0), the most common default and the one npm writes automatically when you npm install a package.",
+            "~4.19.2 (tilde) — allows only patch updates (4.19.x), a tighter range for a dependency you want to move more cautiously.",
+            "4.19.2 exactly, with no prefix — locks to that precise version; combined with committing the lock file, this is the most conservative option, common for tools where an unexpected minor-version change has bitten a team before.",
+            "* or latest — always resolves to the newest version available, which is rarely what you actually want for anything beyond a quick local experiment; it defeats the whole point of a reproducible dependency tree.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "npm ci: the install command CI pipelines should actually use",
+          description: "npm install can update the lock file if package.json and the lock file disagree slightly; npm ci refuses to and is meaningfully faster, which is exactly what an automated pipeline should want.",
+          lines: [
+            { text: "npm ci" },
+            { text: "npm ERR! `npm ci` can only install packages when your package.json and", output: true },
+            { text: "npm ERR! package-lock.json are in sync. Please update your lock file", output: true },
+            { text: "npm ERR! with `npm install` before continuing.", output: true },
+            { text: "# ...caught the mismatch instead of silently installing something slightly different" },
+            { text: "npm install" },
+            { text: "npm ci" },
+            { text: "added 47 packages in 1.1s", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "npx: running a package's command without installing it globally first",
+          body: "npx create-react-app my-app downloads and runs a package's CLI in one step, without polluting your machine with a global install you'll use once. It also runs a locally installed package's binary directly (npx eslint . reaches for the eslint in node_modules/.bin rather than requiring it on your system PATH), which is the more common day-to-day use once a project actually has dependencies installed.",
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
@@ -536,6 +567,45 @@ const orders = await getOrders(id);
 
 // Faster: both run at the same time
 const [user, orders] = await Promise.all([getUser(id), getOrders(id)]);`,
+        },
+        {
+          kind: "example",
+          heading: "Promise.allSettled when one failure shouldn't sink the rest",
+          body: "Promise.all rejects the instant any one of its promises rejects, discarding the results of everything else that was in flight. When you genuinely want every result regardless of individual failures — enriching a response from three optional data sources, say — Promise.allSettled is the right tool instead.",
+          code: `// Promise.all: one failure loses everything, even the successes
+const [profile, orders, recs] = await Promise.all([
+  getProfile(id), getOrders(id), getRecommendations(id),
+]);
+// If getRecommendations rejects, you get nothing back at all —
+// not even the profile and orders that succeeded fine.
+
+// Promise.allSettled: every result comes back, success or failure
+const results = await Promise.allSettled([
+  getProfile(id), getOrders(id), getRecommendations(id),
+]);
+const [profile, orders, recs] = results.map((r) =>
+  r.status === "fulfilled" ? r.value : null
+);
+// A flaky recommendations service degrades gracefully instead
+// of taking the whole response down with it.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "\"Fire and forget\" is rarely actually safe in a request handler",
+          body: "Calling an async function without awaiting it — logAnalyticsEvent(data); with no await in front — doesn't make the work happen synchronously in the background safely. If it rejects, that's an unhandled rejection with no request-scoped try/catch anywhere near it, and depending on the Node version and framework, it can still surface as a process-level crash minutes later, disconnected from the request that actually triggered it. If work genuinely doesn't need to block the response, still attach a .catch() to it explicitly (fireAndForget().catch(err => logger.error(err))) rather than leaving it fully unhandled.",
+        },
+        {
+          kind: "diagram",
+          heading: "One request, three awaited calls, one place error handling has to cover",
+          description: "Each await is a place the request can fail — the try/catch has to actually wrap all of them, not just the first.",
+          steps: [
+            { label: "Request arrives", detail: "GET /profile/:id" },
+            { label: "await db.user.findUnique(...)", detail: "Can reject — connection drop, bad query" },
+            { label: "await fetchEnrichment(...)", detail: "Can reject — the flaky downstream API" },
+            { label: "await cache.set(...)", detail: "Can reject too — easy to forget this one specifically" },
+            { label: "res.json(...)", detail: "Only reached if every prior await either succeeded or was caught" },
+          ],
         },
         {
           kind: "callout",
@@ -654,6 +724,34 @@ if (cluster.isPrimary) {
           ],
         },
         {
+          kind: "bullets",
+          heading: "A wrinkle cluster introduces for stateful connections",
+          bullets: [
+            "A WebSocket connection is long-lived and pinned to whichever worker accepted it — if that specific worker restarts (a deploy, a crash-and-recover), every WebSocket client connected to it drops and has to reconnect, potentially landing on a different worker with no memory of the prior connection's state.",
+            "For this reason, WebSocket-heavy systems often need the same sticky-session or shared-state thinking that came up for load balancing generally — a shared pub/sub layer (Redis is the common choice again) so an event published by one worker reaches clients connected to any worker, not just its own.",
+            "This is a real, recurring cost of the process-per-core model — it's not a flaw specific to cluster, it's the same trade-off horizontal scaling makes anywhere, just visible at the scale of one machine instead of many.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Shutting a worker down cleanly, not abruptly",
+          body: "A worker that dies mid-request drops whatever it was doing. Listening for the shutdown signal and finishing in-flight work first — a graceful shutdown — is standard practice for any process expected to be restarted regularly, which a clustered worker is.",
+          code: `// each worker process
+const server = http.createServer(handler);
+server.listen(3000);
+
+process.on("SIGTERM", () => {
+  console.log("Worker shutting down, finishing in-flight requests...");
+  server.close(() => {
+    // stops accepting new connections, waits for existing ones to finish
+    process.exit(0);
+  });
+
+  // safety net: force-exit if requests hang longer than expected
+  setTimeout(() => process.exit(1), 10_000).unref();
+});`,
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "Neither of these is free complexity",
@@ -680,6 +778,12 @@ if (cluster.isPrimary) {
           heading: "Practice: Diagnosing Blocking and Concurrency Bugs",
           subheading:
             "Three snippets, each with a real bug rooted in how Node's event loop and async model actually work. Diagnose before you fix.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to approach these",
+          body: "In every case below, the code looks reasonable at a glance — it's only wrong once you trace exactly what the single main thread is doing at each await, and what else might run during the gap. Before reading the hint, try to state in one sentence what specific moment in the code hands control back to the event loop, and what could happen during that window.",
         },
         {
           kind: "practice",

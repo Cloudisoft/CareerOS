@@ -175,6 +175,34 @@ email to under an hour."`,
           ],
         },
         {
+          kind: "example",
+          heading: "The same skeleton on a bullet with a technical, operational result",
+          body: "The formula holds regardless of domain — the action and the measurable change are what carry it, not the specific field.",
+          code: `Duty: "Responsible for fixing bugs reported by customers."
+
+Impact: "Diagnosed and shipped fixes for the 15 highest-impact
+customer-reported bugs in a single sprint, cutting the open
+critical-bug count from 40 to 9 and clearing a backlog that
+had been growing for three months."`,
+        },
+        {
+          kind: "bullets",
+          heading: "Where people fumble applying the skeleton",
+          intro: "The formula is simple; these are the four ways people quietly undermine it anyway.",
+          bullets: [
+            "Piling on adjectives instead of naming an action — \"results-driven,\" \"detail-oriented,\" and \"dynamic\" describe how you'd like to be seen, not something you actually did. Cut every adjective a bullet doesn't need to make its point.",
+            "Claiming full credit for a team result with no sense of your specific role — \"Launched a product that generated $2M in revenue\" reads very differently once a reader realizes you were one of fifteen people on that launch. Naming your specific piece is more credible, not less impressive.",
+            "Defaulting to no scale language at all for genuinely unmeasured work, instead of reaching for the honest alternatives from a few slides back — \"across 12 markets,\" \"for a team of 40\" still communicate real scope without inventing a precise number you don't have.",
+            "Mixing verb tense within the same role — describing a past job with a mix of \"manages\" and \"managed\" reads as a proofreading miss before a reader even gets to judging the substance.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A longer bullet isn't automatically a more impressive one",
+          body: "It's tempting to think a bullet that runs two full lines and mentions three tools, a methodology, and a stakeholder group must be doing more work than a short one — often it's doing the opposite, burying the one fact that mattered under detail nobody asked for. A scanning reader's attention drops sharply after the first ten or twelve words of a bullet. If the result is the third clause in a long sentence, most readers never reach it. Say the impact first, or say it in fewer words — length is not the same axis as strength.",
+        },
+        {
           kind: "summary",
           heading: "The verb audit",
           bullets: [
@@ -236,6 +264,38 @@ email to under an hour."`,
             "Before submitting, read the posting once for required skills and tools, then check your resume actually contains the ones you truly have — not to invent matches, but to make sure real, relevant experience isn't described in different words than the posting uses for the same thing.",
             "Spell out acronyms the first time and include both forms where space allows — \"Search Engine Optimization (SEO)\" — since some parsers match the exact string a posting uses, and you don't know in advance whether that posting wrote out the long form or the abbreviation.",
           ],
+        },
+        {
+          kind: "terminal",
+          heading: "A five-minute test: see your resume the way a parser does",
+          description: "Before trusting a layout, run something close to what many ATS parsers actually do — extract raw text with no visual formatting — and read the result honestly.",
+          lines: [
+            { text: "pdftotext resume.pdf resume.txt" },
+            { text: "cat resume.txt" },
+            { text: "Jane Torres  Product Manager  Skills  SQL  Figma  Experience", output: true },
+            { text: "Senior PM  TechCo  2021-Present  Led launch of...  Education", output: true },
+            { text: "B.A. Economics  State University  2016  Amplitude  Notion", output: true },
+            { text: "# A two-column layout interleaved Skills, Experience, and", output: true },
+            { text: "# Education into one unreadable stream — exactly what many", output: true },
+            { text: "# real parsers see, even though the PDF looks fine to a human" },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "File-naming and format details that quietly matter",
+          intro: "None of these affect keyword matching directly, but each one is a real, documented way resumes get mishandled before a human ever opens the file.",
+          bullets: [
+            "Name the file with your actual name — FirstLast-Resume.pdf, not resume_final_v3.docx — since some systems display the filename to the recruiter, and a generic one is an easy first impression to avoid giving away for free.",
+            "Save as .docx unless a posting explicitly asks for PDF; some older or lower-cost ATS platforms still parse Word documents more reliably than PDFs, especially PDFs exported from design tools rather than a word processor.",
+            "Never password-protect or restrict-edit the file — some parsers simply can't open it, and it silently drops out of the pipeline with no error shown to you.",
+            "Avoid embedding a photo, icon, or logo as anything other than a genuinely decorative element — some parsers attempt to extract text from images and produce garbage that gets attached to your profile.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The \"ATS auto-rejects for X\" myth",
+          body: "Job-search folklore is full of confident claims about ATS platforms auto-rejecting a resume for a specific font, a missing comma, or an unlucky word choice. In reality there's no universal blacklist — different ATS products use different, often fairly basic keyword-and-field matching models, and most surface a ranked list for a recruiter to review rather than silently discarding anyone below a line. The formatting and keyword advice in this lesson is worth following because it reliably improves how well real content gets extracted and matched, not because there's a single secret rule being gamed. Chasing a rumored trick is usually wasted effort that a plain, honest formatting pass already covers.",
         },
         {
           kind: "chart",
@@ -354,6 +414,33 @@ Social media, email campaigns, and event support for a
           body: "A spell-checker won't catch a real word used wrong — \"manger\" instead of \"manager,\" \"complimentary\" instead of \"complementary,\" or a company name spelled as a different real word. These are exactly the errors a bottom-to-top read and a name-specific pass are designed to catch, because your eye stops auto-correcting once it's reading out of normal order.",
         },
         {
+          kind: "example",
+          heading: "What a real-word typo actually looks like in context",
+          body: "A spell-checker sees a correctly spelled word and moves on — it has no idea the word is wrong for the sentence. This is exactly the category of mistake a normal top-to-bottom read tends to glide right past.",
+          code: `Slipped through: "Reported directly to the senior manger
+on all budget decisions."
+
+Caught on a bottom-to-top read: "Reported directly to the
+senior manager on all budget decisions."`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Changing the format tricks your eye into actually seeing it",
+          body: "After staring at the same document for hours, your brain stops reading it and starts pattern-matching against what it expects to be there — which is exactly how obvious errors survive ten read-throughs. Changing the document's appearance breaks that autopilot: export it to PDF if you've been editing in Word, temporarily switch the font, zoom in well past normal size, or print a physical copy. None of these change the content, but each one makes the page look unfamiliar enough that your eye has to actually process it again instead of skimming from memory.",
+        },
+        {
+          kind: "bullets",
+          heading: "A last five-minute checklist before sending",
+          intro: "Quick enough to run every time, even under deadline pressure.",
+          bullets: [
+            "Every date format matches, and the math checks out — a role listed as \"2021-2023\" should actually span roughly two years, not four.",
+            "Every company and tool name is spelled and capitalized exactly the way that company or tool spells it, not an approximation.",
+            "The file itself is named professionally and saved in the format the posting actually asked for.",
+            "You've read the summary and first bullet of your most recent role one final time — it's the part a rushed reader is most likely to actually reach.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Three passes worth doing",
           bullets: [
@@ -464,7 +551,17 @@ interview, not the resume.)`,
           kind: "title",
           heading: "Practice: Rewriting Weak Bullets Into Impact",
           subheading:
-            "Three real rewrites, using the skeleton and the honest-metric moves from this course. Do them before checking the model answers.",
+            "Six real rewrites, using the skeleton and the honest-metric moves from this course. Do them before checking the model answers.",
+        },
+        {
+          kind: "bullets",
+          heading: "Before you start each one",
+          intro: "Work through the same three questions every time, in this order, before you write a single word of the rewrite.",
+          bullets: [
+            "What did the person actually do — the verb? Not the title of the project, the actual action they took.",
+            "What did they do it to or with — the specific process, system, team, or budget involved?",
+            "What changed because of it — a real number if there is one, honest scale language if there isn't, and never a figure that wasn't actually measured.",
+          ],
         },
         {
           kind: "practice",
@@ -494,12 +591,64 @@ interview, not the resume.)`,
             "\"Introduced a shared task board to replace status-update meetings, cutting the team's weekly meeting time roughly in half and freeing an estimated 4 hours per person per week for direct project work.\"",
         },
         {
+          kind: "practice",
+          heading: "Rewrite an ops bullet with no dollar figure at all",
+          prompt:
+            "Rewrite: \"In charge of ordering office supplies and managing vendor relationships.\" The real story: this person consolidated the vendor list from six suppliers down to two, which noticeably cut how long invoice processing took each month.",
+          hint: "There's no revenue or headcount number here, and that's fine — anchor the claim to the consolidation itself (6 vendors to 2) and the operational effect (faster invoice processing), which are both concrete and checkable on their own.",
+          solution:
+            "\"Consolidated the company's vendor list from 6 suppliers to 2, cutting monthly invoice-processing time roughly in half and simplifying budget tracking across the office.\" The 6-to-2 detail does the work a dollar figure would have — it's specific, verifiable, and shows a real before/after without inventing a metric that was never tracked.",
+        },
+        {
+          kind: "practice",
+          heading: "Rewrite a bullet that takes full credit for a team win",
+          prompt:
+            "Rewrite: \"Launched a new customer portal that increased customer satisfaction.\" The real story: this person was one of four engineers on the project and owned the front-end build specifically; a separate team handled backend and support processes.",
+          hint: "Full credit for a team launch is the kind of claim that unravels fast in an interview. Naming your specific piece honestly — \"one of four,\" \"owned the front-end\" — is more credible, not less impressive, and it's a claim you can actually defend in detail.",
+          solution:
+            "\"Owned the front-end build for a new customer self-service portal, one of four engineers on the launch team, contributing to a 20-point lift in the company's customer satisfaction score over the following two quarters.\" This keeps the real, verifiable outcome (the CSAT lift) while being honest and specific about which part of it this person actually built.",
+        },
+        {
+          kind: "practice",
+          heading: "Rewrite a bullet with an implausible-sounding number",
+          prompt:
+            "Rewrite: \"Boosted customer retention by 500% through improved communication.\" The real story: this person introduced a structured onboarding call for new customers, which brought quarterly churn down from about 18% to about 11%.",
+          hint: "A \"500%\" retention claim doesn't pass a basic sanity check — retention can't realistically increase by that much, which is exactly what makes a reader distrust the whole bullet. Replace it with the real before/after figure, which is both more believable and, not coincidentally, actually true.",
+          solution:
+            "\"Introduced a structured onboarding call for new customers, cutting quarterly churn from roughly 18% to 11% over two quarters.\" The real number is less dramatic-sounding than \"500%\" and considerably more convincing, because it's specific, plausible, and something this person could walk an interviewer through in detail.",
+        },
+        {
+          kind: "practice",
+          heading: "Fix a \"helped with\" bullet in a people-ops context",
+          prompt:
+            "Rewrite: \"Helped with the hiring process for new employees.\" The real story: this person built a structured interview scorecard that the whole team adopted, which cut the average time-to-hire from about six weeks to about four.",
+          hint: "\"Helped with\" hides a specific, ownable contribution — building and getting the team to adopt a scorecard is a concrete action with a measurable downstream effect, not vague assistance.",
+          solution:
+            "\"Built a structured interview scorecard adopted team-wide, cutting average time-to-hire from roughly six weeks to four.\" Notice the verb (\"built\"), the specific artifact (a scorecard, not just \"the hiring process\" in the abstract), and a real before/after number — the full skeleton, in one sentence.",
+        },
+        {
+          kind: "practice",
+          heading: "Rewrite a bullet padded with buzzwords instead of substance",
+          prompt:
+            "Rewrite: \"Dynamic, results-driven professional who leveraged synergies to drive strategic initiatives forward.\" The real story: this person is a warehouse operations lead who redesigned the pick-and-pack layout, reducing average order-fulfillment time from 22 minutes to 14.",
+          hint: "None of the buzzwords in the original tell a reader anything real — strip every adjective that isn't earning its place, and replace the whole sentence with the actual action and the actual number.",
+          solution:
+            "\"Redesigned the warehouse's pick-and-pack layout, cutting average order-fulfillment time from 22 minutes to 14.\" Every word in the rewrite is doing real work; none of it could be true of some other person's unrelated job the way \"dynamic, results-driven professional\" could describe almost anyone on any resume.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Notice what every rewrite in this lesson has in common",
+          body: "Not one of the model answers above invented a number, exaggerated scope, or claimed credit the original scenario didn't support. Every improvement came from the same two moves: naming a specific action instead of a vague one, and anchoring the result to something true and checkable, even when that meant honest scale language instead of a dollar figure. That's the entire skill — it isn't about sounding more impressive, it's about being specific enough that a reader believes you, and specific enough that you could talk through any one of these bullets in detail without hesitating.",
+        },
+        {
           kind: "summary",
           heading: "What good rewriting looks like",
           bullets: [
             "Every bullet starts with a specific verb, not \"responsible for\" or \"helped with.\"",
             "A missing number is replaced with real scale or before/after language — never an invented figure.",
             "The claim stays something you could defend in detail if an interviewer asked \"walk me through that.\"",
+            "Credit is scoped honestly to your actual contribution on a team effort — specific and partial beats vague and total every time.",
           ],
         },
       ],

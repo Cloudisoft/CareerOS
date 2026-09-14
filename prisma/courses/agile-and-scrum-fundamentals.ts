@@ -54,6 +54,12 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "Twelve principles sit behind the four values",
+          body: "The Manifesto itself is just the four short value statements, but the seventeen signatories also published twelve supporting principles alongside it — things like \"deliver working software frequently, from a couple of weeks to a couple of months\" and \"working software is the primary measure of progress.\" Most of what later became formalized as Scrum's specific ceremonies traces directly back to these principles turning the four abstract values into something concretely actionable — the sprint cadence itself is essentially principle seven, given a fixed rhythm and a name.",
+        },
+        {
           kind: "summary",
           heading: "Why this history matters",
           bullets: [
@@ -118,6 +124,22 @@ export const course: CourseSeed = {
           tone: "tip",
           heading: "A useful lens for all four",
           body: "Each ceremony answers a distinct question: planning asks \"what can we do,\" the standup asks \"are we still on track and unblocked,\" the review asks \"did we build the right thing,\" and the retro asks \"how do we work better next time.\" If a meeting isn't clearly answering its question, that's worth naming directly rather than just running it out of habit.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "\"Done\" needs a shared, written definition — or the review has nothing solid to check against",
+          body: "A Definition of Done is a short, team-agreed checklist — tests passing, code reviewed, deployed to staging, documentation updated, whatever genuinely applies — that a story has to satisfy before it counts as complete. Without one, \"done\" quietly means something different to each person: an engineer might consider a story done once the code is written, while a stakeholder in the sprint review expects it to be live and usable. That mismatch is exactly what turns a review into an argument about definitions instead of a conversation about the actual product — a Definition of Done, agreed on before it's needed, heads that off entirely.",
+        },
+        {
+          kind: "bullets",
+          heading: "Choosing a sprint length: one to four weeks, with real trade-offs either way",
+          bullets: [
+            "One week — tight feedback loops and fast course correction, but the planning/review/retro overhead happens four times as often relative to actual working time, and there's little room to recover from a bad week.",
+            "Two weeks — the most common default, and usually a reasonable starting point: enough time to make meaningful progress on a story, short enough that a wrong direction doesn't compound for long before the next checkpoint.",
+            "Four weeks — less ceremony overhead relative to working time, but feedback arrives more slowly, and a sprint that goes badly wastes a full month before the retro even gets a chance to address it.",
+            "There's no universally correct length — teams commonly start at two weeks and adjust based on how much the ceremony overhead versus feedback speed trade-off actually shows up in practice for their specific work.",
+          ],
         },
         {
           kind: "diagram",
@@ -189,6 +211,22 @@ export const course: CourseSeed = {
           body: "A Scrum Master who starts assigning tasks and evaluating individual performance has effectively become a manager wearing a different title — and a Product Owner who starts telling engineers exactly how to implement something has stepped past \"what and why\" into \"how,\" which is the team's call to make.",
         },
         {
+          kind: "bullets",
+          heading: "Stakeholders: influential, but not one of the three defined roles",
+          intro: "Executives, customers, support teams, other product teams whose work touches this one — anyone with a real interest in the outcome, without being on the Scrum team itself.",
+          bullets: [
+            "Stakeholders provide input and feedback, most visibly at the sprint review, but they don't dictate the sprint's content directly — that authority sits specifically with the Product Owner, who weighs stakeholder input against everything else in the backlog.",
+            "A common dysfunction: a stakeholder goes around the Product Owner directly to an engineer with a request mid-sprint. Handling this well means routing it back through the Product Owner, not quietly absorbing scope the team never agreed to and never sized.",
+            "The Scrum Master's job of \"protecting the team from disruptive interruptions\" mentioned above is largely about exactly this — shielding the sprint's agreed scope from well-intentioned stakeholder requests arriving outside the normal backlog process.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Team size: small enough to actually coordinate",
+          body: "Scrum's guidance leans toward roughly 5 to 9 people on the Development Team — often called the \"two-pizza team\" rule of thumb (small enough that two pizzas would feed the whole team). Below that, the team may lack enough range of skills to be genuinely cross-functional; above it, the number of communication paths between people grows fast enough that coordination overhead starts eating into actual delivery, and the standup itself stops being a quick, useful sync.",
+        },
+        {
           kind: "summary",
           heading: "The three roles, briefly",
           bullets: [
@@ -254,6 +292,39 @@ so that I don't have to re-enter it every time I check out.`,
           ],
         },
         {
+          kind: "example",
+          heading: "Acceptance criteria make \"testable\" concrete",
+          body: "A story states the need; acceptance criteria state exactly how the team will know it's satisfied. Given/When/Then is a common structure for writing them, borrowed from behavior-driven testing.",
+          code: `Story: As a returning customer, I want my shipping address saved
+from my last order, so that I don't have to re-enter it every
+time I check out.
+
+Acceptance criteria:
+  Given I completed a previous order with a shipping address
+  When I start a new checkout
+  Then my last shipping address is pre-filled, editable before I submit
+
+  Given I have never placed an order before
+  When I start checkout
+  Then the address field is empty, with no error shown`,
+        },
+        {
+          kind: "bullets",
+          heading: "Splitting a story that's too big — vertical, not horizontal",
+          intro: "A story that fails INVEST's \"Small\" criteria needs splitting — but splitting it the wrong way creates a different problem.",
+          bullets: [
+            "Split vertically, by a thinner slice of real user value, not horizontally by technical layer. \"Build the backend API\" plus a separate \"build the frontend\" story each deliver nothing usable on their own — neither can be demoed or shipped independently.",
+            "A vertical split of the saved-address story above might be: (1) save and pre-fill a single default address, ships first and is independently valuable, then (2) support multiple saved addresses with a picker, as a second story once the first is proven out.",
+            "This matters beyond tidiness — a vertically split story can be demoed at the sprint review and shipped on its own, where a horizontal slice usually can't be either until every layer is finished.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Epics: when a story is really a collection of stories",
+          body: "An epic is a body of work too large for one story or one sprint — \"redesign the checkout flow,\" say — that gets broken down into several individual stories over time, often across multiple sprints. Epics live above stories in the backlog's hierarchy, useful for tracking a larger initiative's overall progress, but a sprint should still only ever commit to the individual, INVEST-checked stories underneath it, not the epic as one unsplit unit of work.",
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "A story that's really a task in disguise",
@@ -317,6 +388,25 @@ so that I don't have to re-enter it every time I check out.`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Scope creep mid-sprint",
+          intro: "A sprint's whole value depends on the commitment made at planning staying roughly stable — this is what erodes it.",
+          bullets: [
+            "Symptom: new requests keep getting added to an already-committed sprint, without anything being removed or re-planned to make room, until the original sprint goal is effectively abandoned.",
+            "Why it happens: it's often well-intentioned — a stakeholder request feels urgent, or a small addition seems too minor to formally re-plan around — but it quietly compounds sprint over sprint.",
+            "The fix: genuinely urgent work can justify re-opening the sprint plan, but that should be a visible, deliberate trade-off (\"we're dropping X to make room for Y\"), not an invisible addition on top of an unchanged commitment.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Point inflation: velocity treated as a target instead of a measurement",
+          intro: "Covered in more depth in the estimating lesson, but it belongs on this list too — it's a textbook case of a ceremony's form surviving while its purpose quietly disappears.",
+          bullets: [
+            "Symptom: the same work that used to be estimated as a 3 starts getting called a 5, then an 8, with no real change in actual complexity — just pressure to make velocity numbers look consistent or improving.",
+            "The fix: treat velocity purely as an observed, historical number used for forecasting, never as a goal a team is expected to hit or grow — the instant it becomes a target, the numbers feeding it stop being trustworthy.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "The pattern underneath all of these",
@@ -330,6 +420,8 @@ so that I don't have to re-enter it every time I check out.`,
             "A sprint that's really a small waterfall, with no real room to adapt mid-cycle.",
             "A backlog that's an unordered task dump instead of a prioritized, value-framed list.",
             "A retrospective with no real follow-through on what it surfaces.",
+            "Scope silently added to an already-committed sprint, instead of a visible, deliberate trade-off.",
+            "Velocity treated as a target to hit rather than a number to observe, which quietly incentivizes point inflation.",
           ],
         },
       ],
@@ -360,6 +452,20 @@ so that I don't have to re-enter it every time I check out.`,
           heading: "Scrum isn't the only Agile framework, and that's fine",
           body: [
             "Kanban (a continuous-flow model without fixed sprints), Scrumban (a hybrid), and various scaled frameworks for larger organizations all apply the same underlying Agile values differently. Scrum's specific ceremonies are one well-tested way to structure Agile work, not the only legitimate one — a team that's outgrown Scrum's fixed sprints for a genuinely continuous workflow isn't failing at Agile by adopting something else.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Psychological safety underlies most of the habits above",
+          body: "A team can't honestly say a sprint commitment was wrong mid-sprint, or raise the same retro complaint until it's actually fixed, if doing so carries a real cost — looking incompetent, being blamed, being overruled and quietly resented for it. Most of what makes a Scrum team \"healthy\" in practice traces back to whether people feel safe surfacing bad news early, which is exactly what the ceremonies are structurally trying to enable. A team with perfect ceremony attendance and zero psychological safety will still hide problems until they're too large to hide.",
+        },
+        {
+          kind: "bullets",
+          heading: "Scaling beyond one team: a brief note",
+          bullets: [
+            "Scrum was designed around a single small team — larger organizations running several Scrum teams on related or dependent work often add a lightweight coordination layer, commonly called a Scrum of Scrums: a short, periodic sync where a representative from each team surfaces cross-team dependencies and blockers.",
+            "Frameworks like SAFe and LeSS formalize this scaling more heavily for large organizations — worth knowing they exist, though the core habits in this lesson matter more at the level of one team than which scaling framework, if any, sits above it.",
           ],
         },
         {
@@ -438,6 +544,38 @@ so that I don't have to re-enter it every time I check out.`,
           body: "Using velocity to pressure a team into hitting a specific number quietly incentivizes point inflation (calling everything an 8 instead of a 3) rather than more actual delivery — the metric stops being useful the moment it becomes something to hit rather than something to observe.",
         },
         {
+          kind: "example",
+          heading: "Using velocity to plan a sprint: \"yesterday's weather\"",
+          body: "The simplest, most defensible way to decide how much to commit to in sprint planning is to look at recent actual velocity rather than debating it fresh each time — informally called \"yesterday's weather\": assume tomorrow looks roughly like the recent past unless there's a specific, named reason to expect otherwise.",
+          code: `Last 3 sprints completed: 28, 32, 29 points → average ≈ 30
+
+Sprint planning for the next sprint:
+  Default commitment: ~30 points (yesterday's weather)
+
+  Known adjustment this sprint: 2 of 6 engineers are out for
+  training for 3 of the 10 working days — roughly a 10% capacity
+  reduction for the sprint
+
+  Adjusted commitment: ~27 points, not 30
+  (Capacity changes are a reason to adjust the number — hoping
+  the team just works harder to hit 30 anyway is not a plan.)`,
+        },
+        {
+          kind: "bullets",
+          heading: "Story points aren't the only relative-sizing option",
+          bullets: [
+            "T-shirt sizing (XS/S/M/L/XL) is a coarser alternative some teams use, especially earlier in a project or for rougher epic-level estimates — faster to agree on, at the cost of less precision than a numeric scale for sprint-level planning.",
+            "A small but vocal #NoEstimates movement argues teams should skip formal estimation entirely and instead keep stories consistently small and let throughput (stories completed per sprint, not points) do the forecasting — worth knowing it exists, though story points remain the dominant practice most teams encounter.",
+            "Whichever scale a team uses, consistency over time matters more than which scale — switching systems frequently makes historical velocity data meaningless for forecasting.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Burndown charts make the sprint's real trajectory visible, not just its endpoint",
+          body: "A burndown chart plots remaining work (in points or stories) against the days left in the sprint, day by day. A healthy sprint trends steadily toward zero; a line that stays flat for the first week and then drops sharply at the end usually means work wasn't broken down small enough to show incremental progress, or testing and integration were left until the very end — a pattern worth catching mid-sprint, while there's still time to react, rather than only noticing it in the retro after the fact.",
+        },
+        {
           kind: "summary",
           heading: "Estimating, briefly",
           bullets: [
@@ -457,6 +595,12 @@ so that I don't have to re-enter it every time I check out.`,
           heading: "Practice: Writing and Sizing a User Story",
           subheading:
             "Turn a vague ask into a real, INVEST-checked, estimated backlog item.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to approach these",
+          body: "Every exercise below is deliberately close to a real backlog moment — a vague ask that needs shaping, a story that looks fine until you actually check it, a new story that needs a defensible size. Work through the prompt in full before reading the hint; the skill being tested is judgment about what's missing, not just familiarity with the formats.",
         },
         {
           kind: "practice",
@@ -486,6 +630,48 @@ so that I don't have to re-enter it every time I check out.`,
             "8 points. It reuses the underlying CSV generation from the 3-point story, but adds several genuinely new pieces of complexity: a scheduling mechanism, email delivery integration, failure/retry handling, and a new settings UI — each a real source of uncertainty the original story didn't touch. It's clearly bigger than a 5 (which would suggest one added dimension of complexity) but not so novel it warrants a 13, since none of the individual pieces are unprecedented for the team.",
         },
         {
+          kind: "practice",
+          heading: "Split an oversized story vertically",
+          prompt:
+            "This story failed the Small check in refinement: \"As a user, I want a complete notifications system so that I always know what's happening in my account.\" Split it into two or three smaller stories that could each be built, demoed, and shipped independently — order them so the smallest, most valuable one ships first.",
+          hint:
+            "Vertical splitting means each piece is a thinner slice of the same end-to-end capability, not one layer of the tech stack. What's the smallest version of \"notified about something\" that's still genuinely useful on its own, before any settings, channels, or preferences exist?",
+          solution:
+            "1. \"As a user, I want to receive an in-app notification when someone comments on my post, so that I don't have to keep checking back manually.\" — ships first: one event type, one channel, no configuration, but already real, demoable value.\n2. \"As a user, I want to see a badge count of my unread notifications, so that I know at a glance whether anything needs my attention.\" — builds directly on story 1, adds a small but distinct piece of value.\n3. \"As a user, I want to choose which types of activity notify me and through which channel (in-app vs. email), so that I can control how much I hear from the app.\" — the preferences layer, reasonably deferred until the underlying notification mechanism from stories 1 and 2 already exists and is proven useful.\nEach story is independently shippable and demoable — none of them requires the others to already exist to deliver real value, which is exactly what distinguishes a vertical split from slicing by technical layer (\"build the notification backend\" / \"build the notification UI\"), where neither piece alone is useful to an actual user.",
+        },
+        {
+          kind: "practice",
+          heading: "Write acceptance criteria that cover the edge case, not just the happy path",
+          prompt:
+            "Given the story \"As a shopper, I want to apply a promo code at checkout, so that I get the discount I was promised,\" write acceptance criteria in Given/When/Then format that cover both the successful case and at least one realistic failure case.",
+          hint:
+            "The happy path (valid code, discount applied) is the easy half. What actually happens with an expired code, or one that's already been used? A story isn't really testable until the failure cases are specified as clearly as the success case.",
+          solution: `Given a shopper has items in their cart
+When they enter a valid, unexpired promo code and apply it
+Then the discount is reflected in the order total before payment
+
+Given a shopper enters a promo code that has expired
+When they apply it
+Then they see a clear message that the code has expired, and the
+  order total is unchanged — the checkout is not blocked
+
+Given a shopper enters a promo code that doesn't exist
+When they apply it
+Then they see a message that the code is invalid, and can still
+  proceed to checkout without a discount
+
+Writing the failure cases explicitly is what actually makes this story
+testable — "apply a promo code" alone leaves what happens on bad input
+completely undefined, and undefined behavior is exactly what QA (or a
+real customer) finds first.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A common mistake across all three exercises above",
+          body: "It's tempting to treat \"who is the user\" and \"what's the acceptance criteria\" as boilerplate to fill in after the real decision (what to build) is already made. In practice, naming the specific user and writing the failure-case criteria often changes the decision itself — the promo-code story above reads differently once you've actually had to specify what happens with an expired code, and the notifications split reads differently once you've had to name which piece ships alone. Treat these as thinking tools, not paperwork that happens after the thinking is done.",
+        },
+        {
           kind: "chart",
           heading: "Sizing the new story against the reference story",
           description: "Not a claim that it's literally 2.67x the effort — story points are relative buckets on a Fibonacci-like scale, and the gap here reflects real added complexity, not a precise ratio.",
@@ -501,7 +687,8 @@ so that I don't have to re-enter it every time I check out.`,
           heading: "What a ready-to-estimate story looks like",
           bullets: [
             "Named user, real capability, and a genuine \"so that\" — not a restated feature request.",
-            "Small and testable enough that the team could realistically finish and demo it within a sprint.",
+            "Small and testable enough that the team could realistically finish and demo it within a sprint, split vertically rather than by technical layer if it isn't yet.",
+            "Acceptance criteria that cover realistic failure cases, not just the happy path.",
             "Estimated relative to a known reference point, based on complexity and uncertainty — not a guess at raw hours.",
           ],
         },
@@ -590,6 +777,21 @@ so that I don't have to re-enter it every time I check out.`,
           correctIndex: 2,
           explanation:
             "The course is explicit that a retrospective's entire value is in follow-through — surfacing the same issue repeatedly with no real change is the classic sign that action items are being nodded at but not actually implemented, not that the ceremony itself is worthless.",
+        },
+        {
+          kind: "quiz",
+          heading: "Splitting stories",
+          question:
+            "A story fails the Small check, so the team splits it into \"build the backend API\" and \"build the frontend UI\" as two separate stories. What's wrong with this split, per this course?",
+          options: [
+            "Nothing — any split that produces two smaller stories is a valid fix",
+            "It's a horizontal split by technical layer, and neither resulting story is independently demoable or shippable on its own — a vertical split by user value is the correct approach",
+            "The split is fine, but the two stories should have been combined back into one instead",
+            "This is only a problem if the backend story is estimated higher than the frontend story",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course draws this distinction directly: a vertical split, by a thinner slice of real user value, keeps each resulting story independently valuable and demoable. A horizontal split by technical layer produces pieces where neither one delivers anything usable until both are finished — which defeats the actual purpose of splitting a story in the first place.",
         },
         {
           kind: "summary",

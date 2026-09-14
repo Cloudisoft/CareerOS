@@ -571,12 +571,47 @@ Senior PM roles"`,
             "Entry: Company: [Logistics Co] | Role: Senior Data Analyst | Stage: Applied (warm intro) | Last action: Applied Tue 9/9, forwarded by Jordan | Next action: Follow up with recruiter if no response by Tue 9/16 (one week out, per the course's default cadence for a role with a real contact). If an interview happens, next follow-up would be set for roughly two weeks after that round if no word.",
         },
         {
+          kind: "practice",
+          heading: "Diagnosing a Stalled Application",
+          prompt:
+            "Three weeks after applying — this time with a cold, direct application, no warm intro — you've heard nothing back from this same company for a different, unrelated posting: Data Analyst, mid-level, on a different team than the one from the earlier exercises. Using this course's diagnostic guidance, write what you'd actually check before deciding whether to follow up, write the lead off entirely, or focus your remaining energy elsewhere at this company.",
+          hint: "Distinguish a normal, silent no (common, and rarely worth chasing on its own) from an actual signal about targeting or resume fit — the course's guidance is to look at the pattern across several stalled applications in the tracker, not to overreact to one quiet lead in isolation.",
+          solution:
+            "Check three things before reacting, in this order: (1) Was this application genuinely tailored to this specific posting, or a faster, less-customized version sent later in a batch of applications — a single untailored application is weak evidence of anything wrong on its own. (2) Is this one of several roles stuck at \"applied\" in the pipeline tracker, or an isolated case — a pattern across many roles is a real targeting signal worth acting on; one quiet application by itself is usually just a quiet no. (3) Does the posting's seniority genuinely match this candidate's level, or was it a stretch application — a reach role going quiet is expected and not diagnostic of anything. Conclusion for this case: since the candidate already has a warm process actively moving at the same company (the Senior Data Analyst role from the first exercise), the direct, cold application going quiet isn't worth chasing on its own — better to let the warm relationship do the work than to send a second cold follow-up to the same company on an unrelated track.",
+        },
+        {
+          kind: "practice",
+          heading: "Writing a Graceful Follow-Up When a Recruiter Has Gone Quiet",
+          prompt:
+            "It's been two weeks since your second-round interview for the Senior Data Analyst role, and the hiring manager had mentioned a \"2-3 week\" decision timeline. You're right at the edge of that window with no update. Write the follow-up message you'd send, per this course's guidance on cadence and tone.",
+          hint: "Reference the timeline they actually gave you rather than inventing urgency of your own, and keep it short — a good follow-up reads as a light, low-pressure check-in, not applied pressure or a demand for an answer.",
+          solution:
+            "\"Hi Priya — hope you're doing well. Just wanted to check in on the Senior Data Analyst role, since you'd mentioned a 2-3 week decision timeline after our last conversation and we're right around there now. No rush at all if there's nothing new yet — just wanted to stay on your radar. Happy to answer anything else in the meantime.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Closing Out the Entry and Deciding the Next Move",
+          prompt:
+            "A week after your follow-up, you get a rejection: the team moved forward with an internal candidate. Update the pipeline entry to reflect this, and write the one next action this closure should actually trigger, per this course's guidance on treating the pipeline as a living document reviewed weekly.",
+          hint: "Closing an entry isn't the end of the process — this course frames the weekly review as the moment to also prune the list and redirect effort deliberately, not just to passively record an outcome and move on to whatever's next.",
+          solution:
+            "Entry update: Stage: Closed (rejected — internal candidate selected). Last action: Rejection received Fri. Next action: None for this specific role; redirect this week's outreach effort to the next core-tier company on the target list rather than let the week's energy default to more browsing. Broader move: log a short note on what actually worked in this process (a warm intro reached the Interview stage noticeably faster than the cold application at the same company did) to reuse deliberately on the next target-list entry, and send a brief, genuinely gracious note back to Jordan letting them know the outcome — they spent their own credibility making the introduction, and closing that loop matters for the relationship well beyond this one search.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Notice what stayed constant across all six exercises",
+          body: "Every step here — logging the \"why,\" the outreach message, the pipeline entry, the diagnosis of the stall, the follow-up, the close-out — was specific to this exact company, this exact person, and this exact stage of the process. None of it was generic, and none of it took an unreasonable amount of time. That's the whole thesis of this course in miniature: a search built from a smaller number of genuinely worked opportunities, each handled with real attention, consistently outperforms one built from a much larger number handled identically and on autopilot. Run this same loop deliberately across every entry on a real target list, and the pipeline stops feeling like a slot machine and starts looking like a process you're actually steering.",
+        },
+        {
           kind: "summary",
           heading: "What a well-run application actually looks like",
           bullets: [
             "A specific, logged reason the company is on the list — not just a title match.",
             "Outreach that names something real about the other person, asking for something small.",
             "A pipeline entry with a concrete next action and date, not a mental note to \"follow up sometime.\"",
+            "A follow-up that references a timeline the other person actually gave you, rather than manufacturing urgency.",
+            "A closed entry that still produces something useful — a lesson carried forward, and a relationship maintained, not just a status flipped to \"rejected\" and forgotten.",
           ],
         },
       ],
@@ -663,7 +698,21 @@ Senior PM roles"`,
           ],
           correctIndex: 1,
           explanation:
-            "The course frames pipeline tracking specifically as a tool for surfacing patterns like this — a cluster of stalled applications is treated as a signal to examine targeting or resume quality, not dismissed as random chance.",
+            "The course frames pipeline tracking specifically as a tool for surfacing patterns like this — a cluster of stalled applications across many roles at once is treated as a signal worth investigating (targeting, resume quality, or level mismatch), not dismissed as random chance or bad luck across the board.",
+        },
+        {
+          kind: "quiz",
+          heading: "LinkedIn as a search channel",
+          question: "Per this course, what role should a strong LinkedIn profile play in a job search?",
+          options: [
+            "It should replace targeting and networking as the primary search method",
+            "It supports every other channel — what a recruiter finds after being pointed there through another channel — rather than functioning as a search method on its own",
+            "It matters only if you're posting original content daily",
+            "It has no real effect on recruiter outreach one way or another",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course is explicit that a strong profile is what a recruiter or hiring manager finds when your name comes up through another channel — targeting, networking, a referral — not a substitute for those channels. A weak profile costs you once someone actually looks you up; a strong one doesn't generate that lookup by itself, which is exactly why it belongs alongside the other tactics in this course rather than replacing any of them.",
         },
         {
           kind: "summary",
@@ -675,6 +724,7 @@ Senior PM roles"`,
             "Networking works best started with people you already know, and specific with people you don't.",
             "Track your pipeline like a sales process — it surfaces stalls and prevents dropped follow-ups.",
             "A strong LinkedIn presence supports every other channel; it isn't a search method on its own.",
+            "A stalled pipeline calls for a specific diagnosis — untailored applications, an unrealistic level, or a genuine market signal — not either panic or a shrug.",
           ],
         },
       ],

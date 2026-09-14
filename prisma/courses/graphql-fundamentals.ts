@@ -96,6 +96,12 @@ query {
             { text: "312", output: true },
           ],
         },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "A quick way to spot over-fetching in your own REST API",
+          body: "Look at your largest response payloads and ask how many of the fields shipped are actually rendered on the screen that requested them — teams are often surprised to find a \"lightweight\" list screen pulling in a response several times larger than what it displays. If the answer regularly comes back well under half, that's exactly the shape of problem GraphQL was built to remove structurally, rather than just work around with a fields= hack bolted onto an existing endpoint.",
+        },
       ],
     },
     {
@@ -301,6 +307,12 @@ type Mutation {
 }`,
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "Introspection: asking the schema about itself",
+          body: "GraphQL servers typically expose their own schema through a special introspection query (`{ __schema { types { name } } }`), which is exactly what lets tools like GraphiQL and Apollo Studio generate interactive docs and autocomplete without any separate documentation file to write or keep in sync by hand.",
+        },
+        {
           kind: "bullets",
           heading: "Directives: @include and @skip conditionally include a field",
           bullets: [
@@ -441,6 +453,7 @@ type Mutation {
             "A new context object is created for every incoming request — it's the right place for a per-request database connection, the currently authenticated user (decoded from that request's auth token), or a DataLoader instance that needs to reset its cache between requests.",
             "Anything meant to be shared across every request instead — a connection pool, a config object — should be set up once outside the request lifecycle and referenced from context, not recreated on every single call.",
             "This distinction matters most for authorization: checking context.currentUser inside a resolver is the standard place to enforce \"can this specific caller see this specific field,\" since context is guaranteed fresh and correct for whichever request is currently being handled.",
+            "Never store per-request state like the current user on a module-level variable outside context — under real concurrent traffic, two requests running at once would silently stomp on each other's value.",
           ],
         },
         {
@@ -737,12 +750,49 @@ query GetOrder($id: ID!) {
             "```graphql\ntype OrderConnection {\n  edges: [OrderEdge!]!\n  pageInfo: PageInfo!\n}\n\ntype OrderEdge {\n  node: Order!\n  cursor: String!\n}\n\ntype PageInfo {\n  hasNextPage: Boolean!\n  endCursor: String\n}\n\ntype Query {\n  orders(first: Int!, after: String): OrderConnection!\n}\n```\nResolver behavior: decode `after` (commonly a base64-encoded order id or timestamp) back into a real database position, query for `first + 1` rows starting just after that position (ordered consistently, e.g. by id), use the extra row only to determine `hasNextPage` without including it in the returned edges, and set `endCursor` to the cursor of the last returned edge so the client can pass it back as `after` on the next request.\nKey decision: querying one extra row (`first + 1`) is what lets the resolver answer `hasNextPage` without a separate, second count query — a small trick that avoids doubling the database work just to know whether more data exists.",
         },
         {
+          kind: "practice",
+          heading: "4. Add authorization to a resolver",
+          prompt:
+            "The Query.user resolver currently returns any user's full record, email included, to any caller who asks. Modify it so it throws an error unless `context.currentUser` exists and either `context.currentUser.id` equals the requested `id`, or `context.currentUser.role` is `\"ADMIN\"`. Assume `context.currentUser` is already populated (or left null) by upstream auth middleware before any resolver runs.",
+          hint:
+            "Put the check as the very first thing inside the resolver, before touching the database at all — there's no reason to spend a database round trip on a request you're about to reject anyway.",
+          solution:
+            "```js\nconst resolvers = {\n  Query: {\n    user: (parent, args, context) => {\n      if (!context.currentUser) {\n        throw new Error(\"Not authenticated\");\n      }\n      const isOwnRecord = context.currentUser.id === args.id;\n      const isAdmin = context.currentUser.role === \"ADMIN\";\n      if (!isOwnRecord && !isAdmin) {\n        throw new Error(\"Not authorized to view this user\");\n      }\n      return context.db.user.findUnique({ where: { id: args.id } });\n    },\n  },\n};\n```\nKey decision: the check runs before the database call, and it throws rather than quietly returning null. A masked \"not found\" would be indistinguishable from a genuinely missing user, while a clear \"not authorized\" error describes what actually happened — and it's safe to return, since it doesn't leak whether the requested user even exists.",
+        },
+        {
+          kind: "practice",
+          heading: "5. Write a resolver for a computed field",
+          prompt:
+            "Add a fullName field to the User type that isn't stored in the database — the underlying table only has firstName and lastName columns. Write the resolver for User.fullName.",
+          hint:
+            "parent here is the already-resolved User row, which does have firstName and lastName on it, even though the schema's fullName field doesn't correspond to any single column directly.",
+          solution:
+            "```graphql\ntype User {\n  id: ID!\n  firstName: String!\n  lastName: String!\n  fullName: String!\n}\n```\n```js\nconst resolvers = {\n  User: {\n    fullName: (parent) => `${parent.firstName} ${parent.lastName}`,\n  },\n};\n```\nKey decision: fullName needs a custom resolver specifically because its name doesn't match any property on the underlying row — GraphQL's default resolver only works automatically when the field name and the parent object's property name line up exactly, which is why id, firstName, and lastName above need no resolver of their own at all.",
+        },
+        {
+          kind: "practice",
+          heading: "6. Write the actual DataLoader batch function",
+          prompt:
+            "Exercise 2 described the DataLoader batching strategy in words. Now write it for real: implement batchGetUsers(ids), the batch function context.authorLoader would call internally. Assume context.db.user.findMany({ where: { id: { in: [...] } } }) returns the matching users, in arbitrary order. DataLoader's contract requires the batch function to return results in the exact same order as the input ids array, with undefined (not simply omitted) for any id that wasn't found.",
+          hint:
+            "findMany won't necessarily return rows in the same order as your ids array, and it won't include placeholders for missing ids at all — build a lookup Map from the results first, then map over the original ids array to reconstruct the correct order and fill any gaps.",
+          solution:
+            "```js\nasync function batchGetUsers(ids) {\n  const users = await context.db.user.findMany({\n    where: { id: { in: ids } },\n  });\n\n  const usersById = new Map(users.map((user) => [user.id, user]));\n\n  // Must return one entry per input id, in the SAME order as ids —\n  // this is what lets DataLoader match each result back to its caller.\n  return ids.map((id) => usersById.get(id)); // undefined for a missing id\n}\n\nconst authorLoader = new DataLoader(batchGetUsers);\n```\nKey decision: order is rebuilt explicitly with a Map lookup rather than trusting the database to return rows in input order — most databases make no such guarantee, and DataLoader's entire batching contract silently breaks if that assumption is wrong.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Resolvers are just functions — test them like any other function",
+          body: "A resolver doesn't need a running GraphQL server, a real database, or an HTTP request to test. Call it directly with a hand-built parent, args, and context — a mock context.db that returns fixed data in place of a real database connection — and assert on what it returns or throws, exactly like testing any other plain function. This is usually far faster and far more targeted than spinning up the whole server and sending a query string through it just to check one resolver's authorization logic or one edge case in its output.",
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Understanding that a resolver's `parent` argument is the already-resolved object one level up, and that most fields need no custom resolver at all.",
-            "Recognizing the N+1 pattern by its shape (one query per item in a list) and knowing batching, not caching, is the actual fix.",
+            "Recognizing the N+1 pattern by its shape (one query per item in a list) and knowing batching, not caching, is the actual fix — and that a batch function's contract (same order, same length as its input) has to be honored exactly.",
             "Designing a list field so it never has to return an unbounded amount of data — pagination is part of a schema's design, not an afterthought bolted on later.",
+            "Putting authorization checks inside the resolver itself, before any database work, and failing with a clear error rather than a misleading null.",
           ],
         },
       ],

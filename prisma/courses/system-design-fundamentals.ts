@@ -216,6 +216,21 @@ scale_in:
           ],
         },
         {
+          kind: "example",
+          heading: "What actually goes in the cache key",
+          body: "A cache key needs to uniquely identify everything the cached value depends on — get this wrong and you either serve one user's data to another, or you get a far lower hit ratio than the design should achieve.",
+          language: "text",
+          code: `Too narrow — collides across users:
+  key: "profile"                        # every user overwrites the same entry!
+
+Right — identifies exactly what's cached:
+  key: "profile:user:48213"
+
+Depends on more than just the ID? Include it:
+  key: "search:q=running+shoes:page=2:sort=price"
+  # two different sort orders for the same query need two different entries`,
+        },
+        {
           kind: "diagram",
           heading: "Cache-aside, on a read",
           description: "The most common pattern: check the cache first, and only go to the database on a miss.",
@@ -688,6 +703,18 @@ X-RateLimit-Reset: 1719432600
             "These are two different mechanisms even though they share a trigger. One is a write-amplification problem (updating a huge number of cache entries for one event). The other is the same single key being read so heavily it behaves like the hot shard problem from the database lesson, just applied to a cache node instead of a database shard.",
           solution:
             "Problem 1 — write amplification: pre-computing and pushing a feed update to 40 million individual cached entries for a single post is the wrong model at this scale; it turns one event into 40 million writes. The standard fix is to flip from a push (fan-out-on-write) model to a pull (fan-out-on-read) model specifically for high-follower accounts: instead of writing the post into every follower's cached feed, store the post once, and merge it into a follower's feed at read time by checking a small list of \"who does this user follow that has enough followers to warrant pull instead of push.\" Most systems use a hybrid — fan-out-on-write for typical accounts (cheap, since follower counts are small), fan-out-on-read for high-follower accounts specifically (the celebrity threshold), rather than picking one model globally.\n\nProblem 2 — hot key: one cache key (the celebrity's profile or post) receiving a disproportionate share of reads is functionally identical to the hot shard problem, just at the cache layer — sharding the cache by key hash doesn't help, because it's one key, not a distribution-across-keys issue. The standard fix is local, in-process caching of that specific hot value on each app server (an additional cache layer in front of the shared cache, holding just the small number of genuinely hot keys), or replicating that one key across several cache nodes and load-balancing reads across the copies, rather than treating it as a normal key living on a single cache node.\nKey decision: recognizing that \"a celebrity posts\" isn't one problem — it's a write-side fan-out problem and a read-side hot-key problem that happen to share a trigger, and they need genuinely different fixes, not one bigger cache.",
+        },
+        {
+          kind: "diagram",
+          heading: "A quick-reference for diagnosing which bottleneck you're actually looking at",
+          description: "The three exercises above each hinge on correctly identifying which row applies — worth having as an explicit mental checklist, not just intuition.",
+          steps: [
+            { label: "Symptom: one client can overwhelm shared capacity", detail: "Rate limiting (token bucket, enforced via shared state)" },
+            { label: "Symptom: reads are slow and repetitive", detail: "Caching, with a hit-ratio-appropriate eviction policy" },
+            { label: "Symptom: write volume exceeds one primary's capacity", detail: "Sharding, chosen key distributing load evenly" },
+            { label: "Symptom: one specific key/shard is disproportionately hot", detail: "Hot-key mitigation — local caching or replicating just that key, not resharding everything" },
+            { label: "Symptom: a downstream dependency is degraded", detail: "Circuit breaker, to stop compounding its problems with retries" },
+          ],
         },
         {
           kind: "summary",

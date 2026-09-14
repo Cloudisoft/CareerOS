@@ -234,6 +234,28 @@ Best,
           heading: "Get the final offer in writing",
           body: "Once terms are agreed, confirm everything in writing before resigning from a current role or declining other offers — verbal agreements in a fast-moving process are easy to misremember or lose in the noise.",
         },
+        {
+          kind: "text",
+          heading: "When offers land on different timelines",
+          body: [
+            "It's common for offers to arrive days or weeks apart rather than all at once, which puts real pressure on the first one to decide before you've heard back from others. It's reasonable to ask the first company for a short, specific extension: \"I'm finishing up final conversations with a couple of other opportunities — could I have until [date] to make sure I'm making the right decision?\" Most companies would rather wait a few extra days for a candidate who commits fully than rush one into an answer they later walk back.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "What to actually do during the days you asked for",
+          bullets: [
+            "Finish the research from the previous lesson if you haven't already — this is the window it's for, not a formality to get through before the real work starts.",
+            "If you have other processes in flight, this is the moment to nudge them for a timeline update — knowing where things stand elsewhere changes what you can reasonably ask for here.",
+            "Talk to people who'd be affected by the decision before you're mid-conversation with the recruiter, not during it — a rushed decision made live on a call is much harder to walk back than one made with a clear head beforehand.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Silence for a day or two is normal, not a bad sign",
+          body: "A recruiter not responding within a few hours doesn't mean the ask was received badly — compensation conversations usually route through more than one person internally, and a short gap is often just that process working as expected, not a signal the answer is no. If more than a few business days pass with total silence, a brief, polite check-in — \"wanted to check in on timing, still very interested\" — is completely normal and doesn't read as pushy.",
+        },
       ],
     },
     {
@@ -285,6 +307,21 @@ Best,
           heading: "A useful framing",
           body: "\"I understand the base might be fixed at this level. Is there flexibility on [the lever you care about most] instead?\" This keeps the conversation collaborative rather than adversarial, and signals you've thought about the offer as a whole package, not just one number.",
         },
+        {
+          kind: "text",
+          heading: "Which levers actually have room varies by company type",
+          body: [
+            "A large company with strict, published pay bands often has almost no room on base but real flexibility on sign-on bonus, since a one-time payment doesn't touch the band system at all. An early-stage startup can be the mirror image — genuinely tight on cash for sign-on bonuses, but able to move meaningfully on equity, where the real cost to the company is dilution rather than cash today. Knowing which category a company falls into changes which lever is actually worth leading with, rather than asking for the same thing regardless of who you're negotiating with. Asking a recruiter directly which category applies — rather than guessing from a job posting or company size alone — is a completely reasonable question, and one that saves everyone time.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Asking about a specific lever, directly",
+          body: "A direct, specific ask about one lever, after learning the base is fixed, rather than a vague \"is there anything else you can do.\"",
+          code: `"Understood on the base. Given that, is there room to move
+on the sign-on bonus, or to revisit compensation again at
+the 6-month mark instead of the standard year?"`,
+        },
       ],
     },
     {
@@ -331,6 +368,28 @@ Best,
             "Don't reopen a number you already explicitly agreed to just because a new detail came up later.",
             "Don't let frustration bleed into tone. Even a \"no\" handled respectfully keeps a door open for a different role there in the future.",
           ],
+        },
+        {
+          kind: "text",
+          heading: "Why companies say \"final\" even when there's a little room",
+          body: [
+            "Sometimes \"final offer\" is a literal, hard constraint — a published pay band with no exceptions, or a hiring manager who has genuinely exhausted their approved budget. Other times it's a negotiating posture in itself, said to close out a back-and-forth that's gone on longer than the company wanted. Neither is dishonest exactly — but they call for slightly different responses, and there's often no way to know for certain which one you're dealing with from the words alone.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Signals worth reading in how it's said, not just what's said",
+          bullets: [
+            "A quick, specific explanation for the limit (\"this is capped by our published band for this level\") tends to be genuinely firm — there's a concrete constraint behind it, not just a negotiating stance.",
+            "A vaguer \"we've really stretched to get here\" with no specific reason given sometimes has a little more room than it sounds like, especially on a non-base lever.",
+            "Tone matters too — a recruiter who sounds apologetic about the limit is often more likely to actually go back and check on a smaller ask than one who sounds simply done with the conversation.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "One more ask is fine; a second round rarely is",
+          body: "Going back a second time after already hearing \"this is final\" once, without new information to justify it, risks reading as not taking the company's answer seriously — the single check for other flexibility described earlier is the reasonable move, not a repeated push on the same number.",
         },
         {
           kind: "summary",
@@ -385,6 +444,33 @@ Best,
           ],
         },
         {
+          kind: "text",
+          heading: "Timing the disclosure",
+          body: [
+            "Bringing up a competing offer too early — before the company has even made its own offer — can read as posturing rather than useful information, since there's nothing yet for it to be leverage against. The natural moment is after you have a real offer in hand and are already in a counter conversation, where a specific competing number directly answers the question the conversation is already asking: is there room to move.",
+            "If a competing process is moving faster than your preferred one, it's reasonable to let the slower company know you have a decision deadline elsewhere, even before you've decided what you'll do — this isn't the same as bluffing about the offer's existence, and companies generally respect a candidate being upfront about timing rather than disappearing until a deadline forces an answer.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A full disclosure conversation, start to finish",
+          body: "Notice the order: genuine preference first, the number second, the question last — not leading with the number as a threat.",
+          code: `"I want to be upfront that I have another offer at $X for a
+similar-scope role, and their timeline means I need to give
+them an answer by [date]. Honestly, this role is my first
+choice — I just wanted to see if there's room to close some
+of the gap before I make a final call."`,
+        },
+        {
+          kind: "bullets",
+          heading: "When you have more than one competing offer",
+          bullets: [
+            "Lead with the strongest, most comparable one rather than listing every offer you have — a pile of numbers reads as scattered, while one clear, relevant comparison reads as focused.",
+            "If two offers are close in value, it's fine to mention both exist without detailing every number — \"I have two other offers in a similar range\" is honest and still useful information, without turning the conversation into an auction.",
+            "Keep track of every deadline separately — juggling multiple real processes is a good problem to have, and a genuinely difficult one to manage well if you're not tracking dates carefully.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "The honest version of leverage",
           bullets: [
@@ -402,7 +488,14 @@ Best,
           kind: "title",
           heading: "Practice: Calculating Your Number and Drafting the Ask",
           subheading:
-            "Work through a realistic offer scenario end to end — the number, the message, and the priority call.",
+            "Work through a realistic offer scenario end to end — the number, the message, the priority call, and a few standalone scenarios that stress-test the same instincts.",
+        },
+        {
+          kind: "text",
+          heading: "Before you start",
+          body: [
+            "The first three exercises follow one scenario from start to finish, the same way a real negotiation actually unfolds — a number, a message, then a priority call once the first ask hits a limit. The remaining exercises are standalone scenarios that test the same judgment calls in situations you're likely to actually hit: comparing offers that split base and equity differently, tightening a weak draft message, and deciding what to disclose about a competing offer.",
+          ],
         },
         {
           kind: "practice",
@@ -446,12 +539,70 @@ Best,
             "1) A sign-on bonus of roughly $8,000-10,000 to close most of the gap between $105,000 and target — a one-time cost is typically easier to approve than a permanent base change, and it directly compensates for the shortfall. 2) A compensation review at 6 months instead of the standard 12, tied to specific, agreed success metrics — this creates a near-term path back to base if performance is strong, rather than waiting a full year to revisit the number.",
         },
         {
+          kind: "practice",
+          heading: "Evaluate a total-comp trade-off",
+          prompt:
+            "You have two offers for the same type of role. Offer A: $125,000 base, no meaningful equity. Offer B: $108,000 base, plus equity the company estimates at roughly $24,000/year over a 4-year vest, at a company you have genuine conviction in. Calculate the rough annual total comp for each, and name two things you'd want to know before treating Offer B's number as directly comparable to Offer A's.",
+          hint: "Total comp isn't just base plus the headline equity figure — a vesting cliff, the company's actual valuation trajectory, and how liquid or illiquid the equity is all change how much that number is really worth to you today, versus on paper.",
+          solution:
+            "Offer A ≈ $125,000/year, essentially guaranteed. Offer B ≈ $132,000/year on paper ($108,000 + $24,000), but that $24,000 is an estimate, not cash — it assumes the company's valuation holds or grows, and it's usually illiquid until a future exit or liquidity event. Two things worth confirming before treating them as equivalent: the vesting schedule (is there a 1-year cliff, meaning nothing vests until year one is complete?), and how the equity is being valued (a recent funding round's valuation, or a more speculative internal estimate?). Offer A's number is safer; Offer B's is higher on paper but carries real uncertainty that a single dollar figure can hide.",
+        },
+        {
+          kind: "practice",
+          heading: "Rewrite a weak counter into a strong one",
+          prompt:
+            "A friend drafts this counter-offer message and asks for feedback before sending it: \"Hey, thanks so much for the offer! I was hoping there might be a little more room on the salary if that's possible? No worries at all if not, I totally understand if it's not doable!\" Identify what's weak about it, and rewrite it using the three-beat structure from this course.",
+          hint: "It's missing a specific number entirely, and the apologetic tone — signaling twice that it's fine to say no before the other side has even responded — undercuts the ask before it's made.",
+          solution:
+            "What's weak: there's no specific number (\"a little more\" gives the recruiter nothing concrete to act on or take to a manager internally), and the message negotiates against itself twice — \"no worries at all\" and \"I totally understand if it's not doable\" signal in advance that the asker doesn't expect or need a yes, which makes it easy to simply decline. Rewritten: \"Thank you so much for the offer — I'm genuinely excited about the role. Based on my research into similar positions at comparable companies, I was hoping we could get closer to $[specific number] on the base. Is there flexibility there?\" Same warmth, but now it's a genuine, answerable question with a real number attached.",
+        },
+        {
+          kind: "practice",
+          heading: "Decide what to disclose about a competing offer",
+          prompt:
+            "You have a real competing offer at $118,000 for a similar-scope role, and you're currently negotiating a preferred offer that's at $108,000. Using this course's guidance, write the specific line you'd use to disclose it, and explain what you'd deliberately choose not to say.",
+          hint: "Disclose the number and role type if you're comfortable; this course specifically notes you don't need to name the company unless doing so helps your case, and a genuine deadline is useful information, not a pressure tactic, as long as it's actually true.",
+          solution:
+            "\"I have another offer at $118,000 for a similar-scope role, and while this is honestly my first choice, I wanted to see if there's room to close some of that gap.\" Deliberately left out: the specific company name (not required, and only worth naming if it strengthens the case — a well-known, hard-to-get offer might; a lesser-known one might not add much), and any invented urgency — if there's no real deadline on the other offer, none is mentioned, since manufacturing one is exactly the kind of bluff this course warns against.",
+        },
+        {
+          kind: "practice",
+          heading: "Decide: accept, push, or walk",
+          prompt:
+            "Your walk-away number was $100,000. The recruiter says the final offer is $103,000 base, with no competing offer in hand and a role you're genuinely excited about. Using this course's framework, decide what you'd do next, and justify it in one or two sentences.",
+          hint: "The decision runs off the walk-away number set before the conversation, not a feeling in the moment — and checking for flexibility on a non-base lever doesn't require reopening the base number itself.",
+          solution:
+            "$103,000 clears the $100,000 walk-away number, so this isn't a case for declining outright. The reasonable move: ask once whether there's flexibility on a non-base lever (sign-on, start date, review timeline) without pushing on the base itself, then accept if nothing further moves — a firm final offer that clears your walk-away number, for a role you're genuinely excited about, is a good outcome, not a loss just because the stretch number wasn't reached.",
+        },
+        {
+          kind: "diagram",
+          heading: "The five exercises as one decision flow",
+          description: "Different scenarios, same underlying shape — research grounds the number, the number grounds the message, and the walk-away number grounds the final call.",
+          steps: [
+            { label: "Research the range", detail: "Comp data, recruiter conversations, your network" },
+            { label: "Set three numbers", detail: "Walk-away, target, and stretch — before the pressure of a live call" },
+            { label: "Make a specific ask", detail: "A real figure, grounded in research or experience, not a vague hope" },
+            { label: "Prioritize if it stalls", detail: "One or two levers that matter most, not everything at once" },
+            { label: "Decide against walk-away", detail: "Accept, push once more, or decline — measured against the number set in step 2" },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "What separates a strong negotiation from a weak one, across all five exercises",
+          bullets: [
+            "A specific number beats a vague hope every time — in the base counter, the total-comp comparison, and the competing-offer disclosure alike, the version that works is the one with an actual figure attached.",
+            "Confidence and warmth aren't in tension — every strong rewrite above kept the gratitude and the enthusiasm, it just stopped apologizing for having a number at all.",
+            "Uncertainty — an equity estimate, a stated deadline, a company's real flexibility — is information to name honestly, not something to paper over with false confidence in either direction.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "What a well-run negotiation looks like",
           bullets: [
             "Three real numbers, decided before the pressure of a live conversation — not one wish figure.",
             "A specific counter grounded in research or experience, not just \"I was hoping for more.\"",
             "A clear priority order on non-salary levers, asked for one or two at a time, not all at once.",
+            "A decision — accept, push once more, or decline — measured against a walk-away number set in advance, not against how the conversation happens to feel in the moment.",
           ],
         },
       ],

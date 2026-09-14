@@ -387,6 +387,12 @@ CMD ["node", "dist/server.js"]`,
           heading: "Multi-stage builds and CI benefit from the same layer cache",
           body: "A CI pipeline that runs docker build --target test on every pull request, using the same Dockerfile as the production build, gets real test results without maintaining a separate test-runner configuration — and because the deps stage is shared and cached, most CI runs only re-download packages when the lockfile actually changes, not on every single commit.",
         },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "docker build --progress=plain when the default output hides what you need",
+          body: "BuildKit's default output collapses each step's full command output, which is convenient most of the time and frustrating the one time a RUN step is failing for a reason you actually need to read. --progress=plain prints every step's complete, uncollapsed output as it happens — the flag worth reaching for the moment a multi-stage build starts failing somewhere you can't immediately diagnose from the summarized view.",
+        },
       ],
     },
     {
@@ -604,6 +610,12 @@ docker run -d --name web --network app-net -p 8080:3000 myapp:1.0
             "A container that was working fine yesterday but can't resolve a name today after a docker compose down and docker compose up cycle is almost always a case of two separate networks now existing with the same containers split across them — restart the whole stack together rather than individual services when in doubt.",
           ],
         },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "The container name in a connection string is a hostname, not magic",
+          body: "There's nothing special about how a container resolves \"db\" beyond ordinary DNS — Docker's embedded resolver just answers that query with the right container's current IP. Anything in your app that already knows how to connect to a database by hostname needs no special container-aware code at all; the networking layer handles the indirection so the application code can stay exactly as generic as it would be talking to any other database over a network.",
+        },
       ],
     },
     {
@@ -745,6 +757,12 @@ services:
             "docker compose config validates and prints the fully resolved configuration, including variable substitution and any override files merged in — the fastest way to confirm what Compose actually thinks your setup is, before anything starts.",
             "docker compose restart web restarts just one service without touching the others — faster than a full down and up when only one service's code or config actually changed.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Multiple compose files for multiple environments",
+          body: "docker compose -f docker-compose.yml -f docker-compose.prod.yml up merges a base file with an environment-specific one, letting the base file describe shared structure while a smaller override file adjusts just what differs — replica counts, resource limits, or which image tag to pull — without duplicating the entire configuration for every environment.",
         },
         {
           kind: "summary",
@@ -1068,7 +1086,14 @@ docker compose config > local-resolved.yml
             "Every fix started with a read-only inspection command — docker history, docker inspect, docker compose config — before anything was changed, the same look-before-you-act instinct from earlier in this course applied to containers specifically.",
             "Permissions problems (logs, non-root users) and networking or ordering problems (depends_on, overrides) look similar from the outside — \"it's not working\" — but need completely different diagnostic tools, which is exactly why guessing at a fix wastes more time than a minute of actual inspection.",
             "None of the run-time hardening flags (--cap-drop, --memory, --read-only) required touching the Dockerfile or rebuilding anything — it's worth knowing which fixes are a redeploy away and which genuinely need a new image.",
+            "A real incident is rarely just one of these problems in isolation — a container that's both running as root AND missing a healthcheck AND undersized on memory is a completely ordinary thing to inherit, and working through it means applying several of these fixes in sequence, not picking the single most interesting one.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Keep a personal checklist",
+          body: "Most production Docker incidents trace back to a small, repeating list: no non-root user, no resource limit, depends_on without a healthcheck condition, a missing .dockerignore, or a secret sitting in a plain environment variable. Working through these seven exercises once doesn't mean the list is memorized — keeping it written down somewhere you'll actually check before a real deploy is what turns it into a habit instead of a lesson you half-remember months later.",
         },
         {
           kind: "summary",

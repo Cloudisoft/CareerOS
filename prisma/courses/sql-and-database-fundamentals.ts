@@ -225,6 +225,37 @@ WHERE orders.total > 100;
           ],
         },
         {
+          kind: "example",
+          heading: "CTEs: naming a subquery for readability",
+          body: "A WITH clause (common table expression) gives a subquery a name and lets the main query reference it like a temporary table — mainly a readability tool, though it also lets one subquery be reused more than once in the same statement.",
+          language: "sql",
+          code: `WITH big_spenders AS (
+  SELECT customer_id, SUM(total) AS spent
+  FROM orders
+  GROUP BY customer_id
+  HAVING SUM(total) > 500
+)
+SELECT customers.name, big_spenders.spent
+FROM customers
+JOIN big_spenders ON customers.id = big_spenders.customer_id
+ORDER BY big_spenders.spent DESC;`,
+        },
+        {
+          kind: "bullets",
+          heading: "UNION, CASE, and a couple more everyday tools",
+          bullets: [
+            "UNION combines the results of two SELECT statements into one result set, removing duplicates by default (UNION ALL keeps duplicates and is faster, since it skips the dedup step).",
+            "CASE WHEN ... THEN ... END lets you compute a conditional value inline — e.g., labeling orders as 'large' or 'small' based on total, without a separate lookup table.",
+            "COALESCE(column, fallback) returns the first non-NULL value in its argument list — a common, tidy way to substitute a default for a NULL without a CASE statement.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "An implicit JOIN (comma syntax) is easy to get wrong silently",
+          body: "SELECT * FROM orders, customers WHERE orders.customer_id = customers.id works, but omitting that WHERE clause by accident doesn't error — it silently produces a cross join, pairing every row in orders with every row in customers. On real tables that's not a small mistake; it can turn a 10,000-row result into a 10-billion-row one. Explicit JOIN ... ON syntax makes the join condition impossible to accidentally omit, which is why it's the standard in real codebases even though the comma syntax still technically works.",
+        },
+        {
           kind: "summary",
           heading: "The core statements, tied together",
           bullets: [
@@ -559,6 +590,15 @@ ORDER BY month;
           body: "SUM(amount) OVER (ORDER BY order_date) — without an explicit ROWS BETWEEN clause — doesn't sum the whole table by default when ORDER BY is present; it defaults to \"unbounded preceding to current row,\" which is actually the running-total behavior. The confusion runs the other way too: leaving out ORDER BY entirely changes the default frame to the whole partition, turning what looked like a running total into a flat, repeated grand total on every row. Always pair SUM()/AVG() OVER with an explicit ORDER BY (and ROWS BETWEEN, if the intent isn't obvious from context) rather than relying on the implicit default — it's one of the most common sources of a window function returning the wrong shape of answer, silently.",
         },
         {
+          kind: "bullets",
+          heading: "RANK() vs. DENSE_RANK(), concretely",
+          bullets: [
+            "RANK() leaves a gap after a tie: two employees tied for rank 2 means the next employee is rank 4, not 3 — the gap reflects that two people \"used up\" ranks 2 and 3.",
+            "DENSE_RANK() doesn't leave a gap: the same tie gives the next employee rank 3.",
+            "Neither is more \"correct\" — which one to use depends on whether the count of positions (RANK) or the count of distinct values (DENSE_RANK) is what the report actually needs.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Window functions vs. GROUP BY",
           bullets: [
@@ -607,12 +647,69 @@ ORDER BY month;
             "Add a composite index: CREATE INDEX idx_orders_customer_date ON orders (customer_id, order_date); — indexing customer_id lets the database jump straight to that customer's rows instead of scanning all 2 million. Putting order_date second in the same index means those rows are already stored in the right order for the ORDER BY, so the database can avoid a separate sort step too. A single-column index on just customer_id would fix the sequential scan but still require sorting the matching rows afterward — the composite index solves both at once.",
         },
         {
+          kind: "practice",
+          heading: "Compute month-over-month change without a self-join",
+          prompt:
+            "Given a monthly_sales table (month, revenue), write a query showing each month's revenue, the previous month's revenue, and the dollar change between them — without using a self-join.",
+          hint: "LAG() reaches back to a prior row in the current ordering without needing to join the table to itself — that's exactly the problem it exists to solve.",
+          solution:
+            "SELECT month, revenue, LAG(revenue) OVER (ORDER BY month) AS prev_revenue, revenue - LAG(revenue) OVER (ORDER BY month) AS change FROM monthly_sales ORDER BY month; — LAG(revenue) OVER (ORDER BY month) pulls the revenue value from the row immediately before the current one in month order. The very first month has no prior row, so its prev_revenue and change come back NULL — expected, not a bug, and worth handling explicitly (e.g. with COALESCE) if a downstream chart or calculation can't tolerate a NULL in the first position.",
+        },
+        {
+          kind: "practice",
+          heading: "Diagnose a query that returns the wrong count",
+          prompt:
+            "A report shows 'Total orders: 1,847' using SELECT COUNT(discount_code) FROM orders, but a teammate insists there are actually 2,103 orders in the table. Both numbers turn out to be correct in what they measure — explain the discrepancy and write the query that gives the actual total order count.",
+          hint: "COUNT(column) and COUNT(*) count different things when the column can be NULL. Think about how many orders in this table might not have a discount_code.",
+          solution:
+            "COUNT(discount_code) only counts rows where discount_code is NOT NULL — it's silently answering 'how many orders used a discount code,' not 'how many orders exist.' The gap (2,103 - 1,847 = 256) is the number of orders with no discount code, which is a real and possibly useful number, just not the one the report label promised. The fix: SELECT COUNT(*) FROM orders; counts every row regardless of NULLs, giving the true total of 2,103.",
+        },
+        {
+          kind: "practice",
+          heading: "Rewrite a cross join into a correct JOIN",
+          prompt:
+            "A junior teammate wrote this query to find each order's customer name, and it's returning far more rows than there are orders: SELECT orders.id, customers.name FROM orders, customers;. Explain what's wrong and rewrite it correctly.",
+          hint: "Comma-separated tables with no join condition produce a cross join — every row from the first table paired with every row from the second, not matched pairs.",
+          solution:
+            "With no WHERE or ON condition linking the tables, this is an implicit cross join: every order gets paired with every customer, not just its own customer. On a table with 500 orders and 200 customers, that's 100,000 result rows instead of 500. The fix is an explicit JOIN with the actual matching condition: SELECT orders.id, customers.name FROM orders JOIN customers ON orders.customer_id = customers.id; — using explicit JOIN ... ON syntax rather than the comma form makes it much harder to accidentally omit the join condition in the first place.",
+        },
+        {
+          kind: "terminal",
+          heading: "Confirming the fix with EXPLAIN before shipping it",
+          description: "Checking the query plan isn't just for slow queries — it's a quick sanity check that the join is actually matching, not multiplying, rows.",
+          lines: [
+            { text: "EXPLAIN ANALYZE SELECT orders.id, customers.name FROM orders JOIN customers ON orders.customer_id = customers.id;" },
+            { text: "Hash Join  (cost=15.25..89.10 rows=500 width=36) (actual time=0.31..1.42 rows=500 loops=1)", output: true },
+            { text: "  Hash Cond: (orders.customer_id = customers.id)", output: true },
+            { text: "Execution Time: 1.58 ms", output: true },
+          ],
+        },
+        {
+          kind: "practice",
+          heading: "Use DENSE_RANK() to pick the top N per group without gaps",
+          prompt:
+            "A report needs the top 2 highest-paid employees per department, but if two employees tie for #1, the report should still only show 2 distinct salary levels — not accidentally return 3 rows for a department because of a tie. Write the query.",
+          hint: "RANK() would let a tie at #1 push the query to effectively return 3 rows for <= 2 (two at rank 1, one at rank 2, because of the gap RANK() leaves). DENSE_RANK() doesn't leave that gap, so <= 2 means exactly the top 2 distinct salary levels.",
+          solution: `WITH ranked AS (
+  SELECT employee_name, department, salary,
+         DENSE_RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS salary_rank
+  FROM employees
+)
+SELECT * FROM ranked WHERE salary_rank <= 2;
+-- DENSE_RANK() means a tie at the top still only counts as
+-- "rank 1" once — the next distinct salary is rank 2, with no
+-- gap, so filtering <= 2 reliably means "top 2 salary levels,"
+-- ties included, rather than an unpredictable row count.`,
+        },
+        {
           kind: "summary",
           heading: "What this practice demonstrates",
           bullets: [
             "Using PARTITION BY and RANK() to compute a per-group ranking without collapsing rows.",
             "Building a running total with SUM() OVER an ORDER BY, and knowing when PARTITION BY is and isn't needed.",
+            "Reaching for LAG() instead of a self-join to compare a row to the one before it in some ordering.",
             "Reading a slow query's access pattern (WHERE and ORDER BY columns) and choosing a composite index that serves both.",
+            "Recognizing that COUNT(column) and COUNT(*) answer different questions, and that a missing JOIN condition silently produces a cross join rather than an error.",
           ],
         },
       ],

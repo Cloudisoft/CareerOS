@@ -27,6 +27,7 @@ export const course: CourseSeed = {
             "No safe way to try something risky — if an experiment goes wrong, there's no clean path back to \"before.\"",
             "Two people editing the same file means someone's changes get overwritten, often silently.",
             "No record of why a change was made — just the current state, with no history behind it.",
+            "No way to work on next month's feature and this week's urgent fix at the same time without one set of changes contaminating the other.",
           ],
         },
         {
@@ -90,7 +91,9 @@ export const course: CourseSeed = {
           bullets: [
             "Each commit has a unique ID (a hash like a1b2c3d), an author, a timestamp, and a message.",
             "Commits form a chain — each one points to its parent, which is what makes \"history\" possible at all.",
+            "A merge commit is the one exception — it has two parents instead of one, marking the point where two branches' histories were tied back together.",
             "A commit is meant to be a complete, working checkpoint — not a random point mid-edit.",
+            "Under the hood a commit is identified by a SHA-1 hash of its content and metadata — change one character anywhere in the commit and you get a completely different hash, which is also what makes it tamper-evident.",
           ],
         },
         {
@@ -102,6 +105,7 @@ export const course: CourseSeed = {
             "Staging area (the \"index\") — a holding area for changes you've chosen to include in the next commit.",
             "Repository — the permanent history of commits already made.",
             "git add moves changes from working directory to staging; git commit takes what's staged and turns it into a permanent snapshot.",
+            "git restore --staged <file> moves a file back out of staging without discarding the edit itself — the fix for \"I staged the wrong file.\"",
           ],
         },
         {
@@ -230,9 +234,23 @@ git merge feature/dark-mode         # bring those changes into main`,
         },
         {
           kind: "callout",
+          tone: "warning",
+          heading: "git checkout will refuse to switch over uncommitted conflicts",
+          body: "If you have uncommitted changes that would be overwritten by the branch you're switching to, git blocks the checkout and tells you so rather than silently losing your work. The usual fixes are to commit the change first, stash it (covered below), or discard it deliberately with `git restore` — but the error itself is git protecting you, not a bug to route around.",
+        },
+        {
+          kind: "callout",
           tone: "tip",
           heading: "git switch and git restore are the newer, clearer commands",
           body: "Older git used checkout for almost everything — switching branches, discarding file changes, even creating branches — which made it confusing. Newer git versions split this into git switch (change branches) and git restore (discard file changes). Both still work; checkout just does more than one job, so many people still default to it out of habit.",
+        },
+        {
+          kind: "example",
+          heading: "The newer, more explicit equivalents",
+          language: "bash",
+          code: `git switch feature/dark-mode   # same as: git checkout feature/dark-mode
+git switch -c feature/new-nav  # same as: git checkout -b feature/new-nav
+git restore src/auth.ts        # discard unstaged changes to one file`,
         },
         {
           kind: "bullets",
@@ -340,6 +358,7 @@ what the payments team recommends in their integration docs."`,
           body: [
             "Git merges automatically whenever it can — if two branches changed different parts of a file, or different files entirely, it combines them without asking.",
             "A conflict only occurs when the same lines were changed differently on both sides. Git has no way to know which change you actually want, so it stops and asks you.",
+            "A conflict pauses the merge in progress — your working directory is left in a partially-merged state until you resolve it, not rolled back to before the merge started.",
           ],
         },
         {
@@ -375,6 +394,7 @@ const MAX_RETRIES = 5;
           kind: "bullets",
           heading: "The resolution steps",
           bullets: [
+            "Run git status first — it lists every file still in conflict, which matters when a merge touches more files than you expected.",
             "Open the file and find every block marked with <<<<<<<, =======, and >>>>>>>.",
             "Decide the correct final content — keep one side, keep the other, or write something new that combines both intents.",
             "Delete the conflict markers themselves (<<<<<<<, =======, >>>>>>>) — they're not part of the file, just git's way of flagging the spot.",
@@ -422,7 +442,7 @@ const MAX_RETRIES = 5;
           kind: "bullets",
           heading: "Conflicts that aren't about code logic",
           bullets: [
-            "Deleted on one side, edited on the other — git flags this explicitly rather than guessing whether the edit or the deletion should win.",
+            "Deleted on one side, edited on the other — git flags this explicitly rather than guessing whether the edit or the deletion should win, showing \"deleted by us\" or \"deleted by them\" in git status instead of inline markers.",
             "Binary files (images, compiled assets) can't be merged line by line at all — git just asks you to pick one side's whole version.",
             "package-lock.json / yarn.lock conflicts are common and usually best resolved by deleting the file and regenerating it (`npm install`) rather than hand-editing a machine-generated file.",
           ],
@@ -444,6 +464,7 @@ const MAX_RETRIES = 5;
           heading: "The feature branch workflow",
           bullets: [
             "main always reflects working, deployable code — nobody commits directly to it.",
+            "Most teams protect main with a branch protection rule that literally blocks direct pushes and requires a passing PR — turning the convention into something enforced, not just agreed upon.",
             "Every piece of work — a feature, a fix, an experiment — gets its own branch, cut from main.",
             "Small, focused branches are far easier to review and far less likely to conflict with someone else's work than one giant branch touching everything.",
             "When the work is done, it's proposed for merging back into main through a pull request (sometimes called a merge request), not merged directly.",
@@ -515,6 +536,12 @@ git branch -d feature/add-search      # delete the now-merged local branch`,
           ],
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "Draft pull requests exist for work that isn't ready for review yet",
+          body: "Opening a PR as a draft signals \"this is visible and CI is running against it, but don't review it yet\" — useful for getting early automated feedback, sharing progress with the team, or simply backing up work-in-progress to the remote without asking anyone to spend review time on it. Marking it \"Ready for review\" later is what actually notifies reviewers that it's time to look.",
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
@@ -540,7 +567,7 @@ git branch -d feature/add-search      # delete the now-merged local branch`,
         {
           kind: "example",
           heading: "git commit --amend fixes the last commit, not a new one",
-          body: "Forgot a file, or wrote a bad message? --amend replaces the most recent commit entirely, instead of adding a second commit on top of the mistake.",
+          body: "Forgot a file, or wrote a bad message? --amend replaces the most recent commit entirely, instead of adding a second commit on top of the mistake. Running it with nothing new staged just edits the message alone.",
           language: "bash",
           code: `git commit -m "Fix bug"
 # oops — forgot to stage a file, and the message could be clearer
@@ -589,6 +616,7 @@ git rebase -i HEAD~3
             "squash — merge this commit into the one directly above it, combining their changes and prompting for one new message.",
             "fixup — like squash, but silently discards this commit's own message instead of prompting for a combined one.",
             "drop — remove this commit entirely, as if it had never happened.",
+            "edit — pause the rebase at this commit so you can amend it (add a forgotten file, split it into two) before continuing.",
           ],
         },
         {
@@ -621,6 +649,15 @@ git rebase -i HEAD~3
           body: "Even a rewritten or seemingly \"lost\" commit isn't usually gone — git keeps a local log of every place HEAD has pointed, including commits no branch references anymore. `git reflog` lists them with their hashes; `git checkout <hash>` (or creating a branch from it) recovers work that looks deleted after a bad rebase or reset. This log is local-only and typically expires after 90 days, but it's the reason a botched interactive rebase is almost always recoverable if you catch it soon.",
         },
         {
+          kind: "bullets",
+          heading: "fixup and autosquash: skipping the manual reordering",
+          bullets: [
+            "git commit --fixup <hash> creates a small commit explicitly marked as a fixup for an earlier one, without you having to remember its content later.",
+            "git rebase -i --autosquash then automatically moves each fixup commit next to its target and marks it \"fixup\" for you — no manual reordering in the editor required.",
+            "This is the realistic version of the squash workflow on a long-running branch: fix things as you notice them, and let autosquash do the reordering once, right before opening the pull request.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
@@ -628,6 +665,7 @@ git rebase -i HEAD~3
             "git rebase -i HEAD~N opens an editable list of the last N commits; pick, reword, squash, and drop are the everyday commands.",
             "Rewriting history changes commit hashes — safe on purely local, unpushed commits; risky on anything already shared.",
             "Squashing a noisy string of \"wip\" and \"fix typo\" commits into one clean commit before opening a pull request is the single most common real-world use of interactive rebase.",
+            "git reflog and --force-with-lease are the safety nets that make rewriting history a lot less scary than it sounds once you know they exist.",
           ],
         },
       ],
@@ -713,6 +751,22 @@ git cherry-pick a1b2c3d
         },
         {
           kind: "practice",
+          heading: "Choose --fixup Over a Manual Interactive Rebase",
+          prompt:
+            "You're three commits into a branch when you spot a typo in the first commit's code (not its message — the actual code). Rather than manually rebasing right now, write the commands to create a fixup commit for it, then to squash it into place later using autosquash.",
+          hint: "git commit --fixup takes the hash of the commit being fixed, not a new message — it generates the fixup label itself. Autosquash then does the reordering that a manual interactive rebase would otherwise require by hand.",
+          solution: `# fix the typo in the code, then:
+git add fixed-file.ts
+git commit --fixup <hash-of-first-commit>
+
+# later, right before opening the pull request:
+git rebase -i --autosquash HEAD~4
+# the editor opens with the fixup already moved next to its
+# target and marked "fixup" — just save and close, no manual
+# reordering needed`,
+        },
+        {
+          kind: "practice",
           heading: "Resolve a Conflict That Needs Both Sides",
           prompt:
             "git merge feature/pricing produces this conflict in config.ts:\n\n<<<<<<< HEAD\nexport const TAX_RATE = 0.07;\nexport const FREE_SHIPPING_THRESHOLD = 50;\n=======\nexport const TAX_RATE = 0.0725;\nexport const FREE_SHIPPING_THRESHOLD = 75;\n>>>>>>> feature/pricing\n\nFinance confirmed the new tax rate (0.0725) is correct, but the shipping threshold should stay at 50 — the 75 on the feature branch was a mistake. Write the resolved file content, then the commands to finish the merge.",
@@ -739,6 +793,15 @@ git commit
           ],
         },
         {
+          kind: "practice",
+          heading: "Diagnose a Rebase That Hit the Same Conflict Twice",
+          prompt:
+            "You're rebasing a 3-commit branch onto main. The rebase stops on a conflict in pricing.ts. You resolve it, run git rebase --continue, and it immediately stops on ANOTHER conflict in pricing.ts on the very next commit. A teammate says this means you did something wrong the first time — are they right?",
+          hint: "Rebase replays commits one at a time, applying each on top of the evolving result of the previous one. Think about what each of your three commits individually changed in pricing.ts.",
+          solution:
+            "Not necessarily wrong at all — this is expected if more than one of your commits touches the same lines in pricing.ts that main also changed. Each commit is replayed and conflict-checked independently against the new base, so if commits 1 and 2 both edited the same area, resolving commit 1's conflict doesn't automatically resolve commit 2's — you resolve each commit's conflict as it comes up, in sequence, the same way each time (edit, remove markers, `git add`, `git rebase --continue`). It only signals a real mistake if the same exact conflict reappears after you thought you'd already resolved it in this pass.",
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
@@ -747,6 +810,7 @@ git commit
             "git reflog is the real safety net — a commit that's disappeared from git log after a rebase is almost always recoverable, not permanently lost.",
             "Resolving a conflict is a per-line decision — take what's correct from each side, not an all-or-nothing pick between branches.",
             "Every conflict marker (<<<<<<<, =======, >>>>>>>) must be gone before staging the resolution — leaving one in is the single most common mistake.",
+            "A rebase can legitimately hit the same file's conflict more than once, once per commit that touches it — that's normal replay behavior, not a sign of a botched first resolution.",
           ],
         },
       ],

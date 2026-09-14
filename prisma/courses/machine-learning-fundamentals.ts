@@ -375,6 +375,32 @@ causing underfitting by suppressing real signal too.`,
           body: "A home-resale price model trained mainly on data from a hot seller's market can overfit to conditions specific to that period — it learns \"homes near this school district reliably sell 8% over asking\" as if it were a stable rule, when it was really a temporary artifact of low inventory. When the market cools, the model keeps confidently overpaying based on a pattern that no longer holds — a costly failure that a train/test split within the same hot period would never have caught, since both halves shared the same temporary conditions.",
         },
         {
+          kind: "text",
+          heading: "Learning curves: watching it happen, not just the end state",
+          body: [
+            "Training accuracy and test accuracy aren't static numbers — tracking both across training iterations (or epochs, for models trained iteratively) reveals overfitting as it happens rather than just as a final verdict. Early on, both curves typically rise together, since the model is still learning genuine signal. At some point, training accuracy keeps climbing while test accuracy flattens or starts to fall — that divergence point is exactly when the model shifts from learning the pattern to memorizing the training set's specific noise.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A learning curve, epoch by epoch",
+          body: "Watching the gap widen tells you exactly when to stop, rather than guessing at a fixed number of training iterations in advance.",
+          code: `Epoch 1:  train acc 68%   test acc 66%   (both learning)
+Epoch 5:  train acc 84%   test acc 81%   (still tracking closely)
+Epoch 10: train acc 93%   test acc 86%   (gap starting to open)
+Epoch 20: train acc 99%   test acc 79%   (overfitting — test accuracy fell)`,
+        },
+        {
+          kind: "bullets",
+          heading: "Early stopping and other overfitting fixes in practice",
+          bullets: [
+            "Early stopping halts training the moment test (or validation) performance stops improving, even if training accuracy would keep climbing further — it's frequently the cheapest fix available, since it costs nothing extra to implement in most training setups.",
+            "Dropout, common in neural networks, randomly disables a fraction of the model's internal connections during each training step — forcing the model to not over-rely on any single connection, a close cousin of the L2 regularization covered earlier.",
+            "Data augmentation (for images: rotating, cropping, flipping training examples) manufactures more effective training variety without collecting new data — a practical way to fight overfitting when getting more real labeled data is expensive or slow.",
+            "None of these fixes work if the underlying dataset is simply too small for the pattern's real complexity — at some point, more data genuinely is the only fix that helps.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "The bias-variance tradeoff, in plain terms",
           bullets: [

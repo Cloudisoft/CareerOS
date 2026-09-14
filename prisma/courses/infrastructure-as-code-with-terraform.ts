@@ -69,6 +69,12 @@ export const course: CourseSeed = {
             "Compliance and audit questions (\"prove that encryption was enabled the whole time\") get answered by git history and a diff, not by someone's memory of what they clicked in March.",
           ],
         },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A familiar story: the security group nobody remembers opening",
+          body: "A common real incident shape: a security group briefly opened to 0.0.0.0/0 for a five-minute debugging session in the console, then never closed again because nobody wrote down that it happened. Six months later a security audit finds it, and nobody on the team — including whoever made the change — can say when it happened, why, or whether it's still needed. With Terraform, the same debugging need would have shown up as a one-line .tf change, reviewed in a pull request, with a git blame pointing straight at who made it and why, and a natural, obvious place to revert it once the debugging session actually ended.",
+        },
       ],
     },
     {
@@ -162,6 +168,36 @@ Plan: 1 to add, 0 to change, 0 to destroy.`,
           tone: "insight",
           heading: "Idempotency is the property that makes any of this safe",
           body: "Run terraform apply against a configuration with no changes, and Terraform does nothing — plan reports zero changes because reality already matches desired state. This is what makes it safe to run apply repeatedly, in CI, on a schedule, or by hand without worrying about duplicating resources — the opposite of running a shell script that calls a cloud API's \"create\" action, where running it twice creates two of everything. Every resource type in Terraform is built to compare-then-act rather than always-act, and that guarantee is the entire reason a plan step can be trusted before you type yes.",
+        },
+        {
+          kind: "example",
+          heading: "terraform output and terraform show: inspecting what's already applied",
+          body: "Once resources exist, two more commands answer \"what do I actually have\" without touching anything. terraform output prints every declared output value from the current state — useful for grabbing a generated resource ID or endpoint URL to paste into another tool or script. terraform show prints the full current state in a readable form, including every attribute Terraform recorded, not just the ones your config explicitly set.",
+          code: `terraform output
+# instance_id = "i-0a1b2c3d4e5f6g7h8"
+# bucket_url  = "acme-user-uploads.s3.amazonaws.com"
+
+terraform output -json instance_id
+# "i-0a1b2c3d4e5f6g7h8"   — machine-readable, common in CI scripts
+
+terraform show
+# aws_instance.web: shows every recorded attribute, including ones
+# never set explicitly, like the AMI's actual resolved architecture`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "terraform console: a REPL for testing expressions against real state",
+          body: "Before committing to a tricky expression — a for loop transforming a variable, a lookup() with a fallback — terraform console opens an interactive prompt where you can evaluate Terraform expressions directly against your current state and variables, without running plan or apply at all. It's the fastest way to sanity-check something like [for s in var.subnets : s.cidr_block] actually produces the list you expect, before it ends up wrong inside a real resource block.",
+        },
+        {
+          kind: "bullets",
+          heading: "-refresh-only: updating state to match reality without changing anything",
+          bullets: [
+            "terraform plan -refresh-only compares state against real infrastructure and shows any drift, without proposing to fix it — useful for auditing what's changed outside Terraform before deciding what to do about it.",
+            "terraform apply -refresh-only updates state to match what plan -refresh-only found, again without touching real infrastructure — it accepts reality as the new baseline instead of fighting to revert it.",
+            "This is the deliberate, reviewed way to handle a manual change you've decided to keep, instead of state and reality silently disagreeing on every plan from then on.",
+          ],
         },
       ],
     },
@@ -287,6 +323,37 @@ resource "aws_instance" "web" {
             "The pattern: a second provider block with alias = \"us_east_1\", then any resource that needs it adds provider = aws.us_east_1 as an argument. Without the alias, Terraform has no way to know which of two same-type provider configurations a given resource should use — it isn't inferred from context.",
           ],
         },
+        {
+          kind: "example",
+          heading: "locals: naming a computed value once, used many times",
+          body: "A locals block defines a named expression once, computed at plan time, and reused anywhere in the configuration — the Terraform equivalent of a local variable, as distinct from var.* input variables that come from outside the module or root configuration.",
+          language: "hcl",
+          code: `locals {
+  environment  = "production"
+  service_name = "acme-web"
+  common_tags = {
+    Environment = local.environment
+    Service     = local.service_name
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_instance" "web" {
+  ami           = "ami-0c55b159cbfafe1f0"
+  instance_type = "t3.micro"
+  tags          = local.common_tags
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "depends_on: forcing an ordering Terraform can't infer on its own",
+          intro: "Terraform infers most ordering automatically from references like aws_security_group.web_sg.id, but not every real dependency shows up as a reference:",
+          bullets: [
+            "A resource might depend on another purely through side effects — an IAM policy that needs to exist before a Lambda function can actually execute successfully, with no direct attribute reference between the two blocks at all.",
+            "depends_on = [aws_iam_role_policy.lambda_exec] makes that ordering explicit, telling Terraform to create the policy first even though nothing in the Lambda resource's arguments references it directly.",
+            "Reach for depends_on only when a real reference genuinely isn't possible — an explicit attribute reference is almost always preferable, since it documents the actual data dependency instead of just an ordering rule with no data behind it.",
+          ],
+        },
       ],
     },
     {
@@ -389,6 +456,26 @@ resource "aws_instance" "web" {
             { text: "  Who:       jordan@acme-eng-laptop", output: true },
             { text: "  Created:   2024-03-11 14:22:03 UTC", output: true },
           ],
+        },
+        {
+          kind: "example",
+          heading: "The moved block: the modern, reviewable alternative to terraform state mv",
+          body: "Renaming a resource or moving it into a module used to require running terraform state mv as a separate, easy-to-forget manual step around the actual code change. A moved block declares the rename as configuration itself, so plan can show it — and a reviewer can approve it — before anyone applies.",
+          language: "hcl",
+          code: `moved {
+  from = aws_instance.web
+  to   = aws_instance.app_server
+}
+
+resource "aws_instance" "app_server" {
+  # ...same arguments as the old aws_instance.web
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Never edit terraform.tfstate by hand in a text editor",
+          body: "The state file is JSON, technically editable with any text editor, but doing so directly is one of the fastest ways to corrupt it beyond what Terraform's own commands can safely fix — a single misplaced field, and the next plan can misbehave in ways that are genuinely hard to diagnose. terraform state mv, terraform state rm, and the moved block above cover the vast majority of legitimate reasons to change what's recorded in state; reach for one of those, or terraform state pull piped through a script for something genuinely unusual, rather than opening the file directly.",
         },
       ],
     },
@@ -494,6 +581,31 @@ module "vpc_registry" {
           body: "Once a module is used by more than one team, treat its inputs and outputs like a public API: renaming a variable or removing an output breaks every caller silently at their next terraform init, often long after you've forgotten the change. Add new optional variables with defaults rather than renaming existing required ones, deprecate before removing, and bump the module's major version (following semver) on any breaking change so callers pinned to an older version aren't affected until they choose to upgrade.",
         },
         {
+          kind: "example",
+          heading: "Modules composing other modules",
+          body: "A root configuration isn't the only place a module can be called from — a higher-level module can call a lower-level one internally, passing its own outputs down as the inner module's inputs. A \"standard-app\" module might call the vpc module and the web-server module from earlier in this lesson, wiring the VPC's output subnet ID straight into the server's input, so a caller of standard-app only has to think about application-level inputs, not the network plumbing underneath it.",
+          language: "hcl",
+          code: `module "vpc" {
+  source = "./modules/vpc"
+  cidr   = "10.0.0.0/16"
+}
+
+module "web" {
+  source    = "./modules/web-server"
+  subnet_id = module.vpc.subnet_id   # one module's output feeds another's input
+  name      = "production"
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "Testing a module before other teams depend on it",
+          bullets: [
+            "terraform validate and terraform plan against a small example configuration that calls the module are the cheapest first check — do they even run without errors, does the plan look like what you'd expect.",
+            "Tools like Terratest (Go) or terraform-compliance (Gherkin-style policy tests) actually apply a module against real, usually short-lived, throwaway infrastructure and assert on the result — closer to an integration test than validate and plan alone provide.",
+            "A README with a minimal usage example inside the module's own directory does double duty: it documents the module for humans, and it's the first thing worth keeping working as the module changes, since it's the example every new caller copies from.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "What to take away",
           bullets: [
@@ -593,6 +705,30 @@ resource "aws_s3_bucket" "reports" {
           body: "A data \"aws_vpc\" block isn't cached after the first read — Terraform calls out to the provider again on every plan and apply. If the thing it's filtering for doesn't exist yet (a VPC not created until earlier in the same apply, or deleted out from under you), the data source lookup fails and the whole plan fails with it — before Terraform gets anywhere near the resources that actually depend on it. This is why a data source referencing something another Terraform config manages needs that other config's resource to already exist and be stable, not mid-flight.",
         },
         {
+          kind: "example",
+          heading: "Reading another team's outputs with terraform_remote_state",
+          body: "When infrastructure is split across multiple Terraform configurations — one team owns networking, another owns the application layer — the terraform_remote_state data source lets one configuration read another's outputs directly from its remote state backend, without either team needing to touch the other's code.",
+          language: "hcl",
+          code: `data "terraform_remote_state" "network" {
+  backend = "s3"
+  config = {
+    bucket = "acme-terraform-state"
+    key    = "prod/network.tfstate"
+    region = "us-east-1"
+  }
+}
+
+resource "aws_instance" "web" {
+  subnet_id = data.terraform_remote_state.network.outputs.subnet_id
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "terraform_remote_state couples two configurations to each other's output names",
+          body: "This works well, but it creates a real dependency: renaming or removing an output in the network configuration silently breaks the application configuration's next plan, with no compile-time warning that it's about to happen — only a plan-time error, potentially discovered by whichever team applies next. Some organizations prefer a more explicit contract instead, like publishing values through a parameter store (SSM, Secrets Manager) or a dedicated data-sharing module, specifically to avoid two Terraform configurations depending directly on each other's internal output names.",
+        },
+        {
           kind: "bullets",
           heading: "Deciding between data source, import, and a fresh resource",
           bullets: [
@@ -600,6 +736,7 @@ resource "aws_s3_bucket" "reports" {
             "Something created by hand or by a retired tool, that your configuration should own going forward — use import (or the import block) to adopt it, then hand-write a matching resource block.",
             "Something that doesn't exist yet — write a plain resource block; there's nothing to look up or adopt.",
             "Getting this wrong in the data-source direction (writing a resource block for something another team already manages) is the more dangerous mistake: Terraform will try to create a duplicate, or fight the configuration that already owns it, on every apply from then on.",
+            "Splitting infrastructure across multiple Terraform configurations owned by different teams is itself a deliberate choice, not a default — terraform_remote_state (or a parameter store) is how they read from each other without merging into one giant, slow-to-plan configuration.",
           ],
         },
         {
@@ -675,12 +812,97 @@ resource "aws_subnet" "app" {
 }`,
         },
         {
+          kind: "practice",
+          heading: "Convert a count-based resource to for_each",
+          prompt:
+            "This configuration creates three near-identical S3 buckets using count, indexed by position:\n\nresource \"aws_s3_bucket\" \"region_buckets\" {\n  count  = 3\n  bucket = \"acme-backups-${count.index}\"\n}\n\nRewrite it using for_each instead, keyed by a stable, meaningful name (\"us-east-1\", \"us-west-2\", \"eu-west-1\") rather than a numeric index, so that removing one region later doesn't force Terraform to destroy and recreate the others.",
+          hint:
+            "for_each takes a set or map, not a list — toset([\"us-east-1\", \"us-west-2\", \"eu-west-1\"]) turns a plain list of strings into the set for_each expects. Reference the current key inside the resource with each.key.",
+          solution:
+            "```hcl\nresource \"aws_s3_bucket\" \"region_buckets\" {\n  for_each = toset([\"us-east-1\", \"us-west-2\", \"eu-west-1\"])\n  bucket   = \"acme-backups-${each.key}\"\n}\n\n# Referenced elsewhere as:\n# aws_s3_bucket.region_buckets[\"us-east-1\"].id\n# aws_s3_bucket.region_buckets[\"eu-west-1\"].id\n```\nKey decision: each.key is a stable string tied to the actual region name, not a position in a list — removing \"us-west-2\" from the set now only affects that one bucket, instead of shifting every bucket after it the way the old count-indexed version would.",
+        },
+        {
+          kind: "example",
+          heading: "The migration-safe version: moved blocks alongside the for_each rewrite",
+          body: "Even though the underlying infrastructure doesn't need to change, aws_s3_bucket.region_buckets[0] and aws_s3_bucket.region_buckets[\"us-east-1\"] are different addresses to Terraform — a plan run right after the previous slide's rewrite, with no moved blocks, would show every bucket being destroyed and recreated, not just relabeled. A moved block per bucket tells Terraform \"this is the same resource, just renamed,\" so plan shows zero destructive changes instead.",
+          language: "hcl",
+          code: `moved {
+  from = aws_s3_bucket.region_buckets[0]
+  to   = aws_s3_bucket.region_buckets["us-east-1"]
+}
+moved {
+  from = aws_s3_bucket.region_buckets[1]
+  to   = aws_s3_bucket.region_buckets["us-west-2"]
+}
+moved {
+  from = aws_s3_bucket.region_buckets[2]
+  to   = aws_s3_bucket.region_buckets["eu-west-1"]
+}`,
+        },
+        {
+          kind: "practice",
+          heading: "Wire a module's output into another resource",
+          prompt:
+            "Given a vpc module that outputs subnet_id, write the module call plus an aws_instance resource that launches inside that subnet, without hardcoding any subnet ID copied from the console.",
+          hint:
+            "Call the module first, then reference module.<name>.subnet_id directly as the instance's subnet_id argument — Terraform sequences the create order correctly because of that reference, the same way it does between two plain resource blocks.",
+          solution:
+            "```hcl\nmodule \"vpc\" {\n  source = \"./modules/vpc\"\n  cidr   = \"10.0.0.0/16\"\n}\n\nresource \"aws_instance\" \"web\" {\n  ami           = \"ami-0c55b159cbfafe1f0\"\n  instance_type = \"t3.micro\"\n  subnet_id     = module.vpc.subnet_id\n}\n```\nKey decision: referencing module.vpc.subnet_id directly, rather than hardcoding a subnet ID copied from the console, is what lets Terraform build the correct dependency graph — the VPC module's subnet is guaranteed to exist and have a real id before the instance is created, and the reference survives if the subnet's id ever changes.",
+        },
+        {
+          kind: "practice",
+          heading: "Protect a production database from accidental destruction",
+          prompt:
+            "A shared production RDS instance was accidentally destroyed last quarter when a teammate ran terraform destroy against the wrong workspace. Add the configuration that would have prevented Terraform from ever destroying this specific resource, even if a plan called for it.",
+          hint: "This is a lifecycle meta-argument, not a provider-specific setting — it works the same way on any resource type, not just databases.",
+          solution:
+            "```hcl\nresource \"aws_db_instance\" \"production\" {\n  identifier     = \"acme-production-db\"\n  engine         = \"postgres\"\n  instance_class = \"db.t3.medium\"\n  # ...other required arguments\n\n  lifecycle {\n    prevent_destroy = true\n  }\n}\n```\nKey decision: prevent_destroy = true makes any plan that would destroy this resource fail outright, including one triggered by an accidental terraform destroy run against the wrong target — it's a guardrail specifically for the \"wrong workspace, wrong environment\" class of mistake, not a substitute for using workspaces or separate state files correctly in the first place.",
+        },
+        {
+          kind: "practice",
+          heading: "Write a remote state backend with locking",
+          prompt:
+            "This configuration currently has no backend block at all, so state is stored locally as terraform.tfstate in the project directory — the exact setup flagged as dangerous for team use earlier in this course. Write the backend block for S3-backed state with DynamoDB locking, storing this configuration's state at the key \"prod/app.tfstate\" in a bucket called \"acme-terraform-state\", region us-east-1, using a lock table called \"terraform-locks\".",
+          hint: "This is a terraform { backend \"s3\" { ... } } block, not a resource — it configures Terraform itself, not any cloud infrastructure it manages.",
+          solution:
+            "```hcl\nterraform {\n  backend \"s3\" {\n    bucket         = \"acme-terraform-state\"\n    key            = \"prod/app.tfstate\"\n    region         = \"us-east-1\"\n    dynamodb_table = \"terraform-locks\"\n  }\n}\n```\nKey decision: this block has no dependency on any resource in the rest of the configuration — it's read before anything else, during terraform init, which is also why changing it requires re-running init to migrate existing state into the new backend, rather than just re-running plan.",
+        },
+        {
+          kind: "practice",
+          heading: "Expose the right outputs from a module",
+          prompt:
+            "The web-server module from earlier in this course only outputs instance_id. A monitoring setup being added needs the instance's public IP and its security group ID too. Add the two missing outputs to modules/web-server/outputs.tf, assuming the module's resources are named aws_instance.this and aws_security_group.this.",
+          hint: "An output block just needs a name and a value expression — reference the resource's attribute the same way you would anywhere else in the module.",
+          solution:
+            "```hcl\n# modules/web-server/outputs.tf\noutput \"instance_id\" {\n  value = aws_instance.this.id\n}\n\noutput \"public_ip\" {\n  value = aws_instance.this.public_ip\n}\n\noutput \"security_group_id\" {\n  value = aws_security_group.this.id\n}\n```\nKey decision: each output is a thin, direct pass-through of a resource attribute already available inside the module — outputs.tf's job is exposing exactly what callers need, not computing anything new, so keeping it this simple makes the module's public surface easy to read at a glance.",
+        },
+        {
+          kind: "diagram",
+          heading: "How these exercises map onto a real onboarding week",
+          description: "The same skills, roughly in the order a new engineer on an infra team actually needs them.",
+          steps: [
+            { label: "Day 1", detail: "Write the versioned S3 bucket and the data-sourced VPC subnet — get comfortable with resource vs. data blocks" },
+            { label: "Day 2", detail: "Add variable validation and a lifecycle guard — start thinking about what could go wrong, not just what should happen" },
+            { label: "Day 3", detail: "Convert an existing count resource to for_each with moved blocks — the kind of refactor real production configs eventually need" },
+            { label: "Day 4", detail: "Wire a module's output into another resource, and add the outputs a caller actually needs" },
+            { label: "Day 5", detail: "Set up the S3 + DynamoDB remote state backend — the step that makes everything above safe for a team, not just one person" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "What a reviewer actually checks for in a Terraform pull request",
+          body: "The patterns across the exercises above are exactly what an experienced reviewer scans a Terraform PR for: does a setting that looks like a simple argument actually need a separate linked resource, is a data source used instead of writing a resource block for infrastructure that isn't yours, does risky input get validated instead of trusted blindly, does a refactor come with moved blocks instead of a silent destroy-and-recreate, and is anything genuinely catastrophic — a production database, a shared VPC — protected with prevent_destroy before it ships. None of it is exotic; it's the checklist a plan's output alone can't fully replace, because a plan tells you what will happen, not whether it should.",
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Recognizing when a setting (like versioning) is actually a separate linked resource rather than an inline argument.",
             "Reaching for a data source instead of a resource block when infrastructure already exists and isn't yours to manage.",
             "Catching bad input at plan time with variable validation, instead of letting it fail mid-apply against a real API.",
+            "Converting count to for_each safely with moved blocks, instead of accidentally destroying and recreating every resource just to rename how Terraform addresses them.",
+            "Guarding a genuinely catastrophic resource with prevent_destroy, and standing up remote state with locking before more than one person touches an environment.",
           ],
         },
       ],
