@@ -550,6 +550,35 @@ already. Recommendation: run a proper test before investing
 in scaling live demos."`,
         },
         {
+          kind: "diagram",
+          heading: "The shape of a decision-ready write-up",
+          description:
+            "The order matters as much as the content — each piece answers a question the reader hasn't asked yet, in the order they'd naturally ask it.",
+          steps: [
+            { label: "1. Answer", detail: "The plain-language result, in one or two sentences — before any methodology" },
+            { label: "2. Recommendation", detail: "What to do about it, scaled to how solid the evidence actually is" },
+            { label: "3. Confidence level", detail: "High / moderate / early-signal, stated explicitly rather than implied by tone" },
+            { label: "4. Caveats", detail: "Sample size, time window, confounders — named, not buried" },
+            { label: "5. Supporting detail", detail: "Methodology, full numbers, charts — available for whoever wants to dig in, not required reading" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The overreach mistake: recommending more than the data supports",
+          body: "It's tempting to match the confidence of your recommendation to how interesting the finding is, rather than to how strong the evidence actually is — a surprising correlational result on 300 users can feel like it deserves a bold \"let's roll this out\" simply because it's exciting. It doesn't. A recommendation that outruns its evidence is the single fastest way to lose a stakeholder's trust in your next analysis, even if this particular guess happens to pay off — the fix isn't to undersell real findings, it's to keep the recommendation's boldness pinned to the actual strength of the evidence behind it, every time.",
+        },
+        {
+          kind: "bullets",
+          heading: "The same finding, presented for two different audiences",
+          intro: "The underlying finding doesn't change based on who's reading it — but how much of the supporting detail belongs in the main message does.",
+          bullets: [
+            "A leadership audience wants the answer, the recommendation, and the confidence level — three sentences, no jargon, no methodology, with the option to ask for more.",
+            "A fellow analyst reviewing your work wants the methodology, the sample size, the exact statistical test used, and any assumptions you made — leaving these out isn't concise, it's unreviewable.",
+            "The practical fix isn't writing two different findings — it's writing one decision-ready summary up top, with the full methodology available right below it or in an appendix, so either audience gets exactly what they came for without the other audience's needs crowding it out.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Closing the loop on the fundamentals",
           bullets: [
@@ -710,12 +739,58 @@ List every data quality issue you see, and for each one say what you'd do about 
             "Answer: Customers who used live chat churned at roughly two-thirds the rate of email-only customers (12% vs. 19%) over the last two quarters. Recommendation: given this is correlational, not yet proven causal, the right next step is a controlled test — offer live chat proactively to a random subset of customers and compare churn, rather than immediately assuming chat access itself reduces churn and rolling it out company-wide. Caveat: customers who proactively seek out live chat may simply be more engaged or higher-intent to begin with (a confounding variable) — that alone could produce this gap even if chat access changes nothing. This finding justifies running the experiment; it doesn't yet justify skipping straight to a company-wide rollout.",
         },
         {
+          kind: "practice",
+          heading: "Is the lift real, or could it be noise?",
+          prompt:
+            "A follow-up controlled test actually runs: 8,000 customers get proactive live chat offers, 8,000 don't. 90-day churn is 13.5% in the chat group vs. 15.0% in the control group. The pooled rate is 14.25%, and the calculated standard error works out to about 0.55 percentage points. Compute the z-score for this 1.5-point gap, decide whether it clears the standard 95% confidence bar (z of roughly 1.96 or higher), and write one sentence on what you'd recommend next either way.",
+          hint: "z-score = observed difference / standard error. Compare the result to the 1.96 threshold used earlier in this course.",
+          solution:
+            "z = 1.5 / 0.55 ≈ 2.73, which clears the 1.96 threshold comfortably — this result is statistically significant at the standard 95% confidence bar, meaning chance alone is an unlikely explanation for a gap this size on a sample this large. Recommendation: this is now strong enough evidence to support a confident recommendation — roll out proactive live chat offers more broadly — rather than the hedged \"run a test first\" language from the correlational version. The difference between this exercise and the previous one is exactly the difference a controlled test with a clear result makes to how much weight a recommendation can carry.",
+        },
+        {
+          kind: "terminal",
+          heading: "Sanity-checking the z-score in a quick REPL",
+          description: "Before trusting hand arithmetic on a result you're about to act on, it's worth confirming it in code — the kind of five-second habit that catches an arithmetic slip before it reaches a recommendation.",
+          lines: [
+            { text: "python3" },
+            { text: ">>> pooled = (8000*0.135 + 8000*0.15) / (8000 + 8000)", output: true },
+            { text: ">>> pooled", output: true },
+            { text: "0.1425", output: true },
+            { text: ">>> import math", output: true },
+            { text: ">>> se = math.sqrt(pooled * (1 - pooled) * (1/8000 + 1/8000))", output: true },
+            { text: ">>> se", output: true },
+            { text: "0.005514...", output: true },
+            { text: ">>> z = (0.15 - 0.135) / se", output: true },
+            { text: ">>> z", output: true },
+            { text: "2.7207...", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "What a z-score just short of significant is really telling you",
+          body: "A result that lands at z = 1.7 or 1.8 — close to but under the 1.96 bar — is not the same thing as \"no effect.\" It means the sample size isn't yet large enough to distinguish a real, modest effect from chance with confidence. Two honest responses exist: run the test longer to narrow the standard error, or explicitly report it as inconclusive rather than quietly rounding it up to \"significant\" because the number is close. Treating a near-miss as a win is the same overreach mistake covered earlier in this course, just wearing statistical clothing instead of prose — the underlying discipline (match your confidence to the strength of the evidence, not to how much you want the result to be true) is identical either way, whether the evidence is a shaky correlation or a z-score that just barely misses the standard threshold.",
+        },
+        {
+          kind: "diagram",
+          heading: "The full arc, start to finish",
+          description: "Every exercise in this practice lesson maps onto one step of the same underlying workflow — the same one this whole course has been building toward.",
+          steps: [
+            { label: "Frame the question", detail: "Specific metric, comparison, time window — before touching data" },
+            { label: "Clean deliberately", detail: "Standardize casing, resolve ambiguous dates, check real duplicates" },
+            { label: "Summarize honestly", detail: "Mean vs. median chosen for the data's actual shape, not habit" },
+            { label: "Test the claim", detail: "z-score / significance — is the gap signal, or could it be noise, given the sample size actually collected?" },
+            { label: "Communicate the decision", detail: "Answer, recommendation, confidence level, caveat — in that order, so the reader gets the conclusion first and the full methodology only if they go looking for it" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "What this practice demonstrates",
           bullets: [
             "Catching formatting inconsistencies, ambiguous dates, and possible duplicates before they quietly bias a per-customer analysis.",
             "Choosing median over mean (or reporting both) when a real but extreme value would otherwise distort the \"typical\" story.",
             "Writing a finding that leads with the answer, recommends a proportional next step, and names the honest limitation — rather than presenting a correlation as if it were already proven causal.",
+            "Recognizing when a result clears the bar for a confident recommendation versus when it only supports running a further test — and checking the arithmetic behind that judgment rather than trusting it by eye, since a small hand-calculation slip can flip a recommendation entirely and nobody downstream is likely to re-derive it themselves.",
           ],
         },
       ],

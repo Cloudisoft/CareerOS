@@ -522,12 +522,53 @@ async function applyToJob(jobId) {
 }`,
         },
         {
+          kind: "example",
+          heading: "The real reason route handlers exist: verifying a webhook",
+          body: "A payment provider's webhook is the textbook case for \"something outside your own app needs to call you.\" It also needs custom response handling a Server Component could never give you — reading a raw signature header and returning a specific status code the provider's retry logic depends on.",
+          code: `// app/api/webhooks/stripe/route.ts
+import { headers } from "next/headers";
+
+export async function POST(request: Request) {
+  const body = await request.text(); // raw text, not parsed — the signature covers the exact bytes
+  const signature = (await headers()).get("stripe-signature");
+
+  let event;
+  try {
+    event = verifyStripeSignature(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch {
+    return new Response("Invalid signature", { status: 400 }); // Stripe will retry
+  }
+
+  if (event.type === "payment_intent.succeeded") {
+    await db.order.update({
+      where: { paymentIntentId: event.data.object.id },
+      data: { status: "paid" },
+    });
+  }
+
+  return new Response(null, { status: 200 }); // tells Stripe not to retry
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Never trust a webhook body without verifying its signature first",
+          body: "Anyone on the internet can POST a fake \"payment succeeded\" request to a guessable URL like /api/webhooks/stripe — the signature check above is what proves the request actually came from the payment provider and wasn't forged. Skipping it (or checking it after already acting on the body) turns your webhook into an open door for marking arbitrary orders as paid.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Route handlers can run on the Edge runtime instead of Node.js",
+          body: "By default a route handler runs on Node.js, which gives you the full Node API surface — but exporting `export const runtime = \"edge\";` moves it to a lighter, faster-starting runtime deployed closer to the user, at the cost of losing some Node-specific APIs (certain database drivers, some crypto functions). Latency-sensitive endpoints with simple logic — reading a cookie, a redirect, a lightweight lookup — are the usual candidates; anything doing heavy computation or needing a Node-only library stays on the default.",
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
             "Server Components handle the common case: rendering a page with data already fetched on the server, no separate endpoint required.",
             "Route handlers exist for cases that genuinely need an HTTP endpoint — external callers, post-load client actions, or custom responses.",
             "A route.ts file, named GET/POST/etc. functions, and file-based paths under app/api mirror the same routing convention as pages.",
+            "A public route handler is a public entry point — verify a webhook's signature before trusting its body, and pick the Edge runtime only when the endpoint's logic and dependencies actually allow it.",
           ],
         },
       ],
@@ -712,11 +753,52 @@ export async function createJob(formData: FormData) {
           body: "Because a Server Action can be called directly (not just through the form it was attached to), it needs the same authentication and authorization checks you'd put in a route handler — Next.js does not implicitly restrict who can invoke it just because it's defined next to a particular page. Treat every Server Action as reachable by anyone, and check permissions inside it, not just in the UI that happens to render the form.",
         },
         {
+          kind: "example",
+          heading: "Reporting validation errors and a pending state back to the form",
+          body: "A raw <form action={fn}> gives you no way to show \"Title is required\" or a loading spinner on its own. useActionState pairs a Server Action with a piece of client state that captures whatever the action returns, plus a pending flag — without writing a manual fetch, onSubmit, or useState wiring for either.",
+          code: `// app/jobs/actions.ts
+"use server";
+
+export async function createJob(prevState: unknown, formData: FormData) {
+  const title = formData.get("title") as string;
+  if (!title || title.trim().length === 0) {
+    return { error: "Title is required" };
+  }
+  await db.job.create({ data: { title, status: "open" } });
+  return { error: null };
+}
+
+// app/jobs/new/new-job-form.tsx
+"use client";
+import { useActionState } from "react";
+import { createJob } from "../actions";
+
+export function NewJobForm() {
+  const [state, formAction, pending] = useActionState(createJob, { error: null });
+  return (
+    <form action={formAction}>
+      <input name="title" placeholder="Job title" />
+      {state.error && <p role="alert">{state.error}</p>}
+      <button type="submit" disabled={pending}>
+        {pending ? "Creating..." : "Create"}
+      </button>
+    </form>
+  );
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "useOptimistic: updating the UI before the server confirms it",
+          body: "A Server Action's round trip still takes real network time — for something like liking a post or checking off a to-do, waiting for that round trip before updating the UI feels sluggish even though the action itself is fast. useOptimistic lets you render the expected result immediately, then reconcile with whatever the server actually returns once the action resolves — and automatically rolls the UI back if the action fails. It's a UX polish on top of everything else in this lesson, not a replacement for it: the underlying write still goes through the same Server Action, with the same authorization checks. Reach for it selectively — a like button benefits from instant feedback; a payment submission generally shouldn't pretend to succeed before the server has actually confirmed it.",
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
             "\"use server\" turns an async function into a callable server-side mutation — usable directly as a form's action or called from client code.",
             "revalidatePath/revalidateTag tell Next.js which cached data is now stale after a write, so subsequent renders reflect the change.",
+            "useActionState reports validation errors and a pending state back to the UI without hand-written fetch or useState wiring; useOptimistic updates the UI before the round trip completes, for actions where that responsiveness matters.",
             "Server Actions handle mutations from your own UI without a route handler; route handlers remain for external callers or when you need raw control over the HTTP response.",
             "A Server Action is a real, directly callable server endpoint — it needs its own authorization checks, not just a form that happens to be gated in the UI.",
           ],
@@ -754,12 +836,40 @@ export async function createJob(formData: FormData) {
             "Move the mutation into a Server Action and call revalidatePath for the post's page — that's what makes the comment list reflect the new comment, replacing the manual `router.refresh()`.\n\n```jsx\n// app/posts/[id]/actions.ts\n\"use server\";\nimport { revalidatePath } from \"next/cache\";\n\nexport async function addComment(postId: string, formData: FormData) {\n  const body = formData.get(\"body\") as string;\n  await db.comment.create({ data: { postId, body } });\n  revalidatePath(`/posts/${postId}`);\n}\n\n// CommentForm.tsx — still a Client Component (it needs to bind postId)\n\"use client\";\nimport { addComment } from \"./actions\";\n\nexport function CommentForm({ postId }) {\n  const addCommentForPost = addComment.bind(null, postId);\n  return (\n    <form action={addCommentForPost}>\n      <textarea name=\"body\" />\n      <button type=\"submit\">Post</button>\n    </form>\n  );\n}\n```\nKey decision: `.bind(null, postId)` supplies the postId argument ahead of time so the form only needs to submit the textarea's value — a common pattern for passing extra context into a Server Action beyond what the form fields themselves carry. The route handler and manual fetch/refresh are gone entirely; the Server Action and revalidatePath replace both.",
         },
         {
+          kind: "practice",
+          heading: "3. An inventory dashboard that needs to stay accurate to the second, plus a webhook from a supplier",
+          prompt:
+            "You're adding two things to an existing app: (a) `app/inventory/page.tsx`, a dashboard warehouse staff check constantly to know exact current stock counts before fulfilling orders, and (b) an endpoint a supplier's system calls automatically whenever a shipment is confirmed, to update stock counts on your end. For each, decide: Server or Client Component (for the dashboard), which rendering strategy fits the dashboard, and whether the supplier integration should be a Server Action or a route handler. Justify each choice against the specific requirement given, not a general rule of thumb.",
+          hint:
+            "For the dashboard, ask how stale a stock count can be before someone fulfills an order against inventory that's actually gone — compare that to the caching strategies covered earlier. For the supplier integration, ask who's initiating the call.",
+          solution:
+            "Dashboard: a Server Component for the initial data (no client JS needed just to display counts), but the rendering strategy has to be dynamic, not static or ISR — the prompt is explicit that staff need exact current counts, and even ISR's shortest realistic revalidation window risks showing stock that's already been sold. This is the same \"how stale can it honestly be\" question from the rendering-strategies lesson, and here the honest answer is zero tolerance for staleness, which rules out anything but rendering fresh per request (or client-side polling/websockets layered on top, if truly real-time is needed beyond what a page load can give).\n\nSupplier integration: a route handler, not a Server Action — the caller here is the supplier's external system, not your own UI, which is exactly the case Server Actions don't cover. It needs its own URL the supplier can be configured to POST to, and (like the earlier webhook example) should verify some form of shared secret or signature before trusting the payload, since anyone who discovers the URL could otherwise post fake shipment confirmations.\n\nKey decision: the same \"who's calling, and how stale can this honestly be\" questions from earlier lessons drive both answers here — there's no single rule like \"dashboards are always ISR\" that would have gotten this right; it depends on what the specific page and caller actually need, and that's exactly the judgment this whole practice lesson has been rehearsing, exercise by exercise.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A trap in exercise 3: assuming \"dashboard\" automatically means ISR",
+          body: "It's tempting to pattern-match \"dashboard\" to the product-catalog example from the rendering-strategies lesson and reach for ISR by default. The requirement in the prompt — staff fulfilling orders against exact current stock — is what actually decides it, not the word \"dashboard\" itself. The same page type can land on a completely different strategy depending on how much staleness the specific use case can tolerate; the label on the page is never the thing that decides this, the requirement behind it is. A metrics dashboard that's fine being a minute stale is a very different animal from a stock-fulfillment dashboard, even though both would be called \"dashboard\" in casual conversation, and treating them identically is exactly the kind of shortcut that looks fine in a demo and causes real problems in production.",
+        },
+        {
+          kind: "diagram",
+          heading: "The decision framework, put together",
+          description: "The three questions this practice lesson has been asking, in the order it's usually fastest to ask them.",
+          steps: [
+            { label: "1. Does it need interactivity?", detail: "Hooks, event handlers, browser-only APIs -> Client Component; otherwise default to Server" },
+            { label: "2. Is it a read or a write?", detail: "Reading -> fetch directly in a Server Component; writing from your own UI -> Server Action" },
+            { label: "3. Who initiates it?", detail: "Your own UI -> Server Action; an external caller (webhook, third party, mobile client) -> route handler" },
+            { label: "4. How stale can it honestly be?", detail: "Never -> dynamic; rarely -> static; sometimes, on a schedule -> ISR — the same question, asked of the specific content, not the page's label" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Defaulting to a Server Component and isolating only the genuinely interactive piece into a Client Component, rather than converting a whole page.",
             "Matching a rendering strategy to how stale the content can honestly tolerate being, instead of defaulting to fully dynamic out of caution.",
             "Replacing a route handler + manual refresh with a Server Action + revalidatePath for a mutation that's really just \"this page's own form,\" and remembering that a Server Action still needs its own checks — it isn't automatically as protected as the UI around it.",
+            "Recognizing that an external caller — a supplier's system, a payment provider, anything outside your own UI — belongs behind a route handler, never a Server Action, regardless of how similar the underlying write looks.",
           ],
         },
       ],

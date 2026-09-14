@@ -510,7 +510,13 @@ docker run -p 3000:3000 my-app:1.0`,
           kind: "title",
           heading: "Practice: Building a Safer Deploy Pipeline",
           subheading:
-            "Three exercises spanning CI automation, deployment strategy choice, and alerting — write your answer before checking the solution.",
+            "Six exercises spanning CI automation, credential scoping, deployment strategy, canary monitoring, alerting, and artifact integrity — write your answer before checking the solution.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to use this practice",
+          body: "Every exercise below traces back to a specific failure mode this course covered — a slow-to-fail CI job, an over-scoped credential, a rollout that should've been halted, a release strategy mismatched to its actual risk. Write your own answer in your own words before checking the solution; the value here is in the diagnosis, not in memorizing six answers.",
         },
         {
           kind: "practice",
@@ -530,7 +536,49 @@ jobs:
           node-version: 20
       - run: npm ci          # exact, reproducible install from the lockfile
       - run: npm run lint    # job stops here automatically if lint fails
-      - run: npm test`,
+      - run: npm test
+
+Why this ordering specifically: lint is far cheaper to run than the full
+test suite, so putting it first means a purely stylistic mistake fails
+in seconds instead of waiting behind a two-minute test run to find out.
+Ordering steps cheapest-and-most-likely-to-catch-something first is a
+small, easy habit that adds up across hundreds of CI runs a week.`,
+        },
+        {
+          kind: "practice",
+          heading: "Scope down an over-broad CI credential",
+          prompt:
+            "A CI job builds a Docker image, pushes it to one specific ECR repository, and updates one ECS service to use the new image. Someone under deadline pressure attached this IAM policy to the job's role to \"just make the permission error go away\":\n\n```json\n{\n  \"Effect\": \"Allow\",\n  \"Action\": \"*\",\n  \"Resource\": \"*\"\n}\n```\n\nRewrite it to follow least privilege — scoped to exactly what this job does, nothing else.",
+          hint: "List the concrete actions the job performs (push an image, update a service) before writing any policy — a wildcard action or resource is a sign you haven't actually enumerated what's needed yet.",
+          solution: `{
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ecr:GetAuthorizationToken"],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["ecr:BatchCheckLayerAvailability", "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload"],
+      "Resource": "arn:aws:ecr:us-east-1:123456789012:repository/acme-api"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["ecs:UpdateService", "ecs:DescribeServices"],
+      "Resource": "arn:aws:ecs:us-east-1:123456789012:service/prod-cluster/acme-api"
+    }
+  ]
+}
+// ecr:GetAuthorizationToken has to stay account-wide — it's how ECR
+// login itself works, not a resource-scoped action. Everything else is
+// pinned to the one repository and one service this job actually
+// touches, not "every repo and every service in the account."
+
+Why this matters beyond tidiness: a compromised CI pipeline (a malicious
+dependency, a leaked token) with this narrower policy can only push a
+bad image to one repo and redeploy one service — with the original
+wildcard policy, the same compromise is a direct path to deleting or
+modifying anything in the entire AWS account.`,
         },
         {
           kind: "practice",
@@ -539,7 +587,31 @@ jobs:
             "Your team is about to ship a rewrite of the checkout flow — high risk, and hard to fully validate in staging because real behavior depends on the live payment provider. Traffic is heavy and continuous. Choose rolling, blue-green, or canary for this specific release, and justify it in 2-3 sentences against the other two.",
           hint: "Which strategy specifically exposes new code to a small, controlled slice of *real* traffic before committing further — the thing staging can't fully substitute for here?",
           solution:
-            "Canary. It exposes the rewrite to a small percentage of real production traffic and real payment-provider behavior — exactly what staging can't replicate — and can be halted before most users are affected if something's wrong. Rolling would eventually expose all real traffic to the new code at full scale before you've gathered much production signal; blue-green cuts over 100% of traffic in one step, carrying the same all-at-once risk without the incremental, real-world information a canary buys you first.",
+            "Canary. It exposes the rewrite to a small percentage of real production traffic and real payment-provider behavior — exactly what staging can't replicate — and can be halted before most users are affected if something's wrong. Rolling would eventually expose all real traffic to the new code at full scale before you've gathered much production signal; blue-green cuts over 100% of traffic in one step, carrying the same all-at-once risk without the incremental, real-world information a canary buys you first. Worth naming explicitly: canary is the right call here specifically because the risk is concentrated in real-world behavior (the live payment provider) that staging can't reproduce — for a change where the risk were purely about load at scale instead, that tradeoff might land differently.",
+        },
+        {
+          kind: "terminal",
+          heading: "The canary from that release, four minutes in",
+          description:
+            "5% of checkout traffic is on the new version. Here's what on-call actually sees while deciding whether to expand it or roll it back.",
+          lines: [
+            { text: "kubectl get pods -l app=checkout,track=canary" },
+            { text: "NAME                        READY   STATUS    RESTARTS", output: true },
+            { text: "checkout-canary-7f9c-2xk1   1/1     Running   0", output: true },
+            { text: "curl -s https://internal-metrics.acme.com/checkout/error_rate?track=canary" },
+            { text: '{"error_rate": 0.048, "sample_size": 812, "window": "4m"}', output: true },
+            { text: "curl -s https://internal-metrics.acme.com/checkout/error_rate?track=stable" },
+            { text: '{"error_rate": 0.006, "sample_size": 15400, "window": "4m"}', output: true },
+          ],
+        },
+        {
+          kind: "practice",
+          heading: "Decide: expand the canary or roll it back",
+          prompt:
+            "Using the metrics on the previous slide — the canary's error rate is 4.8% against a stable baseline of 0.6%, on a sample of 812 canary requests over 4 minutes — what's the right call: expand the canary to more traffic, hold and keep watching, or roll it back? Justify your answer, including whether the sample size changes your confidence in the decision.",
+          hint: "Compare the canary's error rate to the baseline as a ratio, not just as two small-looking percentages, and consider whether 812 requests is enough to trust that difference isn't noise.",
+          solution:
+            "Roll it back. 4.8% is roughly 8x the stable baseline's 0.6% error rate — that's not a marginal blip, it's an order-of-magnitude jump, and 812 requests over 4 minutes is a large enough sample that this isn't likely to be random noise at that gap size. The whole reason a canary release exists is to catch exactly this signal before it reaches the other 95% of traffic — continuing to hold and watch only makes sense when the numbers are close enough that more data would actually change the decision, and an 8x error-rate jump doesn't leave that kind of ambiguity. Roll back first, then investigate the cause with the smaller blast radius already contained, rather than debating it live while more users are exposed.",
         },
         {
           kind: "practice",
@@ -553,15 +625,34 @@ jobs:
   labels:
     severity: page
   annotations:
-    summary: "p95 latency above 800ms for 10+ minutes"`,
+    summary: "p95 latency above 800ms for 10+ minutes"
+
+Two details worth defending if asked: the 5m window inside rate()
+smooths out second-to-second noise in the underlying counter without
+hiding a genuine sustained spike, and the "for: 10m" is what separates
+a real, page-worthy trend from one bad minute that resolves on its own
+— without it, this rule would fire (and wake someone up) on far more
+transient blips than actual incidents.`,
+        },
+        {
+          kind: "practice",
+          heading: "Spot the build-once-promote-everywhere violation",
+          prompt:
+            "Review this deployment workflow. It looks reasonable at a glance, but it violates a principle covered earlier in this course. Identify the bug and fix it.\n\n```yaml\ndeploy-staging:\n  steps:\n    - run: docker build -t registry/app:latest .\n    - run: docker push registry/app:latest\n    - run: kubectl set image deployment/app app=registry/app:latest -n staging\n\ndeploy-production:\n  needs: [staging-smoke-tests]\n  steps:\n    - run: docker build -t registry/app:latest .\n    - run: docker push registry/app:latest\n    - run: kubectl set image deployment/app app=registry/app:latest -n production\n```",
+          hint: "Compare what actually gets built in the staging job versus the production job — are they guaranteed to be the exact same bytes, or could something have changed between the two builds?",
+          solution:
+            "The bug: production runs `docker build` a second time instead of promoting the exact image staging already tested. Even with identical source code checked out, a second build can pull a slightly different dependency version, resolve a `latest` base-image tag differently, or just hit a flaky network blip — so what passed staging's smoke tests isn't provably what reaches production. It also tags everything `latest`, so there's no way to even name which specific build is running where.\n\nFix: build one image tagged with the immutable git SHA, push it once, and have both staging and production deploy that exact tag — never rebuild between stages.\n\n```yaml\nbuild:\n  steps:\n    - run: docker build -t registry/app:${{ github.sha }} .\n    - run: docker push registry/app:${{ github.sha }}\n\ndeploy-staging:\n  needs: [build]\n  steps:\n    - run: kubectl set image deployment/app app=registry/app:${{ github.sha }} -n staging\n\ndeploy-production:\n  needs: [staging-smoke-tests]\n  steps:\n    - run: kubectl set image deployment/app app=registry/app:${{ github.sha }} -n production\n```",
         },
         {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Automating fast feedback so a broken change fails in CI within minutes, not after a human notices in production.",
+            "Scoping CI credentials to exactly what a job needs, so a compromised pipeline has a small blast radius instead of full account access.",
             "Matching a deployment strategy to the actual risk profile of a release, not defaulting to whatever's easiest to configure.",
+            "Reading canary metrics against a baseline, not in isolation, and rolling back decisively once the gap is too large to be noise.",
             "Alerting on a threshold and duration tied to real user experience, avoiding both silence on real problems and noise on brief blips.",
+            "Recognizing that a rebuilt artifact — even from identical source — isn't provably identical to what staging actually tested.",
           ],
         },
       ],
@@ -649,14 +740,46 @@ jobs:
             "A basic health check usually just confirms the process started and responds — it doesn't exercise every code path. Real observability (error rates, traces, user-facing metrics) is what catches problems a shallow health check misses.",
         },
         {
+          kind: "quiz",
+          heading: "Error budgets",
+          question:
+            "A service has a 99.9% SLO for a rolling 30-day window, and this month it has already used most of its error budget after a rocky release early in the month. A team wants to ship another risky change right now. What does the error budget framework suggest?",
+          options: [
+            "Ship it anyway — SLOs only matter at the very end of the 30-day window",
+            "The error budget is a spending limit on acceptable failure, not just a target — burning most of it already is a concrete, non-emotional reason to delay a risky release until the budget resets or recovers",
+            "Error budgets only apply to Continuous Deployment, not Continuous Delivery",
+            "The team should immediately switch every deployment to blue-green",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The entire point of an error budget is to turn 'should we ship this risky thing right now' from a vague feeling into a number — an SLO burned mostly through its allowance for the month is a legitimate, measurable reason to hold off, the same way a real budget being nearly spent is a reason to hold off on a discretionary purchase.",
+        },
+        {
+          kind: "quiz",
+          heading: "Structured logging and request IDs",
+          question:
+            "A request fails somewhere across five microservices, and nobody can tell which downstream call actually caused it without manually eyeballing timestamps across five separate log streams. What specific practice from this course prevents that?",
+          options: [
+            "Switching every service to use the same programming language",
+            "Propagating one request ID (or correlation ID), generated at the edge, through every downstream call and into every log line those calls produce",
+            "Increasing the log retention period",
+            "Disabling debug-level logging in production",
+          ],
+          correctIndex: 1,
+          explanation:
+            "A shared request ID threaded through every service call and every log line it produces is what lets you pull every log entry tied to one specific failing request in a single query, across however many services it touched — without it, you're stuck manually correlating log lines by timestamp and hoping nothing else happened at the same moment.",
+        },
+        {
           kind: "summary",
-          heading: "The course, in five takeaways",
+          heading: "The course, in seven takeaways",
           bullets: [
             "DevOps is shared ownership and fast feedback loops between the people who write and the people who operate software — not a specific toolset.",
             "CI catches problems within minutes of a change; CD decides how (and how automatically) a passing change reaches production.",
             "Containers solve \"it works on my machine\" by packaging the exact runtime and dependencies an app needs.",
             "Rolling, blue-green, and canary all exist to answer one question: how many real users find out before someone notices and responds.",
             "A successful deploy is not proof the app works — metrics, logs, traces, and alerting are what actually catch that gap.",
+            "An error budget turns \"should we ship this risky change right now\" into a measurable question instead of a judgment call.",
+            "A shared request ID across services is what makes \"what happened to this one failing request\" answerable in minutes instead of an afternoon of log spelunking.",
           ],
         },
       ],

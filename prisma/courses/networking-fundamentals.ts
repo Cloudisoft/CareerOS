@@ -487,12 +487,27 @@ around 50 addresses they'll never use, while still leaving no
 clean room to grow the main office floor later.`,
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "The special case: /31 for point-to-point links",
+          body: "A /31 breaks the \"always 2 reserved addresses\" rule on purpose — RFC 3021 permits a /31 (2 total addresses, both usable) specifically for links with exactly two devices on them, like two routers connected back to back. Since there's no broadcast domain to speak of with only one other device on the wire, dedicating an address to a broadcast address is pure waste — a real, if narrow, exception worth recognizing rather than assuming every subnet reserves two addresses without exception.",
+        },
+        {
+          kind: "text",
+          heading: "CIDR isn't only for splitting — it's also how routes get summarized",
+          body: [
+            "Everything so far has been about dividing one block into smaller ones, but CIDR notation works the same way in reverse: a router with routes to 10.20.0.0/24, 10.20.1.0/24, 10.20.2.0/24, and 10.20.3.0/24 can advertise all four as a single route, 10.20.0.0/22, to anything upstream of it. This is route summarization (or aggregation), and it's the reason the global internet's routing tables aren't millions of individual /24 entries — ISPs summarize huge blocks of customer address space into as few routes as possible before advertising them onward.",
+            "The same idea shows up at office-network scale: a core router summarizing four /26 department subnets as one /24 route toward the internet gateway keeps that gateway's routing table simpler, at the cost of that gateway no longer being able to see which specific department a packet is ultimately headed to — it just knows \"somewhere in this /24.\"",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Subnetting, briefly",
           bullets: [
             "CIDR notation (/24, /26, /30...) states how many bits are fixed as the network portion — fewer host bits means fewer usable addresses per subnet.",
             "Splitting a network into subnets isolates broadcast domains and lets different groups of devices be separated by a router or firewall.",
-            "Two addresses per subnet are always reserved — the network address and the broadcast address — which is why a /24's 256 addresses yield only 254 usable ones.",
+            "Two addresses per subnet are always reserved — the network address and the broadcast address — except for the special-cased /31 used on two-device point-to-point links.",
+            "The same notation runs in reverse for route summarization, which is what keeps internet-scale routing tables from needing one entry per individual customer subnet.",
           ],
         },
       ],
@@ -505,7 +520,13 @@ clean room to grow the main office floor later.`,
           kind: "title",
           heading: "Practice: Subnetting and Reading Connectivity Symptoms",
           subheading:
-            "Three exercises: calculate host counts, design a subnetting scheme, and diagnose a real symptom.",
+            "Five exercises: calculate host counts, design two subnetting schemes, and diagnose two real connectivity symptoms.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to use this practice",
+          body: "The design exercises expect you to actually work the CIDR math, not just eyeball a reasonable-looking answer — get in the habit of writing out host bits, total addresses, and usable addresses explicitly. The diagnostic exercises are graded the same way a real troubleshooting conversation is: the specific symptom is the clue, and the goal is naming exactly what it rules in and out, not just guessing the right-sounding cause.",
         },
         {
           kind: "practice",
@@ -514,7 +535,7 @@ clean room to grow the main office floor later.`,
             "A network is assigned 10.0.5.0/27. How many total addresses does this range contain, and how many are usable for actual devices?",
           hint: "Host bits = 32 minus the prefix length. Total addresses = 2^(host bits). Usable = total minus 2 reserved addresses.",
           solution:
-            "Host bits = 32 - 27 = 5. Total addresses = 2^5 = 32. Usable addresses = 32 - 2 = 30 (subtracting the network address 10.0.5.0 and the broadcast address 10.0.5.31). So a /27 supports up to 30 devices — enough for a single small office floor, but not much more.",
+            "Host bits = 32 - 27 = 5. Total addresses = 2^5 = 32. Usable addresses = 32 - 2 = 30 (subtracting the network address 10.0.5.0 and the broadcast address 10.0.5.31). So a /27 supports up to 30 devices — enough for a single small office floor, but not much more. If that floor were expected to grow past 30 devices within the next year or two, the right move is picking a larger block up front (a /26, 62 usable) rather than re-subnetting later, which usually means re-addressing every device on it.",
         },
         {
           kind: "practice",
@@ -523,24 +544,59 @@ clean room to grow the main office floor later.`,
             "You have 192.168.10.0/24 to work with and need to support 4 departments, each with up to 50 devices. Propose a subnetting scheme, and justify the prefix length you chose.",
           hint: "Find the smallest prefix length that gives at least 50 usable addresses per subnet, then check that /24 can be split into at least 4 of that size.",
           solution:
-            "A /26 gives 64 total addresses (62 usable) per subnet — enough for 50 devices with headroom, and a /24 splits cleanly into exactly four /26 subnets. A /25 (126 usable) would also fit 50 devices but wastes far more address space per department for no real benefit, and only allows 2 subnets from a /24, which isn't enough for 4 departments anyway. Scheme: 192.168.10.0/26 (Dept 1), 192.168.10.64/26 (Dept 2), 192.168.10.128/26 (Dept 3), 192.168.10.192/26 (Dept 4).",
+            "A /26 gives 64 total addresses (62 usable) per subnet — enough for 50 devices with headroom, and a /24 splits cleanly into exactly four /26 subnets. A /25 (126 usable) would also fit 50 devices but wastes far more address space per department for no real benefit, and only allows 2 subnets from a /24, which isn't enough for 4 departments anyway. A /27 (30 usable) is too small outright — it doesn't even clear the 50-device requirement. Scheme: 192.168.10.0/26 (Dept 1), 192.168.10.64/26 (Dept 2), 192.168.10.128/26 (Dept 3), 192.168.10.192/26 (Dept 4).",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Reading a subnet mask as fast as CIDR notation",
+          body: "A prefix length and a dotted-decimal subnet mask are the exact same information written two different ways — /24 is 255.255.255.0, /26 is 255.255.255.192, /27 is 255.255.255.224. Older tooling and some router configs still show the dotted-decimal form instead of the slash notation, so it's worth being able to convert one to the other without reaching for a calculator: each network bit beyond the last full 255 byte adds a power of two to that byte, counting from 128 down (a /25 sets just the top bit of the last byte — 128 — a /26 sets the top two — 192 — and so on).",
         },
         {
           kind: "practice",
-          heading: "Diagnose from the symptom",
+          heading: "Design with VLSM for uneven needs",
+          prompt:
+            "A new office site is assigned 10.20.0.0/22. It needs to support: an open floor with up to 400 devices, a server room with up to 40 devices, a network equipment closet with up to 10 devices, and some address space reserved for future growth. Design a VLSM scheme, sized appropriately for each — not split evenly.",
+          hint: "Start with the largest requirement first (it needs the fewest host bits reserved for others to still fit), then carve the smaller subnets out of what's left over.",
+          solution:
+            "A /22 is 1,024 total addresses (10.20.0.0 - 10.20.3.255). The 400-device floor needs a /23 (510 usable) — a /24 (254 usable) wouldn't clear 400 with any headroom. Carving that off first: 10.20.0.0/23 (10.20.0.0 - 10.20.1.255) for the floor. That leaves 10.20.2.0/23 (512 addresses) to split further: 10.20.2.0/26 (62 usable) for the server room, and 10.20.2.64/28 (14 usable) for the equipment closet, both comfortably covering their device counts. Everything from 10.20.2.80 through 10.20.3.255 is left unallocated for future growth — roughly 460 addresses, enough to add another sizeable subnet later without touching anything already assigned. Splitting the /22 evenly into four /24s instead would have wasted most of the floor's growth room and still left the server room and equipment closet massively over-provisioned.",
+        },
+        {
+          kind: "practice",
+          heading: "Diagnose from the symptom: APIPA",
           prompt:
             "A user reports their laptop can't reach any website. Running ipconfig shows the laptop's IP address is 169.254.34.12. Using the troubleshooting order from this course, what's actually wrong, and what's the next step?",
           hint: "169.254.x.x is not a normal address a router hands out — it's what an OS assigns itself when a specific earlier step fails.",
           solution:
-            "A 169.254.x.x address is an APIPA (link-local) address — the OS assigns itself one automatically when it can't reach a DHCP server to get a real address. This means the failure is happening very early in the troubleshooting order, before the device even has a valid IP address, which rules out DNS, gateway, or port-level problems entirely for now. The next step is checking the physical/link-level connection (cable seated, wifi actually associated with the access point) and whether the DHCP server itself is reachable and functioning — not running nslookup or trying to ping an external site, both of which would fail for an unrelated reason at this stage.",
+            "A 169.254.x.x address is an APIPA (link-local) address — the OS assigns itself one automatically when it can't reach a DHCP server to get a real address. This means the failure is happening very early in the troubleshooting order, before the device even has a valid IP address, which rules out DNS, gateway, or port-level problems entirely for now. The next step is checking the physical/link-level connection (cable seated, wifi actually associated with the access point) and whether the DHCP server itself is reachable and functioning — not running nslookup or trying to ping an external site, both of which would fail for an unrelated reason at this stage and would waste time investigating the wrong layer.",
+        },
+        {
+          kind: "practice",
+          heading: "Diagnose from the symptom: unreachable from outside",
+          prompt:
+            "A team deploys an internal API on 192.168.50.20, port 8080. Every device on the office network reaches it fine. A partner company trying to reach it from the public internet, using your office's public IP and port 8080, gets a connection timeout every single time. Nothing about the server itself has changed recently. What's actually going on, and what's the fix?",
+          hint: "192.168.50.20 is a private address. Recall what NAT does — and doesn't do — for unsolicited traffic arriving from outside the network.",
+          solution:
+            "This isn't a server problem — 192.168.50.20 is a private IP address, unreachable directly from the public internet by design. NAT only creates a mapping for traffic the private-side device initiated; there's no existing mapping for an unsolicited inbound connection from the partner company to route through, so the router has nothing telling it what to do with that traffic and it simply times out. The fix is explicit port forwarding on the router/firewall: a rule mapping the public IP's port 8080 to 192.168.50.20:8080, so an inbound connection on that public port is deliberately routed to the internal server instead of being dropped by default. Worth flagging to the team at the same time: opening a port forward exposes that internal service directly to the internet, so it should also be reviewed for authentication and TLS before being made reachable this way, not just for reachability. It's also worth checking the OSI layer this actually sits at before troubleshooting further — this is strictly a Network-layer routing/translation gap, not a DNS, application, or firewall-rule problem, even though a misconfigured firewall rule could produce an identical symptom and would need to be ruled out separately.",
+        },
+        {
+          kind: "practice",
+          heading: "Diagnose from the symptom: propagation, not an outage",
+          prompt:
+            "A company migrates its API to a new server and updates the A record to point at the new IP, planning to decommission the old server an hour later since \"DNS changes are basically instant.\" For the rest of that day, roughly a third of API clients intermittently get connection errors, even though the new server is healthy, correctly configured, and receiving traffic fine from most clients. What actually went wrong, and what should the team have done differently before the cutover?",
+          hint: "This isn't a server-side problem at all — revisit what this course said about TTLs, caching, and what \"lower the TTL before a migration\" is actually protecting against.",
+          solution:
+            "The team skipped lowering the A record's TTL ahead of the migration. If the record's TTL was, say, 24 hours, then every resolver that had already cached the old IP before the change keeps serving that stale answer to its clients until its own copy expires — regardless of when the actual DNS record was updated. Decommissioning the old server an hour later means every client stuck with a cached old answer starts getting connection errors the moment that old server actually goes away, and those errors persist unevenly across the day as different resolvers' caches expire at different times, which is exactly the intermittent, partial pattern described. The fix isn't something to do after the fact — it's lowering the TTL to something short (like 300 seconds) a day or more before the planned cutover, waiting for that shorter TTL to fully propagate, then making the change and only decommissioning the old server once enough time has passed for confidence that stale caches have expired.",
         },
         {
           kind: "summary",
           heading: "What this practice demonstrates",
           bullets: [
-            "Converting a CIDR prefix into total and usable host counts.",
-            "Choosing a subnet size that fits a real capacity requirement without wasting address space.",
+            "Converting a CIDR prefix into total and usable host counts, and recognizing when a prefix is genuinely too small for a stated requirement.",
+            "Choosing a subnet size — including with VLSM — that fits real, uneven capacity requirements without wasting address space or under-provisioning room to grow.",
             "Recognizing a 169.254.x.x address as a DHCP failure symptom and knowing where that places you in the troubleshooting order.",
+            "Distinguishing a NAT/port-forwarding gap (reachable internally, unreachable from outside) from a genuine server-side failure, and knowing the specific fix.",
+            "Tracing an intermittent, partial-outage symptom back to DNS caching and TTLs rather than assuming the new server itself is broken.",
           ],
         },
       ],

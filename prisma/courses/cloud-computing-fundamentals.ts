@@ -473,7 +473,13 @@ export const course: CourseSeed = {
           kind: "title",
           heading: "Practice: Choosing Cloud Architecture and Controlling Cost",
           subheading:
-            "Three scenarios, the kind that actually show up in an interview or on the job — work through each before checking the solution.",
+            "Five scenarios, the kind that actually show up in an interview or on the job — work through each before checking the solution.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to use this practice",
+          body: "Each scenario below is deliberately underspecified in exactly the way a real request from a stakeholder is — part of the exercise is noticing which details actually change the answer (traffic shape, interruption tolerance, a compliance requirement) versus which are just color. Write down your reasoning, not just your final pick, before checking the solution.",
         },
         {
           kind: "practice",
@@ -503,12 +509,60 @@ export const course: CourseSeed = {
             "- Put at least 2 EC2 instances across 2+ AZs behind an Application Load Balancer with health checks, in an Auto Scaling Group — removes the single-instance and single-AZ compute failure, and the ASG replaces any instance that fails automatically. - Switch RDS to Multi-AZ, which keeps a synchronously replicated standby in a different AZ and fails over automatically — removes the single-AZ database failure, and cuts recovery time from 'restore last night's backup' to an automatic failover. - Nightly backups stay, but now as protection against data corruption or accidental deletion, not as the primary availability mechanism — Multi-AZ handles the infrastructure failure case; backups handle the 'someone dropped a table' case.",
         },
         {
+          kind: "practice",
+          heading: "Pick the right pricing model per workload",
+          prompt:
+            "Your team runs three workloads: (1) a production web tier with steady, round-the-clock traffic that can't tolerate an unplanned interruption; (2) a nightly batch job that regenerates image thumbnails, taking about 90 minutes, that can safely restart from where it left off if interrupted; (3) a throwaway environment spun up for a two-week client demo, then torn down. Choose on-demand, reserved, or spot pricing for each, and justify your choice in one sentence per workload.",
+          hint: "Match each workload against the two things that actually decide this: how tolerant it is of an unplanned interruption, and how long it's expected to run for.",
+          solution:
+            "(1) Reserved (1-year or 3-year) — steady, always-on, and explicitly can't tolerate interruption, which rules out spot outright; the discount over on-demand (roughly 30-70%) is worth committing to for a workload you know will run continuously regardless. (2) Spot — fault-tolerant by design (can restart from where it left off) and doesn't need to run at a guaranteed instant, which is exactly the profile spot's steep discount (often 60-90% off on-demand) is meant for; an occasional reclaimed instance just means the job restarts and finishes a bit later. (3) On-demand — a fixed two-week lifespan is too short to earn back a reserved commitment's upfront tradeoff, and a client demo is a poor candidate for spot's interruption risk, so the flexibility of paying only for the two weeks actually used, with no risk of a mid-demo interruption, wins here.",
+        },
+        {
+          kind: "practice",
+          heading: "Design a disaster recovery tier that fits the requirement",
+          prompt:
+            "A checkout service has an RTO of 15 minutes and an RPO close to zero, and currently runs single-AZ. A new compliance requirement says the business must be able to keep operating even if an entire AWS region becomes unavailable — though that scenario is rare enough that some added latency during a regional failover is acceptable, and the business doesn't want to pay for full active-active capacity in two regions at once. Propose an architecture, referencing the availability and DR concepts from this course, and name which DR tier fits the cross-region part specifically.",
+          hint: "The RTO/RPO numbers on their own point to a within-region fix; the compliance requirement is a separate, additional layer on top of that — handle them as two different problems.",
+          solution:
+            "Within the region: Multi-AZ for both compute (load-balanced instances across 2+ AZs in an Auto Scaling Group) and the database (RDS Multi-AZ with synchronous replication) gets RPO close to zero and comfortably clears a 15-minute RTO for the common case of a single-AZ failure — this is the same fix as the previous exercise, and it's necessary but not sufficient here. For the cross-region compliance requirement: warm standby, not active-active. A scaled-down but fully functional copy of the stack, kept running in a second region at all times and scaled up during failover, matches 'some added latency during failover is acceptable' and avoids paying for full active-active capacity the business explicitly doesn't want. Active-active would be over-engineering for a scenario acknowledged to be rare and latency-tolerant during failover; pilot light or backup-and-restore would under-deliver against the 15-minute RTO once a full region, not just an AZ, is what failed — pilot light in particular still requires provisioning most of the stack from scratch during the failover window, which eats directly into that 15-minute budget. The compliance requirement and the RTO/RPO numbers are answering two genuinely different questions here, and it's worth being able to say which architecture decision answers which if asked to defend the design.",
+        },
+        {
+          kind: "example",
+          heading: "Turning a vague 'cloud costs went up' into a diagnosis",
+          body: "Cost allocation tags (from the cost lesson) are what make a query like this possible — without them, this same investigation means opening dozens of individual resources by hand.",
+          code: `aws ce get-cost-and-usage \\
+  --time-period Start=2024-02-01,End=2024-03-01 \\
+  --granularity MONTHLY \\
+  --metrics "UnblendedCost" \\
+  --group-by Type=TAG,Key=env
+
+{
+  "env=production": "$9,840",
+  "env=staging":    "$6,120",
+  "env=untagged":   "$1,340"
+}
+
+Staging alone is 62% of production's spend for an environment with
+no real users — the kind of finding a monthly cost-by-tag review
+catches quickly, and a plain total-bill number hides completely.
+The $1,340 in "untagged" resources is its own finding: nobody can
+say which team owns that spend until it's tagged.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A tag alone doesn't stay accurate without enforcement",
+          body: "A tagging convention that lives only in a wiki page decays fast — someone spins up a resource under deadline pressure, forgets the tag, and the \"untagged\" bucket in the report above quietly grows every month until cost-by-tag reporting is missing a meaningful slice of the real bill. The durable fix is enforcing tags at creation time, not asking people to remember: an AWS Config rule or Service Control Policy that blocks resource creation without the required tags catches the gap a wiki page never will, and turns \"please tag your resources\" from a hopeful request into something the platform itself guarantees.",
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Matching a service model to actual constraints (team size, ops appetite, traffic shape) instead of picking whatever's trendy.",
             "Recognizing that idle compute, orphaned storage, and unplanned data transfer are three distinct cost traps, not one fuzzy 'cloud costs went up' problem.",
             "Naming the specific single point of failure each architecture change removes, rather than adding redundancy in general.",
+            "Choosing on-demand, reserved, or spot based on a workload's actual interruption tolerance and expected lifespan, not habit.",
+            "Treating multi-AZ and multi-region as separate tools for separate failure scopes, and picking a DR tier that matches the real RTO/RPO and cost tolerance instead of defaulting to the most resilient (and most expensive) option.",
           ],
         },
       ],
@@ -592,14 +646,46 @@ export const course: CourseSeed = {
             "EKS, AKS, and GKE are each provider's managed Kubernetes offering. ECS is AWS's own non-Kubernetes container orchestrator; Cloud Run and Lambda are serverless/FaaS-style products, a different layer entirely.",
         },
         {
+          kind: "quiz",
+          heading: "Spot instances",
+          question:
+            "A team moves a single-instance, non-replicated database onto spot pricing to cut costs. What's the direct risk this introduces that reserved or on-demand pricing wouldn't?",
+          options: [
+            "Spot instances are simply less reliable hardware than on-demand instances",
+            "The provider can reclaim a spot instance with only a couple of minutes' notice, and for a single, non-replicated database, that reclamation is a real data-loss/downtime incident, not just a minor cost optimization",
+            "Spot pricing cannot be used for any database workload under any circumstances",
+            "Spot instances cannot be attached to persistent storage volumes",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Spot instances trade a steep discount for the provider's right to reclaim capacity on short notice. That tradeoff fits stateless, fault-tolerant, horizontally-scaled workloads well — but a single-instance database with no replication has nowhere to fail over to when reclaimed, turning a cost-saving choice into an availability and potential data-loss risk.",
+        },
+        {
+          kind: "quiz",
+          heading: "RTO and RPO",
+          question:
+            "A system's RPO is defined as 24 hours, backed only by nightly backups with no live standby. What does this actually commit to?",
+          options: [
+            "The system will never be down for more than 24 hours",
+            "In a real failure, the business accepts losing up to roughly 24 hours of data — whatever changed between the last completed backup and the moment of failure",
+            "The system automatically fails over to a second region within 24 hours",
+            "RPO measures how long it takes to detect an outage, not how much data could be lost",
+          ],
+          correctIndex: 1,
+          explanation:
+            "RPO measures acceptable data loss, not downtime (that's RTO's job) — nightly backups mean the worst case is losing everything since the last backup completed, up to roughly a day's worth of changes. A live, synchronously replicated standby would bring that number down to near-zero; relying on nightly backups alone means implicitly accepting the 24-hour exposure.",
+        },
+        {
           kind: "summary",
-          heading: "The course, in six takeaways",
+          heading: "The course, in seven takeaways",
           bullets: [
             "IaaS, PaaS, and SaaS mainly differ in how much operational responsibility you take on versus hand to the provider.",
             "Learn the concept once (compute, storage, networking, databases) and the provider-specific names follow easily.",
             "Cost surprises come from a small set of recurring traps: idle compute, orphaned storage, and unplanned data transfer.",
             "The shared responsibility model always leaves IAM, network configuration, encryption, and data exposure on you.",
             "High availability means deliberately removing single points of failure across AZs — not a setting you enable once.",
+            "Reserved, on-demand, and spot pricing exist for genuinely different workload shapes — matching one to the wrong workload trades cost savings for real availability risk.",
+            "RTO and RPO turn a vague 'we want high availability' into two concrete numbers that actually determine which DR tier is enough.",
           ],
         },
       ],

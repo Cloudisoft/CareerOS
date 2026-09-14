@@ -990,6 +990,36 @@ moved {
             "That's the entire point of a module: write the pattern once, call it as many times as needed with different variable values, and a bug fix inside the module benefits every environment using it.",
         },
         {
+          kind: "quiz",
+          heading: "Reading the ~ symbol",
+          question:
+            "A `terraform plan` shows a resource marked with `~`, changing only its `acl` attribute from \"private\" to \"public-read\". What does this mean, and what should you check before typing yes?",
+          options: [
+            "The resource will be destroyed and recreated from scratch",
+            "The resource will be updated in place — worth confirming this specific attribute change is actually intended, since it's about to take effect",
+            "Terraform detected drift and will revert the change automatically with no plan needed",
+            "This symbol only appears for resources that don't yet exist",
+          ],
+          correctIndex: 1,
+          explanation:
+            "`~` means an in-place update — no destroy, no recreate, just this one attribute changing on the existing resource. That's lower risk than a `-/+` replacement, but it's still a real change about to be applied — here, making a resource publicly readable is exactly the kind of one-line diff worth pausing on before approving, not just skimming past because it's not a destroy.",
+        },
+        {
+          kind: "quiz",
+          heading: "Adopting existing infrastructure",
+          question:
+            "An S3 bucket was created by hand in the AWS console two years ago and now needs to come under Terraform management, without being destroyed and recreated. What's the right approach?",
+          options: [
+            "Write a resource block for it and run terraform apply — Terraform will detect the existing bucket and adopt it automatically",
+            "Delete the bucket, then create a new one via terraform apply",
+            "Run terraform import to add it to state, and hand-write (or generate) a matching resource block so the configuration reflects its real settings",
+            "Reference it with a data block, since it wasn't originally created by Terraform",
+          ],
+          correctIndex: 2,
+          explanation:
+            "terraform import brings an existing resource into Terraform's state without destroying or recreating it — but it doesn't write the .tf configuration for you on its own; the resource block still has to be hand-authored (or generated) to actually match the bucket's real settings, or the next plan will try to \"fix\" it back to a mismatched, incomplete config. A data block would only let you read the bucket, not manage it going forward, which the scenario specifically rules out.",
+        },
+        {
           kind: "summary",
           heading: "The course, in six takeaways",
           bullets: [

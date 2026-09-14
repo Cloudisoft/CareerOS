@@ -822,12 +822,34 @@ function Panel({ children }) {
             "React uses `key` to match a rendered element to the same element from the previous render, so it knows to reuse (and preserve the state of) that same component instance instead of creating a new one. With `key={index}`, after a re-sort, position 2 is still \"key 2\" even though a completely different item now sits there — so React reuses the Row instance (and its `expanded` state) that used to belong to a different item. Fix: key by the item's own stable identity instead of its position.\n\n```jsx\nfunction ItemList({ items }) {\n  return (\n    <ul>\n      {items.map((item) => (\n        <Row key={item.id} item={item} />\n      ))}\n    </ul>\n  );\n}\n```\nKey decision: the fix is entirely in the key, not in Row itself — `Row` was written correctly all along. This is why array index as a key is a known anti-pattern specifically for lists that can reorder, filter, or have items inserted/removed from the middle.",
         },
         {
+          kind: "practice",
+          heading: "4. A context update that re-renders far more than it should",
+          prompt:
+            "`AppContext` bundles the current user, the theme, and a `notifications` array together in one context value. Every component that reads any part of this context — including `UserBadge`, which only ever reads `user` — re-renders every few seconds whenever a new notification arrives, even though `user` never changes. Explain why this happens and fix it, without removing context or duplicating the notifications logic elsewhere.\n\n```jsx\nconst AppContext = createContext(null);\n\nfunction AppProvider({ children }) {\n  const [user, setUser] = useState(currentUser);\n  const [theme, setTheme] = useState(\"light\");\n  const [notifications, setNotifications] = useState([]);\n\n  useEffect(() => {\n    const unsubscribe = subscribeToNotifications((n) => {\n      setNotifications((prev) => [...prev, n]);\n    });\n    return unsubscribe;\n  }, []);\n\n  const value = { user, setUser, theme, setTheme, notifications };\n  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;\n}\n\nfunction UserBadge() {\n  const { user } = useContext(AppContext);\n  return <span>{user.name}</span>;\n}\n```",
+          hint:
+            "A context consumer re-renders whenever the context's value changes at all — React has no way to know UserBadge only cares about one field of a bundled object. What changes every time a notification arrives, and does UserBadge actually depend on it?",
+          solution:
+            "Every consumer of a context re-renders whenever the provider passes a new value, regardless of which specific field that consumer actually reads — React.memo and useMemo don't apply inside a context read the way they do to props. Here, `value` is a brand-new object on every render of AppProvider (including the ones triggered purely by a new notification arriving), so every consumer — UserBadge included — re-renders even though `user` itself never changed. This is a common, easy-to-miss cause of re-render fan-out: one fast-changing piece of state bundled into the same context as several slow-changing ones drags every consumer of the slow-changing ones along with it.\n\nFix: split the single bundled context into separate contexts by how often each piece actually changes, so a component reading only `user` never re-renders because a notification arrived.\n\n```jsx\nconst UserContext = createContext(null);\nconst ThemeContext = createContext(null);\nconst NotificationsContext = createContext(null);\n\nfunction AppProvider({ children }) {\n  const [user, setUser] = useState(currentUser);\n  const [theme, setTheme] = useState(\"light\");\n  const [notifications, setNotifications] = useState([]);\n\n  useEffect(() => {\n    const unsubscribe = subscribeToNotifications((n) => {\n      setNotifications((prev) => [...prev, n]);\n    });\n    return unsubscribe;\n  }, []);\n\n  return (\n    <UserContext.Provider value={{ user, setUser }}>\n      <ThemeContext.Provider value={{ theme, setTheme }}>\n        <NotificationsContext.Provider value={notifications}>\n          {children}\n        </NotificationsContext.Provider>\n      </ThemeContext.Provider>\n    </UserContext.Provider>\n  );\n}\n\nfunction UserBadge() {\n  const { user } = useContext(UserContext); // never re-renders on a new notification now\n  return <span>{user.name}</span>;\n}\n```\nKey decision: the fix is architectural, not a memoization trick — no amount of useMemo or React.memo on UserBadge itself would have helped, since the problem was the shape of the context, not anything UserBadge was doing wrong. Splitting by change frequency (rarely-changing user and theme, separate from frequently-changing notifications) is the general pattern, not just a fix specific to this one case.",
+        },
+        {
+          kind: "chart",
+          heading: "UserBadge re-renders across 20 incoming notifications",
+          description: "UserBadge never reads notifications at all — with one shared context, it pays for every update anyway.",
+          chartType: "bar",
+          unit: "re-renders",
+          data: [
+            { label: "One bundled context", value: 20 },
+            { label: "Split by change frequency", value: 0 },
+          ],
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Recognizing that React.memo only helps when the props it compares are reference-stable, and pairing it with useCallback where needed.",
             "Using useMemo for a genuinely expensive computation, with a dependency array limited to what the computation actually reads.",
             "Understanding that `key` controls component identity across renders, not just list rendering — and that index-as-key is specifically dangerous once a list can reorder.",
+            "Recognizing that every consumer of a context re-renders on any change to that context's value, regardless of which field it actually reads — and that splitting a context by how often its pieces change is the fix, not a memoization hook.",
           ],
         },
       ],

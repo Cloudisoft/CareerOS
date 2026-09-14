@@ -511,6 +511,20 @@ partly by bedroom count instead.`,
           ],
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "R² and residuals: checking a fit, not just trusting it",
+          body: "The coefficients tell you the relationship the model found; R² (the coefficient of determination) tells you how much of the actual variation in price that relationship explains — an R² of 0.85 means the model accounts for 85% of the variation in price across the training houses, with the rest left unexplained. A residual (actual price minus predicted price) that's small and randomly scattered across every house is a good sign; residuals that grow systematically larger for bigger houses, or that consistently undershoot houses in one neighborhood, mean the straight-line assumption itself is breaking down for part of the data, not just that a bit more noise remains.",
+        },
+        {
+          kind: "text",
+          heading: "The assumptions worth knowing, even briefly",
+          body: [
+            "Linear regression's math relies on a few assumptions that are easy to skip past: the true relationship is genuinely close to linear, the errors are roughly independent of each other, and the spread of errors stays roughly constant across the range of predictions (homoscedasticity) rather than fanning out wider for larger predicted values.",
+            "None of these need to hold perfectly for linear regression to still be useful — but when they're badly violated (a relationship that's actually curved, or errors that balloon for expensive houses), the model's coefficients and its confidence in them become unreliable in ways a plain accuracy or R² number won't obviously reveal. A quick plot of residuals against predicted values is usually enough to catch a serious violation before trusting the model's coefficients too literally.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "The full loop, tied together",
           bullets: [
@@ -714,7 +728,13 @@ Repeat steps 1-2. Assignments stop changing -> converged.`,
           kind: "title",
           heading: "Practice: Diagnosing Model Behavior",
           subheading:
-            "Three scenarios pulled from real project situations — work through each before checking the solution.",
+            "Five scenarios pulled from real project situations — work through each before checking the solution.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to use this practice",
+          body: "Every scenario below hands you numbers, not a description of the problem — the diagnosis has to come from reading the numbers correctly, the same way it would on a real project. Write down your own read before checking the solution; getting the right final answer for the wrong reason is exactly the kind of gap this practice is meant to catch.",
         },
         {
           kind: "practice",
@@ -744,12 +764,42 @@ Repeat steps 1-2. Assignments stop changing -> converged.`,
             "(1) Supervised — you have historical data on who actually cancelled, so you can train on labeled outcomes (cancelled / not cancelled) and predict for current users. (2) Unsupervised — there's no predefined 'correct' segment for any user, so this is a discovery task; k-means (or a similar clustering method) is a reasonable fit as long as the features used to describe each user are numeric and reasonably scaled. (3) Also unsupervised and also a clustering-shaped problem, though ticket text usually needs to be converted into numeric features first (a step this course doesn't cover in depth) before something like k-means can be applied to it directly.",
         },
         {
+          kind: "practice",
+          heading: "Diagnose the opposite problem",
+          prompt:
+            "A different team's churn model scores 61% accuracy on training data and 59% on test data. They assume this small gap means the model is fine and ready to ship, since 'overfitting is when training and test scores are far apart, and ours are close.' Are they right? If not, what's actually wrong, and what's the fix — and specifically, why won't more training data fix it?",
+          hint: "A small train/test gap only rules out one of the two failure modes covered in this course. Check what both scores are actually doing, not just the size of the gap between them.",
+          solution:
+            "They're not right. A small gap does rule out overfitting, but 61% and 59% are both mediocre — the signature of underfitting, not a healthy model. The model isn't even performing well on the data it directly studied from, which means it never captured the real relationship in the first place. More training data specifically won't fix this: underfitting means the model itself is too simple (or missing the right features) to represent the pattern, and feeding a too-simple model more examples of a pattern it structurally can't represent just gives it more data to be equally mediocre on. The actual fixes are a more expressive model, additional or better-engineered features, or training for longer with less aggressive simplification — the same 'increase capacity' direction, not 'add more rows.'",
+        },
+        {
+          kind: "practice",
+          heading: "Diagnose a model that looks great and is quietly wrong",
+          prompt:
+            "A 'good hire' prediction model is trained on the label 'was this employee promoted within 2 years of hire.' It performs well on both training and test data — no overfitting, no underfitting, strong precision and recall. The hiring team wants to deploy it to help screen candidates. What's the actual problem here, and why don't strong train/test metrics catch it?",
+          hint: "This isn't a train/test-gap problem at all — revisit what this course said about trusting a label before trusting a model's evaluation metrics.",
+          solution:
+            "The problem is the label itself, not the model's fit to it. 'Promoted within 2 years' is a proxy for 'good hire,' and it bakes in whatever biases already shaped past promotion decisions — the model is faithfully learning to predict who got promoted historically, which is not the same question as who would actually perform well. Train/test metrics can't catch this because both the training and test sets share the exact same flawed label; the model can score well on 'predicting the proxy' while being confidently wrong about the actual question the hiring team cares about. The fix isn't a modeling technique at all — it's going back to how the label was generated and asking whether it actually measures what the stated business question needs, before trusting any accuracy, precision, or recall number built on top of it. Concretely, before this ships: ask who got promoted historically and why, check whether that pattern is something you'd actually want a hiring model to reproduce going forward, and consider whether a genuinely better label exists — a later performance review score, for instance — even if it's harder to get and means retraining from a smaller, costlier dataset.",
+        },
+        {
+          kind: "practice",
+          heading: "Diagnose a metric that's technically true and practically useless",
+          prompt:
+            "A fraud-detection model is reported as \"99.4% accurate\" in a project update. Digging into the data: 0.5% of all transactions are actually fraudulent, and the model predicts \"not fraud\" for every single transaction it's ever given. Is 99.4% accuracy meaningful here? What should the team report instead, and why?",
+          hint: "Compare the model's accuracy number to what a model that does literally nothing — always predicting the majority class — would score on this same data.",
+          solution:
+            "It's not meaningful — it's actively misleading. A model that always predicts \"not fraud\" on data where 99.5% of transactions genuinely aren't fraud would score 99.5% accuracy by doing zero real work, so a reported 99.4% is barely distinguishable from a model that caught nothing at all. Accuracy on a heavily imbalanced problem rewards the model for agreeing with the majority class, which tells you almost nothing about the thing that actually matters here: whether real fraud gets caught. The team should report precision and recall (and likely a confusion matrix alongside them) instead — recall specifically answers \"of all the actual fraud, how much did we catch,\" which is the number a stakeholder deciding whether this model is worth deploying actually needs to see, not a headline accuracy figure that a do-nothing baseline could nearly match.",
+        },
+        {
           kind: "summary",
           heading: "What this practice demonstrates",
           bullets: [
             "Spotting overfitting from a train/test gap, and knowing regularization and cross-validation are the levers to pull.",
+            "Recognizing underfitting from two mediocre scores rather than a wide gap, and knowing that more data alone doesn't fix it.",
             "Calculating precision and recall from a confusion matrix, and picking the one that matches real-world cost.",
             "Correctly sorting a business question into supervised, unsupervised, or clustering-shaped before ever picking an algorithm.",
+            "Recognizing that a flawed proxy label can produce a model with excellent train/test metrics that is still answering the wrong question.",
+            "Catching a headline accuracy number that's actually no better than a do-nothing baseline on an imbalanced problem.",
           ],
         },
       ],

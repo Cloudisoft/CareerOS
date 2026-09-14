@@ -614,12 +614,55 @@ const [profile, orders, recs] = results.map((r) =>
           body: "A one-off script that blocks or crashes only affects itself. A server process handling many concurrent requests is shared — a bug in handling one request (an unguarded rejection, an accidental synchronous block) can degrade or take down every other request currently in flight. Async correctness in Node is a reliability concern for the whole process, not just a style preference for the one function you're writing.",
         },
         {
+          kind: "example",
+          heading: "Timing out a call that might just hang forever",
+          body: "A downstream call that never resolves — not even with an error — is a distinct problem from one that rejects quickly: nothing in a plain await protects a request from waiting on it indefinitely. Promise.race against a timer forces a resolution either way.",
+          code: `function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(\`Timed out after \${ms}ms\`)), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
+app.get("/profile/:id", async (req, res) => {
+  try {
+    const enrichment = await withTimeout(fetchFromFlakyPartnerApi(user.email), 2000);
+    res.json({ ...user, enrichment });
+  } catch (err) {
+    // Fires whether the partner API rejected OR just never responded —
+    // a plain await + try/catch alone only handles the first case.
+    res.json({ ...user, enrichment: null });
+  }
+});`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A timeout doesn't cancel the original work — it just stops waiting on it",
+          body: "Promise.race resolves as soon as either promise settles, but the loser keeps running in the background regardless — a timed-out database query doesn't actually stop executing on the database just because your code moved on. For a real cancellation, not just a timeout, the underlying client needs to support one directly (many database drivers and fetch itself accept an AbortSignal for exactly this) — otherwise \"timed out\" only means \"stopped waiting,\" and the abandoned work can still complete and consume resources later, unseen. That distinction matters most under sustained load: a service that only times out, without ever actually cancelling the abandoned work, can quietly pile up more and more orphaned in-flight requests against a struggling downstream dependency — timing out gives your own server relief, but does nothing to relieve the pressure on the thing that was already struggling, and can occasionally make an already-overloaded downstream service worse by leaving it doing work nobody is still waiting on.",
+        },
+        {
+          kind: "example",
+          heading: "AbortController: cancellation as a first-class citizen",
+          body: "fetch() and many modern database clients accept an AbortSignal directly — pairing it with a timer is a cleaner, more complete version of the Promise.race pattern above, because it actually tells the other side to stop, not just tells your own code to stop waiting.",
+          code: `async function fetchWithRealTimeout(url, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer); // don't leave a dangling timer if the fetch resolved first
+  }
+}`,
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
             "async/await is the standard modern style — same underlying promises, more readable control flow.",
             "Every await that can fail needs real error handling in a server context — an unhandled failure can affect every other in-flight request.",
             "Use Promise.all for independent async operations so they run concurrently instead of needlessly one after another.",
+            "A call that might hang rather than fail needs an explicit timeout (Promise.race against a timer) — and a true cancellation, not just a timeout, needs the underlying client to support one directly.",
           ],
         },
       ],
@@ -777,7 +820,7 @@ process.on("SIGTERM", () => {
           kind: "title",
           heading: "Practice: Diagnosing Blocking and Concurrency Bugs",
           subheading:
-            "Three snippets, each with a real bug rooted in how Node's event loop and async model actually work. Diagnose before you fix.",
+            "Four snippets, each with a real bug rooted in how Node's event loop and async model actually work. Diagnose before you fix.",
         },
         {
           kind: "callout",
@@ -803,7 +846,26 @@ process.on("SIGTERM", () => {
           hint:
             "What happens, by default, to a rejected promise inside an async function when nothing catches it? In a server handling many requests concurrently, whose problem does an unhandled rejection actually become?",
           solution:
-            "The await on `fetchFromFlakyPartnerApi` has no try/catch, so when that call rejects, the rejection propagates out of the route handler unhandled — depending on the framework and Node version, this can crash the entire process, not just fail this one request. Every other request already in flight goes down with it. Fix: wrap the failure-prone call in try/catch and respond with an error for just that request.\n\n```js\napp.get(\"/profile/:id\", async (req, res) => {\n  const user = await db.user.findUnique({ where: { id: req.params.id } });\n  try {\n    const enrichment = await fetchFromFlakyPartnerApi(user.email);\n    res.json({ ...user, enrichment });\n  } catch (err) {\n    console.error(\"Partner API failed, returning profile without enrichment\", err);\n    res.json({ ...user, enrichment: null });\n  }\n});\n```\nKey decision: the fix contains the failure to the one request that hit it — a flaky partner API degrades that one profile response (missing enrichment data) instead of taking the entire server offline for everyone.",
+            "The await on `fetchFromFlakyPartnerApi` has no try/catch, so when that call rejects, the rejection propagates out of the route handler unhandled — depending on the framework and Node version, this can crash the entire process, not just fail this one request. Every other request already in flight goes down with it. Fix: wrap the failure-prone call in try/catch and respond with an error for just that request.\n\n```js\napp.get(\"/profile/:id\", async (req, res) => {\n  const user = await db.user.findUnique({ where: { id: req.params.id } });\n  try {\n    const enrichment = await fetchFromFlakyPartnerApi(user.email);\n    res.json({ ...user, enrichment });\n  } catch (err) {\n    console.error(\"Partner API failed, returning profile without enrichment\", err);\n    res.json({ ...user, enrichment: null });\n  }\n});\n```\nKey decision: the fix contains the failure to the one request that hit it — a flaky partner API degrades that one profile response (missing enrichment data) instead of taking the entire server offline for everyone. Worth noting too: this fix handles a call that *rejects*. If the partner API instead hung indefinitely without ever resolving or rejecting, the try/catch alone wouldn't save this request — that needs an explicit timeout, covered in the previous lesson.",
+        },
+        {
+          kind: "practice",
+          heading: "3. A dashboard that fails completely over one flaky piece",
+          prompt:
+            "This endpoint aggregates three independent pieces of data for a dashboard. The recommendations service is known to be flaky. When it fails, the entire endpoint returns a 500 — even though the profile and orders data both loaded successfully. Diagnose why, and fix it so a flaky recommendations service degrades gracefully instead of taking down the whole response.\n\n```js\napp.get(\"/dashboard/:id\", async (req, res) => {\n  const [profile, orders, recs] = await Promise.all([\n    getProfile(req.params.id),\n    getOrders(req.params.id),\n    getRecommendations(req.params.id),\n  ]);\n  res.json({ profile, orders, recommendations: recs });\n});\n```",
+          hint:
+            "Promise.all has a specific, documented behavior the moment any one of its promises rejects — what happens to the results of the other two, even the ones that already succeeded?",
+          solution:
+            "Promise.all rejects as a whole the instant any single promise it's tracking rejects, discarding the results of everything else still in flight or already settled — so when `getRecommendations` fails, the successful `profile` and `orders` results are thrown away too, and the whole request fails even though two-thirds of the data was fine. Fix: use Promise.allSettled instead, which always resolves with every result, success or failure, so one flaky piece doesn't sink the other two.\n\n```js\napp.get(\"/dashboard/:id\", async (req, res) => {\n  const results = await Promise.allSettled([\n    getProfile(req.params.id),\n    getOrders(req.params.id),\n    getRecommendations(req.params.id),\n  ]);\n  const [profile, orders, recs] = results.map((r) =>\n    r.status === \"fulfilled\" ? r.value : null\n  );\n  res.json({ profile, orders, recommendations: recs });\n});\n```\nKey decision: Promise.all is still the right tool when every piece is genuinely required for the response to make sense at all — the bug here isn't using Promise.all in general, it's using it for three pieces where two are essential and one is optional. Recognizing which category a given piece of data falls into is what actually decides which of the two to reach for.",
+        },
+        {
+          kind: "practice",
+          heading: "4. A scheduled job that fires ten seconds late, then thirty",
+          prompt:
+            "A background job uses `setTimeout(runCleanup, 60_000)` to run a cleanup task every minute, and re-schedules itself with the same call at the end of `runCleanup`. Under normal load it fires almost exactly on time. Under heavy request traffic, it starts firing 10, then 20, then 30+ seconds late — the delay keeps growing the busier the server gets. Explain why, using what this course covered about how timers actually work in Node, and say whether this is a bug to fix or expected behavior to plan around.",
+          hint: "Revisit what this course said a timer's delay actually guarantees — and what the main thread is doing during that growing gap on a busy server.",
+          solution:
+            "This is expected behavior, not a bug in the traditional sense — a direct consequence of the single-threaded model. `setTimeout(fn, 60_000)` schedules fn to run no sooner than 60 seconds from now, not exactly at 60 seconds; if the main thread is busy handling other work (a growing volume of requests) when that time arrives, the callback waits until the thread is actually free, and a busier server means a longer wait. This isn't something to 'fix' in the sense of finding a bug in the cleanup code — it's an inherent property of relying on a single thread for both request handling and scheduled work. If the cleanup job genuinely needs to run close to on schedule regardless of request load, the real fix is architectural: run it in a separate process (a dedicated worker, a cron-triggered Lambda, a queue consumer) that isn't competing with the request-handling thread for the same event loop, rather than trying to make setTimeout more precise on an already-busy thread.",
         },
         {
           kind: "summary",
@@ -812,6 +874,8 @@ process.on("SIGTERM", () => {
             "Recognizing the difference between I/O-bound waiting (which non-blocking I/O handles well) and CPU-bound computation (which still blocks the single main thread completely).",
             "Knowing that offloading real work requires an actual separate thread or process (worker_threads), not just wrapping synchronous work in a Promise.",
             "Treating every await that can fail as something that needs its own error handling, because an unhandled rejection in a server context can take down every other in-flight request, not just the one that failed.",
+            "Choosing Promise.allSettled over Promise.all when only some of several concurrent results are actually essential to a valid response.",
+            "Understanding a timer's delay as a floor, not a guarantee — and recognizing when a scheduling problem needs an architectural fix rather than a code tweak.",
           ],
         },
       ],
