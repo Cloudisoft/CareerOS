@@ -83,6 +83,10 @@ export default function JobGptPage() {
   }
 
   async function removeConversation(id: string) {
+    // Deleting the conversation a reply is currently being generated for
+    // would orphan that reply mid-write on the server — block it here
+    // rather than letting the request race the delete.
+    if (sending && activeId === id) return;
     await fetch(`/api/job-gpt/conversations/${id}`, { method: "DELETE" });
     if (activeId === id) {
       setActiveId(null);
@@ -151,9 +155,14 @@ export default function JobGptPage() {
                   {c.title || "New chat"}
                 </button>
                 <button
-                  className="opacity-0 group-hover:opacity-100"
+                  className={cn(
+                    "opacity-0 group-hover:opacity-100",
+                    sending && activeId === c.id && "cursor-not-allowed opacity-30 group-hover:opacity-30"
+                  )}
                   onClick={() => removeConversation(c.id)}
+                  disabled={sending && activeId === c.id}
                   aria-label="Delete conversation"
+                  title={sending && activeId === c.id ? "Wait for the current reply to finish" : "Delete conversation"}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

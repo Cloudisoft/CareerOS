@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateChat, type ChatMessage } from "@/lib/ai/gateway";
 import { buildCareerContext } from "@/lib/ai/job-gpt/context";
@@ -91,19 +92,31 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     maxTokens: 1024,
   });
 
-  const assistantMessage = await prisma.aiMessage.create({
-    data: { conversationId, role: "ASSISTANT", content: replyText },
-  });
+  // The AI call above can take a while (slower models, provider fallback
+  // retries), and in that window the user may delete this conversation
+  // from the sidebar. Without this guard, saving the reply then fails an
+  // unhandled foreign-key error and surfaces as a generic 500 — this turns
+  // that into a clear, expected "it was deleted" outcome instead.
+  try {
+    const assistantMessage = await prisma.aiMessage.create({
+      data: { conversationId, role: "ASSISTANT", content: replyText },
+    });
 
-  await prisma.aiConversation.update({
-    where: { id: conversationId },
-    data: {
-      updatedAt: new Date(),
-      ...(conversation.title ? {} : { title: text.slice(0, 60) }),
-    },
-  });
+    await prisma.aiConversation.update({
+      where: { id: conversationId },
+      data: {
+        updatedAt: new Date(),
+        ...(conversation.title ? {} : { title: text.slice(0, 60) }),
+      },
+    });
 
-  await prisma.aiUsage.create({ data: { userId, feature: "job_gpt", provider } });
+    await prisma.aiUsage.create({ data: { userId, feature: "job_gpt", provider } });
 
-  return assistantMessage;
+    return assistantMessage;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2003" || error.code === "P2025")) {
+      throw new JobGptError("This conversation was deleted before the reply could be saved.", "NOT_FOUND");
+    }
+    throw error;
+  }
 }

@@ -271,6 +271,12 @@ let cachedProviders: AiProvider[] | undefined;
  * bad day — rate limits, a transient 5xx, a model-specific quirk — no
  * longer fails the whole request; withFallback walks the rest of this list
  * before giving up.
+ *
+ * OpenAI is tried before OpenRouter/AgentRouter by default: in this
+ * deployment those two are consistently failing on account-level problems
+ * (billing, credentials) that a retry can't fix, so trying them first only
+ * adds latency and log noise to every single AI request. OpenAI is kept
+ * out of first place only when AI_PROVIDER pins a specific provider.
  */
 function getAvailableProviders(): AiProvider[] {
   if (cachedProviders !== undefined) return cachedProviders;
@@ -278,7 +284,7 @@ function getAvailableProviders(): AiProvider[] {
   const requested = process.env.AI_PROVIDER as AiProviderName | undefined;
   const resolutionOrder: AiProviderName[] = requested
     ? [requested]
-    : ["anthropic", "openrouter", "agentrouter", "openai"];
+    : ["anthropic", "openai", "openrouter", "agentrouter"];
 
   cachedProviders = resolutionOrder.map(buildProvider).filter((p): p is AiProvider => p !== null);
   return cachedProviders;

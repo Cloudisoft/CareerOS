@@ -21,7 +21,10 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // microphone=(self) allows this same origin to request mic access (Interview
+  // AI and Job GPT voice input rely on it) — camera and geolocation stay fully
+  // disabled since nothing in the product uses either.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
   { key: "Content-Security-Policy", value: CSP },
 ];
 
