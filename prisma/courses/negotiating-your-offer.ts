@@ -36,6 +36,20 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "The psychology behind not asking, briefly",
+          body: [
+            "Discomfort with negotiating isn't random — it's shaped by things like early messaging about what's polite to ask for, a natural aversion to a conversation that feels like it could go badly, and a tendency to imagine the worst-case reaction (a cold, disappointed recruiter) far more vividly than the much more likely outcome (a brief, professional back-and-forth that ends in either a yes or a polite no).",
+            "Research on negotiation consistently finds that people who ask, even awkwardly, come out ahead of people who don't ask at all — the skill of the ask matters less than the simple fact of asking. That's genuinely reassuring: this isn't a game you need to be naturally good at to benefit from playing.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "The asymmetry is real, not just comforting advice",
+          body: "A reasonable counter that gets a flat no costs you almost nothing — you're in roughly the same position you'd have been in without asking. A reasonable counter that gets even a partial yes is pure upside. The math favors asking in nearly every realistic scenario, which is worth remembering the moment the conversation starts to feel uncomfortable.",
+        },
+        {
           kind: "bullets",
           heading: "What actually changes an outcome",
           bullets: [
@@ -85,6 +99,17 @@ export const course: CourseSeed = {
             "Recruiters at other companies you're in process with — a competing real range is some of the most credible information you can have.",
             "Your own network in similar roles, especially at similar-sized companies — direct conversations are often more accurate than aggregated site data.",
             "Published pay bands, where companies disclose them (increasingly common, especially in jurisdictions with pay transparency laws).",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Reading comp-site data critically, not just collecting it",
+          intro: "Aggregated sites are a genuinely useful starting point, but the numbers carry real limitations worth knowing before you anchor to them.",
+          bullets: [
+            "Self-reported data skews toward people motivated to report — often those with an unusually high or unusually low number, or those checking a figure before a negotiation. Treat a single data point as one input, not a verdict.",
+            "Job titles vary wildly in scope between companies. A \"Senior\" at one company can be a \"Staff\" title's worth of responsibility at another, so a title-matched figure without checking actual scope can mislead in either direction.",
+            "Postings and reported ranges can be stale — a role posted eight months ago, or a salary reported two years back, may not reflect a market that's shifted meaningfully since, especially after a fast period of hiring or layoffs in a given industry.",
+            "Sample size matters more than it feels like it should — three data points from a niche role at a small company is real signal, but weaker signal than the same three points would be for a common, high-volume role.",
           ],
         },
         {

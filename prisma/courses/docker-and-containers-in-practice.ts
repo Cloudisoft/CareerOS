@@ -115,6 +115,22 @@ docker ps`,
           body: "docker stop doesn't delete anything — the container's filesystem, its logs, and its exit status all stick around until you explicitly docker rm it (or run it with docker run --rm, which removes it automatically the moment it exits). docker ps only shows running containers by default; docker ps -a shows every container regardless of state, which is usually the first command worth running when \"my container is gone\" turns out to actually mean \"it's stopped, not deleted.\"",
         },
         {
+          kind: "bullets",
+          heading: "A few more inspection commands worth knowing",
+          bullets: [
+            "docker diff myapp-1 lists every file added, changed, or deleted in a container's writable layer compared to the image it started from — useful for seeing exactly what a running process has actually touched on disk, without guessing.",
+            "docker top myapp-1 lists the processes running inside a container, the same shape as the host's own `ps`, without needing to exec into a shell just to check whether something is stuck.",
+            "docker stats shows live CPU, memory, network, and disk I/O for every running container at once — the fastest way to spot which of several containers is actually the one consuming a host's resources.",
+            "docker cp myapp-1:/app/logs/error.log ./error.log copies a file out of a running container's filesystem without needing a shared volume set up in advance — handy for grabbing one file after the fact, though not a substitute for a real logging setup.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "docker commit exists, but resist reaching for it",
+          body: "docker commit myapp-1 myapp:patched turns a running container's current filesystem state into a brand-new image — tempting when you've manually fixed something inside a live container and want to keep it. The problem: that image now has no Dockerfile behind it, no record of what was actually changed, and nobody else can rebuild it or know what's different about it. Treat a container as a debugging environment, make the fix in the Dockerfile itself, and rebuild — commit is for genuine one-off archival, not for shipping a fix.",
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "A useful mental shortcut",
@@ -390,6 +406,12 @@ CMD ["node", "dist/server.js"]`,
         {
           kind: "callout",
           tone: "tip",
+          heading: "Distroless images push the same idea one step further",
+          body: "A slim final stage like node:20-slim still carries a shell, a package manager, and a handful of Debian utilities that a running Node process never actually uses — each one is also a tool an attacker could use if they ever get a foothold inside the container. Google's distroless images (gcr.io/distroless/nodejs20) strip all of that out, leaving just the language runtime and its dependencies with no shell at all — smaller, and meaningfully harder to poke around in after a compromise, at the cost of docker exec -it ... sh no longer working for live debugging. A middle ground — distroless images still based on Debian rather than a truly empty scratch — trade away only the shell and package manager, keeping libc and other shared libraries a native dependency might still need, which is usually enough without going all the way to a FROM scratch final stage.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
           heading: "docker build --progress=plain when the default output hides what you need",
           body: "BuildKit's default output collapses each step's full command output, which is convenient most of the time and frustrating the one time a RUN step is failing for a reason you actually need to read. --progress=plain prints every step's complete, uncollapsed output as it happens — the flag worth reaching for the moment a multi-stage build starts failing somewhere you can't immediately diagnose from the summarized view.",
         },
@@ -484,6 +506,24 @@ docker run -d --name web \\
           heading: "tmpfs mounts: for data that shouldn't touch disk at all",
           body: [
             "A named volume and a bind mount both eventually write to a real disk. `docker run --tmpfs /app/secrets myapp:1.0` mounts an in-memory filesystem instead — anything written there disappears the instant the container stops, and it's never persisted to the host's disk in the first place. This is the right tool for a short-lived decrypted secret or session data you specifically don't want recoverable from a forgotten disk image or a filesystem backup later.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Anonymous volumes: the third, often-accidental kind",
+          body: [
+            "A Dockerfile can declare VOLUME /var/lib/postgresql/data directly — and if a container is run without explicitly mounting anything at that path, Docker silently creates an anonymous volume for it anyway, since the image says that path needs to persist. This is easy to miss: the data does survive a docker rm, but the volume has an auto-generated hash for a name instead of something memorable like pgdata, and nobody looking at docker ps would ever guess it exists.",
+            "The practical risk: docker volume prune deletes every volume not currently referenced by a container, anonymous ones included — a perfectly reasonable-looking cleanup command that can quietly delete data nobody meant to be disposable, precisely because nothing about an anonymous volume's name signals that it matters. Naming volumes explicitly, every time, is what keeps docker volume prune a safe command to run rather than a loaded one.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Managing volumes directly: the commands beyond docker run",
+          bullets: [
+            "docker volume ls lists every volume Docker knows about on the host, named and anonymous alike — often the first surprise for a team that assumed they had far fewer volumes than actually exist.",
+            "docker volume prune removes every volume not currently referenced by any container — genuinely useful for cleanup, and genuinely dangerous run without checking docker volume ls first, for exactly the anonymous-volume reason above.",
+            "docker volume rm pgdata deletes one named volume specifically, and fails loudly if a container still references it — Docker won't let you delete storage a running container currently depends on.",
+            "A volume can be shared across multiple containers simultaneously by mounting the same named volume into each — two containers both writing to it without any coordination is a real risk for most data formats, but it's a legitimate pattern for something like a shared cache one process writes and several others only read.",
           ],
         },
         {
@@ -759,6 +799,16 @@ services:
           ],
         },
         {
+          kind: "bullets",
+          heading: "Profiles: running only part of the stack on demand",
+          intro: "A stack that's grown to include optional pieces — a debugging tool, a seed-data job, a secondary service only some developers need — doesn't have to start all of them every time:",
+          bullets: [
+            "profiles: [\"debug\"] on a service means it's skipped by a plain docker compose up, and only starts when explicitly requested with docker compose --profile debug up — the base stack stays fast to start for everyone who doesn't need that extra piece.",
+            "A service can belong to multiple profiles, or none — services with no profiles: key at all are considered part of every run by default, which is why only the genuinely optional pieces need the key added.",
+            "This solves a real, common problem cleanly: rather than maintaining two nearly-duplicate compose files (one lean, one with everything), profiles let one file describe every possible service and let each developer or CI job opt into exactly the subset they need for that run.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Multiple compose files for multiple environments",
@@ -881,6 +931,16 @@ CMD ["node", "server.js"]`,
             { text: "3f8a1c9e2b7d   Exited (137) 2 seconds ago   leaky", output: true },
             { text: "docker inspect leaky --format='{{.State.OOMKilled}}'" },
             { text: "true", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A couple more hardening flags worth knowing",
+          bullets: [
+            "--security-opt=no-new-privileges prevents a process inside the container from gaining more privileges than it started with, even via a setuid binary — closes off a specific, real privilege-escalation path that capability drops alone don't cover.",
+            "--pids-limit=100 caps how many processes a container can fork — a fork bomb (accidental or malicious) inside one container can otherwise exhaust the host's total process table and take down every other container sharing it, the same class of problem --memory solves for RAM.",
+            "docker scan (or a standalone tool like Trivy) run against an image before it ships catches known CVEs in the base image and in application dependencies baked into it — the earlier this runs in CI, the cheaper a finding is to fix, since a vulnerability caught in CI is a code review comment and a vulnerability caught in production is an incident.",
+            "--ulimit nofile=1024:2048 sets the maximum number of open file descriptors a container's process can hold — a subtler version of the same resource-exhaustion protection as --pids-limit, worth setting explicitly for any process that opens many concurrent connections or files, rather than trusting the runtime's own default ceiling.",
           ],
         },
         {

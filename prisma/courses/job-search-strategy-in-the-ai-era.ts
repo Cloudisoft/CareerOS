@@ -133,6 +133,17 @@ Status: Watching career page; no live posting fits yet`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Sourcing names for the list beyond a blank brainstorm",
+          intro: "A list built purely from companies you can already name off the top of your head tends to be shorter and more generic than one built with a bit of active sourcing.",
+          bullets: [
+            "Alumni networks — your school's alumni directory filtered by industry or role surfaces companies you'd never have thought to search for directly, plus a warm reason to reach out once they're on the list.",
+            "A VC or accelerator's portfolio page, if you're targeting startups in a specific stage or space — most funds publish a public list, and it's a fast way to find twenty relevant names in a sitting.",
+            "\"People also viewed\" and \"similar companies\" sections on a company page you already admire — a genuinely useful discovery path that a keyword search on a job board won't surface.",
+            "Industry newsletters and \"who's hiring\" threads specific to your field — these tend to surface companies that are actively growing in your space right now, not just companies that happen to have a career page.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "An all-reach or all-safe list defeats the purpose",

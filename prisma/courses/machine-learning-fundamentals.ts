@@ -83,6 +83,18 @@ ML filter, year 3: retrained monthly on fresh labeled data;
   without anyone hand-editing a growing rule list`,
         },
         {
+          kind: "bullets",
+          heading: "Where the \"learning\" actually happens: features and parameters",
+          intro:
+            "Two words come up constantly once you start actually building a model — worth pinning down precisely rather than leaving fuzzy.",
+          bullets: [
+            "A feature is one measurable input the model is given — for the spam example, \"contains the word free,\" \"sender is unknown,\" and \"number of exclamation points\" are each separate features, chosen (or engineered) by a person before training even starts.",
+            "A parameter (like the 0.6, 0.3, and 0.9 weights in the spam-score formula) is a number the training process sets automatically — nobody hand-picks these; the algorithm searches for the values that best fit the labeled examples it was shown.",
+            "This split matters practically: choosing good features is still very much a human judgment call — it's the part of \"machine learning\" that isn't actually done by the machine — while finding the right weights for those features is what the algorithm does on its own.",
+            "A model with poorly chosen features can't be fixed by more clever training — no amount of weight-tuning recovers a signal that was never captured as a feature in the first place, which is why real ML work spends so much time on what data to feed the model, not just which algorithm to use.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "The shift in one line",
           bullets: [
@@ -172,6 +184,37 @@ A model built for one doesn't transfer to the other without
 changing its output layer and its evaluation metric — deciding
 which type of label you actually have comes before choosing
 an algorithm.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Semi-supervised learning: a practical middle ground",
+          intro:
+            "Real datasets are rarely purely one or the other — a common, genuinely useful situation is a little bit of labeled data and a lot more unlabeled data sitting right next to it.",
+          bullets: [
+            "Labeling is often the expensive, slow part of a project — a person has to review each example and assign the right answer — while collecting more raw, unlabeled data is comparatively cheap.",
+            "Semi-supervised learning trains initially on the small labeled set, then uses that partial model to make educated guesses on the unlabeled data, folding the most confident of those guesses back into training as if they were real labels.",
+            "This shows up constantly in practice: a support team might hand-label 500 tickets by category, while 50,000 unlabeled tickets sit in the system — semi-supervised techniques can extract real value from that larger pool instead of requiring all 50,000 to be labeled by hand before training can even start.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "The same 5,000-ticket dataset, three ways",
+          body: "The amount of labeling effort required is the real cost that decides which approach is realistic for a given project.",
+          code: `Fully supervised:
+  All 5,000 tickets hand-labeled by category before training.
+  Most accurate starting point, but the most labeling effort.
+
+Fully unsupervised:
+  No tickets labeled at all — clustering proposes groups,
+  but nobody has confirmed what each group actually means.
+  Fastest to start, but the "categories" need human review
+  before they're trustworthy.
+
+Semi-supervised:
+  200 tickets hand-labeled (a day's work, not a month's),
+  the other 4,800 left unlabeled. The model bootstraps from
+  the 200 and extends its guesses to the rest, then only the
+  most confident guesses get folded back into training.`,
         },
         {
           kind: "summary",
@@ -275,6 +318,32 @@ X_train, X_test, y_train, y_test = train_test_split(
 # without it, a small or unlucky split could land a test set
 # with almost no fraud examples, making the test score
 # meaningless for the case that actually matters.`,
+        },
+        {
+          kind: "bullets",
+          heading: "K-fold cross-validation, concretely",
+          intro:
+            "Cross-validation was named as a refinement above — worth actually walking through what \"average results across multiple splits\" means in practice.",
+          bullets: [
+            "In 5-fold cross-validation, the data is divided into 5 equal chunks (\"folds\"). The model trains on 4 of them and tests on the 1 held out, five separate times, using a different fold as the test set each time.",
+            "The final reported score is the average across all 5 runs — a much more stable estimate than any single split, since every row gets to be in the test set exactly once, and the result isn't at the mercy of one particular lucky or unlucky split.",
+            "The tradeoff is cost: 5-fold cross-validation means training the model 5 separate times instead of once, which matters for a model that's expensive or slow to train — a single train/test split is still the reasonable default when training time is a real constraint.",
+            "The standard deviation across the 5 fold scores is itself informative — five folds that all score within a point of each other suggest a stable, trustworthy estimate; five folds that swing wildly suggest the model's performance depends heavily on exactly which data it happens to see, which is worth investigating before trusting the average at all.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Five folds, one averaged score",
+          body: "Each fold gets its own turn as the test set — the spread across folds, not just the average, is worth reading too.",
+          code: `Fold 1 test accuracy: 84.1%
+Fold 2 test accuracy: 86.3%
+Fold 3 test accuracy: 83.7%
+Fold 4 test accuracy: 85.0%
+Fold 5 test accuracy: 84.9%
+
+Average: 84.8%   (a single 80/20 split might have landed
+anywhere from 83.7% to 86.3% just by chance — the average
+across all 5 folds is a far more trustworthy number to report.)`,
         },
         {
           kind: "summary",
@@ -619,6 +688,36 @@ entirely on what a missed fraud case costs versus what an
 unnecessary manual review costs.`,
         },
         {
+          kind: "bullets",
+          heading: "For regression problems: the metrics that replace precision and recall",
+          intro:
+            "Precision, recall, and F1 are classification metrics — a model predicting a number (a price, a demand forecast) needs a different toolkit entirely.",
+          bullets: [
+            "Mean Absolute Error (MAE) — the average size of the prediction error, in the same units as what's being predicted; an MAE of $12,000 on house price predictions means predictions are off by $12,000 on average, in either direction.",
+            "Root Mean Squared Error (RMSE) — similar to MAE, but squares errors before averaging (then takes the square root), which penalizes large individual misses more heavily than MAE does — a model with a few wildly wrong predictions will show a much worse RMSE than MAE relative to a model with consistently middling errors.",
+            "R² (introduced in the linear regression lesson) — the fraction of the real variation in the outcome that the model's predictions actually explain, useful as a single overall summary rather than an error size in real units.",
+            "Which to lead with depends on the cost structure: RMSE is the right choice when a few very large errors are disproportionately costly (a shipping-demand forecast that's wildly wrong once causes a stockout), while MAE is more honest when every unit of error matters roughly equally regardless of size.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "MAE and RMSE disagreeing about which model is better",
+          body: "Same two models, same 4 test houses — which one \"wins\" depends on which metric you're reading.",
+          code: `Actual prices:     $200k   $250k   $300k   $900k
+Model A predicts:  $210k   $240k   $310k   $700k
+Model B predicts:  $195k   $260k   $290k   $890k
+
+Model A errors: 10k, 10k, 10k, 200k
+Model B errors: 5k,  10k,  10k,  10k
+
+MAE — Model A: (10+10+10+200)/4 = 57.5k
+MAE — Model B: (5+10+10+10)/4   = 8.75k
+
+Model B has far lower MAE and RMSE here — it's simply more
+accurate across the board, including on the one expensive
+outlier house that Model A badly mispriced.`,
+        },
+        {
           kind: "summary",
           heading: "Closing the loop on the fundamentals",
           bullets: [
@@ -702,6 +801,34 @@ Repeat steps 1-2. Assignments stop changing -> converged.`,
           tone: "warning",
           heading: "A real-world consequence of the round-cluster assumption",
           body: "A retailer ran k-means on customer purchase data expecting to find a small \"high-value, low-frequency\" segment — big spenders who buy rarely. Because that group formed a thin, elongated shape in the data (spend and frequency trading off against each other) rather than a round blob, k-means split it apart and merged pieces of it into two larger, more typically-shaped clusters instead. The segment was real; k-means' shape assumption just couldn't see it. Switching to DBSCAN on the same data recovered it as a distinct, if smaller, group.",
+        },
+        {
+          kind: "bullets",
+          heading: "Measuring cluster quality without any labels to check against",
+          intro:
+            "Since there's no right answer to grade against, evaluating whether k-means found genuinely good clusters needs its own specific tools.",
+          bullets: [
+            "Inertia (the sum of squared distances from each point to its own centroid) is what k-means directly minimizes during training — lower is tighter, but inertia always decreases as k increases, down to zero when k equals the number of points, so it can't be used alone to pick k.",
+            "The silhouette score measures, for each point, how much closer it is to its own cluster than to the next-nearest one, averaged across all points — it ranges from -1 to 1, and unlike inertia, it naturally penalizes picking too many clusters, since points in an unnecessarily split cluster end up nearly as close to the neighboring cluster as their own.",
+            "A silhouette score near 0 for a specific point means it sits right on the boundary between two clusters — genuinely ambiguous, not a sign the algorithm made a mistake — while a negative score suggests that point was probably assigned to the wrong cluster entirely.",
+            "In practice, the elbow method (on inertia) and the silhouette score are often used together — the elbow narrows down a reasonable range of k values, and silhouette score picks the best one within that range.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Elbow method and silhouette score, side by side",
+          body: "Inertia keeps dropping as k grows — silhouette score is what actually signals when adding another cluster stopped helping.",
+          code: `k=2:  inertia=8,400   silhouette=0.61
+k=3:  inertia=5,100   silhouette=0.58
+k=4:  inertia=3,900   silhouette=0.44   <- silhouette drops
+k=5:  inertia=3,200   silhouette=0.31   <- keeps dropping
+k=6:  inertia=2,700   silhouette=0.26
+
+Inertia alone would tempt you toward a larger k (it never
+stops improving). Silhouette score peaks at k=2, meaning the
+tightest, most cleanly-separated clustering is actually the
+simplest one — k=4, 5, and 6 are technically lower inertia
+but describe increasingly overlapping, less meaningful groups.`,
         },
         {
           kind: "callout",

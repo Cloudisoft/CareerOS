@@ -461,6 +461,23 @@ for (const [key, value] of cache) {
           ],
         },
         {
+          kind: "bullets",
+          heading: "Object literal shortcuts worth using by default",
+          intro: "Three small syntax features remove a lot of repetition from everyday object literals — you'll see all three constantly in real code.",
+          bullets: [
+            "Shorthand properties: when a local variable's name already matches the property name you want, { name, age } is equivalent to { name: name, age: age } — this is the default modern style, not a shortcut for lazy typing.",
+            "Computed keys: wrapping an expression in [ ] inside a literal lets the property name itself come from a variable — { [fieldName]: value } builds a key dynamically, something no amount of dot notation can express.",
+            "Method shorthand: { increment() { ... } } inside an object literal means the same thing as { increment: function () { ... } } — shorter, and the version you'll see in nearly every real codebase written in the last several years.",
+            "Object.assign(target, ...sources) predates spread and does the same shallow merge — spread's { ...a, ...b } reads more cleanly today, but you'll still meet Object.assign in older code, and it's still the right call when you specifically need to mutate an existing target object rather than create a new one.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Array holes are a real, if rare, gotcha",
+          body: "new Array(3) creates an array with a length of 3 but no actual elements inside it — a \"sparse\" array. map, forEach, and filter all silently skip holes entirely instead of treating them as undefined, which surprises people the first time [ , , ].map(x => x * 2) hands back another array of holes rather than NaNs. Array.from({ length: 3 }) sidesteps the problem — it produces genuine undefined elements that map and its relatives will actually visit and transform. In everyday code, a sparse array mostly shows up by accident, from something like arr[10] = \"x\" on a shorter array, rather than something anyone reaches for on purpose — worth recognizing on sight rather than deliberately using.",
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Optional chaining and nullish coalescing keep nested access safe",
@@ -1077,6 +1094,17 @@ counterModule.count;       // undefined — never exposed`,
             "Hoisting — function declarations and var are moved to the top of their scope before code runs, but let/const are not initialized until their line executes. Referencing a let before its declaration throws, rather than silently giving undefined.",
             "NaN is never equal to itself — NaN === NaN is false. To check for it, use Number.isNaN(value), never ===.",
             "Comparing objects and arrays with === checks identity, not contents — [1,2] === [1,2] is false because they're two different arrays in memory, even though they look the same.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Variable shadowing: reusing a name in a nested scope",
+          intro: "Shadowing isn't a bug by itself, but it's a common source of confusion when skimming code quickly, and it's easy to mistake for reassignment.",
+          bullets: [
+            "let value = 1; deeper in the same function, an inner block can declare its own let value = 2; — inside that block, value refers to the inner one; outside it, the outer value was never touched.",
+            "This differs from reassignment: reassigning changes a variable that already exists in that scope, while shadowing creates a brand-new variable in a nested scope that happens to share a name with an outer one — two separate bindings, not one value being changed twice.",
+            "Shadowing a function's own parameter with a var or let declared somewhere inside its body is a subtler version of the same trap, and it's exactly what a linter's no-shadow rule exists to flag before it becomes a real bug someone has to debug at runtime.",
+            "The safest habit is simply not reusing a name across nested scopes on purpose — if two values are genuinely related but different, give them names that say so (user versus rawUser), rather than relying on scope boundaries to keep same-named variables apart in your own head.",
           ],
         },
         {

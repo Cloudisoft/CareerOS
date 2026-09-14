@@ -440,6 +440,20 @@ grep "ERROR" <<< "$LOG_LINE"        # here-string: feed a variable's value in di
           ],
         },
         {
+          kind: "text",
+          heading: "Three numbered streams, not just \"output\"",
+          body: [
+            "Every process starts with three open file descriptors already connected: 0 is standard input (stdin), 1 is standard output (stdout), and 2 is standard error (stderr) — the numbers behind the > and 2> syntax used throughout this lesson aren't arbitrary, they're literally which stream you're redirecting. Plain > is shorthand for 1>, which is why redirecting errors specifically always needs the explicit 2.",
+            "Splitting output into two separate streams instead of one is deliberate: it lets a script's real output go one place (a file, the next command in a pipe) while its diagnostic messages go somewhere else entirely, and it's why command | grep \"foo\" doesn't see anything the command printed as an error — grep only receives stdout by default, not stderr, unless you explicitly merge them first with 2>&1.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Command substitution feeds one command's output directly into another as text",
+          body: "$(command) runs command and substitutes its output right into the surrounding line, as if you'd typed the result yourself — echo \"Today is $(date)\" or files=$(find . -name \"*.log\") both lean on this. It's a different mechanism from a pipe: a pipe streams one command's output into another command's input live, while command substitution captures the output first, as a single block of text, then splices it into a different command's arguments. Backticks (`command`) do the same thing and predate $(...), but $(...) nests more cleanly and is the version worth defaulting to.",
+        },
+        {
           kind: "summary",
           heading: "Piping and redirection, briefly",
           bullets: [
@@ -552,6 +566,20 @@ nohup long-running-task.sh &
             "kill -l lists every signal name kill can send, not just SIGTERM and SIGKILL — SIGHUP and SIGSTOP are two others you'll occasionally see referenced in service configuration or documentation.",
             "A process's parent PID (PPID) matters too: killing a parent process can also terminate or orphan its children, which is often the actual cause of a service that mysteriously stops when an unrelated-looking process is killed.",
           ],
+        },
+        {
+          kind: "text",
+          heading: "Why a well-behaved service listens for SIGTERM specifically",
+          body: [
+            "A plain kill sends SIGTERM by default, and a well-written server or background worker installs a handler for it that does real cleanup before exiting — finishing an in-flight request instead of dropping it, closing a database connection cleanly, flushing a buffer to disk. This is what \"graceful shutdown\" means in practice, and it's the entire reason kill defaults to SIGTERM rather than the unconditional SIGKILL: it gives well-behaved code a chance to leave things in a consistent state.",
+            "This matters beyond the terminal, too — deployment tools and container orchestrators (Docker, Kubernetes) send SIGTERM to a process when they want it to stop, wait a configured grace period, and only escalate to SIGKILL if the process hasn't exited by then. A service that ignores SIGTERM entirely, or takes far longer than that grace period to actually clean up and exit, ends up getting SIGKILLed on every single deploy — which is a very common, very avoidable cause of dropped in-flight requests during otherwise routine deployments.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "disown and setsid go a step further than nohup",
+          body: "nohup keeps a background process alive after the terminal closes by making it ignore SIGHUP, but the shell can still track it as a job. disown %1 removes an already-running background job from the shell's own job table entirely, so closing the terminal genuinely can't affect it through the shell at all. setsid command detaches a process into its own session from the moment it starts, rather than merely surviving a hangup after the fact — the standard choice for a long-running daemon that should have no relationship whatsoever to the terminal that launched it.",
         },
         {
           kind: "summary",

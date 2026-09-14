@@ -68,6 +68,18 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "Signals you're operating at the wrong layer",
+          intro:
+            "The cost of a layer mismatch rarely shows up as one bad decision — it shows up as a recurring pattern over weeks, once you know what to look for:",
+          bullets: [
+            "Constant OS-level firefighting — patch Tuesdays, a kernel CVE, a disk filling up at 2am — on a team with no actual need for kernel-level control is a sign IaaS is costing more in operational attention than the control it buys is worth. Moving that workload to PaaS removes the whole category of toil, not just one incident.",
+            "Fighting a PaaS platform's constraints is the mirror image: a background job that needs to run longer than the platform's request timeout allows, or a system dependency the supported runtime simply doesn't include. That friction is a sign you've outgrown the layer, not a bug to work around indefinitely.",
+            "A serverless bill climbing in a straight line with steady traffic, rather than the spiky, bursty shape serverless pricing is actually built for, is worth revisiting against a reserved-instance cost the moment volume looks continuous rather than occasional.",
+            "None of these are permanent verdicts. A team's right layer shifts as the product and its traffic shape change — a service that started as an occasional internal script and grew into an always-on production dependency has usually outgrown FaaS along the way, even though nobody made one deliberate decision to move it.",
+          ],
+        },
+        {
           kind: "diagram",
           heading: "Increasing abstraction, decreasing control",
           description:
@@ -181,6 +193,17 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "Secrets management and observability: the mapping continues",
+          intro: "Two more service categories worth knowing cold, since almost every real application touches both:",
+          bullets: [
+            "Secrets management: AWS Secrets Manager (with automatic credential rotation for RDS and a few other integrations), Azure Key Vault, GCP Secret Manager — all solve the same problem: an application fetches a credential at runtime instead of it being hardcoded or committed to a repo.",
+            "Centralized logging and monitoring: CloudWatch (AWS), Azure Monitor, Cloud Monitoring/Cloud Logging (GCP) — collect metrics and logs from every other service without an application having to ship its own monitoring stack, and each integrates natively with that provider's alerting.",
+            "Distributed tracing: AWS X-Ray, Azure Application Insights, Cloud Trace (GCP) — the managed-service version of following one request across several services, without standing up your own tracing infrastructure.",
+            "The pattern holds here too: the concept (secrets stored outside application code, logs and metrics centralized, a request traceable across services) is what actually transfers between providers — the product name is the part worth looking up when you need it, not memorizing in advance.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why the mapping matters more than any single provider",
@@ -271,6 +294,24 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "Savings Plans: committing to spend, not to an instance type",
+          body: [
+            "A Reserved Instance locks in a specific instance family and region for its discount — a t3.large reservation doesn't help once the team migrates to c6g.large instances six months later, and the discount goes unused for the rest of the term. AWS Savings Plans (Azure Reservations and GCP Committed Use Discounts follow the same idea) commit to a dollar amount of compute per hour instead of a specific instance type, and that commitment applies automatically across instance families and sizes — a Compute Savings Plan even applies across EC2, Fargate, and Lambda simultaneously.",
+            "For most teams past the earliest experimentation phase, a Savings Plan is the safer default over an instance-specific Reserved Instance: you get most of the same 1-year or 3-year discount without betting that today's instance type is still the right one when the commitment renews.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few more cost traps worth watching for",
+          intro: "Beyond orphaned resources and over-provisioning, these show up often enough to be worth a standing check:",
+          bullets: [
+            "Idle load balancers — an ALB or NLB left running with zero registered healthy targets still bills its hourly rate and per-GB processed charge, and it's easy to lose track of after a service is decommissioned but its load balancer isn't.",
+            "Unattached Elastic IPs — AWS charges for an Elastic IP that isn't attached to a running instance, specifically to discourage hoarding a scarce public IPv4 address; a handful of these left over from decommissioned instances is a small but genuinely avoidable monthly charge.",
+            "Forgotten snapshots — an EBS snapshot or RDS manual snapshot taken before a risky change and never cleaned up afterward keeps billing indefinitely, and snapshots accumulate quietly because taking one feels like a safety action, not a cost decision.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Practical habits",
           bullets: [
@@ -353,6 +394,17 @@ export const course: CourseSeed = {
           tone: "warning",
           heading: "All four flags false means the bucket can be made public",
           body: "That output doesn't mean the bucket is public right now — it means nothing is stopping a bucket policy or object ACL change from making it public. The fix for buckets that should never be public is to turn all four block-public-access settings on at the account level as a default, not to check each bucket individually after the fact.",
+        },
+        {
+          kind: "bullets",
+          heading: "Network security: security groups and NACLs, not the same layer",
+          intro: "\"Network configuration\" from the responsibility list above breaks down into two distinct controls that are easy to conflate:",
+          bullets: [
+            "Security groups are stateful and attached to a resource (an EC2 instance, an RDS instance) — allow a rule in, and the matching response traffic is automatically allowed back out, without a separate outbound rule for it.",
+            "Network ACLs (NACLs) are stateless and attached to a subnet, evaluated for every resource inside it — an allowed inbound rule needs a matching outbound rule too, since nothing is remembered between the two directions.",
+            "Most teams lean almost entirely on security groups for day-to-day access control and leave NACLs at their permissive default — NACLs are the blunter, subnet-wide tool, worth reaching for when you need a rule that applies to everything in a subnet regardless of what any specific resource's security group says.",
+            "The default mistake: a security group rule allowing SSH (port 22) or RDP (port 3389) from 0.0.0.0/0 \"just for now\" during setup, which then never gets narrowed to a specific IP range or removed once a bastion host or VPN is actually in place.",
+          ],
         },
         {
           kind: "bullets",
@@ -454,6 +506,17 @@ export const course: CourseSeed = {
           tone: "warning",
           heading: "Single points of failure hide in ordinary-looking setups",
           body: "A single EC2 instance with no load balancer in front of it, a NAT gateway with no standby, a database in one AZ with backups but no live standby — none of these look wrong day to day. They only reveal themselves the moment that one AZ has a bad day, which is exactly why they get built by accident rather than on purpose.",
+        },
+        {
+          kind: "bullets",
+          heading: "An HA architecture nobody has tested is a theory, not a guarantee",
+          intro: "Multi-AZ replication and an Auto Scaling Group only prove they work the moment they're actually exercised — which, left untested, is usually during a real outage:",
+          bullets: [
+            "A \"game day\" — deliberately terminating an instance, failing over a Multi-AZ database, or blocking traffic to one AZ in a non-production environment — turns \"we believe this fails over correctly\" into \"we watched it fail over correctly, and it took four minutes, not the fifteen we assumed.\"",
+            "The most common thing a game day actually catches isn't the infrastructure failing over — it's an application assumption that breaks during failover: a cached database connection that doesn't retry, a health check that takes too long to notice the primary is gone, a DNS TTL cached longer than the failover itself takes.",
+            "Chaos engineering tools (AWS Fault Injection Simulator, or open-source options like Chaos Mesh on Kubernetes) automate this kind of controlled failure injection on a schedule, rather than relying on someone remembering to run a manual game day before it matters.",
+            "The RTO number from a disaster recovery plan is a claim until it's been measured against an actual failure — treating it as settled the day it's written down, rather than revisited the next time the architecture changes, is how a 15-minute RTO on paper quietly becomes a 45-minute RTO in practice.",
+          ],
         },
         {
           kind: "summary",

@@ -85,6 +85,12 @@ Storage, if each action writes a ~1KB record:
           ],
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "Naming the trade-off formally: the CAP theorem",
+          body: "The consistency-vs-availability tension mentioned above has a name: the CAP theorem states that during a network partition (some servers can't communicate with others — an unavoidable reality at scale), a distributed system can guarantee either consistency (every read sees the latest write) or availability (every request gets a response), but not both at the same time. In practice most systems don't sit at a hard extreme — they lean toward one side (CP or AP) for a given operation, and different operations within the same product can lean different ways (a checkout's inventory count might favor consistency; a social feed's like count might favor availability). Naming it by name in a design conversation is a strong, concrete signal — it shows the trade-off isn't just a vague gut feeling, but a well-understood, unavoidable property of distributed systems.",
+        },
+        {
           kind: "diagram",
           heading: "The full shape of a design conversation, start to finish",
           description: "This is the loop the rest of the course's techniques get plugged into — worth having as a mental checklist going in.",
@@ -195,6 +201,12 @@ scale_in:
             "Most real systems do both: vertically size each machine reasonably, and horizontally scale the number of them. The stateless application tier is usually the easy part to scale horizontally; the database is usually the hard part, which is why database scaling gets its own lesson later in this course.",
           ],
         },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Vertical scaling isn't obsolete just because horizontal scaling exists",
+          body: "It's tempting to treat horizontal scaling as the modern answer and vertical scaling as outdated, but the two aren't a strict progression — a database's single primary, for instance, is often scaled vertically well past what a typical app server would be, precisely because splitting write traffic across multiple primaries (sharding) is expensive enough that a bigger single machine is the simpler fix while it still fits. Reaching for the cheapest technique that solves the actual problem, not the most modern-sounding one, is the more senior instinct.",
+        },
       ],
     },
     {
@@ -295,6 +307,23 @@ Depends on more than just the ID? Include it:
           ],
         },
         {
+          kind: "bullets",
+          heading: "Caching happens at more than one layer",
+          intro: "\"The cache\" in this lesson has meant an app-level store like Redis, but caching shows up at several layers of a real system, each solving a slightly different problem:",
+          bullets: [
+            "Browser/client cache — HTTP caching headers (Cache-Control, ETag) let a client skip the network entirely for a resource it already has, the cheapest possible cache hit since it never leaves the device.",
+            "CDN / edge cache — a geographically distributed cache sitting in front of the origin server, ideal for content that's the same for every user (static assets, a public API response) and lets a response never reach the origin's own servers or database at all.",
+            "Application-level cache (Redis, Memcached) — this lesson's main focus: shared across app servers, holds computed or fetched data specific to the application's own logic.",
+            "Database query cache / buffer pool — the database's own internal caching of recently accessed pages in memory, mostly invisible to the application but part of why a hot row can be fast even on a cache miss one layer up.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Refresh-ahead: proactively beating expiry instead of reacting to it",
+          body: "Cache-aside only refetches after a miss, which means whoever's unlucky enough to arrive right after expiry pays the full database latency. A refresh-ahead strategy proactively refetches a popular key shortly before its TTL expires — often triggered when a read finds the entry is, say, within 10% of its remaining TTL — so under steady traffic, users essentially never observe the slow path at all. It's a meaningful latency win for hot keys specifically, at the cost of some wasted work refreshing keys that might not be read again before their next natural expiry.",
+        },
+        {
           kind: "terminal",
           heading: "Setting a TTL and watching it expire, in Redis",
           description: "The everyday commands behind everything this lesson describes conceptually.",
@@ -389,6 +418,12 @@ Depends on more than just the ID? Include it:
           heading: "TLS termination is usually the load balancer's job too",
           body: "Decrypting HTTPS traffic is CPU work, and doing it once at the load balancer — then forwarding plain HTTP to app servers over the private network — means every app server doesn't have to repeat that cost, and certificates only need managing in one place instead of on every instance. This is called TLS termination, and it's one of the load balancer's jobs that's easy to forget when first sketching a design, but worth naming since \"where does HTTPS actually get decrypted\" is a real, concrete question in any web-facing system.",
         },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "DNS-based load balancing: a simpler, coarser alternative",
+          body: "Before a request ever reaches a dedicated load balancer, DNS itself can distribute traffic — a single hostname resolving to multiple IP addresses (round-robin DNS), or a geo-DNS service routing a user to the nearest regional data center. It's coarser than a dedicated load balancer (no health-aware failover on its own, and DNS caching by clients and resolvers means a failed server can keep receiving traffic until a cached record expires), but it's often the first layer in a multi-region system, working alongside — not instead of — the per-region load balancers covered above.",
+        },
       ],
     },
     {
@@ -468,6 +503,18 @@ Depends on more than just the ID? Include it:
           body: [
             "Replication first — it's simpler, and it directly addresses a read-heavy load, which describes most systems. Reach for sharding only once write volume or raw data size has genuinely outgrown a single primary, since it adds real complexity to nearly every query that touches more than one shard.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Multi-leader and leaderless replication, briefly",
+          body: "Everything above assumes single-leader replication — one primary, several followers — which is the common default and the easiest to reason about. Some systems instead allow writes to more than one node (multi-leader, useful across geographically distant data centers to avoid every write crossing an ocean) or have no distinguished leader at all (leaderless, as in Cassandra or DynamoDB, where a write is considered successful once a quorum of replicas acknowledge it). Both trade the simplicity of a single source of truth for better write availability and latency, at the cost of needing an explicit strategy for resolving conflicting writes to the same record — a problem single-leader replication sidesteps entirely by only ever allowing one node to accept writes in the first place.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Read-your-own-writes: a common, narrower consistency guarantee",
+          body: "Full strong consistency is expensive; full eventual consistency can feel broken to a user who updates their own profile and then doesn't see the change on refresh. A common middle ground is read-your-own-writes: a client is guaranteed to see its own recent writes (often by routing that client's reads to the primary for a short window after they write, or by reading from whichever replica it wrote to), while other users may still see a brief lag. It's a narrower, cheaper guarantee than global strong consistency, but it covers the specific case that actually confuses users most.",
         },
       ],
     },
@@ -566,6 +613,22 @@ Read path (redirect):
           body: "100 million links, each maybe 500 bytes once you include the long URL, the short code, metadata, and index overhead, comes to about 50GB total — small enough to fit comfortably on a single modern database instance, replication aside. That's a useful, explicit reason sharding is deferred to \"only if\" rather than designed in from the start: the write-volume trigger this course keeps coming back to (50,000 writes/second, from the practice exercise coming up next) is a real concern here, but raw data size on its own isn't. Saying that out loud, with the actual number, is stronger than just asserting \"sharding isn't needed yet.\"",
         },
         {
+          kind: "bullets",
+          heading: "Extending the design: what changes if custom aliases come back in scope",
+          intro: "Custom aliases were explicitly scoped out in step 1 — worth briefly tracing what re-adding them would actually change, since it's a common interviewer follow-up:",
+          bullets: [
+            "The auto-increment-then-encode approach for code generation (chosen above specifically because it needs no uniqueness check) no longer applies — a custom alias is chosen by the user, so it does need an explicit uniqueness check against the database before being accepted, reintroducing exactly the write-path cost that approach was chosen to avoid.",
+            "That uniqueness check has to be atomic (a database unique constraint on the alias column, not a check-then-insert done as two separate steps) or two users requesting the same alias in a tight race could both succeed.",
+            "This is a good illustration of why deciding something as \"out of scope\" isn't free forever — it's worth being able to say, on request, exactly what a specific descoped feature would cost to add back in, rather than treating scope as a one-time decision made and forgotten.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "What you'd actually monitor once this is live",
+          body: "A complete design answer sometimes gets one more question: how would you know if this broke? For this system, the metrics that matter most are cache hit ratio (a sudden drop signals either a cache outage or a shift in traffic pattern worth investigating), replica lag (growing lag means reads risk going stale), and p99 redirect latency specifically, not just the average — since a slow tail on a billion-times-a-day operation affects a lot of real users even if the average looks fine. Naming which metrics matter, and why each one specifically maps back to a piece of the design, is a stronger closing than a generic \"we'd add monitoring.\"",
+        },
+        {
           kind: "summary",
           heading: "What this example demonstrates",
           bullets: [
@@ -639,6 +702,18 @@ X-RateLimit-Reset: 1719432600
           tone: "insight",
           heading: "Backpressure: rate limiting's quieter cousin",
           body: "Rate limiting rejects excess requests from a client outright. Backpressure is the related idea of a system signaling upstream that it's overloaded — a queue that stops accepting new items once it's full, or a service that starts returning errors deliberately, faster and cheaper than trying to process everything and collapsing under the load. A queue worker falling behind message production is a classic case: without backpressure, the queue simply grows unbounded until memory runs out, rather than failing predictably and visibly earlier.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Leaky bucket: token bucket's cousin, for smoothing rather than allowing bursts",
+          body: "Token bucket allows bursts up to the bucket's capacity. Leaky bucket takes the opposite emphasis: requests queue up and are processed (or forwarded) at a strictly constant rate, regardless of how bursty their arrival was — like water leaking out of a bucket at a fixed rate no matter how unevenly it's poured in. It's the right choice when a downstream system genuinely can't handle bursts at all and needs smoothed, steady-rate traffic (a legacy system with a hard per-second ceiling), whereas token bucket is the right choice when bursts are fine as long as the average holds — most public APIs want the latter, which is why token bucket is the more common default.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "429 vs. exponential backoff: what a well-behaved client should actually do",
+          body: "A rate-limited client that retries immediately, in a tight loop, just re-triggers the same rejection and adds load to a system already asking for relief. A well-behaved client instead retries after a delay that grows with each consecutive failure (exponential backoff), often with some random jitter mixed in so many clients rejected at once don't all retry in the same synchronized burst. This is the client-side half of the rate-limiting contract — the server names how long to wait via Retry-After, and a well-behaved client actually honors it rather than treating it as a suggestion.",
         },
         {
           kind: "callout",

@@ -473,6 +473,21 @@ resource "aws_instance" "app_server" {
         },
         {
           kind: "callout",
+          tone: "insight",
+          heading: "A single giant state file eventually becomes its own problem",
+          body: "A state file tracking a few hundred resources plans in seconds; one tracking several thousand can take minutes just to refresh, since Terraform checks most tracked resources against the real provider on every plan by default. Splitting one enormous configuration into several smaller ones — network, data layer, application layer, each with its own state — keeps any single plan fast and limits the blast radius of a mistake to the one state file actually being changed, at the cost of needing terraform_remote_state or a similar mechanism to pass values between them.",
+        },
+        {
+          kind: "bullets",
+          heading: "Reading and writing state programmatically",
+          bullets: [
+            "terraform state pull prints the current remote state as raw JSON to stdout — the building block behind custom tooling that needs to inspect state without going through terraform state show one resource at a time.",
+            "terraform state push writes a local state file back to the configured remote backend — a genuinely rare, deliberate operation, mostly reserved for disaster recovery after a backend migration goes wrong, not something reached for casually.",
+            "-json output on plan, apply, and state commands turns Terraform's output into machine-readable data a CI pipeline can parse programmatically, instead of scraping human-formatted terminal text — the standard way to build automation (a Slack notification summarizing a plan's changes, say) around Terraform's own commands.",
+          ],
+        },
+        {
+          kind: "callout",
           tone: "warning",
           heading: "Never edit terraform.tfstate by hand in a text editor",
           body: "The state file is JSON, technically editable with any text editor, but doing so directly is one of the fastest ways to corrupt it beyond what Terraform's own commands can safely fix — a single misplaced field, and the next plan can misbehave in ways that are genuinely hard to diagnose. terraform state mv, terraform state rm, and the moved block above cover the vast majority of legitimate reasons to change what's recorded in state; reach for one of those, or terraform state pull piped through a script for something genuinely unusual, rather than opening the file directly.",
@@ -721,6 +736,15 @@ resource "aws_s3_bucket" "reports" {
 resource "aws_instance" "web" {
   subnet_id = data.terraform_remote_state.network.outputs.subnet_id
 }`,
+        },
+        {
+          kind: "bullets",
+          heading: "A couple of less common but genuinely useful data source patterns",
+          bullets: [
+            "A data block accepts for_each and count just like a resource block — data \"aws_ami\" \"app\" { for_each = toset(var.regions) ... } looks up the latest matching AMI once per region, useful when the same configuration deploys across several regions and each needs its own region-specific image ID.",
+            "The external data source can shell out to any script and use its JSON stdout as data inside Terraform — a genuine escape hatch for a value only computable outside Terraform's own expression language, though it's worth treating as a last resort, since it also means the plan now depends on some external script actually being present and working wherever Terraform runs.",
+            "data \"aws_caller_identity\" \"current\" needs no filter arguments at all — it simply returns the AWS account ID, user ARN, and user ID of whichever credentials Terraform is currently running with, a common building block for constructing an ARN string that includes the current account ID without hardcoding it.",
+          ],
         },
         {
           kind: "callout",

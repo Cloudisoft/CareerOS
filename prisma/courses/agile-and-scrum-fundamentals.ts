@@ -142,6 +142,16 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "A fifth, informal ceremony worth knowing: backlog refinement",
+          intro: "Not one of Scrum's four official events, but close to universal in practice — a recurring session, often weekly, distinct from sprint planning itself.",
+          bullets: [
+            "Purpose: clarify, size, and reorder upcoming backlog items before they're needed in a sprint, so planning itself doesn't turn into a slow discovery process for stories nobody has looked at yet.",
+            "Typically shorter than the four core ceremonies and doesn't need the whole team every time — a subset with enough context to size and clarify upcoming work is usually enough.",
+            "Skipping it is exactly how a backlog quietly turns into the unordered task dump described later in this course — refinement is the maintenance that keeps sprint planning fast and low-friction.",
+          ],
+        },
+        {
           kind: "diagram",
           heading: "The sprint cycle",
           description: "The daily standup repeats throughout the sprint; review and retro close it out before the next sprint's planning begins.",
@@ -219,6 +229,12 @@ export const course: CourseSeed = {
             "A common dysfunction: a stakeholder goes around the Product Owner directly to an engineer with a request mid-sprint. Handling this well means routing it back through the Product Owner, not quietly absorbing scope the team never agreed to and never sized.",
             "The Scrum Master's job of \"protecting the team from disruptive interruptions\" mentioned above is largely about exactly this — shielding the sprint's agreed scope from well-intentioned stakeholder requests arriving outside the normal backlog process.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Product Owner and Product Manager aren't always the same job",
+          body: "Scrum defines \"Product Owner\" as a specific role on a specific team, focused on the backlog for that team's sprint. \"Product Manager\" is a broader, more common job title in most companies, often covering strategy, cross-team roadmap, and stakeholder management well beyond one team's backlog. In practice many companies have one person do both, and many use the titles loosely enough that the exact boundary varies company to company — but it's worth asking directly in an interview or onboarding what the actual scope is, rather than assuming Scrum's textbook definition matches the job as it's really practiced at a given company.",
         },
         {
           kind: "callout",
@@ -471,6 +487,12 @@ Acceptance criteria:
         {
           kind: "callout",
           tone: "tip",
+          heading: "\"Servant leadership\" is the concept underneath the Scrum Master role",
+          body: "It's a common phrase in Agile writing, and it's a useful shorthand: the Scrum Master's authority comes from removing obstacles and enabling the team, not from directing it. A Scrum Master who measures their own effectiveness by how much friction disappeared for the team, rather than by how much control they hold over the team's day-to-day, is applying the idea correctly.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
           heading: "A simple test for any Agile team",
           body: "Ask: if we stripped away the ceremony names entirely, would this team still be checking in frequently, still adapting based on real feedback, and still shipping working software incrementally? If yes, the substance is there regardless of exactly which framework's rituals it's wearing. If no, adding more process rigor to the existing ceremonies usually isn't the fix.",
         },
@@ -567,6 +589,16 @@ Sprint planning for the next sprint:
             "T-shirt sizing (XS/S/M/L/XL) is a coarser alternative some teams use, especially earlier in a project or for rougher epic-level estimates — faster to agree on, at the cost of less precision than a numeric scale for sprint-level planning.",
             "A small but vocal #NoEstimates movement argues teams should skip formal estimation entirely and instead keep stories consistently small and let throughput (stories completed per sprint, not points) do the forecasting — worth knowing it exists, though story points remain the dominant practice most teams encounter.",
             "Whichever scale a team uses, consistency over time matters more than which scale — switching systems frequently makes historical velocity data meaningless for forecasting.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Spikes: when a story genuinely can't be estimated yet",
+          intro: "Occasionally a story has too much real unknown to size honestly at all — forcing a number onto it doesn't fix that, it just hides it.",
+          bullets: [
+            "A spike is a short, timeboxed research task (\"investigate whether this third-party API supports the rate limits we need, by end of day Wednesday\") whose output is knowledge, not a shipped feature — its point value estimates the research effort itself, not the eventual work.",
+            "The story that follows a spike gets estimated normally, now with real information instead of a guess — a spike's whole purpose is turning an unknown into something the team can actually size.",
+            "Overusing spikes is its own anti-pattern — if a team spikes routinely instead of occasionally, it may be a sign stories are arriving in planning too vague to estimate in the first place.",
           ],
         },
         {

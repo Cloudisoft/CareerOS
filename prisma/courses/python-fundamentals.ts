@@ -129,6 +129,23 @@ flag2 = bool("False")    # True — any non-empty string is truthy, even the wor
           heading: "Every value is an object, even the \"primitive\" ones",
           body: "There's no separate category of primitive types the way some languages draw one — an int, a str, even a function, is an object with its own methods. That's why (5).bit_length() and \"hello\".upper() both work: they're regular method calls on regular objects, not special syntax. It's a small mental shift from languages that treat numbers and strings as bare values, but it's why so much of Python feels consistent once it clicks — one calling convention, everywhere.",
         },
+        {
+          kind: "bullets",
+          heading: "Numbers beyond int and float: two types worth knowing exist",
+          intro: "Most everyday code only ever needs int and float, but two more numeric types solve real problems those two can't.",
+          bullets: [
+            "complex handles complex numbers directly in the language — 3 + 4j is a valid literal, with .real and .imag attributes — genuinely rare outside scientific and signal-processing code, but worth recognizing on sight rather than assuming it's a typo.",
+            "The decimal module's Decimal type stores numbers as exact decimal digits instead of binary floating point, which is why Decimal(\"0.1\") + Decimal(\"0.2\") gives exactly Decimal(\"0.3\") where the equivalent floats don't — the standard choice for money and anything else where exact decimal arithmetic actually matters.",
+            "The fractions module's Fraction type goes a step further and keeps a value as an exact numerator and denominator — Fraction(1, 3) stays exactly one third indefinitely, through as much arithmetic as you throw at it, instead of ever collapsing to a rounded decimal approximation.",
+            "None of these three replace int and float as the everyday default — they're specialized tools for the specific cases (money, exact fractions, scientific work) where float's approximation genuinely isn't good enough.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Variables are names bound to objects, not boxes that hold values",
+          body: "It helps to picture a Python variable less like a labeled box holding a value, and more like a sticky note pointing at an object living somewhere in memory. x = [1, 2, 3] doesn't put a list \"inside\" x — it points the name x at a list object. y = x points a second sticky note at that exact same object, not a copy of it, which is exactly why mutating the list through y is visible through x too. Reassigning a name (x = 5) just moves that one sticky note to point somewhere else entirely; it never affects what any other name still points at.",
+        },
       ],
     },
     {
@@ -285,6 +302,31 @@ print(by_id[2]["customer"])  # "Sam"`,
           body: "Reach for a list when you have an ordered collection you'll add to or change. Reach for a dict when you're looking things up by name. Reach for a tuple when you have a small, fixed group of values that belong together and shouldn't change — like a function returning both a result and a status.",
         },
         {
+          kind: "bullets",
+          heading: "Nested data: nearly every real dataset is one of these inside another",
+          intro: "Real-world data is rarely flat — a dict of lists, a list of dicts of lists, is closer to the norm than the exception once you're working with anything from a real API or file.",
+          bullets: [
+            "user[\"orders\"][0][\"total\"] reads left to right the same way you'd describe it out loud — \"this user's orders, the first one, its total\" — each bracket pulls one level deeper into the structure.",
+            "A list of dicts (orders, above) is the shape almost every JSON API returns and almost every CSV, once parsed, becomes — comfort navigating it is the single most transferable skill from this lesson.",
+            "A dict of lists is the natural shape for \"group by\" data — {\"Ada\": [42.50, 91.25], \"Sam\": [18.00]} groups order totals by customer, built the same way the by_id lookup above was, just accumulating into a list instead of overwriting a single value.",
+            "Deeply nested access can fail loudly on a missing key or a wrong-length list — user.get(\"orders\", []) at each level, rather than direct bracket access, keeps a lookup on optional or inconsistent data from crashing the whole program over one missing field.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Copying a list correctly, all three ways",
+          body: "The three idiomatic ways to get an actual independent copy of a list all do the same job — which one reads best depends mostly on the surrounding code and personal preference, not on any real difference in behavior.",
+          language: "python",
+          code: `original = [1, 2, 3]
+
+copy_a = original.copy()   # the method, most explicit about intent
+copy_b = list(original)    # the constructor, works on any iterable
+copy_c = original[:]       # the slice, terse and idiomatic in older code
+
+copy_a.append(4)
+print(original)  # [1, 2, 3] — untouched by any of the three copies`,
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
@@ -429,6 +471,17 @@ labels = ["pass" if s >= 60 else "fail" for s in scores]
           heading: "any() and all() replace a surprising number of manual loops",
           body: "any(condition for item in items) is True the moment one item satisfies the condition; all(...) requires every item to. Both short-circuit — any() stops checking as soon as it finds a match, all() stops as soon as it finds a failure — so they're both correct and efficient over a large or even infinite iterable, where a hand-written loop with a found = True flag is more code for the identical result. any(score < 60 for score in scores) reads as \"is there a failing score\" far more directly than the loop-and-flag version does, and both accept a generator expression directly, with no square brackets needed.",
         },
+        {
+          kind: "bullets",
+          heading: "match/case: pattern matching, not just a switch replacement",
+          intro: "Python 3.10's match/case looks like a switch statement at first glance, but it can match on structure, not just an exact value — that's what actually makes it worth reaching for.",
+          bullets: [
+            "The simple case reads close to a switch: match status: case \"pending\": ... case \"active\": ... case _: ... — with _ as the catch-all default, matched last.",
+            "It can destructure while it matches: case (x, y): binds x and y directly from a matched tuple's contents, in the same statement that confirmed the shape matched at all.",
+            "A guard adds a condition on top of a pattern: case [x, y] if x > y: only matches a two-item list where the first element is also larger than the second — a plain switch has no equivalent to this.",
+            "It's most useful once the values being compared have real internal structure (a parsed command, a tuple, a small class) — for a flat comparison against known strings, a plain if/elif chain is still just as clear and doesn't require Python 3.10 or newer.",
+          ],
+        },
       ],
     },
     {
@@ -554,6 +607,35 @@ by_age = sorted(people, key=get_age)`,
           tone: "tip",
           heading: "Type hints and docstrings: optional, but worth the habit",
           body: "def greet(name: str, times: int = 1) -> str: adds type hints — they're not enforced at runtime (Python happily runs greet(42) without complaint), but tools like mypy, and every modern editor's autocomplete, use them to catch mistakes before the code ever runs. A docstring — a string literal as the very first line inside a function — documents what it does, and shows up automatically when someone calls help(greet) or hovers over the function in an editor. Neither is required to make code work, but both are standard practice on any function that isn't purely throwaway.",
+        },
+        {
+          kind: "example",
+          heading: "Decorators: a function that wraps another function",
+          body: "A decorator takes a function in and returns a new function that adds behavior around it — logging, timing, caching — without changing the original function's own code at all. The @ syntax is shorthand for calling the decorator on the function right after it's defined.",
+          language: "python",
+          code: `import time
+
+def timed(fn):
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = fn(*args, **kwargs)
+        print(f"{fn.__name__} took {time.time() - start:.3f}s")
+        return result
+    return wrapper
+
+@timed
+def slow_add(a, b):
+    time.sleep(0.1)
+    return a + b
+
+slow_add(2, 3)  # prints "slow_add took 0.100s", returns 5
+# equivalent, without the @ syntax: slow_add = timed(slow_add)`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Generators: a function that pauses instead of returning all at once",
+          body: "A function containing yield instead of return becomes a generator — calling it doesn't run the body at all, it returns an iterator that runs the function one step at a time, pausing at each yield and resuming right there on the next call for a value. This is what powers the generator expressions from later in this course, and it's the idiomatic way to produce a long or infinite sequence of values without holding all of them in memory at once — reading a huge file line by line, or generating an unbounded sequence of numbers, both lean on exactly this mechanism.",
         },
         {
           kind: "summary",
@@ -695,13 +777,52 @@ print(Account.is_valid_balance(-5))  # False`,
           ],
         },
         {
+          kind: "example",
+          heading: "Properties: a method that's accessed like a plain attribute",
+          body: "The @property decorator lets a method be read without parentheses, as though it were a regular attribute — useful for a computed value, or for validating an assignment on the way in. It's Python's version of the getter/setter pattern from other languages, but it stays invisible to the caller.",
+          language: "python",
+          code: `class Circle:
+    def __init__(self, radius):
+        self._radius = radius
+
+    @property
+    def area(self):
+        return 3.14159 * self._radius ** 2
+
+    @property
+    def radius(self):
+        return self._radius
+
+    @radius.setter
+    def radius(self, value):
+        if value < 0:
+            raise ValueError("radius can't be negative")
+        self._radius = value
+
+c = Circle(2)
+print(c.area)      # 12.56636 — called with no parentheses, reads like an attribute
+c.radius = 5        # runs through the setter's validation automatically
+c.radius = -1        # ValueError: radius can't be negative`,
+        },
+        {
+          kind: "bullets",
+          heading: "Dataclasses: less boilerplate for a class that's mostly data",
+          intro: "A plain class that mainly exists to hold a fixed set of fields — a point, a config, a record read from a file — usually ends up writing the same __init__ and __repr__ boilerplate every time. @dataclass generates both for you.",
+          bullets: [
+            "@dataclass above a class with only type-annotated fields (name: str, age: int = 0) generates __init__, __repr__, and __eq__ automatically — no manual self.name = name for every field.",
+            "The generated __eq__ compares field values, not identity — two dataclass instances with the same data compare equal by default, unlike a plain class, which would need __eq__ written by hand to get the same behavior.",
+            "frozen=True on the decorator makes instances immutable after construction, raising an error on any attempt to reassign a field — the dataclass equivalent of choosing a tuple over a list when the data shouldn't change.",
+            "It's still a real class underneath — you can add your own methods to a dataclass exactly as you would to any other, the decorator only changes what gets generated automatically.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
             "A class bundles data (attributes) and behavior (methods); self is the instance a method was called on, passed automatically by Python.",
             "A class attribute is shared across every instance — keep mutable state inside __init__, assigned to self, so each instance gets its own copy.",
             "classmethod builds an alternative constructor from cls; staticmethod is a plain function grouped inside the class for organization, needing neither self nor cls.",
-            "Define __eq__ if you want instances with matching data to compare equal — the default compares identity, not values.",
+            "Define __eq__ if you want instances with matching data to compare equal — the default compares identity, not values, though @dataclass generates a sensible __eq__ for you automatically.",
             "Reach for a class when data and behavior clearly belong together and you'll need more than one instance; otherwise a module of functions is often simpler.",
             "Composition — one class holding an instance of another as an attribute — is often a more flexible choice than inheritance for sharing behavior, and worth reaching for by default when the relationship isn't a clean \"is-a\" one.",
           ],
@@ -823,6 +944,36 @@ print(f"{0.4567:.1%}")       # "45.7%" — formats as a percentage directly`,
             "Lines capped around 79-99 characters depending on the project's own convention; long expressions get wrapped in parentheses rather than trailing off the screen.",
             "Two blank lines between top-level function and class definitions, one blank line between methods inside a class — small, but it's the first thing that makes unfamiliar code feel instantly readable or instantly foreign.",
             "Tools like black and ruff auto-format and lint for most of this, which is why in practice most teams stop debating the details and just let the tool decide.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Context managers beyond files: with covers more than open()",
+          body: "with isn't special-cased for files — any object implementing the context manager protocol (__enter__ and __exit__) works the same way, and the standard library ships several worth knowing. The idiomatic version always favors with over a manual acquire-then-release pair, because with guarantees the cleanup runs even if the code inside raises.",
+          language: "python",
+          code: `import threading
+
+lock = threading.Lock()
+with lock:
+    # critical section — lock is released automatically on the way out,
+    # even if an exception is raised inside this block
+    shared_counter += 1
+
+# contextlib.suppress is a small idiomatic one worth knowing:
+from contextlib import suppress
+with suppress(FileNotFoundError):
+    os.remove("maybe-doesnt-exist.tmp")
+    # equivalent to a try/except that catches and ignores just this one error`,
+        },
+        {
+          kind: "bullets",
+          heading: "A few more idioms that separate Python-shaped code from a direct translation",
+          intro: "These show up constantly in code review as the difference between code that merely works and code that reads like it was written by someone comfortable in the language.",
+          bullets: [
+            "Iterating a dict directly gives you its keys — for key in my_dict: is the idiomatic shorthand for for key in my_dict.keys():, and the explicit .keys() is rarely written in practice.",
+            "collections.Counter(items) counts occurrences of every item in one call, replacing a hand-rolled dict that increments a count per item — Counter(word.lower() for word in text.split()).most_common(5) gets you the five most frequent words in one line.",
+            "collections.defaultdict(list) removes the need to check whether a key exists before appending to it — groups[key].append(item) just works even the first time key is seen, because a missing key gets an empty list automatically instead of raising KeyError.",
+            "Chained method calls on one line, each doing one clear thing, are idiomatic where they stay readable: text.strip().lower().split() reads naturally left to right — but the same guidance as comprehensions applies: once a chain gets hard to follow, break it across multiple lines or intermediate variables instead of forcing it onto one.",
           ],
         },
         {

@@ -67,6 +67,14 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "Where the ideas actually came from",
+          body: [
+            "DevOps didn't appear from nowhere in 2009 — it borrows directly from Lean manufacturing (specifically the Toyota Production System's focus on small batches, fast feedback, and stopping the line the moment a defect is found) and from Agile software development's push toward shorter iteration cycles. The \"2009 Velocity conference\" moment often credited as DevOps's starting point was really the point where infrastructure and operations caught up to an idea software development had already been moving toward for years: smaller changes, shipped and verified faster, beat large changes shipped rarely.",
+            "That lineage matters practically: a team struggling to adopt DevOps is often really struggling with the same underlying problem Lean and Agile both target — batch size. A deploy that bundles three weeks of changes is harder to review, harder to test, and harder to roll back than one that ships a single day's work; most of what DevOps prescribes is really just consistently choosing the smaller batch.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "A concrete before/after",
@@ -185,6 +193,17 @@ export const course: CourseSeed = {
           tone: "tip",
           heading: "Split slow test suites instead of just parallelizing versions",
           body: "The same matrix mechanism splits one long test suite into several parallel shards (matrix: shard: [1, 2, 3, 4] with each job running a quarter of the tests) — a 20-minute suite becomes a 5-minute one on four runners. The catch: shards need to be balanced by actual runtime, not just file count, or one slow shard becomes the bottleneck the others wait on anyway.",
+        },
+        {
+          kind: "bullets",
+          heading: "Trunk-based development: the branching strategy CI actually assumes",
+          intro: "A CI pipeline that runs on every push is only as useful as how often changes actually reach a shared branch — this is where branching strategy and CI/CD stop being separate topics:",
+          bullets: [
+            "Trunk-based development merges small changes to main multiple times a day, often behind a feature flag if the feature isn't finished — CI runs constantly against a branch that's always close to what's actually in production, and merge conflicts stay small because nothing sits unmerged for long.",
+            "Long-lived feature branches — a branch that exists for weeks before merging — mean CI on that branch is testing an increasingly stale combination, and the merge back to main is where the real risk (and often the real bugs) actually show up, right at the moment everyone assumed the feature was done.",
+            "This is why \"deployment frequency\" and \"lead time for changes,\" the DORA metrics from the previous lesson, correlate so strongly with branching strategy in practice — a team can have a fast, well-configured pipeline and still ship slowly if changes queue up for weeks before ever reaching it.",
+            "Feature flags are what make trunk-based development survive unfinished work: merging incomplete code behind a flag that's off in production is safe in a way merging incomplete code directly into a live feature never is.",
+          ],
         },
         {
           kind: "diagram",
@@ -306,6 +325,14 @@ docker run -p 3000:3000 my-app:1.0`,
           ],
         },
         {
+          kind: "text",
+          heading: "Containers vs. virtual machines, precisely",
+          body: [
+            "A VM virtualizes an entire machine: a hypervisor sits between the VM and the physical hardware, and each VM runs its own full OS kernel, complete with its own boot process, its own device drivers, its own memory management — genuinely isolated from every other VM on the same host at the hardware-virtualization layer. That isolation is strong, but it's also why a VM takes tens of seconds to boot and reserves a fixed chunk of RAM whether or not it's using it.",
+            "A container skips virtualizing hardware entirely and instead uses OS-level isolation features already built into the Linux kernel — namespaces (so a container sees only its own processes, network interfaces, and filesystem) and cgroups (which enforce CPU and memory limits). No second kernel is booted; the container's process is just a regular process on the host, isolated by the kernel rather than by virtualized hardware. That's the entire reason containers start in milliseconds instead of tens of seconds, and why a single host can run dozens of containers in the memory footprint of a handful of VMs.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Where this connects to orchestration",
@@ -397,6 +424,18 @@ docker run -p 3000:3000 my-app:1.0`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Shadow deployments: real traffic, zero user exposure",
+          intro: "A pattern distinct from all four strategies above, and worth knowing separately:",
+          bullets: [
+            "A shadow (or \"dark launch\") deployment receives a copy of real production traffic — mirrored, not routed — processes it, and its responses are discarded or compared against the live version's, but never actually returned to the user.",
+            "This validates a new version against genuinely real traffic patterns and volume with zero blast radius, since a broken shadow deployment can error constantly without a single real user ever seeing a bad response.",
+            "The tradeoff: it doubles infrastructure cost while it's running, and it only validates read-heavy or side-effect-free behavior cleanly — mirroring a request that writes to a database means either accepting duplicate writes or building deliberate isolation (a shadow database, a dry-run flag) so the shadow path doesn't corrupt real data.",
+            "In practice this shows up most for a rewrite of a critical, high-traffic service (a pricing engine, a recommendation system) where the risk of a canary's smaller exposure still feels too high, and the team wants full-volume validation before any real user sees the new code at all.",
+            "Shadow deployments and canaries aren't mutually exclusive — some teams shadow a rewrite first to catch obvious breakage risk-free, then canary the same version once shadow testing looks clean, treating the two as sequential stages of the same rollout rather than competing choices.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Canary is about safety, A/B testing is about a decision",
@@ -473,6 +512,17 @@ docker run -p 3000:3000 my-app:1.0`,
           tone: "warning",
           heading: "High-cardinality labels can quietly blow up your metrics bill",
           body: "Adding user_id or request_id as a label on a Prometheus metric seems harmless, but each unique label value creates a new time series — millions of users means millions of time series, which can crash a metrics backend or make queries unusably slow. Keep high-cardinality identifiers in logs and traces, where they belong, and keep metric labels to bounded, low-cardinality dimensions like status_code, method, or region.",
+        },
+        {
+          kind: "bullets",
+          heading: "RED and USE: two starting templates instead of a blank dashboard",
+          intro: "\"Add some metrics\" is vague enough that teams often build dashboards nobody can quickly read during an incident — RED and USE are two well-established starting points instead of guessing:",
+          bullets: [
+            "RED (Rate, Errors, Duration) — for a request-driven service: how many requests per second, what fraction are erroring, and how long they take (usually as a percentile, like p50/p95/p99, since an average latency hides the slow tail that's actually causing complaints).",
+            "USE (Utilization, Saturation, Errors) — for a resource, like a host, a disk, or a queue: how busy it is, how much work is queued waiting for it, and whether it's throwing errors. Better suited to infrastructure-level components than to request-driven services.",
+            "A service's dashboard built around RED and its underlying infrastructure's dashboard built around USE, side by side, covers the large majority of \"where do I even start looking\" during an incident — without either framework, dashboards tend to accumulate whatever metric happened to be easy to add at the time, not what's actually useful under pressure.",
+            "Percentiles matter more than they first seem: a p50 (median) latency of 80ms next to a p99 of 4 seconds means most users have a fine experience while roughly 1 in 100 has a genuinely broken one — an average alone would report something like 120ms and hide that tail completely.",
+          ],
         },
         {
           kind: "example",

@@ -77,6 +77,18 @@ export const course: CourseSeed = {
           body: "A browser's generic \"This site can't be reached\" error looks identical whether the problem is a dead cable, a DHCP failure, a DNS outage, or the server itself being down — the application layer's error message can't distinguish between causes several layers below it. Working the layers bottom-up is what actually distinguishes them, since each layer's tools (link status, ipconfig, ping, nslookup) test something the layer above it can't see into.",
         },
         {
+          kind: "bullets",
+          heading: "Encapsulation: what actually happens at each layer",
+          intro:
+            "The layers aren't just a mental checklist — data physically gets wrapped in a new header at each layer on the way out, and unwrapped in reverse on the way in.",
+          bullets: [
+            "At the Application layer, your HTTP request is just the request itself — headers, method, body. The Transport layer wraps that in a TCP segment, adding source and destination ports.",
+            "The Network layer wraps the TCP segment in an IP packet, adding source and destination IP addresses. The Data Link layer wraps that in a frame, adding source and destination MAC addresses for the local hop.",
+            "Each layer only reads and acts on its own header — a switch forwarding a frame never looks at the IP addresses inside it, and a router forwarding a packet never looks at the TCP ports inside that. This separation is exactly what lets a switch built in one decade keep working with protocols invented in a later one.",
+            "On the receiving end, the process runs in reverse — each layer strips off its own header and hands the remainder up to the layer above, until the original HTTP request arrives intact at the application.",
+          ],
+        },
+        {
           kind: "example",
           heading: "Walking one symptom through the checklist",
           body: "\"The app is down\" turns into a specific, ordered set of checks — each one either clears a layer or points straight at the culprit.",
@@ -184,6 +196,17 @@ record — not "the network," which is what it felt like at first.`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "How a connection actually ends: the four-way close",
+          intro:
+            "The three-way handshake gets most of the attention, but TCP also has a defined, deliberate way of tearing a connection down — and skipping it has real consequences.",
+          bullets: [
+            "Either side can initiate a close by sending a FIN (\"finish\") segment; the other side acknowledges it, then sends its own FIN once it's also done sending, which the original side acknowledges — four segments total, since the connection is closed independently in each direction.",
+            "This is why a connection can be \"half-closed\": one side has said it's done sending but can still receive, which matters for protocols where one side finishes uploading well before the other finishes responding.",
+            "A connection that's abruptly killed (a crashed process, a hard network drop) instead of cleanly closed leaves the other side waiting on a socket that will never receive its FIN — this is part of why long-lived connections often need an independent keepalive or timeout mechanism, rather than relying on a clean close to always happen.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Putting it together",
           bullets: [
@@ -270,6 +293,17 @@ record — not "the network," which is what it felt like at first.`,
           body: "If a domain's A record has a TTL of 24 hours, cutting over to a new server and immediately decommissioning the old one means anyone whose resolver cached the old answer in the last 24 hours gets nothing until their cache expires. The standard practice is lowering the TTL (to something like 300 seconds) a day or more before a planned migration, waiting for that shorter TTL to fully propagate, making the cutover, and only then raising the TTL back up and decommissioning the old server — skipping this step is one of the most common causes of a migration that looks broken for a subset of users for no obvious reason.",
         },
         {
+          kind: "bullets",
+          heading: "Recursive vs. authoritative: two different jobs, often confused",
+          intro:
+            "\"DNS server\" gets used loosely, but a recursive resolver and an authoritative nameserver do genuinely different jobs in the resolution process.",
+          bullets: [
+            "A recursive resolver (like your ISP's DNS, or a public one like 8.8.8.8 or 1.1.1.1) does the legwork on your behalf — it walks the chain from root to TLD to the domain's own nameservers so your device doesn't have to, and caches the result for other users behind the same resolver.",
+            "An authoritative nameserver is the actual source of truth for one specific domain — it's the only place that genuinely knows what example.com's A record is, and every recursive resolver eventually has to ask it directly on a real cache miss.",
+            "This distinction matters operationally: changing your own domain's DNS records means updating your authoritative nameservers, but you have zero control over how long a random recursive resolver out in the world chooses to hold onto a cached answer past its stated TTL — most respect it faithfully, but it's a convention, not an absolute guarantee.",
+          ],
+        },
+        {
           kind: "example",
           heading: "Checking a record's TTL directly",
           body: "The TTL is right there in the dig output — no guessing needed before deciding whether it's safe to make a change.",
@@ -343,6 +377,17 @@ nameserver again once those 5 minutes are up, not before.`,
           tone: "tip",
           heading: "The habit worth building",
           body: "Running through this order mentally before diving deep saves real time — most \"network is broken\" problems resolve by identifying which of these six steps actually fails.",
+        },
+        {
+          kind: "bullets",
+          heading: "Two more tools worth knowing: traceroute and DNS-over-HTTPS quirks",
+          intro:
+            "The six-step checklist covers most situations, but two additional tools come up often enough in real troubleshooting to be worth naming.",
+          bullets: [
+            "traceroute (or tracert on Windows) shows every router hop between you and the destination, with the round-trip time at each one — useful specifically when ping to the destination fails or is slow, since it shows where along the path things start going wrong rather than just whether the endpoint is reachable at all.",
+            "A hop that shows no response in traceroute isn't always a problem — some routers are configured not to reply to the diagnostic packets traceroute uses, so a silent hop with working hops on either side of it is usually fine to ignore, while a chain of failures starting at a specific hop and continuing to the destination is the real signal.",
+            "Modern browsers increasingly use DNS-over-HTTPS by default, which can resolve a domain successfully through an encrypted path even when the OS-level resolver (the one nslookup or dig actually queries) is failing — a real source of confusing \"it works in the browser but dig can't resolve it\" reports that's worth knowing about before assuming your troubleshooting tool is lying to you.",
+          ],
         },
         {
           kind: "bullets",

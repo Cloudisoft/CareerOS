@@ -84,6 +84,17 @@ abandonment rate might just reflect more motivated shoppers,
 not a better flow.`,
         },
         {
+          kind: "bullets",
+          heading: "Scoping the data before you commit to the question",
+          intro:
+            "A workable question can still fail if the data to answer it doesn't actually exist, or exists at the wrong grain — worth a quick check before investing real time.",
+          bullets: [
+            "Does the data exist at all, at the level of detail the question needs? \"Did onboarding reduce churn\" needs a record of who completed onboarding and when, not just an aggregate completion rate for the whole product.",
+            "Is the time window long enough to answer the question? A churn question needs enough elapsed time for churn to have actually happened — measuring 90-day churn on customers who signed up three weeks ago isn't possible yet, no matter how good the data is.",
+            "Is the sample size realistic? A workable question about a rare event (say, a feature used by 40 people total) may need a different, more modest question — or a longer collection window — before it can be answered with any real confidence.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Before you open the data",
           bullets: [
@@ -184,6 +195,17 @@ Mean after excluding the "0" row:  $47.4
 A 9% swing in "average order value" from a single miscoded
 row — small enough to not look obviously wrong on a dashboard,
 large enough to change which region looks like it's underperforming.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Schema drift: when the same column means different things over time",
+          intro:
+            "A subtler cleaning problem than a single messy row: a dataset collected over months or years can quietly change what a column even represents.",
+          bullets: [
+            "A \"status\" field with values \"active,\" \"inactive,\" and \"churned\" for the first year, then a fourth value \"paused\" added later, means any historical analysis grouping by status needs to know when \"paused\" started existing — treating its absence in early data as \"there were no paused customers back then\" versus \"this category didn't exist yet\" leads to two very different conclusions.",
+            "The same risk applies to units and definitions changing silently — a \"revenue\" column that switched from gross to net partway through, or a currency field that started including a new region's local currency without a clear marker, both look like perfectly normal numeric columns while actually meaning two different things across the same table.",
+            "The practical defense is checking a column's distinct values and their date ranges before trusting a long-running dataset — a value that only appears after a specific date is a strong signal something changed in how the data was collected, not just in what happened.",
+          ],
         },
         {
           kind: "summary",
@@ -297,6 +319,17 @@ that roughly 1 in 10 loads took over 2 seconds — the real
 story needs both the typical case and the tail.`,
         },
         {
+          kind: "bullets",
+          heading: "Mode, and when it's the only statistic that makes sense",
+          intro:
+            "Mean and median both assume a meaningful order to the values — mode (the most frequent value) is the only one of the three that also works on data with no natural numeric order at all.",
+          bullets: [
+            "For a categorical column like \"which plan did the customer sign up for,\" mean and median are meaningless (there's no numeric average of \"Basic\" and \"Premium\"), but the mode — the most common plan — is a real, useful summary.",
+            "For numeric data, mode is less commonly the headline statistic, but it's genuinely useful for spotting a specific recurring value worth investigating — a mode of exactly $0 in an order-total column is exactly the kind of placeholder-value signal covered in the cleaning lesson.",
+            "A distribution can have more than one mode (bimodal, or multimodal) — two distinct peaks usually means the data is actually a mix of two different underlying groups (e.g., new users and power users) that would be more honestly analyzed separately than blended into one summary.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Descriptive stats, briefly",
           bullets: [
@@ -366,6 +399,12 @@ Misleading:  y-axis 50% to 54%
             "A stacked bar chart can compare totals across categories and show composition at once, but it's genuinely hard to compare the size of a middle segment across bars — only the bottom segment and the overall total are easy to read accurately, because everything else floats on a shifting baseline.",
             "When the comparison that actually matters is between one specific segment across categories (not the totals), a grouped (side-by-side) bar chart or small multiples usually communicates it more honestly than a stacked one.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Color should encode meaning, not just decorate",
+          body: "A common habit is coloring bars or lines differently purely to make a chart \"more visual\" — but every color used should answer a real question for the reader. Use color to distinguish categories (each series its own consistent color across a whole report), to highlight one specific value that matters (everything else gray, the one bar that matters in color), or to encode a scale (a heatmap running light to dark). Color applied inconsistently — the same category shown in different colors on different charts in the same report — costs a reader real time re-learning the legend on every single chart.",
         },
         {
           kind: "summary",
@@ -468,6 +507,39 @@ By severity:
 The drug was given to more severe cases (where recovery is
 harder regardless of treatment), which dragged its overall
 average down even though it outperformed within each group.`,
+        },
+        {
+          kind: "bullets",
+          heading: "A practical framework: the questions worth asking before believing a causal story",
+          intro: "None of these prove causation on their own, but running through them systematically catches most of the traps above before they make it into a recommendation.",
+          bullets: [
+            "Temporal order — did the proposed cause actually happen before the proposed effect? A correlation between two things measured at the same moment can't tell you which came first, if either.",
+            "Dose-response — if more of the cause tends to produce more of the effect (more onboarding steps completed correlating with progressively lower churn, not just a single on/off difference), that's modestly stronger evidence than a simple two-group comparison alone.",
+            "Consistency across contexts — does the same relationship show up across different segments, time periods, or datasets, or does it only appear in one specific slice? A pattern that only holds in one region or one quarter is more likely to be a coincidence or a local confounder than a real underlying effect.",
+            "Ruling out the obvious alternative explanations — reverse causation and the most likely confounding variable specifically, not every theoretically possible one — before treating a correlation as actionable.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Reverse causation, traced through a real metric",
+          body: "The same correlation, two opposite causal stories — and only one of them justifies the recommendation someone was about to make.",
+          code: `Observed: customers who contact support 3+ times in a month
+churn at a much higher rate than customers who contact
+support 0-1 times.
+
+Story A (the one that got proposed): "Support quality is bad,
+so heavy support contact is causing churn. Fix: improve support
+response time."
+
+Story B (reverse causation, equally consistent with the same
+data): "Customers already frustrated with the product for
+unrelated reasons churn more AND contact support more, because
+frustration drives both behaviors independently."
+
+Under Story A, faster support responses should reduce churn.
+Under Story B, they might not move churn at all — the real
+fix would target whatever's frustrating customers in the first
+place. The correlation alone can't tell these two stories apart.`,
         },
         {
           kind: "summary",
@@ -665,6 +737,18 @@ close, but not quite there.`,
           tone: "warning",
           heading: "The multiple-comparisons trap",
           body: "Testing 20 independent metrics at once at the standard 95% confidence bar means, on average, about 1 of them will look \"significant\" purely by chance even if nothing real changed — that's what a 5% false-positive rate implies when you run enough comparisons. Running an A/B test and then scanning dozens of sub-segments (by region, device, age group...) for one that shows significance is a common, tempting version of this mistake — with enough slices, one will look significant by luck alone. The fix is deciding your key metric before the test starts, or using a stricter significance bar when deliberately checking many segments.",
+        },
+        {
+          kind: "bullets",
+          heading: "Statistical significance vs. practical significance",
+          intro:
+            "A result can be statistically significant and still not matter — these are two genuinely separate questions, and treating them as one is a common way a technically correct analysis leads to a bad decision.",
+          bullets: [
+            "Statistical significance asks: is this difference unlikely to be pure chance? Practical significance asks: is this difference big enough to actually care about, given the cost of acting on it?",
+            "A version B that lifts conversion from 5.00% to 5.02%, measured across 2 million visitors, can easily clear the 95% significance bar — the sample is large enough to detect even a tiny, real effect — while still being too small to justify the engineering cost of shipping and maintaining it.",
+            "The reverse also happens: a promising-looking 3-point lift on a small sample can fail to reach significance purely because the sample is too small to confirm it yet, even though the underlying effect (if real) would clearly be worth acting on — this is exactly the \"promising, not yet proven\" case, and the right response is more data, not abandoning the idea.",
+            "In practice, decide the minimum effect size worth caring about before running the test, not after — that number, not just the significance threshold, is what should actually drive the ship/don't-ship decision.",
+          ],
         },
         {
           kind: "summary",

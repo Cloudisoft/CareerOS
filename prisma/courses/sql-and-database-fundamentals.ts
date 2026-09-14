@@ -89,6 +89,39 @@ DETAIL: Key (customer_id)=(999) is not present in table "customers".
 -- rules, each enforced regardless of which part of the app wrote this row.`,
         },
         {
+          kind: "bullets",
+          heading: "Relationship types: one-to-many isn't the only shape",
+          intro:
+            "The customers/orders example is one-to-many (one customer, many orders) — but a lot of real schemas need a many-to-many relationship, which a plain foreign key can't express directly.",
+          bullets: [
+            "One-to-many — a single foreign key does the job, as with orders.customer_id: each order belongs to exactly one customer, but a customer can have many orders.",
+            "Many-to-many — needs a separate junction (or \"join\") table in between. A students table and a courses table, where each student takes many courses and each course has many students, can't be linked with a single foreign key on either side.",
+            "A junction table (e.g. enrollments) holds a row per pairing — student_id and course_id together — with foreign keys pointing to both sides, and often a composite primary key across both columns to prevent the same student being enrolled in the same course twice.",
+            "One-to-one is the rarest of the three — one row in a table corresponds to exactly one row in another, usually used to split a table for optional or sensitive columns (e.g., a separate user_profiles table with a one-to-one link back to users) rather than for a distinct entity.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A many-to-many relationship through a junction table",
+          body: "Neither students nor courses gets a foreign key to the other directly — the junction table in between is what makes the many-to-many link possible.",
+          code: `CREATE TABLE enrollments (
+  student_id INT REFERENCES students(id),
+  course_id  INT REFERENCES courses(id),
+  enrolled_on DATE NOT NULL,
+  PRIMARY KEY (student_id, course_id)
+);
+
+-- Find every course a specific student is enrolled in:
+SELECT courses.name
+FROM courses
+JOIN enrollments ON enrollments.course_id = courses.id
+WHERE enrollments.student_id = 42;
+
+-- The composite primary key (student_id, course_id) is what
+-- stops the same student from being double-enrolled in the
+-- same course — the database rejects the duplicate insert.`,
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "A common mistake: denormalizing before you have a reason to",
@@ -250,6 +283,17 @@ ORDER BY big_spenders.spent DESC;`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "GROUP BY beyond a single column, and ordering aggregated results",
+          intro:
+            "Real reporting queries often group by more than one column, and sort by the aggregate itself rather than the grouped columns.",
+          bullets: [
+            "GROUP BY customer_id, EXTRACT(MONTH FROM order_date) groups by the combination of both — one row per customer per month, not one row per customer overall.",
+            "ORDER BY can reference an aggregate directly: ORDER BY SUM(total) DESC sorts groups by their total spend, highest first — useful for a \"top customers by revenue\" report, and something a plain WHERE clause can't do since aggregates don't exist until after grouping.",
+            "A column in SELECT that isn't wrapped in an aggregate function generally must appear in GROUP BY too — most databases reject (or, worse, silently pick an arbitrary value for) a non-aggregated, non-grouped column, which is a common first error when learning GROUP BY.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "An implicit JOIN (comma syntax) is easy to get wrong silently",
@@ -351,6 +395,24 @@ ORDER BY big_spenders.spent DESC;`,
           tone: "warning",
           heading: "A classic real-world trap: indexing the wrong side of a function",
           body: "WHERE LOWER(email) = 'jane@example.com' can't use a plain index on email, because the index stores the original values, not their lowercased form — the database would have to lowercase every row to compare, which defeats the index entirely. The fix is either storing emails pre-lowercased and indexing that, or creating a functional index (CREATE INDEX ON customers (LOWER(email))) that indexes the transformed value directly. This exact pattern — wrapping an indexed column in a function inside WHERE — is one of the most common reasons a table \"has an index\" but a specific query still runs a full scan.",
+        },
+        {
+          kind: "bullets",
+          heading: "Beyond the default B-tree: index types built for specific jobs",
+          intro:
+            "A plain B-tree index is the right default for most columns, but a few other index types exist for problems a B-tree handles poorly.",
+          bullets: [
+            "Unique index — enforces the UNIQUE constraint from the schema lesson and speeds up lookups on that column at the same time; most databases create one automatically for a primary key and any explicit UNIQUE column.",
+            "Partial index — indexes only the rows matching a condition, e.g. CREATE INDEX ON orders (customer_id) WHERE status = 'pending' — much smaller and faster to maintain than a full index when queries almost always filter to a small, well-defined subset of rows.",
+            "Full-text index (like PostgreSQL's GIN index with tsvector) — built for \"does this text contain these words,\" which a B-tree can't answer efficiently at all; this is what makes LIKE '%searchterm%' style queries fast on a real search feature instead of falling back to a full scan.",
+            "The general rule: reach for a specialized index type only once a specific, measured query pattern justifies it — a plain B-tree on the right column already solves the overwhelming majority of real slow-query problems.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "An index has a real cost — it isn't free insurance",
+          body: "Every index is itself a data structure that has to be kept correct: an INSERT, UPDATE, or DELETE has to update every index on the affected columns, not just the table's raw rows. A table with six indexes pays that update cost six times on every write, plus the ongoing disk space each index consumes. This is exactly why the earlier list of 'when an index doesn't help' matters as much as the list of when it does — an unused index is pure cost with zero benefit, and a surprising number of production databases accumulate exactly these over time as query patterns change but old indexes never get removed.",
         },
         {
           kind: "example",
@@ -467,6 +529,36 @@ read-then-write in a transaction with row-level locking (e.g.,
 SELECT ... FOR UPDATE) forces Request B to wait for Request A's
 transaction to finish, so it reads the updated $20 balance and
 correctly rejects the second withdrawal.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Deadlocks: when two transactions block each other permanently",
+          intro:
+            "Locking prevents the double-spend problem above, but locking itself creates a new failure mode when two transactions need the same two resources in opposite order.",
+          bullets: [
+            "Transaction A locks row 1, then tries to lock row 2. At the same moment, transaction B has already locked row 2, and tries to lock row 1. Neither can proceed — each is waiting on a lock the other is holding, forever, unless something intervenes.",
+            "Real databases detect this automatically: one of the two transactions is picked as the \"victim,\" forcibly rolled back with a deadlock error, freeing its locks so the other can complete. The application is expected to catch that specific error and retry the failed transaction.",
+            "The practical prevention technique is consistent lock ordering: if every transaction that needs to touch both row 1 and row 2 always locks them in the same order (say, always the lower ID first), the circular wait that causes a deadlock simply can't form in the first place.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A deadlock, traced step by step",
+          body: "Two transfers, opposite direction, same two accounts — a textbook deadlock, and exactly the kind of bug that's rare in testing and common under real concurrent load.",
+          code: `Transaction A: transfer $50 from account 1 to account 2
+  BEGIN;
+  UPDATE accounts SET balance = balance - 50 WHERE id = 1;  -- locks row 1
+  UPDATE accounts SET balance = balance + 50 WHERE id = 2;  -- waits for row 2's lock
+
+Transaction B (running at nearly the same instant): transfer
+$30 from account 2 to account 1
+  BEGIN;
+  UPDATE accounts SET balance = balance - 30 WHERE id = 2;  -- locks row 2
+  UPDATE accounts SET balance = balance + 30 WHERE id = 1;  -- waits for row 1's lock
+
+A is waiting on the lock B holds; B is waiting on the lock A
+holds. The database detects the cycle, kills one transaction
+with a deadlock error, and lets the other complete.`,
         },
         {
           kind: "summary",
@@ -588,6 +680,33 @@ ORDER BY month;
           tone: "warning",
           heading: "A common mistake: assuming the default frame is the whole partition",
           body: "SUM(amount) OVER (ORDER BY order_date) — without an explicit ROWS BETWEEN clause — doesn't sum the whole table by default when ORDER BY is present; it defaults to \"unbounded preceding to current row,\" which is actually the running-total behavior. The confusion runs the other way too: leaving out ORDER BY entirely changes the default frame to the whole partition, turning what looked like a running total into a flat, repeated grand total on every row. Always pair SUM()/AVG() OVER with an explicit ORDER BY (and ROWS BETWEEN, if the intent isn't obvious from context) rather than relying on the implicit default — it's one of the most common sources of a window function returning the wrong shape of answer, silently.",
+        },
+        {
+          kind: "bullets",
+          heading: "NTILE() and FIRST_VALUE()/LAST_VALUE(): two more practical window functions",
+          intro:
+            "Rank, running totals, and LAG/LEAD cover most cases, but two more window functions come up often enough in real reporting to be worth knowing.",
+          bullets: [
+            "NTILE(n) splits a partition into n roughly equal-sized buckets, numbered 1 through n — NTILE(4) OVER (ORDER BY salary) divides employees into salary quartiles, a common way to build a percentile-style report without writing separate boundary logic by hand.",
+            "FIRST_VALUE() and LAST_VALUE() return a fixed value from the start or end of the window's frame, no matter which row is currently being computed — e.g., FIRST_VALUE(salary) OVER (PARTITION BY department ORDER BY salary DESC) attaches the department's top salary to every row in that department, useful for comparing each employee against the department's own ceiling.",
+            "LAST_VALUE() specifically is a common trap: with the default frame (unbounded preceding to current row), \"last\" actually means \"the current row,\" not the true last row of the partition — getting the expected result requires explicitly widening the frame to ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "NTILE() splitting employees into salary quartiles",
+          body: "Every employee keeps their own row — NTILE just adds which quarter of the salary distribution they fall into.",
+          language: "sql",
+          code: `SELECT employee_name, salary,
+       NTILE(4) OVER (ORDER BY salary DESC) AS salary_quartile
+FROM employees;
+
+-- salary_quartile = 1  -> top 25% of earners
+-- salary_quartile = 4  -> bottom 25% of earners
+-- With 17 employees, NTILE(4) can't split evenly — it puts
+-- the extra rows into the earlier groups (sizes 5, 4, 4, 4
+-- rather than an impossible 4.25 each), which is expected
+-- behavior, not a bug to work around.`,
         },
         {
           kind: "bullets",

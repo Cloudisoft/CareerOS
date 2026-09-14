@@ -72,6 +72,16 @@ export const course: CourseSeed = {
           heading: "History as institutional memory, not just a safety net",
           body: "The most underrated use of git history isn't undoing mistakes — it's answering \"why does this code do this?\" months later, when the person who wrote it has moved teams or forgotten. `git blame <file>` shows which commit last touched each line; `git log -p <file>` shows the full history of changes to one file with their messages. A team that writes real commit messages is leaving notes for its future self, not just satisfying a process requirement — \"fix bug\" tells a future reader nothing, while \"fix off-by-one error dropping the last cart item\" answers the question before it's even asked.",
         },
+        {
+          kind: "bullets",
+          heading: "Two more capabilities most tutorials skip, but real teams rely on constantly",
+          intro: "Beyond the everyday commit-branch-merge loop, two features explain why experienced developers reach for git even for problems that have nothing to do with collaboration.",
+          bullets: [
+            "git bisect automates the search for which commit introduced a bug, using binary search instead of guessing: tell it a known-good commit and a known-bad one, and it checks out the midpoint for you to test, narrowing the range by half with each answer until it lands on the exact commit responsible — a hundred-commit range takes about seven tests, not fifty.",
+            "git tag marks a specific commit permanently under a memorable name, most commonly a release version like v1.2.0 — unlike a branch, a tag doesn't move as new commits are added, so it stays a stable, permanent reference to exactly the commit it was created on.",
+            "Both exist because a project's history is useful for more than remembering what happened — it's a searchable structure you can query, not just a log you scroll through top to bottom.",
+          ],
+        },
       ],
     },
     {
@@ -174,6 +184,25 @@ export const course: CourseSeed = {
             "HEAD — whatever commit you currently have checked out.",
             "HEAD~1 (or HEAD^) — the commit one step before HEAD; HEAD~3 goes back three commits.",
             "origin/main — where the remote's main branch was, as of your last fetch; not necessarily the same as your local main until you pull.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "What a commit actually contains, underneath the metadata",
+          body: [
+            "Git's storage model is simpler than it looks from the command line, and it explains a lot of the behavior above. Every version of every file's content is stored as a \"blob\" — just the raw bytes, identified by the hash of those bytes, with no filename attached at all. A \"tree\" object represents one directory: a list of names, each pointing at either a blob (a file) or another tree (a subdirectory). A commit is a tree pointer (the state of the whole project at that moment), a parent commit pointer, and the metadata you already know — author, timestamp, message.",
+            "This is also why git is remarkably efficient at storing history despite being a full snapshot at every commit, not a diff: if a commit changes one file in a thousand-file project, only that one new blob and the handful of tree objects on the path to it are written — every other file's blob is completely unchanged and simply gets reused, referenced by the same hash it already had in the previous commit's tree.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Setting up git on a new machine, before any of this matters",
+          intro: "None of the commands above work usefully until git knows who you are — this is normally a one-time setup per machine, not something you configure per project.",
+          bullets: [
+            "git config --global user.name \"Ada Lovelace\" and git config --global user.email \"ada@example.com\" — every commit you make stamps in this name and email permanently, so it's worth getting right before your first real commit rather than fixing history after the fact.",
+            "git config --global init.defaultBranch main sets the name new repositories start with — worth setting explicitly rather than depending on whatever a particular git version happens to default to.",
+            "git config --global core.editor \"code --wait\" (or vim, nano, whatever you actually want to type a commit message in) controls what opens when a command needs a message from you and you didn't supply one with -m.",
+            "git config --list shows every setting currently in effect, global and local combined — useful the first time a command behaves unexpectedly and the cause turns out to be a forgotten configuration change from months ago.",
           ],
         },
       ],
@@ -340,6 +369,33 @@ causing a thundering-herd effect against the payments API during
 its Tuesday outage. Capping at 3 with exponential backoff matches
 what the payments team recommends in their integration docs."`,
         },
+        {
+          kind: "text",
+          heading: "Undoing things: reset, restore, and revert aren't interchangeable",
+          body: [
+            "Three different commands all sound like \"undo,\" and reaching for the wrong one is a common source of lost work. git restore <file> discards uncommitted changes to a file, bringing it back to how it looked at the last commit — the one to reach for when you've made a mess in the working directory and just want to start that file over.",
+            "git reset moves the current branch pointer to an earlier commit, and comes in three flavors that matter: --soft leaves your working directory and staging area untouched, just moving where the branch points, so everything since that commit shows up as staged changes again. --mixed (the default) also unstages those changes, leaving them in your working directory but not staged. --hard discards them entirely — the one genuinely dangerous form, since anything not committed elsewhere is simply gone.",
+            "git revert takes the opposite approach: instead of moving the branch pointer backward, it creates a brand-new commit that undoes an earlier one's changes, leaving the original commit intact in history. This is why revert, not reset, is the safe choice on anything already pushed and shared — it adds to history instead of rewriting it, so nobody else's clone ends up disagreeing with yours.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "git log: reading history the way you actually need to, not just --oneline",
+          intro: "The default git log output is verbose enough that most people reach for --oneline immediately and stop there — a handful of other flags cover the cases that comes up constantly in real debugging.",
+          bullets: [
+            "git log --oneline --graph --all draws the actual branch structure in text, showing where branches diverged and merged back together — far easier to read than trying to picture it from a flat list of commits.",
+            "git log --author=\"Ada\" filters to one person's commits; git log --since=\"2 weeks ago\" filters by time — both combine with each other and with --oneline for a fast, focused view.",
+            "git log -p shows the full diff alongside each commit's message, not just the message — useful when skimming what actually changed, not only who changed it and when.",
+            "git log --stat shows which files each commit touched and how many lines changed in each, without the full diff — a useful middle ground between --oneline and -p when you need to know the shape of a change but not every line.",
+            "git show <hash> displays one specific commit in full — message, author, and diff — without needing to scroll through a log to find it first.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Aliases save real time once this loop is muscle memory",
+          body: "git config --global alias.co checkout, alias.br branch, alias.st status, and alias.lg \"log --oneline --graph --all\" turn the commands you type dozens of times a day into two or three keystrokes — git st instead of git status, git lg for the graph view above. Aliases are purely local convenience, stored in your own git config; they don't change anything about the repository itself or affect anyone else who clones it, which is exactly why most experienced developers accumulate a personal set over time without a second thought.",
+        },
       ],
     },
     {
@@ -447,6 +503,20 @@ const MAX_RETRIES = 5;
             "package-lock.json / yarn.lock conflicts are common and usually best resolved by deleting the file and regenerating it (`npm install`) rather than hand-editing a machine-generated file.",
           ],
         },
+        {
+          kind: "text",
+          heading: "Reducing how often conflicts happen in the first place",
+          body: [
+            "No workflow eliminates merge conflicts entirely — two people will always occasionally need to change the same lines — but a few habits cut down how often they happen and how painful the ones that do occur turn out to be. Pulling main into your branch regularly, rather than only right before opening a pull request, means any conflict surfaces in small pieces over several days instead of as one large tangle at the end. Keeping branches short-lived and focused on one change does the same thing from the other direction: a branch that only touches the files its feature actually needs is far less likely to collide with someone else's unrelated work.",
+            "Agreeing on formatting conventions (line length, quote style, import ordering) ahead of time, and enforcing them with a tool like prettier or black rather than by hand, removes an entire category of conflict that has nothing to do with real logic — two people reformatting the same file differently produces a conflict on every line, even when neither of them touched the actual behavior.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "A merge tool turns raw markers into a visual, three-pane comparison",
+          body: "Running `git mergetool` launches a configured visual diff tool (many editors, or dedicated tools like Meld or KDiff3) showing your version, the incoming version, and the merged result side by side, instead of the raw <<<<<<< markers in a plain text editor. It's not required — every conflict in this lesson is entirely resolvable by hand — but on a conflict spanning many files or genuinely tangled logic, seeing both versions rendered side by side, with the merged result updating live as you pick lines from each, is often faster and less error-prone than scanning markers by eye.",
+        },
       ],
     },
     {
@@ -540,6 +610,23 @@ git branch -d feature/add-search      # delete the now-merged local branch`,
           tone: "tip",
           heading: "Draft pull requests exist for work that isn't ready for review yet",
           body: "Opening a PR as a draft signals \"this is visible and CI is running against it, but don't review it yet\" — useful for getting early automated feedback, sharing progress with the team, or simply backing up work-in-progress to the remote without asking anyone to spend review time on it. Marking it \"Ready for review\" later is what actually notifies reviewers that it's time to look.",
+        },
+        {
+          kind: "bullets",
+          heading: "What makes a code review actually useful, from either side of it",
+          intro: "The pull request mechanics are simple; doing the review itself well is the part that actually determines whether the process helps or just adds friction.",
+          bullets: [
+            "As a reviewer, distinguish a blocking comment (\"this has a real bug\") from a suggestion (\"consider renaming this\") explicitly, in the comment itself — an author shouldn't have to guess which kind of feedback they're reading, or whether it's safe to merge with it unaddressed.",
+            "Reviewing a diff in isolation misses context a diff can't show — pulling the branch down and actually running the change locally catches problems that reading code on a screen never will, especially for anything touching behavior a reviewer can directly exercise.",
+            "As an author, a pull request that does one focused thing gets reviewed faster and more carefully than one that mixes a refactor with a feature with an unrelated bug fix — a reviewer trying to hold three unrelated changes in their head at once inevitably reviews all three worse than they'd review any one of them alone.",
+            "Responding to review comments by pushing a fix and replying, rather than just fixing silently, keeps the conversation legible to anyone reading the PR later — including the reviewer, who otherwise has to re-diff the whole thing to find out what changed since their last pass.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Stacked branches handle work too large for one clean pull request",
+          body: "Sometimes a change is genuinely too large to review well as one PR, but its pieces depend on each other — the second piece needs the first one merged first to even make sense. Stacking branches (feature/part-2 branched from feature/part-1, rather than from main) lets each piece become its own focused, reviewable pull request while still building on the last. It adds real coordination overhead — rebasing part 2 after part 1 changes during review takes deliberate care — which is exactly why it's worth reaching for only when a change genuinely can't be split into independent, any-order pieces instead.",
         },
         {
           kind: "summary",
@@ -656,6 +743,20 @@ git rebase -i HEAD~3
             "git rebase -i --autosquash then automatically moves each fixup commit next to its target and marks it \"fixup\" for you — no manual reordering in the editor required.",
             "This is the realistic version of the squash workflow on a long-running branch: fix things as you notice them, and let autosquash do the reordering once, right before opening the pull request.",
           ],
+        },
+        {
+          kind: "text",
+          heading: "Choosing between --amend, interactive rebase, and revert",
+          body: [
+            "All three of these rewrite or reverse a commit's history, but they answer genuinely different questions, and reaching for the wrong one is a common source of unnecessary friction. --amend answers \"I want to fix the commit I just made\" — it's scoped to exactly one commit, the most recent one, and nothing else. Interactive rebase answers a broader question: \"I want to reshape several recent commits\" — reordering, combining, or rewording more than one at once, still entirely on local, unshared history.",
+            "git revert answers a different question altogether: \"this commit is already public, and I need to undo its effect without pretending it never happened.\" It's the only one of the three that's genuinely safe on shared history, because it doesn't touch any existing commit's hash — it just adds a new commit on top that cancels the old one out, which is why it's the right tool the moment something has already been pushed and pulled by anyone else, no matter how tempting it is to just rebase the mistake away instead.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "git commit --amend --no-edit keeps the message exactly as it was",
+          body: "Most of the amend examples in this lesson also change the message with -m, but that's not required — git commit --amend --no-edit adds whatever's currently staged into the previous commit while leaving its existing message completely untouched. It's the version worth reaching for constantly: you forgot to stage one file, the message was already fine, and you don't want an editor to pop open just to save it unchanged.",
         },
         {
           kind: "summary",

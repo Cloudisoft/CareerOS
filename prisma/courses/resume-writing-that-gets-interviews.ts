@@ -63,6 +63,18 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "Formatting choices that keep the scan easy",
+          intro: "Structure is the big-picture order; these smaller formatting choices are what make that order actually easy to follow on the page.",
+          bullets: [
+            "Pick one font family for the whole document and stick to it — mixing a serif heading font with a sans-serif body font reads as unintentional, not stylish. 10.5-12pt for body text is the safe range; anything smaller asks the reader to work harder than a 20-second scan allows.",
+            "Use bold sparingly and consistently — job titles or company names, not both plus dates plus a random phrase mid-bullet. Once everything is bold, nothing stands out.",
+            "Leave real margins, roughly 0.6-1 inch on all sides. A page crammed edge to edge to fit more in reads as dense before a single word is read, which works against the reader's willingness to actually read it.",
+            "Left-align body text rather than justifying it — justified text on a narrow resume column often creates uneven word spacing that's mildly harder to read, for no real benefit.",
+            "Use the same bullet character and the same date format everywhere. A single stray inconsistency (an em dash here, a hyphen there) is a small thing on its own, but a page with several of them starts to read as generally unpolished before anyone judges the content.",
+          ],
+        },
+        {
           kind: "example",
           heading: "A summary line that earns its place",
           body: "The difference isn't tone — it's information. The second version tells a reader something the job title alone can't.",
@@ -374,6 +386,17 @@ Social media, email campaigns, and event support for a
 15-person marketing team.`,
         },
         {
+          kind: "bullets",
+          heading: "If you do go to two pages, a few rules keep it from reading like a one-pager that overflowed",
+          intro: "A genuinely justified two-page resume still needs to look deliberate, not accidental.",
+          bullets: [
+            "Never break a section across the page boundary awkwardly — a job's first two bullets on page one and the rest on page two reads as an accident. Let the page break fall between sections or between full jobs where possible.",
+            "Page two needs at least half a page of real content. Three orphaned lines on an otherwise blank second page look like a formatting mistake, not a deliberate choice — if you're that close, cut instead.",
+            "Put your name (and, for a longer resume, a small header) at the top of page two — a page that reaches a recruiter's printer or a second screen with no identifying information is a real, if small, risk.",
+            "Keep your strongest, most relevant material on page one regardless of strict chronology — a reader who stops after page one, which happens more than you'd like, should still have seen your best case.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "A two-page resume isn't the only option for extra context",
@@ -532,6 +555,17 @@ interview, not the resume.)`,
           tone: "warning",
           heading: "What undermines a pivot resume",
           body: "Keeping every bullet in the original professional voice of the old career, with none of it translated toward the new one, forces the reader to do the pivot's work for you. If you wouldn't naturally use a term in an interview for the new role, don't lean on it here either.",
+        },
+        {
+          kind: "bullets",
+          heading: "A longer break (a year or more) needs slightly more structure than a short gap",
+          intro: "The advice above works well for a few months. An extended break — several years for caregiving, health, or another reason — benefits from a bit more explicit handling.",
+          bullets: [
+            "Consider a brief \"Career Break\" line item in the work history itself, dated like a job, rather than just a gap the reader has to notice and interpret on their own: \"Career Break — Family Caregiving, 2021-2024.\" Naming it directly, once, removes the ambiguity a silent gap creates.",
+            "If you did anything during the break that's genuinely relevant — a certification, consistent freelance or consulting work, volunteer leadership with real responsibility — list it with the same structure as a job, even if unpaid or part-time. It shows continuity, not just absence.",
+            "Look for \"returnship\" programs, explicitly designed for candidates re-entering after an extended break — some companies run them specifically, and mentioning you're aware of the pattern (even outside a formal program) signals you understand how a reader might read the gap.",
+            "Don't let an old job's dates or a since-outdated title undersell what's genuinely still relevant — a role from five years ago that's directly applicable to the target job is still worth full bullet-level detail, not just a compressed line, if it's honestly your strongest evidence.",
+          ],
         },
         {
           kind: "summary",

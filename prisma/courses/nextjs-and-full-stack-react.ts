@@ -86,6 +86,22 @@ function App() {
           body: "Adopting Next.js means adopting its file-based routing conventions, its Server/Client Component model, and its build tooling — genuinely useful defaults, but ones a project can't easily walk back from later without a substantial rewrite. That's a reasonable trade for most teams building a full application, which is exactly why frameworks exist at all, but it's worth naming as a real decision rather than a purely technical one.",
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "Who maintains Next.js, and why it matters",
+          body: "Next.js is developed by Vercel, a company that also sells hosting for Next.js apps. Many of its more advanced features (ISR, certain caching behaviors, image optimization) are tuned to work best — sometimes only fully work — on Vercel's own infrastructure, though the framework itself is open source and self-hostable via a Node server or Docker. Worth knowing going in: adopting Next.js isn't a purely neutral technical choice, and it's reasonable to weigh how much that matters for a given project's hosting plans before committing.",
+        },
+        {
+          kind: "bullets",
+          heading: "A rough guide to when a framework isn't worth it",
+          intro: "Not every project needs this. A framework is the wrong tool when:",
+          bullets: [
+            "The app has no real routing to speak of — a single embedded widget, a small internal tool with one screen — where a router and rendering-strategy layer add more ceremony than they remove.",
+            "There's no server-side data to fetch at all — a purely client-side app, like a browser extension or an offline-first tool, gets little from Server Components since there's no server-only data to keep off the client.",
+            "For most applications with more than a couple of pages and a real backend, though, the three problems above show up quickly enough that a framework earns its cost fast.",
+          ],
+        },
+        {
           kind: "terminal",
           heading: "Scaffolding a new App Router project",
           description: "The quickest way to get a project like the ones in this course running locally.",
@@ -210,6 +226,35 @@ export default function JobsLayout({ children }) {
           heading: "Per-page metadata for SEO",
           body: "A page or layout can export a `metadata` object (or an async `generateMetadata` function when the values depend on fetched data, like a product's name) to set that page's title, description, and social preview tags. The framework handles rendering it into the actual `<head>` for you, and it composes with nested layouts the same way the visible UI does — a layout's metadata applies to everything nested under it unless a page overrides a specific field.",
         },
+        {
+          kind: "text",
+          heading: "Navigating between routes: the Link component",
+          body: [
+            "Routing conventions handle mapping a URL to a page, but moving between pages during actual use goes through next/link's `<Link>` component, not a plain `<a>` tag. Link wraps an anchor tag under the hood — so it degrades gracefully and stays crawlable — but intercepts the click to do a fast, client-side navigation instead of a full page reload, swapping in just the new page's content.",
+            "Next.js also prefetches the linked page's code (and, for static routes, its data) in the background whenever a Link scrolls into view, so by the time someone actually clicks it, the navigation feels closer to instant than to a typical page load.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A basic navigation link",
+          body: "Link takes the same href a plain anchor would, including a dynamic route's actual path — there's no separate route-name-based API to learn, matching the file-based convention from the rest of this lesson.",
+          code: `import Link from "next/link";
+
+function JobsNav({ job }) {
+  return (
+    <nav>
+      <Link href="/jobs">All jobs</Link>
+      <Link href={\`/jobs/\${job.id}\`}>{job.title}</Link>
+    </nav>
+  );
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "middleware.ts: code that runs before a route resolves",
+          body: "A single middleware.ts file at the project root can run logic before any matching request reaches a route — redirecting unauthenticated users away from a protected page, rewriting a URL, or setting a response header, all before Next.js even determines which page or route handler will otherwise run. It executes on the Edge runtime by default and can't do everything a full Server Component can (no direct database access, for instance), which is why it's typically used for lightweight checks like an auth redirect rather than substantial logic.",
+        },
       ],
     },
     {
@@ -327,6 +372,18 @@ export function ThemeToggle({ children }) {
           heading: "The common mistake: \"use client\" at the top of everything",
           body: "It's tempting to slap \"use client\" on a whole page the moment anything on it needs interactivity, especially early on. That silently opts a much larger chunk of your app out of server-side rendering, database access, and the bundle-size benefits that are the entire reason Server Components exist. Isolate the interactive part into its own small client component instead of converting the whole tree.",
         },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Context providers must be Client Components",
+          body: "React Context's Provider relies on component state and re-rendering the whole subtree it wraps when its value changes — machinery that only exists in Client Components. A ThemeProvider or an AuthProvider needs its own \"use client\" file, even though the values it provides (like a theme string) are themselves plain serializable data. The common pattern is a thin Client Component wrapping createContext/Provider near the root, with the rest of the (still mostly Server Component) tree nested inside it — the Provider being a Client Component doesn't force everything nested inside it to also become one.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Third-party libraries and the \"use client\" boundary",
+          body: "Many popular React libraries — component libraries with interactive widgets, hooks-based state managers — were written before Server Components existed and don't mark their own exports as client-only. Importing one of these directly into a Server Component often throws a build error the moment it touches useState or an event handler internally. The common fix is a thin wrapper file with \"use client\" at the top that re-exports the library's component, giving Next.js an explicit boundary to work with instead of guessing.",
+        },
       ],
     },
     {
@@ -436,6 +493,28 @@ async function SlowActivityFeed() {
           heading: "What about Client Components that need data?",
           body: [
             "A Client Component can still fetch data itself — for things that only make sense after user interaction, like a search box's live results. The common pattern is for a Server Component to fetch the initial data and pass it down as a prop, and for a Client Component to handle any fetching that happens later, in response to something the user does.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Deduplicating a database call with React's cache()",
+          body: "Request memoization for duplicate fetch() calls only applies to the fetch API itself — it doesn't automatically dedupe a direct database query or an ORM call made from multiple components in the same render. Wrapping such a function in React's own cache() gives it the same per-render deduplication fetch gets for free.",
+          code: `import { cache } from "react";
+
+export const getJob = cache(async (id: string) => {
+  return db.job.findUnique({ where: { id } });
+});
+// Multiple components calling getJob(id) with the same id in one render
+// trigger a single database query, not one per call site.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Choosing between fetching in a layout vs. a page",
+          intro: "Where you put a fetch call inside the route tree has real consequences, not just organizational ones:",
+          bullets: [
+            "A fetch inside layout.tsx runs once and stays mounted across navigation between sibling pages under it — useful for data like the current user that every page under that layout needs, without refetching it on every single navigation.",
+            "A fetch inside page.tsx reruns on every navigation to that specific page, which is correct for data that's actually specific to that page rather than shared across its siblings.",
+            "Duplicating the same fetch call in both a layout and a page just to be safe isn't necessary — React's request memoization (or a cache()-wrapped function) collapses identical calls within one render into a single request regardless of where they're called from.",
           ],
         },
       ],
@@ -657,6 +736,22 @@ export default async function JobPage({ params }) {
           tone: "tip",
           heading: "Choosing a strategy is a judgment call, not a rule",
           body: "The question worth asking per page: how stale can this data be before it's actually wrong for the user? A product catalog can tolerate being a minute old (ISR). A checkout page cannot (dynamic). A terms-of-service page barely ever changes at all (static). Picking the loosest strategy the content can honestly tolerate is usually the right default — it's the cheapest to serve.",
+        },
+        {
+          kind: "bullets",
+          heading: "Overriding the inferred strategy explicitly",
+          intro: "Next.js's automatic detection is usually right, but a route segment config export can force a specific strategy when the default guess isn't what you want:",
+          bullets: [
+            "`export const dynamic = \"force-static\"` renders a page statically even if something inside it would normally make Next.js treat it as dynamic — useful when you know a value like a timestamp is fine to be stale.",
+            "`export const dynamic = \"force-dynamic\"` does the opposite — always render fresh per request, even if nothing on the page would have required it. This is the same escape hatch `fetch(url, { cache: \"no-store\" })` provides for a single fetch, but applied to the entire route.",
+            "These are the exception, not the everyday tool — reach for the inferred default first, and override only when you've confirmed Next.js guessed wrong for a specific route's actual requirements.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Partial Prerendering: a newer middle ground",
+          body: "Partial Prerendering (PPR) takes the static/dynamic split down to the level of a single page instead of a whole route: a static shell renders instantly from the cache, with any genuinely dynamic pieces (wrapped in Suspense, the same mechanism from the data-fetching lesson) streamed in around it. It's a newer answer to a common real tension — a page that's mostly static content with one small personalized widget previously had to pick fully static or fully dynamic for the whole thing; PPR lets it be both at once, without manually splitting it into separate routes.",
         },
         {
           kind: "summary",

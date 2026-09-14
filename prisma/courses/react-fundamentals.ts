@@ -189,6 +189,46 @@ const element = React.createElement(
           body: "`{pendingCount && <Badge />}` looks safe, but if `pendingCount` is `0`, JavaScript's `&&` returns `0` itself — and React renders that as the literal text \"0\" on the page instead of rendering nothing. Guard with an explicit comparison instead: `{pendingCount > 0 && <Badge />}`.",
         },
         {
+          kind: "example",
+          heading: "Fragments avoid extra wrapper elements",
+          body: "Wrapping siblings in a `<div>` just to satisfy the single-root-element rule adds a real DOM node that wasn't there before — which can break CSS that assumes a specific parent-child relationship, like a table row or a CSS grid expecting direct children. A Fragment (`<>...</>`) groups elements without adding anything to the actual DOM.",
+          code: `// Adds an unwanted <div> around each row, breaking a table that expects
+// <td> elements to be direct children of <tr>
+function TableRow({ label, value }) {
+  return (
+    <div>
+      <td>{label}</td>
+      <td>{value}</td>
+    </div>
+  );
+}
+
+// Groups them with no extra DOM node at all
+function TableRow({ label, value }) {
+  return (
+    <>
+      <td>{label}</td>
+      <td>{value}</td>
+    </>
+  );
+}
+
+// The shorthand <> can't take a key — use the full name when mapping a
+// list of fragments
+items.map((item) => (
+  <React.Fragment key={item.id}>
+    <dt>{item.term}</dt>
+    <dd>{item.definition}</dd>
+  </React.Fragment>
+));`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Inline styles take an object, not a CSS string",
+          body: "The `style` prop takes a JavaScript object with camelCase property names, not a CSS string — `style={{ backgroundColor: 'coral', fontSize: 14 }}`, not `style=\"background-color: coral; font-size: 14px\"`. Numeric values are treated as pixels for most properties. The double curly braces just mean an object literal (inner) inside a JSX expression (outer). Most real projects reach for CSS modules or a CSS-in-JS library instead, but inline styles remain the simplest option when a value is computed dynamically per render.",
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
@@ -281,6 +321,14 @@ const element = React.createElement(
           tone: "warning",
           heading: "Don't mutate props",
           body: "Reassigning or mutating a prop directly (`props.items.push(x)`, `props.value = 5`) works in JavaScript but breaks React's assumptions — the parent doesn't know the change happened, and React won't reliably re-render to reflect it. If a child needs to change something, it should call a function passed down from the parent, which updates the parent's own state.",
+        },
+        {
+          kind: "text",
+          heading: "State colocation: keeping state close to where it's used",
+          body: [
+            "State doesn't have to live at the top of your component tree just because it's easy to lift there. If only one component (and none of its siblings) ever reads or updates a piece of state, it should live inside that component, not in some distant ancestor \"just in case\" something else needs it later.",
+            "Lifting state further up than necessary has a real cost: every state change re-renders the ancestor holding it, and by default every child underneath that ancestor re-renders too (the next lesson covers exactly why). A search input's own typed-but-not-yet-submitted value, a dropdown's open/closed flag, a modal's current tab — these are classic candidates for local state, not global or lifted state, because nothing outside that one component actually cares about them.",
+          ],
         },
       ],
     },
@@ -402,6 +450,40 @@ useEffect(() => {
             "An object or array literal recreated fresh every render (`[{ id }]`, `[items.filter(x => x.active)]`) never equals the previous render's version by reference, so the effect re-runs on every single render — an infinite loop if the effect itself triggers another re-render.",
             "Forgetting a cleanup function for anything that persists past one render — a subscription, an interval, an event listener — leaks it: the component unmounts, but the subscription keeps running and can reference state that no longer exists.",
             "Not every side effect belongs in useEffect at all: something that only needs to happen in direct response to a specific user action (a click, a form submit) belongs in that event handler itself, not in an effect watching for the state that handler happens to set.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "You often don't need an effect at all",
+          body: "A surprisingly large share of useEffect bugs come from reaching for an effect where none was needed. If a value can be computed directly from existing props or state, compute it during render — no effect required. If something needs to happen in response to a specific user action, put it directly in that event handler, not in an effect that watches for the state the handler happens to set. Effects exist specifically for synchronizing with something outside React — a server, a subscription, a timer, the DOM — not as a general-purpose \"do this when something changes\" mechanism. React's own docs have an entire page titled \"You Might Not Need an Effect\" for exactly this reason.",
+        },
+        {
+          kind: "example",
+          heading: "useLayoutEffect: the rare case useEffect fires too late",
+          body: "useEffect runs after the browser has already painted the new frame, which is what you want almost all the time — it doesn't block the screen from updating. useLayoutEffect runs synchronously before the browser paints, which matters only when an effect needs to measure or mutate the DOM in a way that would otherwise cause a visible flicker.",
+          code: `// useEffect: the user can briefly see the tooltip in the wrong spot
+// before this measurement-and-reposition logic corrects it after paint
+useEffect(() => {
+  const rect = tooltipRef.current.getBoundingClientRect();
+  setPosition(computePosition(rect));
+}, []);
+
+// useLayoutEffect: measurement and reposition happen before the browser
+// paints, so there's no flicker to begin with
+useLayoutEffect(() => {
+  const rect = tooltipRef.current.getBoundingClientRect();
+  setPosition(computePosition(rect));
+}, []);`,
+        },
+        {
+          kind: "bullets",
+          heading: "Multiple state variables vs. one object",
+          intro: "Calling useState several times for independent values, versus once with an object holding several fields — both work, but they solve different problems:",
+          bullets: [
+            "Independent `useState` calls when the values genuinely change independently — updating one never needs to know about the others, and you don't accidentally overwrite fields you didn't mean to touch.",
+            "One object in state when the values are tightly related and usually updated together (form fields, an x/y coordinate) — but the setter replaces the whole object, so updating one field means spreading the rest: `setValues(prev => ({ ...prev, email: newEmail }))`.",
+            "Forgetting to spread the previous object is one of the most common useState bugs: `setValues({ email: newEmail })` silently discards every other field that was in the object before.",
           ],
         },
         {
@@ -534,6 +616,49 @@ useEffect(() => {
             "Uncontrolled: the DOM itself holds the value, and you read it out only when needed (via a ref) — closer to plain HTML forms, less common in typical React code, but sometimes simpler for a form you only read once, like a file upload.",
           ],
         },
+        {
+          kind: "example",
+          heading: "Disabling submit while a request is in flight",
+          body: "A form that can be submitted multiple times before the first request finishes is a common source of duplicate orders, duplicate signups, and duplicate anything-with-side-effects. Tracking an `isSubmitting` flag and disabling the button (and ideally the fields) while it's true is a small addition that prevents a real class of bugs.",
+          code: `function LoginForm() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await submitLogin({ email, password });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* fields */}
+      <button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? "Logging in…" : "Log in"}
+      </button>
+    </form>
+  );
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "Accessible forms, briefly",
+          intro: "A form that only works visually excludes real users. A few habits cost little and matter a lot:",
+          bullets: [
+            "Every input needs an associated `<label>` — either wrapping the input, or connected via `htmlFor` matching the input's `id`. A placeholder is not a substitute for a label; it disappears the moment someone starts typing.",
+            "`aria-invalid` plus an associated error message (referenced via `aria-describedby`) let a screen reader announce a validation error the same way sighted users see a red border and text.",
+            "A submit button should be a real `<button type=\"submit\">`, not a `<div>` with an onClick — that's what makes the form submittable by pressing Enter in a field, and reachable via keyboard navigation at all.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Debouncing input before it triggers a network request",
+          body: "Wiring a search box's onChange straight to a fetch call sends a request on every keystroke — wasteful, and prone to showing stale results if a slower earlier request resolves after a faster later one. The common fix is debouncing: wait for a short pause in typing (a few hundred milliseconds) before firing the request, using a `setTimeout` set up inside a `useEffect` keyed on the query, with the effect's cleanup clearing that timeout so only the most recent pause actually triggers a fetch.",
+        },
       ],
     },
     {
@@ -621,6 +746,27 @@ function Child() {
             "Give list items a stable, unique `key` prop (an ID, not the array index where the list can reorder) — React uses it to match items across renders, and a wrong key causes state to attach to the wrong item after a reorder or deletion.",
             "Don't create new objects, arrays, or functions inline as props if a child is expensive to re-render and you're trying to avoid it — a new object literal or arrow function is a different reference every render, which defeats memoization techniques even when the actual data hasn't changed.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "Changing an element's type also resets state, not just changing key",
+          body: "It's not just an explicit key change that resets a component's state — swapping which type of element sits in a given spot in the tree does the same thing, since React can't meaningfully preserve state across two entirely different element types occupying the same position.",
+          code: `// isEditing flips between an <input> and a <span> occupying the same
+// spot — that's two different element types, not one element whose
+// content changes, so any local state inside EditableField remounts too
+function EditableField({ isEditing, value }) {
+  return isEditing ? (
+    <input defaultValue={value} />
+  ) : (
+    <span>{value}</span>
+  );
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A subtle case: defining a component inline",
+          body: "Defining a component function inside another component's body — instead of at module scope — creates a brand new function (and therefore a brand new component type, from React's perspective) on every single render of the parent. React sees a \"different\" component type at that position each time and remounts it from scratch, discarding any state inside it, rather than updating it in place. This is a real, easy-to-make mistake, not just a style preference: always define components at the top level of a file, never inside another component's function body.",
         },
         {
           kind: "summary",
@@ -758,6 +904,38 @@ function Panel({ children }) {
           tone: "insight",
           heading: "Memoization is a hint, not a guarantee",
           body: "useMemo and useCallback are documented as a performance optimization, not a semantic guarantee — React is allowed, in principle, to discard a memoized value and recompute it anyway, for instance under future concurrent-rendering features that trade memory for responsiveness. Never rely on useMemo to skip a computation for correctness reasons, like avoiding a side effect from running — only ever rely on it for performance, and make sure the surrounding code stays correct even on a render where the \"memoized\" value gets recomputed anyway.",
+        },
+        {
+          kind: "text",
+          heading: "useMemo isn't only for expensive computations",
+          body: [
+            "So far useMemo has been about skipping a genuinely slow computation. It has a second common use: keeping an object or array's reference stable across renders when that reference matters downstream — as a dependency of another hook, or as a prop into a memoized child — even when computing the object itself is trivially cheap.",
+            "The `sortAndFilter` example earlier in this lesson skips real work. Memoizing a small `{ min, max }` object passed down as a filter-range prop skips nothing computationally, but keeps `React.memo` on the child actually effective — the same trick that made useCallback necessary above applies just as much to plain object and array props.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A cheap object still needs memoizing if its identity matters downstream",
+          body: "React.memo compares props by reference, not by deep equality — so even a trivially cheap-to-build object needs useMemo if a memoized child depends on that reference staying the same across renders where its values haven't changed.",
+          code: `function Dashboard({ min, max }) {
+  // Trivially cheap to compute, but a brand-new object every render —
+  // FilterPanel's React.memo will never see it as "the same" range
+  const range = { min, max };
+  return <FilterPanel range={range} />;
+}
+
+// Fixed: same values in, same object reference out, across renders
+// where min and max haven't actually changed
+function Dashboard({ min, max }) {
+  const range = useMemo(() => ({ min, max }), [min, max]);
+  return <FilterPanel range={range} />;
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Where this is headed: the React Compiler",
+          body: "A newer React Compiler (shipped as part of React 19's toolchain) analyzes your component code at build time and inserts equivalent memoization automatically, for components that follow React's rules — meaning manually sprinkling useMemo and useCallback throughout a codebase is increasingly something tooling can do for you rather than something you hand-write everywhere. It doesn't remove the value of understanding what memoization actually does and why — you still need that to reason about a component's behavior, debug a stale-value bug, or work in the many existing codebases the compiler doesn't cover — but it's worth knowing this manual pattern is trending toward becoming largely automatic for compiler-adopting projects.",
         },
         {
           kind: "summary",

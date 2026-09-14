@@ -859,6 +859,22 @@ numbers.push("6"); // Error — this Stack<number> only accepts numbers`,
         },
         {
           kind: "bullets",
+          heading: "Variance: why a generic's type parameter isn't always freely substitutable",
+          intro: "This is one of the more advanced corners of generics, but it explains errors that otherwise look inexplicable once a codebase leans on generics heavily.",
+          bullets: [
+            "Arrays are covariant in TypeScript — a Dog[] is assignable where an Animal[] is expected, on the theory that anything you'd read out of it is safely treated as an Animal. This is technically unsound (someone could push a Cat into what the caller believes is a Dog[]), but TypeScript allows it anyway because forbidding it would make everyday array code far more annoying to write.",
+            "Function parameters behave more strictly, and in the opposite direction — a callback expecting a narrower type generally can't be substituted where a wider one is expected, because the function body might rely on members only the wider type guarantees.",
+            "In practice this rarely needs a name to work with day to day — it mostly explains that occasional generic error where a type that \"should\" be assignable isn't, and the compiler's message about incompatible call signatures is really this concept surfacing without saying so directly.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Conditional types: a type-level if/else",
+          body: "T extends U ? X : Y at the type level picks between two types depending on whether T is assignable to U — the type-system equivalent of a ternary. Most day-to-day TypeScript never needs to write one directly, but a huge share of the built-in utility types (Exclude, Extract, ReturnType, Awaited) are conditional types under the hood, and recognizing the shape helps when a library's type definition or an error message shows you one directly instead of a friendlier named alias.",
+        },
+        {
+          kind: "bullets",
           heading: "A quick way to read an unfamiliar generic signature",
           intro: "Library type definitions can look intimidating at first — Array.prototype.reduce's real signature has three overloads and a generic parameter. A consistent approach cuts through most of it.",
           bullets: [
@@ -1032,6 +1048,17 @@ function shout(value: unknown) {
           tone: "insight",
           heading: "Narrowing is why unions are usually better than a single loose type",
           body: "A common instinct when a value could take a few different shapes is to type it as one broad, permissive type — everything optional, or a plain Record<string, unknown> — and check what's actually there with ad hoc conditionals as needed. A union of specific variants, paired with narrowing, is almost always the better trade: instead of remembering yourself which fields are safe to read in which situation, the compiler tracks that for you at every single call site, and it's impossible to forget a check the type system already knows is required. The extra minute spent defining the variants up front routinely saves far more time later, the first time someone new touches that code without the full mental model in their head.",
+        },
+        {
+          kind: "bullets",
+          heading: "Narrowing across control flow structures beyond if/else",
+          intro: "Narrowing isn't limited to a simple if — TypeScript tracks it through most of the control flow constructs you'd expect it to.",
+          bullets: [
+            "A guard clause that returns or throws narrows for the rest of the function, not just inside a block: if (typeof id !== \"string\") return; leaves id narrowed to string for every line after it, with no surrounding braces needed.",
+            "&& and || narrow too — user && user.isActive only evaluates the right side once user is already known to be truthy, and TypeScript reflects that in the type it infers for the whole expression.",
+            "A while loop's condition narrows its body exactly like an if's does: while (node !== null) { node.value } is safe inside the loop, because TypeScript knows the loop wouldn't be running otherwise.",
+            "Reassigning a variable to a new value re-triggers narrowing based on that new value — narrowing tracks the current, most specific state of a variable through your code, not a single fact frozen at declaration time.",
+          ],
         },
         {
           kind: "summary",

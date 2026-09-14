@@ -102,6 +102,12 @@ query {
           heading: "A quick way to spot over-fetching in your own REST API",
           body: "Look at your largest response payloads and ask how many of the fields shipped are actually rendered on the screen that requested them — teams are often surprised to find a \"lightweight\" list screen pulling in a response several times larger than what it displays. If the answer regularly comes back well under half, that's exactly the shape of problem GraphQL was built to remove structurally, rather than just work around with a fields= hack bolted onto an existing endpoint.",
         },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "GraphQL trades away some things REST got for free",
+          body: "The flexibility that fixes over- and under-fetching has a real cost elsewhere: REST's GET requests are cacheable by browsers, CDNs, and HTTP infrastructure out of the box, keyed by URL. GraphQL typically sends every operation as a POST to one single endpoint, which defeats that same HTTP-level caching almost entirely — a GraphQL server needs its own caching strategy (persisted queries, a response cache keyed by query and variables) to get back some of what REST got for free. This isn't a reason to avoid GraphQL, but it is a real trade, not a strict upgrade over REST in every dimension.",
+        },
       ],
     },
     {
@@ -342,6 +348,31 @@ type Mutation {
           tone: "warning",
           heading: "A 200 OK response can still contain errors — check the errors array, not just the status code",
           body: "Unlike REST, where a failure usually shows up as a 4xx or 5xx status, GraphQL almost always responds with HTTP 200, even when something went wrong. The response body carries a top-level errors array alongside (or instead of) data — and because GraphQL resolves field by field, one failing field doesn't necessarily fail the whole request: data can come back partially populated, with null standing in for whatever failed and a matching entry in errors explaining why. Client code that only checks response.ok and ignores the errors array will silently treat a partial failure as a full success.",
+        },
+        {
+          kind: "example",
+          heading: "Fragments avoid repeating the same field selection",
+          body: "A fragment names a reusable set of fields on a given type, so the same selection doesn't need to be retyped everywhere it's needed — and, more importantly, stays consistent if the fields it selects ever change.",
+          code: `fragment OrderSummary on Order {
+  id
+  total
+  createdAt
+}
+
+query {
+  recentOrders: orders(first: 5) {
+    ...OrderSummary
+  }
+  order(id: "101") {
+    ...OrderSummary
+  }
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Fragments colocated with the component that uses them",
+          body: "In client frameworks built around GraphQL (Relay, and Apollo Client to a lesser degree), fragments are often defined right next to the UI component that renders those fields, and a parent query composes them together — so a component's own data needs live in the same file as its rendering logic, instead of one giant query listing every field every part of the page happens to need.",
         },
         {
           kind: "example",

@@ -208,7 +208,19 @@ Fixed (parameterized query):
           kind: "text",
           heading: "Misconfiguration",
           body: [
-            "A publicly exposed storage bucket, an admin panel with default credentials, an overly permissive firewall rule — not sophisticated exploits, just mistakes an attacker only has to find.",
+            "A publicly exposed storage bucket, an admin panel with default credentials, an overly permissive firewall rule — not sophisticated exploits, just mistakes an attacker only has to find. Automated internet-wide scanners look for exactly these signatures continuously, so a misconfiguration doesn't need to be discovered by a targeted attacker — it just needs to exist long enough for a routine scan to stumble across it, which is often a matter of hours, not months.",
+            "Cloud environments make this category worse than it used to be, not better: a single wrong checkbox on a storage bucket's access policy, set by one engineer during a quick test, can expose an entire dataset to the public internet with no further action required from anyone. Infrastructure-as-code and automated configuration scanning exist specifically to catch this class of mistake before it ships, since manual review alone reliably misses it.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Two more categories worth naming: man-in-the-middle and zero-day",
+          intro:
+            "Not every attack fits neatly into the categories above — two more come up often enough to be worth naming specifically.",
+          bullets: [
+            "Man-in-the-middle (MITM) — an attacker secretly intercepts (and sometimes alters) communication between two parties who both believe they're talking directly to each other, often on unsecured public Wi-Fi. HTTPS and certificate validation exist specifically to make this much harder, which is why a browser's certificate warning should never be casually dismissed.",
+            "Zero-day vulnerability — a flaw unknown to the software vendor (and therefore unpatched anywhere) at the time it's actively exploited. Unlike most items on this list, there's no patch to apply yet, which is exactly why defense in depth matters: a zero-day that gets past one layer still has to get past the others.",
+            "Both categories reinforce the same lesson as the rest of this list: no single control is airtight, which is precisely why layering matters more than perfecting any one layer.",
           ],
         },
         {
@@ -302,6 +314,33 @@ Fixed (parameterized query):
           body: "Least privilege limits how much any single compromised point can reach. Defense in depth ensures no single compromised point is enough on its own.",
         },
         {
+          kind: "text",
+          heading: "Least privilege applies to systems and code, not just people",
+          body: [
+            "It's easy to think of least privilege purely in terms of employee accounts, but the same principle applies just as hard to service accounts, APIs, and automated processes — and arguably matters more there, since a compromised automated process can act at machine speed with nobody watching in real time.",
+            "A backend service that only ever reads from one table should hold a database credential scoped to exactly that — read-only, that one table — rather than a broad admin credential that happens to work for the task. If that service is ever compromised through a code vulnerability, the attacker inherits whatever the service's credential can do, nothing more; an over-scoped credential turns a contained bug into a much bigger incident.",
+            "The same logic extends to third-party integrations and API keys: a key handed to an analytics vendor should be scoped to exactly the data it needs to receive, not a general-purpose key that happens to also work for billing or user management.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Defense in depth surviving a real single-layer failure",
+          body: "The point isn't that any one layer is perfect — it's that the other layers keep working even when one of them isn't.",
+          code: `A misconfigured firewall rule accidentally exposes an
+internal admin panel to the public internet.
+
+Without defense in depth:
+  -> The admin panel has no additional authentication of its
+     own, so exposure alone is enough to grant full access.
+
+With defense in depth:
+  -> Network layer failed (the firewall rule), but the
+     application layer still requires authentication and MFA.
+  -> The exposed panel is reachable, but a real login is still
+     required to do anything with it.
+  -> One layer failing became a finding to fix, not a breach.`,
+        },
+        {
           kind: "bullets",
           heading: "A common mistake: privilege creep",
           intro:
@@ -391,6 +430,16 @@ Year 5 — account compromised via phishing:
           tone: "warning",
           heading: "A common mistake: dismissing a low-severity finding in isolation",
           body: "A single low-severity misconfiguration — a verbose error message revealing a software version, a slightly too-permissive internal API — is often deprioritized on its own, reasonably. The real risk is chaining: an attacker combines that version disclosure with a known vulnerability for that exact version, then uses the overly permissive API to move further than a single well-configured control would have allowed. Treating each finding in total isolation, rather than asking what it enables in combination with everything else already known about the system, is how a list of individually-minor issues adds up to a real breach path.",
+        },
+        {
+          kind: "bullets",
+          heading: "Two more habits that belong on this list: endpoint security and vendor risk",
+          intro: "Patching, MFA, backups, and logging cover most of the surface — two more habits close real gaps that day-to-day IT work runs into constantly.",
+          bullets: [
+            "Full-disk encryption on laptops — a stolen or lost laptop with an unencrypted disk hands over every file on it to whoever finds it, no password required; full-disk encryption (built into every modern OS, and often just one setting to enable) turns that same lost laptop into an unreadable brick without the login credentials.",
+            "Configuration baselines — a freshly imaged machine or newly provisioned server often ships with far more running than it needs (unused services, default accounts, open ports); a documented baseline configuration, applied consistently, closes off a surprising amount of attack surface before a single line of custom software is even installed.",
+            "Vendor and third-party risk — every vendor with access to your systems or data is effectively an extension of your own attack surface; a vendor with weak security practices can become the actual entry point into your organization, which is why vendor access should follow the same least-privilege and review discipline as an employee's.",
+          ],
         },
         {
           kind: "summary",
@@ -489,6 +538,34 @@ Year 5 — account compromised via phishing:
             "Password-specific hash functions (bcrypt, scrypt, Argon2) are deliberately slow and tunable — that slowness is a feature, not a flaw, since it's exactly what makes guessing billions of candidate passwords against a stolen hash impractical.",
             "Using a general-purpose fast hash (even SHA-256, which isn't \"broken\" the way MD5 is) for password storage is still a common real-world mistake — fast is the wrong property to optimize for when the whole point is making guessing expensive.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "A fourth job: digital signatures, which flip asymmetric encryption around",
+          intro:
+            "Asymmetric encryption is usually described as \"encrypt with the public key, decrypt with the private key\" — but running it in reverse solves a completely different problem: proving who sent something, and that it wasn't altered.",
+          bullets: [
+            "To sign a message, the sender hashes it, then encrypts that hash with their own private key — anyone with the sender's public key can decrypt the signature and check it matches a fresh hash of the message. Only the private key holder could have produced a signature that checks out.",
+            "This delivers integrity and authenticity together: if even one byte of the message changes, the hash no longer matches, and if anyone other than the real sender tries to sign it, their signature won't decrypt correctly with the real sender's public key.",
+            "This is exactly how software publishers let users verify a download hasn't been tampered with, and how a certificate authority vouches for a website's identity in HTTPS — the padlock in a browser is ultimately a chain of digital signatures, not encryption of the page content itself.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Signing versus encrypting: why they solve different problems",
+          body: "It's tempting to think \"asymmetric crypto\" is one operation, but signing and encrypting use the two keys in opposite roles for opposite goals.",
+          code: `Encrypting a message for confidentiality:
+  Sender encrypts with the RECIPIENT'S public key.
+  Only the recipient's private key can decrypt it.
+  -> Goal: only the intended reader can read it.
+
+Signing a message for authenticity/integrity:
+  Sender encrypts a hash of the message with the SENDER'S
+  own private key.
+  Anyone with the sender's public key can verify it.
+  -> Goal: prove who sent it, and that it wasn't changed.
+  -> Notably: a signature doesn't keep the message secret at
+     all — it's often sent right alongside the plaintext.`,
         },
         {
           kind: "summary",

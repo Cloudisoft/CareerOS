@@ -75,6 +75,22 @@ console.log(JSON.parse(contents));
           body: "Node ships with a deliberately small standard library. Most day-to-day capability — web frameworks, database clients, testing tools — comes from npm packages layered on top, covered in a later lesson. This is a real design trade: a lean core plus an enormous package ecosystem filling in the rest, rather than a large batteries-included standard library the way some other languages ship by default.",
         },
         {
+          kind: "bullets",
+          heading: "A few more built-in globals worth knowing",
+          intro: "Beyond process, a handful of other globals show up constantly in real Node code:",
+          bullets: [
+            "Buffer — Node's way of representing raw binary data (file contents, network payloads) before or instead of decoding it as text; something browser JavaScript has no real equivalent for outside of the more recent, more limited Uint8Array/ArrayBuffer APIs.",
+            "__dirname and __filename — the absolute path of the current file and its directory, available automatically in CommonJS files; ESM files don't have them and use import.meta.url instead, one more small difference between the two module systems covered later in this course.",
+            "console — mostly identical to the browser's, though Node's version writes to standard output/error rather than a browser dev tools panel, which matters for how logs actually get captured in production (a log aggregator, a file, a container's stdout).",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "LTS vs. Current: which Node version to actually run",
+          body: "Node ships two release tracks at once: an even-numbered LTS (Long-Term Support) release, which is what most production deployments should run, and a Current release with newer features but a shorter support window and less production hardening. LTS releases get security and bug fixes for roughly 30 months; Current releases don't carry that same long-term guarantee. Defaulting to whatever LTS version is active, rather than always chasing the newest release, is standard practice for anything beyond local experimentation.",
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
@@ -173,6 +189,31 @@ console.log("2: sync");
         },
         {
           kind: "bullets",
+          heading: "The event loop actually runs in phases, not one undifferentiated queue",
+          intro: "\"The event loop\" is really several distinct phases the main thread cycles through, each handling a different kind of pending work:",
+          bullets: [
+            "Timers — runs callbacks whose setTimeout/setInterval delay has elapsed.",
+            "Poll — retrieves new I/O events (a completed file read, an incoming connection) and runs their callbacks; this is where the loop spends most of its time in a typical server.",
+            "Check — runs setImmediate callbacks, specifically scheduled to run right after the poll phase completes.",
+            "Close callbacks — handles cleanup like a socket's \"close\" event.",
+            "Microtasks (promise callbacks, process.nextTick) drain completely between every single phase, not just once per full loop — which is why the order in the earlier example held even though nothing timer-related had happened yet.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "setImmediate vs. setTimeout(fn, 0)",
+          body: "Both schedule a callback to run \"as soon as possible\" rather than immediately, but their relative order isn't actually guaranteed outside of one specific case: inside an I/O callback, setImmediate reliably fires before a setTimeout(fn, 0) scheduled at the same moment, because the check phase (setImmediate) runs immediately after the poll phase where the I/O callback itself just ran, before the loop cycles back around to timers.",
+          code: `const fs = require("fs");
+
+fs.readFile(__filename, () => {
+  setTimeout(() => console.log("setTimeout"), 0);
+  setImmediate(() => console.log("setImmediate"));
+  // Inside an I/O callback, this order is guaranteed: setImmediate logs
+  // first here — outside an I/O callback, the order isn't guaranteed
+});`,
+        },
+        {
+          kind: "bullets",
           heading: "A timer's delay is a minimum, not a guarantee",
           bullets: [
             "setTimeout(fn, 1000) schedules fn to run no sooner than 1 second from now, not exactly at 1 second. If the main thread is busy with other work when that time arrives, the timer's callback waits until the thread is actually free.",
@@ -262,6 +303,20 @@ async function loadFormatter(locale) {
           body: [
             "ESM allows await at the top level of a module, outside any async function — useful for a module that needs to load some configuration or data before anything importing it can run. CommonJS has no equivalent; await there is only valid inside an async function, which is one more real reason a project leaning on top-level await needs to be ESM.",
           ],
+        },
+        {
+          kind: "text",
+          heading: "How Node resolves a bare module name like \"express\"",
+          body: [
+            "A relative import (\"./math.js\") or absolute path resolves exactly where it points. A bare specifier like \"express\" is different: Node looks for a node_modules/express folder starting in the current directory, and if it's not there, walks up one directory at a time — checking node_modules at each level — until it either finds a match or reaches the filesystem root and throws a \"Cannot find module\" error.",
+            "This is also why a single project can end up with multiple copies of the same package at different versions nested inside each other's node_modules — two dependencies each requiring a different version of some shared package get their own copies, resolved independently by wherever their own require or import call sits in that folder structure.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Circular dependencies behave differently in the two systems",
+          body: "CommonJS handles a circular require() by returning whatever partial module.exports has been built so far at the moment of the cycle — which can silently be an incomplete object rather than an error. ESM's static import graph lets it handle some circular cases more gracefully, since bindings are live references resolved lazily, though a genuinely circular dependency is still a sign of a design problem worth untangling in either system, not something to rely on either module system handling gracefully.",
         },
         {
           kind: "callout",
@@ -398,6 +453,38 @@ server.listen(3000, () => {
           heading: "Why it's still worth knowing the raw version",
           body: "Every framework you'll use is a layer on top of exactly this module — understanding what createServer, req, and res actually are makes framework behavior (and framework bugs) far less mysterious, because you can reason about what's happening underneath the abstraction instead of treating it as a black box.",
         },
+        {
+          kind: "example",
+          heading: "Streaming a file response instead of loading it entirely into memory",
+          body: "res is a writable stream, so piping a readable stream (like a file) directly into it sends the response incrementally — the whole file never needs to sit in memory at once, which matters a lot once files get large.",
+          code: `const fs = require("fs");
+
+const server = http.createServer((req, res) => {
+  if (req.url === "/download") {
+    res.writeHead(200, { "Content-Type": "video/mp4" });
+    fs.createReadStream("large-video.mp4").pipe(res);
+    return;
+  }
+  res.writeHead(404);
+  res.end("Not found");
+});`,
+        },
+        {
+          kind: "bullets",
+          heading: "Handling errors the raw module doesn't handle for you",
+          intro: "A framework like Express catches a lot of this automatically; with the raw http module, you're responsible for it yourself:",
+          bullets: [
+            "A synchronous throw inside the request callback, uncaught, can crash the entire process — the same single-thread-affects-everyone consequence covered elsewhere in this course, just triggered from inside a request handler instead of an async call.",
+            "req can itself emit an \"error\" event (a client disconnecting mid-upload, a malformed request) — leaving it unhandled is a common source of an unexplained crash under real-world, imperfect network conditions.",
+            "A server with no timeout set will wait indefinitely on a slow or stalled client; `server.setTimeout(ms)` bounds how long a connection can sit idle before Node closes it.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "An uncaught exception's default fate: the whole process exits",
+          body: "An uncaught synchronous exception inside a request handler, left unhandled, eventually reaches Node's own default behavior: printing the error and exiting the process entirely — again taking every other in-flight request down with it. Wrapping route logic in try/catch (or, at minimum, listening for the process's own \"uncaughtException\" event to log and shut down deliberately rather than crash abruptly) is the raw-server equivalent of the async error handling covered in a later lesson.",
+        },
       ],
     },
     {
@@ -496,6 +583,16 @@ server.listen(3000, () => {
           tone: "tip",
           heading: "npx: running a package's command without installing it globally first",
           body: "npx create-react-app my-app downloads and runs a package's CLI in one step, without polluting your machine with a global install you'll use once. It also runs a locally installed package's binary directly (npx eslint . reaches for the eslint in node_modules/.bin rather than requiring it on your system PATH), which is the more common day-to-day use once a project actually has dependencies installed.",
+        },
+        {
+          kind: "bullets",
+          heading: "peerDependencies and optionalDependencies, briefly",
+          intro: "Two less common dependency fields worth recognizing when you see them:",
+          bullets: [
+            "peerDependencies declares a package the consuming project is expected to already have installed itself, rather than bundling its own copy — common for plugins (a React component library listing react itself as a peer, so it uses the app's own React instance rather than a second, conflicting copy).",
+            "optionalDependencies installs if possible but doesn't fail the whole install if it can't — typically used for a platform-specific native binary that isn't available or needed on every OS.",
+            "Seeing require inside a try/catch immediately after a package name in application code is a common tell that it's being treated as optional there too, not just in package.json.",
+          ],
         },
         {
           kind: "summary",
@@ -793,6 +890,22 @@ process.on("SIGTERM", () => {
   // safety net: force-exit if requests hang longer than expected
   setTimeout(() => process.exit(1), 10_000).unref();
 });`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Worker threads can actually share memory — cluster processes can't",
+          body: "Unlike cluster's separate OS processes, worker_threads run inside the same process and can share memory directly via a SharedArrayBuffer, which multiple threads can read and write without serializing data back and forth through postMessage. This is a real capability difference, not just an implementation detail: a computation that needs to pass large buffers back and forth (image or audio data, a big numeric array) can avoid the serialization cost entirely with worker_threads in a way cluster's process boundary makes impossible. It's a narrow, advanced use case — most worker_threads code just uses postMessage like the hashing example above — but worth knowing the option exists for genuinely large-data workloads.",
+        },
+        {
+          kind: "bullets",
+          heading: "A practical checklist before reaching for either tool",
+          intro: "Both add real complexity, so it's worth confirming the problem actually calls for them first:",
+          bullets: [
+            "Have you actually measured that a specific computation is blocking the event loop, rather than assuming it might be? Profiling first avoids adding real complexity (message passing, process management) for a problem that turns out to be elsewhere.",
+            "Is the expensive work occasional (a report generated on demand) or constant (every request does it)? worker_threads suits the former; if literally every request needs heavy computation, the deeper fix is often a different architecture (a queue, a dedicated compute service) rather than more threads on the same box.",
+            "For horizontal scaling specifically, most teams reach for an orchestrator (Kubernetes, PM2, a platform's built-in process manager) running multiple independent instances rather than hand-rolling cluster.fork() calls — the cluster module is worth understanding for what it does conceptually, even when something else ends up managing the actual processes in production.",
+          ],
         },
         {
           kind: "callout",

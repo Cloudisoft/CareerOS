@@ -214,6 +214,17 @@ spec:
           ],
         },
         {
+          kind: "bullets",
+          heading: "initContainers: setup that must finish before the app container starts",
+          intro: "A Pod can declare one or more initContainers that run to completion, in order, before any of the Pod's regular containers start at all:",
+          bullets: [
+            "A common use: waiting for a dependency to be reachable (a database accepting connections) before the app container even attempts to start, instead of relying on the app's own retry logic to paper over a dependency that isn't ready yet.",
+            "Another common use: running a one-time setup step — downloading a config file, running a database migration, cloning a git repo into a shared volume — that the main container then reads from, without bundling that setup logic into the app image itself.",
+            "If an initContainer fails, kubelet retries it (subject to the Pod's restartPolicy) and the regular containers never start until every initContainer has succeeded — this is a hard gate, not a best-effort head start.",
+            "initContainers show up in kubectl describe pod's events and in kubectl get pods' STATUS column as Init:0/1 or similar while they're still running — worth recognizing that status specifically, since it means the app container hasn't even attempted to start yet, not that it's crashing.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "A Pod gets a new IP every single time it's recreated",
@@ -365,6 +376,17 @@ kubectl rollout undo deployment/web-app`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "PodDisruptionBudgets: protecting availability during voluntary disruptions",
+          intro: "A rolling update is a voluntary disruption Kubernetes controls carefully — but node drains for cluster maintenance or a cluster autoscaler scaling down are voluntary disruptions too, and by default nothing stops them from taking out too many Pods of the same Deployment at once:",
+          bullets: [
+            "A PodDisruptionBudget (PDB) sets a floor — minAvailable: 2, say — that voluntary disruptions must respect; Kubernetes will delay or block an eviction that would drop a Deployment's healthy Pod count below that floor.",
+            "This only governs voluntary disruptions initiated through the Kubernetes API (a node drain, a cluster autoscaler decision) — it has no effect on an involuntary one, like a node actually crashing or losing power, which Kubernetes can't negotiate with after the fact.",
+            "Without a PDB, draining three nodes for maintenance in quick succession could legally evict every single replica of a Deployment simultaneously if they all happened to land on those three nodes — technically \"voluntary\" and technically respecting nothing, since there was no floor set to respect.",
+            "A PDB is what makes a cluster upgrade or a node pool replacement something an operator can run confidently during business hours, rather than something scheduled for 2am specifically because nobody's sure how much capacity it'll take out at once.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "A rollout that never finishes usually means a broken readinessProbe, not a slow one",
@@ -465,6 +487,16 @@ spec:
 # now http://localhost:8080 reaches the Service exactly
 # as any in-cluster caller would, load-balanced across
 # whichever Pods are currently healthy`,
+        },
+        {
+          kind: "bullets",
+          heading: "Headless Services: when you actually want the individual Pod IPs",
+          intro: "Setting clusterIP: None on a Service opts out of the load-balancing behavior entirely, and it's a deliberate, named pattern rather than a misconfiguration:",
+          bullets: [
+            "Instead of one virtual IP that load-balances across Pods, a headless Service's DNS name resolves directly to the IP addresses of every matching, ready Pod — the caller gets the full list and decides what to do with it.",
+            "This matters for StatefulSets in particular (each replica of a database cluster, say, needs to be addressed individually — replica-0, replica-1 — not load-balanced interchangeably, since they aren't interchangeable), and for client-side load balancing, where the application itself picks which endpoint to use rather than relying on kube-proxy's round-robin.",
+            "A regular Service's DNS name is one A record; a headless Service's DNS name returns multiple A records, one per healthy Pod — the same underlying label-selector mechanism, just exposed differently to whatever's doing the lookup.",
+          ],
         },
         {
           kind: "callout",
@@ -586,6 +618,17 @@ spec:
           ],
         },
         {
+          kind: "bullets",
+          heading: "Controller-specific annotations: the part the Ingress spec itself doesn't cover",
+          intro: "The core Ingress spec covers routing by host and path — almost everything else useful in practice is added through annotations specific to whichever controller is installed:",
+          bullets: [
+            "nginx.ingress.kubernetes.io/rewrite-target rewrites the matched path before forwarding it to the backend — routing /api/orders to a service that itself expects requests at just /orders, without the backend needing to know about the /api prefix at all.",
+            "nginx.ingress.kubernetes.io/limit-rps sets a per-IP rate limit at the Ingress layer, stopping abusive traffic before it ever reaches a backend Pod, rather than every service having to implement its own rate limiting independently.",
+            "Because these are controller-specific rather than part of the core Kubernetes API, the exact annotation names differ across nginx-ingress, Traefik, and a cloud provider's own controller — migrating from one Ingress controller to another usually means rewriting every annotation, even when the underlying routing behavior stays conceptually identical.",
+            "This is the practical tradeoff behind Ingress's portability: the routing rules themselves are portable Kubernetes API objects, but a non-trivial Ingress setup often has more configuration living in annotations than in the portable part of the spec.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "Ingress load-balances at the HTTP layer, not the TCP layer",
@@ -676,6 +719,17 @@ spec:
             "On EKS, GKE, and AKS you never see or operate the API server, etcd, scheduler, or controller manager directly — the provider runs and patches them, and you interact only through kubectl and the provider's own dashboard.",
             "What you do still operate: the worker nodes (or a serverless variant that hides those too), the workloads you deploy, and networking/IAM glue connecting the cluster to the rest of the cloud account.",
             "Self-hosting the control plane yourself (kubeadm, k3s on your own hardware) is common for learning, on-prem requirements, or cost at very large scale — but it means you now own etcd backups and control plane upgrades, not just application deploys.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Node pools, taints, and tolerations: not every node is identical",
+          intro: "A production cluster is rarely one uniform pool of identical machines — this is how Kubernetes lets different workloads land on the right hardware:",
+          bullets: [
+            "A node pool (or node group) is a set of nodes with the same instance type and configuration — a cluster commonly runs several: a general-purpose pool, a GPU pool for ML workloads, a spot-instance pool for fault-tolerant batch jobs.",
+            "A taint on a node repels Pods by default — kubectl taint nodes gpu-1 workload=ml:NoSchedule means nothing gets scheduled there unless it explicitly tolerates that taint, keeping general workloads off expensive GPU nodes they don't need.",
+            "A toleration on a Pod spec is what lets it land on a tainted node despite the taint — the ML workload's Pod spec declares a toleration matching the GPU pool's taint, and only Pods that declare it can be scheduled there.",
+            "nodeSelector and nodeAffinity work the other direction — pulling a Pod toward specific nodes based on labels, rather than a taint pushing other Pods away — and the two mechanisms are commonly used together: a taint keeps the wrong workloads off, and a matching nodeSelector or toleration is what lets the right one on.",
           ],
         },
         {
@@ -829,6 +883,22 @@ spec:
             "failureThreshold — consecutive failures before the probe counts as failed overall; default 3.",
             "successThreshold — consecutive successes needed to flip back to healthy after a failure; almost always left at 1 for liveness, sometimes raised for readiness to avoid flapping.",
             "timeoutSeconds — how long a single probe attempt waits before counting as a failure, not the interval between attempts.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Probe overhead is a real, if usually small, cost",
+          body: [
+            "Every probe is a real request the kubelet has to make, on a real interval, against every single replica — a Deployment with 50 replicas and a periodSeconds: 5 readinessProbe means 10 requests per second just for health checking, before counting real traffic at all. For a cheap /healthz endpoint this is negligible; for a probe that (against the earlier warning) queries a database, it's 10 extra database connections a second that exist purely to answer \"are you okay,\" competing with real queries for the same connection pool.",
+            "This is one more reason readiness and liveness probes should be as cheap as the container can make them — a lightweight in-process check, not a deep dependency check — and it's also why periodSeconds shouldn't be set unnecessarily low: tighter than needed for the failure mode you're actually trying to catch just multiplies overhead across every replica for no real benefit.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "gRPC and TCP-only services: probing without an HTTP endpoint",
+          bullets: [
+            "Kubernetes 1.24+ supports a native grpc probe type, checking the standard gRPC health-checking protocol directly — before this existed, gRPC services typically needed a small sidecar or an exec probe running grpc-health-probe as a workaround just to get a proper health check.",
+            "A pure TCP service with no application-level health semantics at all — a raw socket server, say — is usually best served by a tcpSocket probe for liveness (can the port even be connected to) and simply skipping readiness, since there's often no cheap way to express \"ready\" more precisely than \"the port is open.\"",
           ],
         },
         {

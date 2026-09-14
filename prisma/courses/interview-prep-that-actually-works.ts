@@ -91,6 +91,12 @@ the template for the next three migrations."`,
           body: "You don't need a separate story for every possible question — a well-chosen example of, say, disagreeing with a manager about scope can also answer \"tell me about a time you influenced without authority\" or \"tell me about managing a tight deadline,\" just told with a different emphasis. Before an interview, look at your 6-8 core stories and note which 2-3 questions each one could plausibly answer, so you're not caught flat-footed by an unexpected phrasing of something you'd actually prepared for.",
         },
         {
+          kind: "callout",
+          tone: "warning",
+          heading: "Matching the story to the question, not just the topic",
+          body: "\"Tell me about a time you managed a tight deadline\" and \"tell me about a time you had too much on your plate\" sound similar, but they're testing different things — the first wants to see planning and prioritization under a fixed constraint, the second wants to see how you triage and communicate when everything can't get done. Reusing the same story for both without adjusting the emphasis is a common miss: before answering, take a beat to notice exactly which trait the question is pointing at, then pick (or angle) the story toward that, even if it means leading with a different part of the same underlying situation.",
+        },
+        {
           kind: "bullets",
           heading: "When you don't have a clean number for Result",
           intro: "Not every story has a tidy metric — that's fine, as long as the outcome is still concrete.",
@@ -159,6 +165,22 @@ company]."`,
         },
         {
           kind: "callout",
+          tone: "insight",
+          heading: "This answer often sets the frame for the rest of the interview",
+          body: "Interviewers frequently take their first real notes during this answer, and the themes you introduce here — a particular skill, a specific kind of project, a reason you're excited — often shape which follow-up questions get asked later in the same conversation. That's a reason to be deliberate about what you lead with, not just concise: whatever you emphasize here is more likely to get picked up and explored than something you mention only once, later, in passing.",
+        },
+        {
+          kind: "bullets",
+          heading: "Rehearsing without sounding rehearsed",
+          intro: "The goal is comfort with the shape, not a memorized script you'd recite identically every time.",
+          bullets: [
+            "Practice out loud, not silently in your head — the two feel very different, and a version that sounds smooth internally often reveals awkward phrasing the moment you actually say it.",
+            "Time yourself once or twice. If you're consistently landing past 90 seconds, look for the part that's really resume narration in disguise and cut it, rather than trying to talk faster.",
+            "Practice starting from a slightly different opening line each time (a different current-role detail, a different \"why this role\" framing) so you're rehearsing the shape and not a fixed script you'd lose your place in if interrupted.",
+          ],
+        },
+        {
+          kind: "callout",
           tone: "tip",
           heading: "If you're between jobs, address it in one sentence and move on",
           body: "An employment gap doesn't need a defensive explanation or an apology — a brief, factual sentence (\"I left my last role in March and have spent the time since focused on X\") followed by moving straight into why you're excited about this role reads as confident. Dwelling on it, over-explaining, or getting defensive about it draws more attention to it than the gap itself ever would.",
@@ -194,6 +216,16 @@ company]."`,
             "\"Tell me about a time you missed a deadline.\" → Ownership and how you handle it in the moment, not whether you've ever missed one — everyone has. What matters is whether you flagged it early, mitigated the impact, and what changed afterward.",
             "\"Tell me about a time you received difficult feedback.\" → Coachability. The strongest answers show a real behavior change afterward, not just \"I took it well.\"",
             "\"Tell me about a time you had to lead without formal authority.\" → Whether you can drive an outcome through influence and clarity, not a title — common for cross-functional and early-management scenarios.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few more, worth recognizing on sight",
+          intro: "The pattern holds across nearly every behavioral question you'll hear — name the trait being tested before you start answering.",
+          bullets: [
+            "\"Tell me about a time you went above and beyond.\" → Initiative and ownership — whether you act without being asked, not whether the extra effort was dramatic.",
+            "\"Tell me about a time you had to make a decision without all the information you wanted.\" → Judgment under uncertainty — how you weighed the tradeoffs, not whether the outcome was perfect.",
+            "\"Tell me about a time you worked with someone difficult.\" → Interpersonal resilience and whether you can stay professional and effective despite friction, not whether you can find someone else to blame.",
           ],
         },
         {
@@ -315,6 +347,16 @@ way."`,
           body: "Jumping straight into code or a spreadsheet before stating an approach out loud is one of the most common ways a technically correct answer still evaluates poorly — the interviewer loses the thread of your reasoning and is left inferring your process from the result alone. State the plan first, even briefly, before executing it.",
         },
         {
+          kind: "bullets",
+          heading: "A few habits that consistently read well in a coding round",
+          intro: "Small, easy to build into practice ahead of time, and noticeably different from just getting to a correct answer.",
+          bullets: [
+            "State a test case or two before writing any code — walking through a concrete example first (\"if the input is [2,7,11,15] and target is 9...\") often surfaces an edge case or misunderstanding before you've written a single line to fix.",
+            "Name the edge cases out loud even if you don't handle all of them: empty input, a single element, duplicates, negative numbers. Naming one you're choosing not to handle, and why, reads better than silently ignoring it.",
+            "Narrate space as well as time complexity, not just time — interviewers often notice when a candidate optimizes one and never mentions the other.",
+          ],
+        },
+        {
           kind: "text",
           heading: "When you're stuck",
           body: [
@@ -407,6 +449,25 @@ document well yet?"`,
           tone: "warning",
           heading: "Some questions land better later in the process",
           body: "Asking about PTO policy, remote-work exceptions, or how performance reviews handle underperformance in a first-round screen can read as more concerned with the downside than the role itself — the same question in a later round, once mutual interest is established, reads as normal due diligence. Timing changes how a reasonable question is heard.",
+        },
+        {
+          kind: "example",
+          heading: "Turning a generic question into one that actually lands",
+          body: "The generic version isn't wrong to ask — it's just forgettable, and forgettable is a wasted moment in a conversation that's still being evaluated.",
+          code: `Generic: "What's the culture like here?"
+
+Sharper: "You mentioned the team just went through a big
+migration — how did that change the way the team works
+day to day, if at all?"`,
+        },
+        {
+          kind: "bullets",
+          heading: "How many questions to actually ask, and how to pace them",
+          bullets: [
+            "Two to three real questions per round is a reasonable default — more than that starts to eat into time better spent on a genuine conversation, especially in a 30-minute screen.",
+            "Ask your most important question first in case time runs short — interviews routinely run over and end with a rushed \"any final questions?\" that only leaves room for one.",
+            "It's fine to ask a shorter follow-up to their answer instead of moving straight to your next prepared question — a real exchange reads better than a checklist being worked through in order.",
+          ],
         },
         {
           kind: "callout",
