@@ -56,6 +56,25 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "The hidden cost most people don't count",
+          body: [
+            "Low response rate is the visible cost. The hidden one is worse: a spray-and-pray search leaves you unable to prepare meaningfully for the interviews you do land, because you applied to so many different kinds of roles that you can't hold a coherent story for any single one of them. Recruiters and hiring managers notice this — a candidate who can't explain why they want this specific role, at this specific company, reads as someone applying everywhere, which is exactly what's happening.",
+            "It also compounds emotionally. A hundred rejections feel like a hundred separate personal failures when the applications were generic and the odds were always long. Twenty rejections against a real target list are much easier to read as data about targeting or timing, not as a verdict on you.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Signs your search has quietly become spray-and-pray",
+          intro: "None of these mean you're a bad candidate — they mean the process has drifted, and it's worth resetting before burning more energy on it.",
+          bullets: [
+            "You can't name, without looking it up, why a specific application you sent last week was a good fit for you.",
+            "Your resume hasn't changed in weeks despite applying to roles with meaningfully different requirements or seniority.",
+            "You're tracking a raw count of applications sent as your main measure of progress, rather than response rate or pipeline movement.",
+            "A recruiter calls you back and you need a second to remember which role you actually applied for.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Targeting doesn't mean maximal customization on every application",
@@ -196,6 +215,49 @@ time from bug report to fix from nine days to three."`,
           ],
         },
         {
+          kind: "example",
+          heading: "What an unreviewed answer can actually cost you",
+          body: "This is the failure mode that matters most — not a slightly generic cover letter line, but a factual answer that contradicts what's on your resume or what you'd honestly say on a call two weeks later.",
+          code: `Screening question: "Are you open to relocating?"
+
+Unreviewed AI answer (submitted automatically by an auto-apply
+tool): "Yes, I am open to relocation for the right opportunity."
+
+Reality: this candidate is not open to relocating, and said so
+plainly on a recruiter call two weeks later. The recruiter
+flagged the inconsistency immediately, and the process ended
+there — not because of the honest answer, but because the
+earlier one was never actually true.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The most common way auto-apply actually backfires",
+          body: "It's rarely the tool submitting an obviously wrong application — it's the filter criteria being set too loosely at the start, so the tool applies to a wider band of roles than you'd have chosen by hand, some of which you'd never actually accept. Weeks later you're fielding recruiter calls and even interview invitations for jobs that don't fit, which wastes your time, wastes the recruiter's time, and burns goodwill with companies that might have been a real fit for a different role later. The fix isn't avoiding automation — it's setting the filter as tightly as your actual target list, not as loosely as the tool allows by default.",
+        },
+        {
+          kind: "bullets",
+          heading: "Questions worth asking before turning on any automation tool",
+          intro: "A quick filter for whether a specific tool or feature is worth the risk for your search.",
+          bullets: [
+            "If this submits something wrong, how hard is it to notice and fix before it matters? A typo in a cover letter is recoverable; a wrong answer to \"desired salary\" already quoted to a recruiter is not.",
+            "Is it operating only within a target list I've already vetted, or against an open-ended search I haven't reviewed?",
+            "Would I be comfortable explaining, out loud in an interview, exactly what this tool generated on my behalf?",
+            "Does using it save real time, or does the review-and-fix step end up costing about as long as just doing it myself?",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "Where automation should actually sit in the process",
+          description: "The tools stay useful as long as they operate inside judgment you've already applied, not instead of it.",
+          steps: [
+            { label: "You build the target list", detail: "Judgment: which companies and roles are real fits" },
+            { label: "Automation works inside that list", detail: "Form-filling, first drafts, volume on vetted roles" },
+            { label: "You review anything with real stakes", detail: "Screening answers, facts, anything you'd defend live" },
+            { label: "You decide what goes out", detail: "Automation removes friction — never the final judgment call" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "The practical rule",
@@ -218,6 +280,42 @@ time from bug report to fix from nine days to three."`,
           heading: "Start with people you already know",
           body: [
             "Before reaching out cold, go through your existing network. A message like \"I'm exploring new roles in X — would love to hear how things are going for you, and happy to share what I'm looking at if useful\" reopens a connection without asking for anything specific yet.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "What a reopened-connection message actually looks like",
+          body: "The point isn't cleverness — it's low pressure and specific enough that it doesn't read as a form letter blasted to fifty contacts at once.",
+          code: `"Hey Marcus — it's been a while! I'm exploring new roles in
+product analytics right now and thought of you since I know
+you made a similar move a couple years back. Would love to
+hear how things are going on your end generally, and happy to
+share what I'm looking at if it's ever useful. No pressure at
+all either way."`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The outreach mistakes that quietly kill response rate",
+          body: "A generic connection request with no note gets ignored at a far higher rate than one with even a single sentence of context — LinkedIn's own data has shown this repeatedly. Leading with a job ask in the very first message, before any real conversation, reads as transactional and makes the easiest response \"no,\" or more often, silence. A message that's three paragraphs long asks a busy person for more effort to read than most will give a stranger. And a subject line or opener with zero specific detail — \"Quick question\" or \"Reaching out\" — gives someone no reason to prioritize opening it over the dozen other messages in their inbox that day.",
+        },
+        {
+          kind: "bullets",
+          heading: "What makes a small ask easy to say yes to",
+          intro: "The goal of the first message is a yes, not a full conversation — everything about it should lower the effort of saying yes.",
+          bullets: [
+            "Name a specific, short amount of time — \"15 minutes\" is concrete and clearly bounded; \"pick your brain sometime\" is open-ended and easy to put off indefinitely.",
+            "Offer options instead of asking them to do the scheduling work — \"happy to work around your schedule, or if it's easier I can send a couple times that work for me\" removes a step.",
+            "Make it clear there's no obligation — \"no pressure either way\" isn't just politeness, it genuinely makes people more likely to say yes, since it removes the guilt of a potential no.",
+            "Keep the ask singular — one call, not a call plus a resume review plus a referral request all bundled into the first message.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Handling silence or a no gracefully",
+          body: [
+            "Most cold outreach gets no response at all, and that's normal, not a sign you did something wrong — people are busy, and a message can fall through the cracks for reasons that have nothing to do with you. One polite follow-up after a week or two is reasonable; a second and third follow-up starts to cost more goodwill than it's likely to recover.",
+            "If someone explicitly declines, thank them for responding at all (most people who decline still took the time to reply, which is worth acknowledging) and leave the door open for later — \"Totally understand, and I appreciate you letting me know. If your situation changes, I'd still love to connect down the line.\" People remember how a request was handled, and a graceful no today is often a warmer yes to a different ask months later.",
           ],
         },
         {
@@ -289,6 +387,31 @@ time from bug report to fix from nine days to three."`,
           ],
         },
         {
+          kind: "example",
+          heading: "What a real pipeline entry looks like, not just a field list",
+          body: "The fields matter less than actually filling them in consistently — this is what one honest entry looks like mid-search, not a hypothetical template.",
+          code: `Company: Meridian Health | Role: Senior Financial Analyst
+Stage: Interview (round 2 scheduled)
+Last action: Completed round 1, Fri 9/5
+Next action: Follow up if no word by Fri 9/12
+Notes: Hiring manager mentioned a decision timeline of
+"2-3 weeks" — logged so a Friday follow-up doesn't read
+as premature or impatient`,
+        },
+        {
+          kind: "chart",
+          heading: "What a stalled pipeline looks like at a glance",
+          description: "A count at each stage, seen all at once, is far more useful than remembering individual roles one at a time — this shape (heavy at Applied, thin everywhere after) is exactly the pattern that should prompt a hard look at targeting.",
+          chartType: "bar",
+          unit: "roles",
+          data: [
+            { label: "Applied", value: 14 },
+            { label: "Screening", value: 3 },
+            { label: "Interview", value: 1 },
+            { label: "Offer", value: 0 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Why this matters more than it seems",
           bullets: [
@@ -302,6 +425,23 @@ time from bug report to fix from nine days to three."`,
           tone: "tip",
           heading: "Setting a follow-up cadence",
           body: "A reasonable default: follow up around one week after applying if there's a real contact, and again about two weeks after an interview if you haven't heard back. Adjust to what the recruiter or posting says about timeline where they give you one.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Overbuilding the tracker defeats the purpose",
+          body: "A spreadsheet with twenty columns — salary band, interviewer names, culture notes, a color-coded priority score — feels thorough the day you build it and gets abandoned within two weeks, because updating it is its own small chore every time something moves. The five fields this course recommends (company, role, stage, last action, next action) are close to the minimum that's still actually useful, and the entire point of choosing a minimum is that it's the version you'll actually keep updating three weeks into a search, not just on day one when everything still feels novel.",
+        },
+        {
+          kind: "bullets",
+          heading: "What to actually do when the pipeline reveals a stall",
+          intro: "Seeing the pattern is only useful if it changes what you do next.",
+          bullets: [
+            "A cluster stuck at \"applied\" for several weeks: revisit whether the resume is genuinely tailored to those specific roles, not just sent as a strong general version.",
+            "Response rate well below the illustrative targeted-search benchmark from earlier in this course: check whether the roles are actually a realistic level match, not just an aspirational one.",
+            "Interviews happening but no offers: that's a different problem than a resume problem — it usually points to interview preparation, not targeting, and calls for a different fix.",
+            "Nothing moving anywhere for over a month: it's worth asking a peer or mentor to review a sample application cold, since it's hard to see your own blind spots after weeks in the same search.",
+          ],
         },
         {
           kind: "summary",
@@ -340,6 +480,33 @@ time from bug report to fix from nine days to three."`,
             "Turning on \"Open to Work\" (visible to recruiters only, if you're employed and don't want your employer to see it) meaningfully increases recruiter outreach — it's a low-effort, high-signal switch most people skip out of hesitation.",
             "Commenting thoughtfully on posts in your field does more for visibility than posting original content you feel obligated to produce — it's lower pressure and still puts your name in front of the right people.",
             "Engaging with content from people at your target companies is a soft, low-friction way to be visible to them before you ever apply or reach out cold.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A headline rewrite, before and after",
+          body: "The \"before\" version isn't wrong, exactly — it's just a title, which tells a recruiter nothing they couldn't already see from your current employer field. The \"after\" version does three jobs in one line: what you do, a specific result, and what you want next.",
+          code: `Before: "Product Manager at Acme Corp"
+
+After: "Product Manager | B2B SaaS Analytics | Scaled a
+self-serve signup funnel from 2% to 9% conversion | Open to
+Senior PM roles"`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Recommendations do more work than most people expect",
+          body: "A line you write about yourself in the About section reads as a claim. The same line, written by a former manager or a peer who worked with you directly, reads as evidence — it's third-party validation in a way self-description can't replicate. Two or three specific, recent recommendations (not five generic ones from a decade ago) meaningfully change how a profile reads to someone skimming it for thirty seconds. Ask people you worked with closely and recently, and make the ask easy by reminding them of a specific project — most people are glad to write one but go blank without a concrete starting point.",
+        },
+        {
+          kind: "bullets",
+          heading: "A few smaller details worth checking that people routinely skip",
+          intro: "None of these alone will make or break a search, but together they're the difference between a profile that looks maintained and one that looks abandoned.",
+          bullets: [
+            "A custom URL (linkedin.com/in/yourname rather than a string of numbers) — small, but it's what goes on a resume or business card, and the default version looks unfinished.",
+            "A banner image that isn't the default gray — even a simple, on-brand graphic signals more care than the placeholder every unedited profile shares.",
+            "The Featured section, used to pin one or two strong artifacts — a writing sample, a project, a talk — rather than left empty, which is its default state for most profiles.",
+            "Visible, correct contact information — a surprising number of profiles bury or omit an email a recruiter would otherwise use to reach out directly instead of through an in-app message that can go unnoticed.",
           ],
         },
         {

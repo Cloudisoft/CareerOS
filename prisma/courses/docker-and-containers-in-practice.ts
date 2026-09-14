@@ -99,6 +99,22 @@ docker ps`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "A few more day-to-day image and container commands",
+          bullets: [
+            "docker exec -it myapp-1 sh (or bash, if the image has it) drops you into a running container's shell — the fastest way to poke around a live process's filesystem or environment without stopping it.",
+            "docker logs --tail 100 -f myapp-1 shows the last 100 lines and then keeps streaming new ones — usually more useful than the full, potentially enormous, log history from the very beginning.",
+            "docker rm removes a stopped container; docker rm -f also stops a running one first — neither touches the image the container was started from.",
+            "docker rmi removes an image, but fails if any container (even a stopped one) still references it — docker rm the containers first, or add -f to force it.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Stopped containers still exist",
+          body: "docker stop doesn't delete anything — the container's filesystem, its logs, and its exit status all stick around until you explicitly docker rm it (or run it with docker run --rm, which removes it automatically the moment it exits). docker ps only shows running containers by default; docker ps -a shows every container regardless of state, which is usually the first command worth running when \"my container is gone\" turns out to actually mean \"it's stopped, not deleted.\"",
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "A useful mental shortcut",
@@ -224,6 +240,29 @@ CMD ["server.js"]
             "Passing a secret through ARG or a plain ENV instead of a build secret or runtime secrets manager, where it ends up recoverable from the image itself.",
           ],
         },
+        {
+          kind: "text",
+          heading: "LABEL and other metadata worth adding",
+          body: [
+            "LABEL maintainer=\"team@company.com\" version=\"1.0\" attaches arbitrary key-value metadata to an image — visible via docker inspect, and useful for tracking which team owns an image, which commit it was built from, or which CI run produced it, especially once a registry holds hundreds of images and nobody remembers which is which.",
+            "A STOPSIGNAL instruction controls which signal docker stop sends before escalating to SIGKILL — most base images default to SIGTERM, but some processes expect a different signal to shut down gracefully, and getting this wrong means every stop is effectively a hard kill once the grace period expires.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Reading a Dockerfile's build output for cache hits and misses",
+          bullets: [
+            "docker build prints CACHED next to any step it skipped because nothing relevant changed — a build with zero CACHED lines after the FROM instruction usually means something upstream (often COPY . . placed too early) is invalidating every layer that follows it.",
+            "A single-line change to package.json invalidates every layer from the COPY package.json ./ instruction onward, including npm ci — this is expected, and exactly why that COPY happens before COPY . . rather than after.",
+            "BuildKit's build output (the default in current Docker) groups steps and shows real elapsed time per step — useful for spotting which specific instruction is actually the slow one, rather than treating the whole build as one opaque block.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "COPY --chown avoids a separate RUN chown step",
+          body: "COPY --chown=app:app . . sets ownership on the copied files directly, in the same instruction, instead of a following RUN chown -R app:app . that would otherwise create an entirely separate, larger layer just to fix permissions. It's a small detail, but it keeps both the image smaller and the intent — \"these files are owned by app\" — visible right at the COPY line itself.",
+        },
       ],
     },
     {
@@ -332,6 +371,21 @@ CMD ["node", "dist/server.js"]`,
           tone: "warning",
           heading: "Switching your final stage to Alpine can silently break native dependencies",
           body: "node:20-slim is Debian-based (glibc); node:20-alpine is musl-based — smaller, but a package with a native addon (bcrypt, sharp, many database drivers) compiled against glibc in a builder stage will fail to load in an Alpine runtime stage with a cryptic \"Error loading shared library\" message. Either build and run on the same libc family, or use an Alpine-based builder stage too so the compiled output actually matches the runtime it ships to.",
+        },
+        {
+          kind: "bullets",
+          heading: "A couple of multi-stage patterns beyond the basic two-stage split",
+          bullets: [
+            "Reusing a shared base stage — FROM deps AS test and FROM deps AS builder both starting from the same deps stage — means the dependency install only happens once, and both the test and build stages start from an identical, cached starting point.",
+            "Copying only a compiled binary out of a much larger builder image is the extreme version of this pattern — a Go binary built in a full golang image can be copied into a nearly empty FROM scratch final stage, producing images measured in megabytes instead of hundreds of megabytes.",
+            "Naming stages descriptively (AS deps, AS test, AS builder, AS runtime) rather than leaving them numbered makes --target and COPY --from calls self-documenting months later, when nobody remembers which numbered stage did what.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Multi-stage builds and CI benefit from the same layer cache",
+          body: "A CI pipeline that runs docker build --target test on every pull request, using the same Dockerfile as the production build, gets real test results without maintaining a separate test-runner configuration — and because the deps stage is shared and cached, most CI runs only re-download packages when the lockfile actually changes, not on every single commit.",
         },
       ],
     },
@@ -501,6 +555,55 @@ docker run -d --name web --network app-net -p 8080:3000 myapp:1.0
           heading: "A frequent mix-up",
           body: "Containers not attached to the same network can't resolve each other by name even if both are running on the same host — \"running on my machine\" is not the same as \"on the same Docker network.\" This is the single most common cause of a working app on the host that can't reach its own database once containerized.",
         },
+        {
+          kind: "text",
+          heading: "Docker's default bridge network vs. a user-defined one",
+          body: [
+            "Every container gets attached to Docker's default bridge network unless told otherwise, but that default network deliberately does not support the name-based DNS resolution described above — containers on it can only reach each other by IP address, and only if you look those IPs up manually with docker inspect. This trips up almost everyone at least once: running docker run with no --network flag doesn't mean \"no networking,\" it means \"the network that happens to lack the one feature people actually want.\"",
+            "A user-defined bridge network, created explicitly with docker network create, gets both isolation from unrelated containers on the same host and working DNS resolution by container name — which is exactly why virtually every real setup creates one deliberately, rather than relying on the default.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "The three network drivers worth knowing",
+          bullets: [
+            "bridge — the default for a single host, giving containers their own private IP range and, on a user-defined bridge, name-based DNS to each other. This covers the large majority of local development and single-host setups.",
+            "host — removes network isolation entirely; the container shares the host's own network namespace directly. Faster, with no port mapping needed, but any port the container binds is a port on the host itself, with no isolation at all.",
+            "none — no networking at all, for a container that genuinely doesn't need any, like a one-off batch job that only reads from a mounted volume.",
+            "For anything spanning multiple hosts, none of these apply — that's the problem an orchestrator like Kubernetes or Docker Swarm's overlay networking exists to solve, not something plain docker network create reaches.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Listing and inspecting networks directly",
+          description: "docker network ls shows what exists; docker network inspect shows exactly which containers are attached and their assigned IPs.",
+          lines: [
+            { text: "docker network ls" },
+            { text: "NETWORK ID     NAME        DRIVER    SCOPE", output: true },
+            { text: "a1b2c3d4e5f6   bridge      bridge    local", output: true },
+            { text: "f6e5d4c3b2a1   app-net     bridge    local", output: true },
+            { text: "docker network inspect app-net --format '{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}'" },
+            { text: "db 172.19.0.2/16", output: true },
+            { text: "web 172.19.0.3/16", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "One container, multiple networks",
+          body: "docker network connect app-net some-container attaches an already-running container to an additional network without restarting it — useful when a monitoring or logging sidecar needs to reach services on a network it wasn't originally started on, without tearing down and recreating the container it's attaching to.",
+        },
+        {
+          kind: "bullets",
+          heading: "A troubleshooting checklist for \"container can't reach container\"",
+          bullets: [
+            "Confirm both containers are actually on the same network: docker inspect <container> --format '{{.NetworkSettings.Networks}}' lists every network a specific container is attached to.",
+            "Confirm the target process is actually listening where you expect: docker exec db netstat -tlnp (or ss -tlnp) inside the container itself, not just assuming the image's default port is correct.",
+            "Remember that 127.0.0.1 inside a container always means that container, never another one — a connection string pointing at localhost or 127.0.0.1 for a service running in a sibling container will never work, by design, regardless of networking configuration.",
+            "Firewalls on the host itself can still block traffic between containers in some configurations — rare, but worth ruling out if everything above checks out and containers still can't reach each other.",
+            "A container that was working fine yesterday but can't resolve a name today after a docker compose down and docker compose up cycle is almost always a case of two separate networks now existing with the same containers split across them — restart the whole stack together rather than individual services when in doubt.",
+          ],
+        },
       ],
     },
     {
@@ -580,6 +683,70 @@ docker compose down -v      # also remove named volumes — data is gone`,
           ],
         },
         {
+          kind: "text",
+          heading: "Compose file versions, and the two tools sharing the name",
+          body: [
+            "Older Compose files started with a version: \"3.8\" line pinning a schema version — modern Docker Compose mostly ignores it and just uses the latest schema, which is why plenty of current examples, including the one on an earlier slide, omit it entirely. If you're maintaining an older project, seeing that key doesn't mean anything is broken; it's just a convention from an earlier version of the tool.",
+            "The bigger practical distinction is docker-compose (the older, separate Python-based tool, invoked with a hyphen) versus docker compose (the newer plugin built into the Docker CLI itself, invoked as two words). Both read the same file format, but the plugin is what ships with current Docker installs, and it's the one worth learning first.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Environment variables and .env files in Compose",
+          bullets: [
+            "A .env file in the same directory as docker-compose.yml is loaded automatically, and its values are available for variable substitution inside the compose file itself — ${DATABASE_URL} in a services: block pulls from .env without it needing to be listed under environment: explicitly.",
+            "env_file: .env.production under a specific service loads that file's variables directly into the container's environment — different from top-level .env substitution, and the more common pattern for passing real per-environment configuration into a service.",
+            "Committing a .env file with real secrets to version control is a common and avoidable mistake — .env.example with placeholder values, committed, plus a real, gitignored .env for actual local values, is the standard pattern.",
+            "Compose variable substitution supports defaults: ${PORT:-3000} uses PORT if it's set in the environment, and falls back to 3000 if it isn't — handy for a value that has a sensible default but should still be overridable.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Overriding Compose for local development",
+          body: "docker-compose.override.yml is loaded automatically alongside the base file, letting local-only settings — a bind mount for live-reloading code, an exposed debug port — stay out of the file used in CI or shared with the team.",
+          language: "yaml",
+          code: `# docker-compose.override.yml (loaded automatically, alongside docker-compose.yml)
+services:
+  web:
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "9229:9229"   # Node debugger port, only needed locally`,
+        },
+        {
+          kind: "terminal",
+          heading: "Scaling a service to multiple instances locally",
+          description: "docker compose up --scale runs several copies of one service — useful for testing load balancing or concurrency behavior without maintaining three separate compose files.",
+          lines: [
+            { text: "docker compose up -d --scale web=3" },
+            { text: "[+] Running 5/5", output: true },
+            { text: " ✔ Container acme-web-1   Started", output: true },
+            { text: " ✔ Container acme-web-2   Started", output: true },
+            { text: " ✔ Container acme-web-3   Started", output: true },
+            { text: "docker compose ps web" },
+            { text: "NAME          STATUS         PORTS", output: true },
+            { text: "acme-web-1    Up 3 seconds   0.0.0.0:32768->3000/tcp", output: true },
+            { text: "acme-web-2    Up 3 seconds   0.0.0.0:32769->3000/tcp", output: true },
+            { text: "acme-web-3    Up 3 seconds   0.0.0.0:32770->3000/tcp", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "depends_on doesn't wait for readiness by default",
+          body: "A plain depends_on: [db] only guarantees Docker starts the db container before web — it says nothing about whether Postgres has actually finished initializing and is ready to accept connections, which can take a few seconds longer than the container itself taking a few milliseconds to start. depends_on: condition: service_healthy, combined with a HEALTHCHECK on the db service, closes that gap properly; a retry loop in the app's own startup code is the alternative when you don't control the base image's healthcheck.",
+        },
+        {
+          kind: "bullets",
+          heading: "A few more Compose commands worth knowing",
+          bullets: [
+            "docker compose build rebuilds any service with a build: key, without starting containers — useful in CI right before docker compose up, or to confirm a Dockerfile change actually builds before testing it live.",
+            "docker compose exec web sh opens a shell inside a running, already-started service by name — the Compose equivalent of docker exec, without needing to know the container's generated name first.",
+            "docker compose config validates and prints the fully resolved configuration, including variable substitution and any override files merged in — the fastest way to confirm what Compose actually thinks your setup is, before anything starts.",
+            "docker compose restart web restarts just one service without touching the others — faster than a full down and up when only one service's code or config actually changed.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Where this fits",
           bullets: [
@@ -643,6 +810,76 @@ CMD ["node", "server.js"]`,
           body: "A memory leak or runaway process with no --memory cap can consume all of a shared host's RAM, taking down unrelated containers that had nothing to do with the bug. The isolation containers give you by default doesn't include resource fairness — that has to be set explicitly.",
         },
         {
+          kind: "text",
+          heading: "Secrets: the part \"just add environment variables\" gets wrong",
+          body: [
+            "Passing a database password as a plain environment variable (-e DB_PASSWORD=hunter2, or an environment: entry in Compose) works, but it's visible to anything that can run docker inspect on the container, and it often ends up logged accidentally by a crash reporter or an error handler that dumps the process environment for debugging. It's fine for genuinely non-sensitive config; it's a real liability for an API key or database credential.",
+            "Docker's --secret flag (and Compose's secrets: block) mounts a secret as a file inside the container instead — readable only by the process, never visible in docker inspect or docker history, and never accidentally logged by a tool that dumps environment variables. Production systems generally go one step further and fetch secrets from a dedicated secrets manager, like AWS Secrets Manager or HashiCorp Vault, at startup, rather than baking them into the container's configuration at all.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Mounting a secret without it ever touching an image layer",
+          body: "--secret makes the value available only to the running container's process, never written into a layer or visible in docker history.",
+          code: `docker run -d \\
+  --name web \\
+  --secret db_password \\
+  myapp:1.0`,
+        },
+        {
+          kind: "bullets",
+          heading: "The Linux capability model, briefly",
+          bullets: [
+            "By default, Docker containers run with a curated subset of Linux's full root capability list — not full root, but more than most applications actually need, things like binding to privileged ports below 1024 or changing file ownership.",
+            "--cap-drop=ALL removes every capability, and --cap-add=NET_BIND_SERVICE adds back only the one your app specifically needs (binding to port 80, say) — the resulting container can do meaningfully less than either full root or Docker's own default, even if it's somehow compromised.",
+            "seccomp and AppArmor profiles go a layer deeper still, restricting which system calls a container's process can make at all — Docker ships a reasonable default seccomp profile automatically, and it's rarely worth customizing unless you're running something unusually low-level.",
+            "None of this replaces running as a non-root USER — capability restrictions and a non-root user address different, complementary risks, and a production image should generally have both.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "What a resource limit actually prevents",
+          description: "Without a memory limit, a single leaking container can climb until it's consuming nearly all of a shared host's RAM — a --memory=512m cap turns an outage for every container on the host into a contained, restartable failure for just one.",
+          chartType: "bar",
+          unit: "MB",
+          data: [
+            { label: "Host total RAM", value: 8192 },
+            { label: "Leaked container, no limit", value: 7600 },
+            { label: "Same container, capped at 512MB", value: 512 },
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Watching a capped container get OOM-killed instead of starving the host",
+          description: "This is the limit working as intended — a contained failure, with a clear signal, instead of the whole host running out of memory.",
+          lines: [
+            { text: "docker run -d --name leaky --memory=\"256m\" leaky-app:1.0" },
+            { text: "3f8a1c9e2b7d", output: true },
+            { text: "docker stats leaky --no-stream" },
+            { text: "CONTAINER   CPU %   MEM USAGE / LIMIT     MEM %", output: true },
+            { text: "leaky       12.40%  254.1MiB / 256MiB     99.26%", output: true },
+            { text: "docker ps -a --filter name=leaky" },
+            { text: "CONTAINER ID   STATUS                       NAMES", output: true },
+            { text: "3f8a1c9e2b7d   Exited (137) 2 seconds ago   leaky", output: true },
+            { text: "docker inspect leaky --format='{{.State.OOMKilled}}'" },
+            { text: "true", output: true },
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Why \"it works in dev\" isn't the security bar",
+          body: [
+            "A development container commonly runs as root, with no resource limits, no restart policy, and every default capability intact — none of that is wrong for a throwaway environment on a single developer's laptop, where the blast radius of any given container misbehaving is exactly one machine. Production changes what's actually at stake: the same host might be running other tenants' workloads, the same compromised process might have network access to an internal database, and a resource-hungry bug might now take down services that have nothing to do with the one that leaked.",
+            "Treating \"production defaults\" as a distinct, deliberate step — not an afterthought layered on right before a deploy — is what actually closes that gap, and it's exactly the list this lesson has walked through: non-root, capability drops, resource limits, and secrets kept out of the image and its environment.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Defense in depth, not a single silver bullet",
+          body: "No single control here — non-root user, capability drops, resource limits, secret handling — fully protects a container on its own. Together, they mean a single mistake, like a dependency with a known vulnerability or a misconfigured route, doesn't automatically become a full host compromise or an outage for every other workload sharing that host, which is the actual goal.",
+        },
+        {
           kind: "summary",
           heading: "The practical baseline",
           bullets: [
@@ -660,7 +897,14 @@ CMD ["node", "server.js"]`,
         {
           kind: "title",
           heading: "Practice: Hardening and Debugging Containers",
-          subheading: "Three exercises — a Dockerfile fix, a debugging scenario, and a production run command — write your own answer first.",
+          subheading: "Seven exercises — Dockerfile fixes, debugging scenarios, a Compose readiness problem, and a production run command — write your own answer before checking the solution.",
+        },
+        {
+          kind: "text",
+          heading: "Before you start",
+          body: [
+            "These exercises mix two skills that show up together constantly in real operations work: hardening a container so it's actually appropriate for production, and debugging one that's already misbehaving. Several build directly on the last three lessons — Dockerfile instructions, container networking, and Compose — so if a hint doesn't immediately click, it's worth glancing back at the relevant lesson before jumping to the solution.",
+          ],
         },
         {
           kind: "practice",
@@ -718,12 +962,122 @@ docker run -d --name mycontainer --network app-net \\
   myapp:1.0`,
         },
         {
+          kind: "practice",
+          heading: "Fix a container that can't write its own logs",
+          prompt:
+            "A container built with a non-root USER (following best practice) now fails on startup with `EACCES: permission denied, open '/app/logs/app.log'`. The Dockerfile creates the app user and switches to it, but /app/logs was created by an earlier RUN mkdir instruction that ran as root, before the USER switch. Fix the Dockerfile so the app user can actually write there.",
+          hint: "Ownership of files and directories created before USER switches is whatever ran the instruction that created them — root, in this case. You need to explicitly hand ownership to the new user, either at creation time or with a chown, before USER app takes effect.",
+          solution: `FROM node:20-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY . .
+
+RUN addgroup --system app && adduser --system --ingroup app app
+
+# Create the logs directory AND hand it to the app user in the same step —
+# doing this after USER app would fail, since app doesn't have permission
+# to create a directory owned by root in the first place.
+RUN mkdir -p /app/logs && chown -R app:app /app
+
+USER app
+EXPOSE 3000
+CMD ["node", "server.js"]`,
+        },
+        {
+          kind: "practice",
+          heading: "Diagnose an image that's much larger than it should be",
+          prompt:
+            "docker images shows myapp:1.0 at 1.4GB, and the team expects something closer to 200MB after switching to a multi-stage build weeks ago. Using only docker history, figure out where the size is most likely still coming from, and describe the most probable fix.",
+          hint: "docker history myapp:1.0 lists every layer with its individual size — the largest single layer is almost always where the problem lives, and it's very often either a RUN apt-get install that never cleaned up its own package cache, or a COPY . . that ran before a .dockerignore was in place.",
+          solution: `docker history myapp:1.0
+# IMAGE          CREATED BY                    SIZE
+# a1b2c3d4e5f6   COPY . . # buildkit            1.1GB
+# f6e5d4c3b2a1   RUN npm ci                     180MB
+# ...
+
+# A 1.1GB COPY layer almost always means .dockerignore is missing or
+# incomplete — node_modules, .git, and build output are all getting
+# copied into the image unintentionally. Add (or fix) .dockerignore:
+echo -e "node_modules\\n.git\\ncoverage\\ndist" > .dockerignore
+# then rebuild — the COPY layer should shrink to roughly the size of the
+# actual source code, often a few MB instead of over a gigabyte.`,
+        },
+        {
+          kind: "practice",
+          heading: "Write a Compose healthcheck-gated startup order",
+          prompt:
+            "In a docker-compose.yml with web and db services, web currently uses depends_on: [db], but still fails intermittently on startup because Postgres hasn't finished accepting connections yet when web starts. Fix this at the Compose level, without adding retry logic to the app itself.",
+          hint: "depends_on alone only orders container starts, not readiness. Compose supports a condition on depends_on tied to a service's own healthcheck.",
+          solution: `services:
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 5s
+      timeout: 3s
+      retries: 5`,
+        },
+        {
+          kind: "practice",
+          heading: "Tighten a container that's running with default privileges",
+          prompt:
+            "A running production container was started with a plain `docker run -d --name web myapp:1.0` — no user restriction, no capability changes, no resource limits. Without rebuilding the image, write the docker run command a security review would actually approve, assuming the app only needs to bind to port 3000 and nothing lower.",
+          hint: "This doesn't need a Dockerfile change — --cap-drop, --cap-add, --memory, --cpus, and --restart are all run-time flags, not build-time instructions.",
+          solution: `docker run -d \\
+  --name web \\
+  -p 8080:3000 \\
+  --cap-drop=ALL \\
+  --memory="512m" \\
+  --cpus="1.0" \\
+  --restart=on-failure:3 \\
+  --read-only \\
+  --tmpfs /tmp \\
+  myapp:1.0
+# --read-only plus a --tmpfs /tmp covers apps that need SOME writable
+# space (temp files) without leaving the whole filesystem writable.`,
+        },
+        {
+          kind: "practice",
+          heading: "Reconstruct why an override file changes CI's behavior",
+          prompt:
+            "A teammate says \"it works on my machine\" for a Compose-based project, but CI fails using the exact same docker-compose.yml. They mention having a docker-compose.override.yml in their local checkout that isn't committed to the repository. Explain what's actually different between their local run and CI's, and how to confirm it without guessing.",
+          hint: "Compose automatically merges docker-compose.override.yml on top of docker-compose.yml if the file exists in the same directory — CI, running from a clean checkout, never sees an untracked file at all.",
+          solution: `# docker compose config prints the FULLY RESOLVED configuration —
+# including any override file merged in — so running it locally vs.
+# in CI shows exactly what's different, instead of guessing:
+docker compose config > local-resolved.yml
+# (run the same command in CI and diff the two files)
+
+# The fix is almost always one of:
+#  1. Commit docker-compose.override.yml if its settings should apply everywhere, or
+#  2. Rename it to something explicitly local-only (docker-compose.local.yml) and
+#     document that it must be passed explicitly:
+#     docker compose -f docker-compose.yml -f docker-compose.local.yml up`,
+        },
+        {
+          kind: "bullets",
+          heading: "The pattern across all seven exercises",
+          bullets: [
+            "Every fix started with a read-only inspection command — docker history, docker inspect, docker compose config — before anything was changed, the same look-before-you-act instinct from earlier in this course applied to containers specifically.",
+            "Permissions problems (logs, non-root users) and networking or ordering problems (depends_on, overrides) look similar from the outside — \"it's not working\" — but need completely different diagnostic tools, which is exactly why guessing at a fix wastes more time than a minute of actual inspection.",
+            "None of the run-time hardening flags (--cap-drop, --memory, --read-only) required touching the Dockerfile or rebuilding anything — it's worth knowing which fixes are a redeploy away and which genuinely need a new image.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
-            "Adding a non-root user without breaking file permissions the app actually needs at runtime.",
-            "Diagnosing container-to-container networking failures from log output and the run command itself, instead of guessing at application code.",
-            "Writing a run command with resource and restart limits appropriate for a shared production host, not just \"whatever works locally.\"",
+            "Adding a non-root user without breaking file permissions the app actually needs at runtime, including directories created before the USER switch.",
+            "Diagnosing container-to-container networking and startup-ordering failures from log output, docker history, and Compose's own resolved configuration, instead of guessing at application code.",
+            "Writing a run command with resource, capability, and restart limits appropriate for a shared production host, not just \"whatever works locally.\"",
+            "Recognizing which fixes are run-time flags applied to an existing image, and which genuinely require a Dockerfile or Compose file change and a rebuild.",
           ],
         },
       ],

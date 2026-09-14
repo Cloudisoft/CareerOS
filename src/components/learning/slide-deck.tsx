@@ -1,10 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Lightbulb, AlertTriangle, Sparkles, CheckCircle2, HelpCircle, X, Wrench, ArrowRight, TerminalSquare } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Lightbulb,
+  AlertTriangle,
+  Sparkles,
+  CheckCircle2,
+  HelpCircle,
+  X,
+  Wrench,
+  ArrowRight,
+  TerminalSquare,
+  Volume2,
+  Pause,
+  Gauge,
+} from "lucide-react";
 import type { Slide } from "@/lib/learning/slide-types";
+import { slideNarrationText } from "@/lib/learning/narration";
+import { useLessonNarration } from "@/hooks/use-lesson-narration";
 import { cn } from "@/lib/utils";
+
+const NARRATION_RATES = [0.75, 1, 1.25, 1.5];
 
 const CALLOUT_STYLES: Record<NonNullable<Extract<Slide, { kind: "callout" }>["tone"]>, { icon: typeof Lightbulb; classes: string }> = {
   tip: { icon: Lightbulb, classes: "border-primary/30 bg-primary/10 text-foreground" },
@@ -347,16 +366,73 @@ function SlideBody({ slide }: { slide: Slide }) {
 export function SlideDeck({ slides, onFinish }: { slides: Slide[]; onFinish?: () => void }) {
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
+  const [narrationOn, setNarrationOn] = useState(false);
+  const narration = useLessonNarration();
+  const narrationModeRef = useRef(false);
+  const indexRef = useRef(0);
+  indexRef.current = index;
+
+  const speakSlideAt = useCallback(
+    (i: number) => {
+      const text = slideNarrationText(slides[i]);
+      narration.speak(text, () => {
+        if (!narrationModeRef.current) return;
+        const nextIndex = i + 1;
+        if (nextIndex < slides.length) {
+          setDirection(1);
+          setIndex(nextIndex);
+          if (nextIndex === slides.length - 1) onFinish?.();
+          speakSlideAt(nextIndex);
+        } else {
+          narrationModeRef.current = false;
+          setNarrationOn(false);
+        }
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slides, onFinish]
+  );
+
+  function stopNarration() {
+    narrationModeRef.current = false;
+    setNarrationOn(false);
+    narration.stop();
+  }
+
+  function toggleNarration() {
+    if (narration.state === "speaking") {
+      narration.pause();
+      return;
+    }
+    if (narration.state === "paused") {
+      narration.resume();
+      return;
+    }
+    narrationModeRef.current = true;
+    setNarrationOn(true);
+    speakSlideAt(indexRef.current);
+  }
+
+  function cycleNarrationRate() {
+    const next = NARRATION_RATES[(NARRATION_RATES.indexOf(narration.rate) + 1) % NARRATION_RATES.length];
+    narration.setRate(next);
+    if (narrationOn) speakSlideAt(indexRef.current);
+  }
 
   useEffect(() => {
     setIndex(0);
+    stopNarration();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slides]);
+
+  useEffect(() => stopNarration, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function go(next: number) {
     if (next < 0 || next >= slides.length) return;
     setDirection(next > index ? 1 : -1);
     setIndex(next);
     if (next === slides.length - 1) onFinish?.();
+    if (narrationModeRef.current) speakSlideAt(next);
   }
 
   useEffect(() => {
@@ -377,7 +453,7 @@ export function SlideDeck({ slides, onFinish }: { slides: Slide[]; onFinish?: ()
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-1.5">
+      <div className="mb-3 flex items-center gap-1.5">
         {slides.map((_, i) => (
           <button
             key={i}
@@ -391,6 +467,49 @@ export function SlideDeck({ slides, onFinish }: { slides: Slide[]; onFinish?: ()
           />
         ))}
       </div>
+
+      {narration.supported && (
+        <div className="mb-4 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleNarration}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              narrationOn ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {narration.state === "speaking" ? (
+              <>
+                <Pause className="h-3.5 w-3.5" /> Pause narration
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-3.5 w-3.5" /> {narrationOn ? "Resume narration" : "Listen to this lesson"}
+              </>
+            )}
+          </button>
+          {narrationOn && (
+            <>
+              <button
+                type="button"
+                onClick={cycleNarrationRate}
+                title="Playback speed"
+                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <Gauge className="h-3.5 w-3.5" /> {narration.rate}x
+              </button>
+              <button
+                type="button"
+                onClick={stopNarration}
+                title="Stop narration"
+                className="inline-flex items-center rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="relative min-h-[280px] overflow-hidden rounded-xl border border-border bg-surface p-6 sm:p-8">
         <AnimatePresence mode="wait" custom={direction}>

@@ -122,6 +122,47 @@ null === undefined // false — different types, no coercion
 0 === "0"        // false — different types, no coercion
 1 === 1.0        // true  — numbers, no int/float distinction in JS`,
         },
+        {
+          kind: "example",
+          heading: "Primitives are copied by value; objects and arrays by reference",
+          body: "Assigning a string, number, or boolean to a new variable copies the value itself — the two variables are completely independent from that point on. Assigning an object or array copies only a reference to it, so both variables end up pointing at the same underlying data, and changing one is visible through the other. This one distinction explains a large share of \"why did my other variable change\" bugs.",
+          language: "javascript",
+          code: `let a = 5;
+let b = a;
+b = 10;
+console.log(a); // 5 — untouched, b was an independent copy
+
+const obj1 = { count: 5 };
+const obj2 = obj1; // obj2 points at the SAME object, not a copy
+obj2.count = 10;
+console.log(obj1.count); // 10 — obj1 "changed" too, same underlying data
+
+// Function arguments follow the same rule:
+function reset(config) {
+  config.value = 0; // mutates the caller's object
+}
+const settings = { value: 99 };
+reset(settings);
+console.log(settings.value); // 0`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "0.1 + 0.2 !== 0.3 — floating-point math isn't exact",
+          body: "JavaScript stores every number as a 64-bit floating-point value (the IEEE 754 standard), and that format can't represent most decimal fractions exactly — the same way 1/3 can't be written exactly in decimal. So 0.1 + 0.2 actually evaluates to 0.30000000000000004, and comparing it to 0.3 with === is false. This isn't a JavaScript quirk; every mainstream language using IEEE 754 floats has the same behavior. In practice: never compare floating-point results with === for equality — check that the difference is smaller than a tiny tolerance instead (Math.abs(a - b) < Number.EPSILON), round for display with toFixed(2), and for money specifically, work in integer cents rather than fractional dollars so rounding errors can't creep in at all.",
+        },
+        {
+          kind: "bullets",
+          heading: "Checking a value's type reliably",
+          intro: "typeof gets you most of the way, but it has a few well-known blind spots worth memorizing:",
+          bullets: [
+            "typeof works cleanly for primitives: typeof \"hi\" is \"string\", typeof 4 is \"number\", typeof true is \"boolean\", typeof undefined is \"undefined\".",
+            "typeof null is \"object\" — a decades-old bug now permanent in the spec. Check value === null directly instead of relying on typeof for it.",
+            "typeof [] is also \"object\" — arrays don't get their own typeof result. Use Array.isArray(value) to actually detect an array.",
+            "typeof someFunction is \"function\" — the one case where typeof distinguishes something more specific than a plain \"object\".",
+            "For your own classes, instanceof checks the prototype chain: acct instanceof Account is true if Account.prototype appears anywhere in acct's chain.",
+          ],
+        },
       ],
     },
     {
@@ -247,6 +288,48 @@ sumArrow(4, 5); // 9`,
           heading: "Arrow functions don't have their own arguments object either",
           body: "Just like `this`, an arrow function reaches out to the nearest enclosing regular function's arguments object rather than getting one of its own. Writing const f = () => arguments; at the top level throws a ReferenceError. If a function needs arguments, give it rest parameters (...args) instead — they work identically in both function forms and are the modern default regardless.",
         },
+        {
+          kind: "example",
+          heading: "call, apply, and bind: setting this explicitly",
+          body: "Regular functions decide this based on how they're called — but three built-in methods let you override that directly. call and apply invoke the function immediately with a chosen this; bind returns a brand-new function permanently locked to that this, which is exactly what you want for a callback or event handler that will be called later, detached from its object.",
+          language: "javascript",
+          code: `function greet(greeting) {
+  return \`\${greeting}, \${this.name}\`;
+}
+
+const user = { name: "Ada" };
+
+greet.call(user, "Hello");   // "Hello, Ada" — args passed individually
+greet.apply(user, ["Hi"]);   // "Hi, Ada"    — args passed as an array
+
+const boundGreet = greet.bind(user);
+boundGreet("Hey");           // "Hey, Ada" — this is now permanently user
+
+// The classic use case: fixing a detached method before passing it on
+class Button {
+  constructor(label) { this.label = label; }
+  handleClick() { console.log(\`\${this.label} clicked\`); }
+}
+const btn = new Button("Submit");
+element.addEventListener("click", btn.handleClick.bind(btn));`,
+        },
+        {
+          kind: "bullets",
+          heading: "Pure functions make code easier to test and reason about",
+          intro: "A function is \"pure\" when its output depends only on its inputs and it produces no observable side effects. A surprising share of real bugs live in the impure parts:",
+          bullets: [
+            "Pure: add(2, 3) always returns 5, touches nothing outside itself, and is trivial to unit test — call it a thousand times and get the same answer every time.",
+            "Impure: a function that reads outside state, mutates an argument it was passed, calls Date.now() or Math.random(), or logs or writes to a file or network — same input, potentially different output or side effect on every call.",
+            "Impure functions aren't wrong — I/O has to happen somewhere — but pushing them to the edges of your code and keeping the logic in between pure makes that logic dramatically easier to test, reuse, and reason about without running it.",
+            "map, filter, and the arithmetic examples throughout this course are pure by design; that's part of why they're the everyday default rather than a hand-written loop that mutates as it goes.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Currying: functions that return functions, one argument at a time",
+          body: "A curried function takes its arguments one at a time instead of all at once, returning a new function after each one until it finally has enough to produce a result. const add = a => b => a + b; — calling add(2)(3) gives 5, but add(2) alone gives you back a reusable function still waiting for its second argument. That's useful for building specialized versions of a general function on the fly, like multiply(2) becoming a ready-made \"double\" you can pass straight to map.",
+        },
       ],
     },
     {
@@ -326,6 +409,48 @@ const words = ["hello world", "foo bar"];
 words.flatMap(s => s.split(" ")); // ["hello", "world", "foo", "bar"]`,
         },
         {
+          kind: "example",
+          heading: "Set and Map: the other two everyday collections",
+          body: "Arrays and objects cover most cases, but two more built-in structures solve specific problems cleanly. A Set stores unique values — adding a duplicate is a silent no-op, which makes deduplication a one-liner. A Map stores key-value pairs like an object, but any value can be a key (not just strings), it remembers insertion order, and it reports its own size directly instead of making you count Object.keys(obj).length.",
+          language: "javascript",
+          code: `const ids = [1, 2, 2, 3, 3, 3];
+const unique = [...new Set(ids)]; // [1, 2, 3] — duplicates gone
+
+const cache = new Map();
+cache.set(someObject, "metadata"); // an object AS a key — objects can't do this
+cache.set("plain-key", 42);
+cache.size;                // 2
+cache.get(someObject);     // "metadata"
+cache.has("missing-key");  // false
+
+for (const [key, value] of cache) {
+  console.log(key, value); // iterates in insertion order, always
+}`,
+        },
+        {
+          kind: "terminal",
+          heading: "Deduplicating a real array in the REPL",
+          description: "The order of first appearance is preserved — a Set doesn't sort anything, it just drops repeats as it sees them.",
+          lines: [
+            { text: "node" },
+            { text: "> const ids = [7, 3, 7, 9, 3, 7];", output: true },
+            { text: "undefined", output: true },
+            { text: "> [...new Set(ids)];", output: true },
+            { text: "[ 7, 3, 9 ]", output: true },
+            { text: "> new Set(ids).size;", output: true },
+            { text: "3", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "When to reach for Set or Map instead of an array or object",
+          bullets: [
+            "Set over an array when you need fast membership checks or only care about uniqueness — set.has(x) stays fast as a collection grows, because it doesn't have to scan every element the way array.includes(x) does.",
+            "Map over an object when keys aren't simple strings (you need object or function keys), when you need the size directly, or when insertion order matters and you don't want to lean on the quirks of object key ordering.",
+            "Object stays the right default for fixed, known shapes — a user record, a config, an API response — where you're reaching for named fields by name, not iterating over an open-ended set of keys.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Objects: the everyday shape of data",
           bullets: [
@@ -388,11 +513,61 @@ const [red, , blue] = rgb; // skip the middle value entirely
           body: "{ ...user } creates a new top-level object, but any nested object or array inside it is still the same reference as the original — mutating updated.address.city would also change user.address.city, because both point at the same nested object. For real independence at every level you need a deep copy: structuredClone(user) (built into modern JS and Node) or JSON.parse(JSON.stringify(user)) for simple, function-free data.",
         },
         {
+          kind: "example",
+          heading: "Grouping data with reduce (and the newer Object.groupBy)",
+          body: "A very common real task — bucket a list of items by some property, like orders by customer — is a natural fit for reduce, and modern JavaScript now ships a method built for exactly this.",
+          language: "javascript",
+          code: `const orders = [
+  { customer: "Ada", total: 40 },
+  { customer: "Grace", total: 15 },
+  { customer: "Ada", total: 25 },
+];
+
+// The classic way, with reduce:
+const byCustomer = orders.reduce((groups, order) => {
+  (groups[order.customer] ??= []).push(order);
+  return groups;
+}, {});
+// { Ada: [ {total:40}, {total:25} ], Grace: [ {total:15} ] }
+
+// Object.groupBy (widely supported since 2024) does the same thing directly:
+const grouped = Object.groupBy(orders, (order) => order.customer);`,
+        },
+        {
+          kind: "example",
+          heading: "ES2023 immutable twins: sort, reverse, and splice without mutating",
+          body: "sort(), reverse(), and splice() all mutate the array in place, which is surprising when you only meant to read a sorted copy for display. Modern JavaScript ships non-mutating twins for each: toSorted(), toReversed(), toSpliced(), and with() for replacing a single index — every one of them returns a new array and leaves the original untouched.",
+          language: "javascript",
+          code: `const scores = [30, 10, 20];
+
+const sorted = scores.toSorted((a, b) => a - b);
+console.log(sorted); // [10, 20, 30]
+console.log(scores); // [30, 10, 20] — untouched, unlike scores.sort()
+
+const updated = scores.with(1, 99);
+console.log(updated); // [30, 99, 20]
+console.log(scores);  // [30, 10, 20] — still untouched`,
+        },
+        {
+          kind: "chart",
+          heading: "Set membership checks scale better than array.includes",
+          description: "Relative lookup cost for \"does this collection contain X\" as the collection grows. array.includes scans element by element; Set.has does a constant-time hash lookup regardless of size — the gap widens fast.",
+          chartType: "bar",
+          unit: "relative cost",
+          data: [
+            { label: "Array, 1K items", value: 1 },
+            { label: "Array, 100K items", value: 90 },
+            { label: "Set, 1K items", value: 1 },
+            { label: "Set, 100K items", value: 1 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Two checks that trip people up",
           bullets: [
             "Arrays are objects too — typeof [1, 2, 3] returns \"object\", not \"array\". To actually test for an array, use Array.isArray(value).",
             "Object.freeze(obj) prevents adding, removing, or reassigning top-level properties, but like spread it's shallow — a frozen object's nested objects can still be mutated.",
+            "Comparing two arrays or objects for equal contents (not identity) means writing your own field-by-field check, reaching for a library's isEqual, or using JSON.stringify carefully — there's no built-in deep === for structural equality.",
           ],
         },
       ],
@@ -496,6 +671,39 @@ for (const key in user) {
           tone: "tip",
           heading: "Ternaries are for values, not for actions",
           body: "condition ? doA() : doB() to pick between two side effects compiles fine but reads badly — a ternary should produce a value you assign or return, like const label = age >= 18 ? \"adult\" : \"minor\". If you're not using the result, or either branch has more than one statement's worth of logic, reach for a plain if/else instead.",
+        },
+        {
+          kind: "example",
+          heading: "break and continue: exiting or skipping a loop iteration early",
+          body: "continue skips the rest of the current iteration and moves straight to the next one; break exits the loop entirely, right where it is. Both work in for, while, and for...of. A labeled loop — an identifier followed by a colon, placed before the loop — lets break or continue target an outer loop from inside a nested one, which a bare break in the inner loop can't do on its own; it only ever exits its own immediate loop.",
+          language: "javascript",
+          code: `for (const n of [1, 2, 3, 4, 5]) {
+  if (n === 3) continue; // skip 3, keep going
+  if (n === 5) break;    // stop the loop entirely once we hit 5
+  console.log(n);        // logs 1, 2, 4
+}
+
+outer: for (const row of matrix) {
+  for (const cell of row) {
+    if (cell === target) break outer; // exits BOTH loops at once
+  }
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "do...while runs its body at least once, then checks",
+          body: "A regular while loop checks its condition before the first run, so the body might never execute at all. do { ... } while (condition) flips that order — the body always runs once, and the condition is only checked afterward, to decide whether to run again. It's a smaller tool than for and while, but the right fit anytime the logic itself has to happen before there's anything to check against — a menu that has to be shown once before you know whether the user wants to exit, or a retry loop that has to attempt the operation before it can inspect the result.",
+        },
+        {
+          kind: "bullets",
+          heading: "Guard clauses: returning early instead of nesting deeper",
+          intro: "The exact same logic can read very differently depending on whether you nest conditions or exit early:",
+          bullets: [
+            "Nested: if (user) { if (user.isActive) { if (user.hasAccess) { doWork(); } } } — three levels deep before anything actually happens, with the real logic buried at the bottom.",
+            "Guard clauses: if (!user) return; if (!user.isActive) return; if (!user.hasAccess) return; doWork(); — each check exits immediately if it fails, and the function's main logic sits at the top level instead of nested three deep.",
+            "This isn't only a style preference — deeply nested conditionals are measurably harder to hold in your head, and they're exactly where a misplaced brace or a forgotten else quietly changes what the code actually does.",
+          ],
         },
       ],
     },
@@ -642,6 +850,62 @@ try {
           body: "Modern JavaScript modules (ESM) support top-level await — you can await directly in a module's top-level code, no wrapping async function required. It's useful for one-time setup (loading config, opening a connection) that later code in the module depends on. It doesn't work in a CommonJS require()-based file or inside a regular script tag without type=\"module\".",
         },
         {
+          kind: "example",
+          heading: "AbortController: actually cancelling an in-flight request",
+          body: "Promise.race can simulate a timeout, but it doesn't stop the underlying request — the network call keeps running in the background even after your code has stopped waiting on it. AbortController is the real cancellation mechanism: pass its signal into fetch, and calling abort() actually tears down the in-flight request instead of just ignoring its eventual result.",
+          language: "javascript",
+          code: `const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+try {
+  const response = await fetch("/api/report", { signal: controller.signal });
+  clearTimeout(timeoutId);
+  const data = await response.json();
+} catch (error) {
+  if (error.name === "AbortError") {
+    console.error("Request timed out or was cancelled");
+  } else {
+    throw error;
+  }
+}`,
+        },
+        {
+          kind: "example",
+          heading: "for await...of: looping over values that arrive over time",
+          body: "Some data doesn't arrive all at once — a paginated API, a streamed file read, a series of messages. An async generator produces values one at a time, each wrapped in a promise, and for await...of awaits each one automatically before moving to the next, so the loop body reads like it's synchronous even though every iteration involves a real wait.",
+          language: "javascript",
+          code: `async function* fetchAllPages(url) {
+  let nextUrl = url;
+  while (nextUrl) {
+    const response = await fetch(nextUrl);
+    const page = await response.json();
+    yield page.items;
+    nextUrl = page.nextUrl;
+  }
+}
+
+for await (const items of fetchAllPages("/api/orders")) {
+  console.log(\`Got \${items.length} orders in this page\`);
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "Five async mistakes that show up constantly in code review",
+          bullets: [
+            "Awaiting inside a loop when the calls don't depend on each other — turns what could be one round trip's worth of waiting into N sequential round trips. Fire independent calls with Promise.all instead.",
+            "Forgetting that .map() with an async callback returns an array of promises, not resolved values — you almost always need Promise.all(items.map(async ...)) wrapped around it, not just the bare map.",
+            "Mixing .then() chains with async/await in the same function — pick one style per function; combining both makes the error-handling path genuinely hard to follow.",
+            "Swallowing errors with an empty catch block — catch (error) {} hides real failures instead of handling them. At minimum, log what happened.",
+            "Assuming await pauses the whole program — it only pauses the async function it's inside of. Every other event handler and timer keeps running exactly as normal while it waits.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Node keeps running until its event loop is empty, not until your code finishes",
+          body: "A Node process doesn't exit the instant your top-level code finishes running — it exits once there's genuinely nothing left that could still fire: no pending timers, no open sockets, no promise with something still waiting on it. That's why an unawaited setInterval or a database connection left open can keep a script running long after all your visible code has finished. Calling clearInterval and closing connections explicitly is how you give the process permission to actually exit.",
+        },
+        {
           kind: "summary",
           heading: "The asynchronous ladder",
           bullets: [
@@ -761,6 +1025,52 @@ acct.getBalance(); // 100
 // longer referenced anywhere, its entry is garbage collected automatically`,
         },
         {
+          kind: "example",
+          heading: "A practical closure: debounce",
+          body: "Debouncing is one of the most common real-world uses of a closure — delay running a function until some time has passed without it being called again, so a search-as-you-type handler doesn't fire an API request on every single keystroke.",
+          language: "javascript",
+          code: `function debounce(fn, delayMs) {
+  let timeoutId; // closed over — persists between calls to the returned function
+
+  return function (...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delayMs);
+  };
+}
+
+const search = debounce((query) => fetchResults(query), 300);
+input.addEventListener("input", (e) => search(e.target.value));
+// typing "hello" fires fetchResults only ONCE, 300ms after the last
+// keystroke — each new keystroke cancels the previous pending call`,
+        },
+        {
+          kind: "example",
+          heading: "The module pattern: a closure used to build a mini public API",
+          body: "Before ES modules existed, this was the standard way to give a piece of code private internals and a small public surface — an IIFE that returns only the methods meant to be public, closing over everything else so it stays unreachable from outside.",
+          language: "javascript",
+          code: `const counterModule = (function () {
+  let count = 0; // private — no way to reach this from outside
+
+  function log(message) {
+    console.log(\`[counter] \${message}\`); // private helper, not exposed
+  }
+
+  return {
+    increment() {
+      count += 1;
+      log(\`incremented to \${count}\`);
+      return count;
+    },
+    getCount() {
+      return count;
+    },
+  };
+})();
+
+counterModule.increment(); // logs, returns 1
+counterModule.count;       // undefined — never exposed`,
+        },
+        {
           kind: "bullets",
           heading: "Two more traps worth knowing by name",
           bullets: [
@@ -785,6 +1095,21 @@ JSON.stringify(a) === JSON.stringify(b); // false! key order differs
 // worth reaching for once objects nest more than one level deep.`,
         },
         {
+          kind: "callout",
+          tone: "warning",
+          heading: "A function declared inside a block is a scoping edge case worth knowing",
+          body: "A named function declared inside an if block or other block behaves inconsistently across environments — it's technically block-scoped in modern strict-mode JavaScript, but some engines and older code still hoist it up to the enclosing function, so relying on its visibility outside the block is a portability trap. The safe fix is the one you'd reach for anyway: assign a function expression to a let or const inside the block instead of declaring a named function there, so its scope is unambiguous everywhere it runs.",
+        },
+        {
+          kind: "bullets",
+          heading: "Recognizing a closure bug versus a closure feature",
+          bullets: [
+            "Feature: each call to a factory function like makeCounter or debounce creates a fresh, independent closure — call debounce(...) twice and you get two separate timers that don't interfere with each other at all.",
+            "Bug: a loop or event-handler-creation pattern where every closure ends up sharing the same mutable variable instead of getting its own — the var-in-a-loop trap earlier in this lesson is the textbook example, but the same shape shows up any time several closures are meant to be independent but accidentally close over one shared reference instead.",
+            "The fix is almost always the same one: give each closure its own binding, either with let inside a loop, or by wrapping the shared logic in a function call that creates a fresh scope per use.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
@@ -792,7 +1117,7 @@ JSON.stringify(a) === JSON.stringify(b); // false! key order differs
             "Arrow functions inherit `this`; regular functions get their own — pick based on that, not habit.",
             "map/filter/reduce and destructuring/spread are the daily-driver tools for arrays and objects.",
             "async/await is promises with better readability — always pair it with try/catch.",
-            "A closure is a function plus the variables it remembers from where it was defined.",
+            "A closure is a function plus the variables it remembers from where it was defined, and it's the mechanism behind counters, memoization, debounce, and the module pattern alike.",
           ],
         },
       ],
@@ -909,6 +1234,12 @@ temp.fahrenheit = 32;
 temp._celsius;          // 0 — the setter did the conversion`,
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "Symbol.toPrimitive: control exactly how an instance converts",
+          body: "Overriding toString() covers string conversion, but for finer control — different output when an instance is used numerically (+account) versus as a string (`${account}`) — a class can implement [Symbol.toPrimitive](hint) instead. JavaScript checks for that method first, before toString or valueOf, any time it needs to coerce an instance down to a primitive value, which makes it the most precise of the three hooks.",
+        },
+        {
           kind: "example",
           heading: "Making a class work with for...of",
           body: "for...of only works on values that implement the iterator protocol — a method named [Symbol.iterator] that returns an object with a next() method. Arrays and strings have this built in; give your own class one and for...of, spread, and destructuring all start working on it for free.",
@@ -950,6 +1281,25 @@ for (const n of new Range(1, 3)) {
           ],
         },
         {
+          kind: "example",
+          heading: "Object.create: building the prototype chain by hand",
+          body: "class and extends are convenient syntax, but underneath, all they really do is wire objects together via Object.create. Calling it directly shows exactly what's happening: it creates a new object whose prototype is set to whatever you pass in — no constructor, no class keyword required.",
+          language: "javascript",
+          code: `const animalProto = {
+  speak() {
+    return \`\${this.name} makes a sound\`;
+  },
+};
+
+const dog = Object.create(animalProto); // dog's prototype IS animalProto
+dog.name = "Rex";
+dog.speak(); // "Rex makes a sound" — found by walking up to animalProto
+
+Object.getPrototypeOf(dog) === animalProto; // true
+// This is essentially what "class Dog {}" plus "extends" does for you,
+// just with a constructor and readable syntax layered on top.`,
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "A method detached from its instance loses `this`",
@@ -962,6 +1312,43 @@ for (const n of new Range(1, 3)) {
           body: "A closure-based factory function (like makeCounter from the previous lesson) achieves similar goals — private state plus functions that operate on it — without new, this, or prototypes at all. Classes tend to win when you need instanceof checks, inheritance hierarchies, or many instances sharing methods efficiently via the prototype. Factory functions tend to win when you want true privacy without the # syntax, or when this-binding bugs aren't worth the tradeoff. Neither is \"more correct\" — plenty of production codebases lean almost entirely on one or the other.",
         },
         {
+          kind: "example",
+          heading: "Mixins: composing behavior without a deep inheritance chain",
+          body: "extends only gives a class one parent. When behavior genuinely needs to come from more than one source — a class that's both \"serializable\" and \"comparable,\" say — a mixin function that wraps a base class and returns an extended version of it is the common workaround, keeping the inheritance tree flat instead of forcing an awkward multi-level hierarchy just to share two unrelated methods.",
+          language: "javascript",
+          code: `const Serializable = (Base) => class extends Base {
+  toJSON() {
+    return { ...this };
+  }
+};
+
+const Comparable = (Base) => class extends Base {
+  equals(other) {
+    return JSON.stringify(this) === JSON.stringify(other);
+  }
+};
+
+class Point {
+  constructor(x, y) { this.x = x; this.y = y; }
+}
+
+class ComparablePoint extends Comparable(Serializable(Point)) {}
+
+const p = new ComparablePoint(1, 2);
+p.toJSON();                          // { x: 1, y: 2 }
+p.equals(new ComparablePoint(1, 2)); // true`,
+        },
+        {
+          kind: "bullets",
+          heading: "Favor composition over deep inheritance in real codebases",
+          intro: "The rule of thumb most working teams eventually settle on:",
+          bullets: [
+            "A deep inheritance chain (Animal -> Mammal -> Dog -> ServiceDog) couples every level to the ones above it — change a method halfway up, and every subclass below inherits that change whether it wants it or not.",
+            "Composition — building an object out of smaller, focused pieces attached or passed in, rather than inherited — tends to age better: swapping one collaborator doesn't ripple through a whole class hierarchy the way changing a shared base class does.",
+            "Use extends for a genuine \"is-a\" relationship that's unlikely to change (a SavingsAccount really is an Account, permanently), and composition or mixins for anything closer to \"has-a\" or \"can-do\" (a class that has a logger, or can be serialized).",
+          ],
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
@@ -969,6 +1356,7 @@ for (const n of new Range(1, 3)) {
             "extends plus super(...) chains one class's behavior onto another; super(...) must run before a subclass constructor uses this.",
             "instanceof and Object.getPrototypeOf let you inspect the prototype chain directly.",
             "A class method detached from its instance loses this just like any other function — bind it or wrap it in an arrow function before passing it as a callback.",
+            "Prefer extends for a true, stable \"is-a\" relationship; reach for composition or a mixin when a class needs behavior from more than one unrelated source.",
           ],
         },
       ],
@@ -1096,12 +1484,121 @@ s.push("b");
 s.push("c"); // throws: Error: Stack is full`,
         },
         {
+          kind: "practice",
+          heading: "A Simple Event Emitter (Pub/Sub) With Closures",
+          prompt:
+            "Write a function createEmitter() that returns an object with on(event, callback) (registers a callback for a named event), off(event, callback) (removes a previously registered callback), and emit(event, ...args) (calls every callback currently registered for that event, passing along any extra arguments). Multiple callbacks can be registered for the same event, and emitting an event with no listeners should just do nothing.",
+          hint: "Keep a Map of event name to an array of callbacks, private inside the closure. on pushes onto the array for that event (creating it first if needed); off filters the matching callback out of the array; emit looks up the array and calls each function in it with the given arguments.",
+          solution: `function createEmitter() {
+  const listeners = new Map(); // event name -> array of callbacks
+
+  return {
+    on(event, callback) {
+      if (!listeners.has(event)) listeners.set(event, []);
+      listeners.get(event).push(callback);
+    },
+    off(event, callback) {
+      const callbacks = listeners.get(event);
+      if (!callbacks) return;
+      listeners.set(event, callbacks.filter((cb) => cb !== callback));
+    },
+    emit(event, ...args) {
+      const callbacks = listeners.get(event) || [];
+      for (const callback of callbacks) {
+        callback(...args);
+      }
+    },
+  };
+}
+
+const emitter = createEmitter();
+function onOrder(id) { console.log(\`Order placed: \${id}\`); }
+
+emitter.on("order", onOrder);
+emitter.emit("order", 42);   // logs "Order placed: 42"
+emitter.off("order", onOrder);
+emitter.emit("order", 43);   // nothing logs — listener was removed`,
+        },
+        {
+          kind: "terminal",
+          heading: "Testing the emitter live",
+          description: "A quick sanity check in the REPL before trusting the solution: register a listener, fire the event, confirm it ran.",
+          lines: [
+            { text: "node" },
+            { text: "> const emitter = createEmitter();", output: true },
+            { text: "undefined", output: true },
+            { text: "> emitter.on(\"ping\", () => console.log(\"pong\"));", output: true },
+            { text: "undefined", output: true },
+            { text: "> emitter.emit(\"ping\");", output: true },
+            { text: "pong", output: true },
+          ],
+        },
+        {
+          kind: "practice",
+          heading: "A Rate-Limited Class Using a Timestamp Window",
+          prompt:
+            "Write a class RateLimiter that takes maxCalls and windowMs in its constructor. It has one method, allow(), which returns true if calling it right now is within the limit — no more than maxCalls calls in the trailing windowMs milliseconds — and false otherwise. Only calls that return true should count toward the limit; a rejected call shouldn't use up any of the allowance.",
+          hint: "Keep an array of call timestamps on the instance. Each time allow() runs: filter out any timestamps older than windowMs from right now. If what's left has fewer than maxCalls entries, push the current timestamp onto the array and return true; otherwise return false without recording anything. This is called a \"sliding window\" because the cutoff moves forward with every call instead of resetting on a fixed clock tick.",
+          solution: `class RateLimiter {
+  constructor(maxCalls, windowMs) {
+    this.maxCalls = maxCalls;
+    this.windowMs = windowMs;
+    this.timestamps = [];
+  }
+
+  allow() {
+    const now = Date.now();
+    const cutoff = now - this.windowMs;
+    this.timestamps = this.timestamps.filter((t) => t > cutoff);
+
+    if (this.timestamps.length < this.maxCalls) {
+      this.timestamps.push(now);
+      return true;
+    }
+    return false;
+  }
+}
+
+const limiter = new RateLimiter(2, 1000); // 2 calls allowed per second
+limiter.allow(); // true  — 1st call in this window
+limiter.allow(); // true  — 2nd call in this window
+limiter.allow(); // false — 3rd call, same window, blocked`,
+        },
+        {
+          kind: "chart",
+          heading: "Requests allowed vs. blocked in a 2-per-second window",
+          description: "Six rapid calls to allow() within the same second, using the RateLimiter(2, 1000) from the exercise above. 1 = allowed, 0 = blocked.",
+          chartType: "bar",
+          data: [
+            { label: "Call 1", value: 1 },
+            { label: "Call 2", value: 1 },
+            { label: "Call 3", value: 0 },
+            { label: "Call 4", value: 0 },
+            { label: "Call 5", value: 0 },
+            { label: "Call 6", value: 0 },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Debugging a closure is different from debugging an instance",
+          body: "A class instance's state is easy to inspect from outside: log the instance itself, or check acct.balance directly in a debugger's variable panel, even from a completely different part of the codebase. A closure's private variables have no equivalent — count inside makeCounter isn't reachable from outside at all, which is exactly the point, but it also means debugging a misbehaving closure requires setting a breakpoint inside the returned function itself, not inspecting a property from the caller's side. Worth remembering when choosing between the two patterns for something you expect to need to step through often, especially under time pressure during an incident.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Where these patterns show up in real code",
+          body: "createEmitter is a small version of what Node's built-in EventEmitter, DOM addEventListener, and most pub/sub or message-bus systems do underneath. RateLimiter's timestamp-window approach — often called a \"sliding window\" rate limiter — is a simplified version of what API gateways and login-throttling code use to stop abuse; production versions usually swap the plain array for a more memory-efficient structure at high volume, but the core idea, something remembering recent call times and comparing against a limit, is identical.",
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
-            "A closure keeps state alive and private across multiple calls without a class — makeCounter and memoize both lean on this instead of a global variable.",
-            "A Map closed over by a returned function is a common, lightweight cache — no library needed for basic memoization.",
+            "A closure keeps state alive and private across multiple calls without a class — makeCounter, memoize, createEmitter, and debounce all lean on this instead of a global variable.",
+            "A Map closed over by a returned function is a common, lightweight cache or registry — no library needed for basic memoization or a pub/sub emitter.",
             "extends plus super.push(...) lets a subclass reuse a parent method's logic instead of copy-pasting it, then add its own check on top.",
+            "RateLimiter shows the class version of the same idea: private instance state (this.timestamps) plus a method that reads and updates it — a closure and an instance are two ways to reach the same design.",
+            "Rate limiting, event emission, and memoization are three of the most commonly asked take-home and whiteboard exercises in real interviews — recognizing the closure-or-instance shape underneath them matters more than memorizing any one solution verbatim.",
             "Closures and classes are really the same core idea underneath: bundling state together with the only functions allowed to touch it.",
           ],
         },
@@ -1115,7 +1612,7 @@ s.push("c"); // throws: Error: Stack is full`,
           kind: "title",
           heading: "Knowledge Check",
           subheading:
-            "Five questions across the whole course — variables, functions, arrays, async, and the scope/class material you just covered.",
+            "Seven questions across the whole course — variables, functions, arrays, async, and the scope/class material you just covered. Read each code sample carefully before picking an answer; several of these hinge on a single line.",
         },
         {
           kind: "quiz",
@@ -1178,14 +1675,39 @@ s.push("c"); // throws: Error: Stack is full`,
             "Methods defined in a class body are placed once on the class's prototype. Every instance shares that single copy via the prototype chain — creating more instances never duplicates the method itself.",
         },
         {
+          kind: "quiz",
+          heading: "Spread and Nested Objects",
+          question:
+            "What does this log?\n\nconst user = { name: \"Ada\", address: { city: \"NYC\" } };\nconst updated = { ...user, name: \"Grace\" };\nupdated.address.city = \"LA\";\nconsole.log(user.address.city);",
+          options: ["\"NYC\"", "\"LA\"", "undefined", "TypeError"],
+          correctIndex: 1,
+          explanation:
+            "Spread only copies one level deep. updated gets its own top-level name and address properties, but address itself is still the exact same nested object as user.address — mutating updated.address.city also changes it on user, because there's really only one address object in memory, referenced from both places.",
+        },
+        {
+          kind: "quiz",
+          heading: "Sequential vs. Concurrent Awaits",
+          question:
+            "getUser(id) always takes about 200ms. Which of these finishes faster overall?\n\nA:\nconst a = await getUser(1);\nconst b = await getUser(2);\n\nB:\nconst [a, b] = await Promise.all([getUser(1), getUser(2)]);",
+          options: [
+            "A — awaiting one at a time is always faster for exactly two calls",
+            "B — both requests start immediately, finishing in roughly 200ms total instead of 400ms",
+            "They take exactly the same time either way",
+            "It depends entirely on which one is awaited first",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Promise.all starts every promise in its array immediately, so independent async calls run concurrently instead of one waiting on the other to finish first. Version A takes roughly 400ms — 200ms, then another 200ms, one after another. Version B takes roughly 200ms total, bounded by the slower of the two requests, not their sum.",
+        },
+        {
           kind: "summary",
           heading: "Course recap",
           bullets: [
-            "const prevents reassignment, not mutation — arrays and objects declared with const can still change in place.",
-            "Arrow functions inherit this from their surrounding scope; regular functions get their own, determined by how they're called.",
-            "map/filter/reduce, destructuring, and spread are the daily tools for arrays and objects; know the six falsy values so if checks don't surprise you.",
-            "async/await is promises with readable syntax — always pair await with try/catch.",
-            "A closure is a function plus the variables it remembers; classes are sugar over the same prototype system, with methods shared via the prototype chain rather than duplicated per instance.",
+            "const prevents reassignment, not mutation — arrays and objects declared with const can still change in place, and spread only copies one level deep.",
+            "Arrow functions inherit this from their surrounding scope; regular functions get their own, determined by how they're called — call, apply, and bind exist to override that explicitly.",
+            "map/filter/reduce, destructuring, and spread are the daily tools for arrays and objects; Set and Map earn their place when uniqueness, non-string keys, or fast membership checks matter.",
+            "async/await is promises with readable syntax — pair every await with try/catch, and reach for Promise.all when independent calls don't need to wait on each other.",
+            "A closure is a function plus the variables it remembers, and it's the engine behind debounce, memoization, and private state; classes are sugar over the same prototype system, with methods shared via the prototype chain rather than duplicated per instance.",
           ],
         },
       ],

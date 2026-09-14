@@ -45,6 +45,32 @@ export const course: CourseSeed = {
           heading: "Git tracks changes, not files",
           body: "The mental shift that makes git click: it's not really versioning individual files, it's recording snapshots of your entire project at each commit. That's why moving or renaming a file rarely breaks git's understanding of its history — it's reasoning about the whole project state, not chasing individual file paths.",
         },
+        {
+          kind: "text",
+          heading: "Why \"distributed\" is the detail that made git win",
+          body: [
+            "Git wasn't the first version control system — tools like SVN and Perforce came earlier and solved some of the same problems. What set git apart is that it's distributed: every developer's clone contains the complete history of the project, not just the current files. With a centralized system, committing, viewing history, and even seeing who changed a line all require a live connection to one central server — if that server is down, or you're on a flight, you're stuck. With git, cloning the repository once gives you the entire history locally; you can commit, branch, and browse history completely offline, then sync with a remote (like GitHub) whenever you're back online.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Time a small team loses to version-control problems, per month",
+          description: "Illustrative estimates from a team survey — lost work, overwritten files, and time spent reconstructing what actually changed.",
+          chartType: "bar",
+          unit: "hours lost per month",
+          data: [
+            { label: "No version control (shared drive)", value: 14 },
+            { label: "Filename-based versioning", value: 7 },
+            { label: "Centralized VCS (SVN-style)", value: 3 },
+            { label: "Git", value: 0.5 },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "History as institutional memory, not just a safety net",
+          body: "The most underrated use of git history isn't undoing mistakes — it's answering \"why does this code do this?\" months later, when the person who wrote it has moved teams or forgotten. `git blame <file>` shows which commit last touched each line; `git log -p <file>` shows the full history of changes to one file with their messages. A team that writes real commit messages is leaving notes for its future self, not just satisfying a process requirement — \"fix bug\" tells a future reader nothing, while \"fix off-by-one error dropping the last cart item\" answers the question before it's even asked.",
+        },
       ],
     },
     {
@@ -112,6 +138,38 @@ export const course: CourseSeed = {
             "main (or master) is simply the conventional name for the primary branch — nothing about it is technically special.",
             "Creating a branch is near-instant because git isn't duplicating files, just adding a new pointer.",
             "Switching branches changes which commit your working directory reflects — this is what makes isolated, parallel work possible.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "HEAD: the pointer to your pointer",
+          description: "There's one more moving piece worth naming explicitly, since every git error message assumes you already know it.",
+          steps: [
+            { label: "HEAD", detail: "Points at whichever branch you currently have checked out" },
+            { label: "main", detail: "Points at the latest commit on that branch" },
+            { label: "Commit a1b2c3d", detail: "The actual snapshot main currently points to" },
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Why commits form a chain instead of a flat list",
+          body: [
+            "Each commit stores a pointer to its parent commit, and only its parent — not the whole history explicitly. That single link is what makes `git log` able to walk backward through your entire project history from any starting point, and it's also what a branch actually is: just a label on one commit in that chain. When you commit, git creates a new commit whose parent is whatever your current branch was pointing at, then moves the branch pointer forward to the new commit. Nothing about the old commits changes — history only grows, it doesn't get rewritten by ordinary commits.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "\"Detached HEAD\" explained, so it stops being scary",
+          body: "Checking out a specific commit hash instead of a branch name (`git checkout a1b2c3d`) puts you in what git calls a \"detached HEAD\" state — HEAD now points directly at a commit instead of at a branch. You can look around and even make new commits here, but nothing points to them once you switch away, so they become unreachable and eventually get garbage-collected. If you want to keep work made in this state, create a branch from it immediately with `git checkout -b new-branch-name` before switching away.",
+        },
+        {
+          kind: "bullets",
+          heading: "Three commit references worth being able to read on sight",
+          bullets: [
+            "HEAD — whatever commit you currently have checked out.",
+            "HEAD~1 (or HEAD^) — the commit one step before HEAD; HEAD~3 goes back three commits.",
+            "origin/main — where the remote's main branch was, as of your last fetch; not necessarily the same as your local main until you pull.",
           ],
         },
       ],
@@ -186,6 +244,84 @@ git merge feature/dark-mode         # bring those changes into main`,
             "git revert — undo a commit by creating a new commit that reverses it (safe on shared history, unlike rewriting the past).",
           ],
         },
+        {
+          kind: "example",
+          heading: "git diff, before you stage anything",
+          body: "This is the command to run before git add, not after — once something is staged, plain git diff stops showing it.",
+          language: "bash",
+          code: `git diff
+diff --git a/src/auth.ts b/src/auth.ts
+index 3a4f5c1..8b2e9d0 100644
+--- a/src/auth.ts
++++ b/src/auth.ts
+@@ -12,7 +12,7 @@ export function refreshToken(token: string) {
+-  const expiresIn = 3600;
++  const expiresIn = 1800;
+   return issueToken(token, expiresIn);`,
+        },
+        {
+          kind: "text",
+          heading: "git diff has two modes, and mixing them up wastes time",
+          body: [
+            "Plain `git diff` shows unstaged changes — what's different between your working directory and the staging area. Once you `git add` a file, that same `git diff` goes quiet for it, because there's nothing unstaged left to show. `git diff --staged` (or `--cached`) shows the opposite: what's staged and about to be committed, compared to the last commit. Checking `git diff --staged` right before `git commit` is a cheap habit that catches an accidentally staged debug line or a half-finished change before it becomes permanent history.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Stashing mid-task to switch context",
+          description: "A stash is a temporary, unnamed save point for uncommitted work — not a commit, and not shared with anyone else.",
+          lines: [
+            { text: "git stash" },
+            { text: "Saved working directory and index state WIP on feature/search: a1b2c3d Add filters", output: true },
+            { text: "git status" },
+            { text: "nothing to commit, working tree clean", output: true },
+            { text: "# ...switch branches, fix an urgent bug, come back..." },
+            { text: "git stash pop" },
+            { text: "On branch feature/search", output: true },
+            { text: "Changes not staged for commit:", output: true },
+            { text: "        modified:   src/search.ts", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "git pull is actually two commands wearing a trench coat",
+          body: "git pull runs git fetch (download new commits from the remote) immediately followed by git merge (combine them into your current branch) — which is convenient until the merge step produces a conflict you weren't expecting in the middle of what felt like a simple sync. Running git fetch alone, then looking at git log origin/main before deciding how to merge, gives you the same result with more control — worth knowing as an option even if you use plain git pull most of the time.",
+        },
+        {
+          kind: "example",
+          heading: "A realistic .gitignore",
+          body: "Not every file belongs in version control — build output, dependencies, and local secrets should never be committed. .gitignore tells git to stop tracking specific paths entirely.",
+          language: "bash",
+          code: `# .gitignore
+node_modules/
+dist/
+.env
+*.log
+.DS_Store`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Adding .gitignore after a file is already tracked does nothing",
+          body: ".gitignore only stops git from tracking new files that match its patterns — if node_modules/ or .env was already committed before you added the rule, it stays tracked forever until you explicitly remove it with `git rm --cached <path>`. This is also why a secret committed once, even if deleted in the very next commit, is still sitting in the project's history and should be treated as compromised, not just deleted going forward.",
+        },
+        {
+          kind: "text",
+          heading: "Writing a commit message that's actually useful later",
+          body: [
+            "The convention most teams converge on is a short summary line (under ~50 characters, imperative mood — \"Fix token refresh timing bug,\" not \"Fixed\" or \"Fixes\") followed by a blank line and, if needed, a longer explanation of why the change was made. The subject line shows up everywhere — `git log --oneline`, GitHub's commit list, a squash-merge summary — so it's worth being able to read at a glance. The body is where \"why,\" not \"what,\" belongs; the diff already shows what changed, but nothing else records why a particular approach was chosen over an obvious alternative.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A commit message with a real body",
+          language: "bash",
+          code: `git commit -m "Cap retry attempts at 3" -m "Unbounded retries were
+causing a thundering-herd effect against the payments API during
+its Tuesday outage. Capping at 3 with exponential backoff matches
+what the payments team recommends in their integration docs."`,
+        },
       ],
     },
     {
@@ -250,6 +386,46 @@ const MAX_RETRIES = 5;
           tone: "warning",
           heading: "The most common conflict-resolution mistake",
           body: "Committing a file with the <<<<<<< and >>>>>>> markers still in it. This happens most often under time pressure — you resolve the logic but forget to delete the markers themselves, and now they're a permanent, broken part of the file's history. Always re-read the whole file before staging a conflict resolution, not just the lines you touched.",
+        },
+        {
+          kind: "text",
+          heading: "Why HEAD and the other branch's name label the two sides",
+          body: [
+            "The labels inside the conflict markers aren't arbitrary — <<<<<<< HEAD is always your current branch's version, the one you were on when you ran git merge, and >>>>>>> feature/retry-logic is the incoming branch you're merging in. This matters because it tells you which side is \"yours\" and which is \"theirs\" without having to guess — genuinely useful on a conflict spanning many files, where remembering which branch changed what gets hard to hold in your head.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Tools that make resolution faster than reading raw markers",
+          bullets: [
+            "git diff during a conflict shows a three-way diff, marking which lines came from which side — clearer than scanning the file for markers by eye.",
+            "git checkout --ours <file> or --theirs <file> takes one side's version of a file wholesale — useful when you know an entire file should just be one branch's version, not a line-by-line merge.",
+            "Most editors (VS Code included) render conflict markers as clickable \"Accept Current / Accept Incoming / Accept Both\" buttons — worth using once you understand what the raw markers mean, not before.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Backing out of a conflict entirely",
+          body: "If a merge goes sideways and you'd rather start over than resolve it, abort returns everything to exactly how it was before you ran merge.",
+          language: "bash",
+          code: `git merge --abort
+# working directory and staging area are restored to their
+# pre-merge state — as if git merge had never been run`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "A rebase conflict looks the same but resolves differently",
+          body: "git rebase can also produce conflicts, with the identical <<<<<<< markers — but where a merge conflict is resolved once and committed once, a rebase replays your commits one at a time onto the new base, so a conflict can recur on the second commit even after you've fixed the first. Resolve it the same way (edit, remove markers, stage), but run `git rebase --continue` instead of `git commit` to move to the next commit in the sequence, or `git rebase --abort` to bail out entirely.",
+        },
+        {
+          kind: "bullets",
+          heading: "Conflicts that aren't about code logic",
+          bullets: [
+            "Deleted on one side, edited on the other — git flags this explicitly rather than guessing whether the edit or the deletion should win.",
+            "Binary files (images, compiled assets) can't be merged line by line at all — git just asks you to pick one side's whole version.",
+            "package-lock.json / yarn.lock conflicts are common and usually best resolved by deleting the file and regenerating it (`npm install`) rather than hand-editing a machine-generated file.",
+          ],
         },
       ],
     },
@@ -321,6 +497,22 @@ git branch -d feature/add-search      # delete the now-merged local branch`,
           tone: "tip",
           heading: "Keep main current, keep branches short-lived",
           body: "The single habit that prevents most painful merge conflicts: pull main into your branch regularly while you work, rather than only at the very end. A branch that lives for two days and merges cleanly is far more common than one that lives for three weeks and fights with everything else that happened in the meantime.",
+        },
+        {
+          kind: "bullets",
+          heading: "What a good pull request description actually includes",
+          bullets: [
+            "What changed and why — not just a restatement of the diff a reviewer can already see, but the reasoning behind the approach.",
+            "How to test it — the specific steps or scenario a reviewer should check, especially for anything that isn't obvious from reading the code.",
+            "Anything deliberately left out of scope — so a reviewer doesn't waste time asking about it or assume it was missed by accident.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Merge, squash, or rebase — the three ways a PR actually lands",
+          body: [
+            "GitHub and similar tools offer three different merge strategies, and they produce meaningfully different history. A regular merge keeps every commit from the branch plus a merge commit tying them together — most accurate, but noisy on a branch with a lot of \"wip\" commits. Squash and merge combines the entire branch into a single commit on main, trading the branch's internal history for a clean, one-line summary — the most common default on teams that don't want rebase habits enforced on every contributor. Rebase and merge replays the branch's commits individually onto main with no merge commit at all, producing the cleanest linear history but requiring every commit on the branch to already be reasonable on its own.",
+          ],
         },
         {
           kind: "summary",
@@ -406,6 +598,29 @@ git rebase -i HEAD~3
           body: "Amending or rebasing changes a commit's hash — as far as git is concerned, it's now a different commit, not an edited version of the old one. If a teammate already pulled the original, rewriting it and force-pushing creates a mismatch between your history and theirs that's genuinely painful to untangle. Rewrite freely on commits that are still local and only yours; once something is pushed and someone else might have it, prefer git revert instead.",
         },
         {
+          kind: "example",
+          heading: "Force-pushing safely, when you genuinely need to",
+          body: "If you're certain a rewritten branch is only yours (your own feature branch, nobody else pulled it), --force-with-lease is the safer version of --force — it refuses to overwrite work on the remote you haven't seen locally.",
+          language: "bash",
+          code: `git push --force-with-lease origin feature/add-search
+# fails loudly instead of silently overwriting someone else's
+# commits, if the remote branch moved since you last fetched it —
+# plain --force would overwrite them with no warning at all`,
+        },
+        {
+          kind: "text",
+          heading: "Rebase vs. merge: replaying commits vs. tying histories together",
+          body: [
+            "Interactive rebase is the editing tool from this lesson, but plain `git rebase main` from a feature branch is also a way to bring main's new commits into your branch — as an alternative to `git merge main`. The difference is what the resulting history looks like: merging creates a merge commit that ties the two histories together, preserving exactly what happened; rebasing replays your branch's commits one by one on top of main's latest commit, producing a straight line with no merge commit at all, as if you'd started your branch from today's main. Cleaner history is the appeal; the same shared-history rule applies — never rebase a branch other people are actively also working on.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "git reflog is the safety net under all of this",
+          body: "Even a rewritten or seemingly \"lost\" commit isn't usually gone — git keeps a local log of every place HEAD has pointed, including commits no branch references anymore. `git reflog` lists them with their hashes; `git checkout <hash>` (or creating a branch from it) recovers work that looks deleted after a bad rebase or reset. This log is local-only and typically expires after 90 days, but it's the reason a botched interactive rebase is almost always recoverable if you catch it soon.",
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
@@ -459,6 +674,45 @@ git commit --amend -m "Add search feature with tests"
         },
         {
           kind: "practice",
+          heading: "Recover a Commit After a Bad Rebase",
+          prompt:
+            "You ran an interactive rebase, dropped a commit you actually needed by mistake, and already closed the editor. git log no longer shows it. Write the command to find it, and the command to get its changes back onto your current branch.",
+          hint: "The commit isn't gone — git's reflog tracks every place HEAD has pointed, including commits no branch or tag currently references. Find its hash there first.",
+          solution: `git reflog
+# a1b2c3d HEAD@{2}: commit: Add rate limit config   <- the dropped commit
+# e4f5g6h HEAD@{1}: rebase (start): checkout HEAD~3
+# ...
+
+git cherry-pick a1b2c3d
+# replays just that one commit's changes onto your current
+# branch as a new commit — the dropped work is back`,
+        },
+        {
+          kind: "practice",
+          heading: "Reword an Old Commit Without Touching the Ones After It",
+          prompt:
+            "Your branch has four commits, oldest to newest: \"Add cart page\", \"fix cart bug\", \"Add checkout flow\", \"Add payment validation\". You need to fix the second commit's message to \"Fix cart total miscalculation\" — and only that one, leaving the other three's content untouched. Write the rebase command and describe what you'd change in the editor.",
+          hint: "You need all four commits in the interactive rebase list even though you're only editing one — go back HEAD~4. Change \"pick\" to \"reword\" only on the commit whose message needs to change; leave the rest as \"pick\".",
+          solution: `git rebase -i HEAD~4
+
+# In the editor, change:
+#   pick h1 Add cart page
+#   pick h2 fix cart bug
+#   pick h3 Add checkout flow
+#   pick h4 Add payment validation
+# to:
+#   pick   h1 Add cart page
+#   reword h2 fix cart bug
+#   pick   h3 Add checkout flow
+#   pick   h4 Add payment validation
+#
+# Save and close — git stops on h2 and opens a second editor
+# for its new message. Type "Fix cart total miscalculation",
+# save, and the rebase continues automatically through h3 and h4
+# unchanged (though their hashes do change, since h2 changed).`,
+        },
+        {
+          kind: "practice",
           heading: "Resolve a Conflict That Needs Both Sides",
           prompt:
             "git merge feature/pricing produces this conflict in config.ts:\n\n<<<<<<< HEAD\nexport const TAX_RATE = 0.07;\nexport const FREE_SHIPPING_THRESHOLD = 50;\n=======\nexport const TAX_RATE = 0.0725;\nexport const FREE_SHIPPING_THRESHOLD = 75;\n>>>>>>> feature/pricing\n\nFinance confirmed the new tax rate (0.0725) is correct, but the shipping threshold should stay at 50 — the 75 on the feature branch was a mistake. Write the resolved file content, then the commands to finish the merge.",
@@ -473,11 +727,24 @@ git commit
 // git already knows this commit completes the merge and pre-fills a merge message`,
         },
         {
+          kind: "terminal",
+          heading: "A quick sanity check after any rebase",
+          description: "Comparing commit counts and running the test suite before pushing catches a botched rebase before it becomes someone else's problem.",
+          lines: [
+            { text: "git log --oneline main..HEAD | wc -l" },
+            { text: "4", output: true },
+            { text: "# matches the number of commits you expected on the branch" },
+            { text: "npm test" },
+            { text: "Tests: 48 passed, 48 total", output: true },
+          ],
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "--amend replaces the last commit outright rather than piling a fix on top of it — useful right up until you've shared that commit with anyone else.",
-            "Interactive rebase's pick and squash turn a messy, incremental history into the clean set of commits a teammate actually wants to read.",
+            "Interactive rebase's pick, reword, and squash turn a messy, incremental history into the clean set of commits a teammate actually wants to read.",
+            "git reflog is the real safety net — a commit that's disappeared from git log after a rebase is almost always recoverable, not permanently lost.",
             "Resolving a conflict is a per-line decision — take what's correct from each side, not an all-or-nothing pick between branches.",
             "Every conflict marker (<<<<<<<, =======, >>>>>>>) must be gone before staging the resolution — leaving one in is the single most common mistake.",
           ],

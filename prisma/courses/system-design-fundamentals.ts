@@ -48,6 +48,55 @@ export const course: CourseSeed = {
           heading: "A workable order to move through",
           body: "Clarify requirements and scale, sketch the obvious/naive design, identify where it breaks under the stated scale, then apply techniques to fix each bottleneck — narrating why each one is needed, not just naming it. The rest of this course is that toolkit of techniques.",
         },
+        {
+          kind: "bullets",
+          heading: "Non-functional requirements — easy to skip, and just as shaping as features",
+          intro: "\"What does it do\" is only half the scope. \"How well does it have to do it\" is the other half, and it changes the design as much as any feature does.",
+          bullets: [
+            "Latency budget — is 200ms fine, or does this sit in a path where 20ms is the ceiling? A search-as-you-type feature and an overnight batch report have wildly different tolerances, and that alone rules out or requires whole categories of technique.",
+            "Availability target — 99.9% uptime allows about 8.7 hours of downtime a year; 99.99% allows about 52 minutes. Going from three nines to four nines isn't a small tweak — it usually means redundancy at every layer, not just the obvious ones.",
+            "Durability — can this data be regenerated or re-fetched if lost, or is losing it unacceptable (a financial transaction, a user's uploaded file)? That answer decides how much replication and backup effort is actually justified.",
+            "Consistency model — does every reader need to see the latest write immediately, or is a brief delay (eventual consistency) acceptable in exchange for better availability and lower latency? Naming this trade-off explicitly is one of the clearest signals of seniority in a design discussion.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Back-of-the-envelope math turns \"a lot of users\" into a real number",
+          body: "Rough estimation, done in front of whoever you're designing for, is expected — and it's what turns \"handle a lot of traffic\" into an actual, checkable design target. The precision doesn't matter much; the order of magnitude does.",
+          language: "text",
+          code: `Given: 10 million daily active users, each performs ~5 actions/day
+
+Average QPS = (10,000,000 × 5) / 86,400 seconds ≈ 580 requests/second
+
+Peak QPS: traffic is rarely flat — assume a 5x peak-to-average ratio
+  for a consumer app with daily usage patterns
+  580 × 5 ≈ 2,900 requests/second at peak
+
+Storage, if each action writes a ~1KB record:
+  10,000,000 × 5 × 1KB ≈ 50GB/day → ~18TB/year before any replication`,
+        },
+        {
+          kind: "bullets",
+          heading: "A handful of questions worth asking out loud, not just silently assuming",
+          bullets: [
+            "What's the peak-to-average traffic ratio, and is it predictable (daily commute patterns) or spiky and unpredictable (a flash sale, a viral post)? Predictable peaks can be capacity-planned for; unpredictable ones need headroom or autoscaling.",
+            "What happens to this feature if a downstream dependency — a third-party API, another internal service — is slow or unavailable? Designing the failure path is not optional polish; it's part of the design.",
+            "Is this a greenfield system, or does it need to interoperate with something that already exists? Constraints from existing infrastructure often matter more than any technique in this course.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "The full shape of a design conversation, start to finish",
+          description: "This is the loop the rest of the course's techniques get plugged into — worth having as a mental checklist going in.",
+          steps: [
+            { label: "Clarify functional scope", detail: "What's in, what's explicitly out, for this pass" },
+            { label: "Clarify scale and non-functionals", detail: "Users, QPS, read/write ratio, latency, availability, consistency" },
+            { label: "Back-of-envelope math", detail: "Turn \"a lot\" into an actual number worth designing around" },
+            { label: "Sketch the naive design", detail: "The simplest thing that could possibly work" },
+            { label: "Identify where it breaks", detail: "Name the specific bottleneck at the stated scale" },
+            { label: "Apply a technique, narrating why", detail: "Repeat until the design holds up under the stated numbers" },
+          ],
+        },
       ],
     },
     {
@@ -85,6 +134,12 @@ export const course: CourseSeed = {
           body: "For a server to be one of several interchangeable copies, it generally can't hold state a specific user's next request depends on — session data belongs in a shared store like Redis, not an in-memory dictionary on one server, or that user's next request might land on a different machine that's never heard of them. This property — statelessness — is what makes \"just add more servers\" actually work.",
         },
         {
+          kind: "callout",
+          tone: "warning",
+          heading: "Not every workload parallelizes cleanly — the part that doesn't caps your speedup",
+          body: "Horizontal scaling assumes the work can actually be split across machines with little coordination between them. Some workloads resist this — a computation with a strictly sequential dependency, or a single global counter every request needs to increment exactly once. Amdahl's law formalizes the intuition: if even 10% of a workload is inherently sequential, no amount of added parallelism can ever push the total speedup past 10x, because that 10% has to happen no matter how many machines are standing by idle. In practice this shows up as \"we added 10 more servers and throughput barely moved\" — usually because the actual bottleneck was a serialized piece (a single lock, a single queue, a single non-sharded table) that horizontal scaling never touched.",
+        },
+        {
           kind: "diagram",
           heading: "A stateless request, end to end",
           description: "Any of the servers can handle any request, because none of them holds state the request depends on.",
@@ -94,6 +149,44 @@ export const course: CourseSeed = {
             { label: "Server handles the request", detail: "Reads/writes session state from a shared store, not its own memory" },
             { label: "Shared store (e.g. Redis)", detail: "Any server's next request can read the same session data" },
           ],
+        },
+        {
+          kind: "chart",
+          heading: "Where vertical scaling hits a wall",
+          description: "Illustrative cost of a single cloud instance as it scales up — capacity roughly doubles at each step, but the price per unit of capacity climbs, not stays flat.",
+          chartType: "bar",
+          unit: "$/month",
+          data: [
+            { label: "4 vCPU / 16GB", value: 140 },
+            { label: "8 vCPU / 32GB", value: 310 },
+            { label: "16 vCPU / 64GB", value: 700 },
+            { label: "32 vCPU / 128GB", value: 1650 },
+            { label: "64 vCPU / 256GB (largest available)", value: 4200 },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Horizontal scaling isn't just about the ceiling — it's cheaper per unit, and it buys redundancy for free",
+          body: "The chart's real lesson isn't just that the biggest machine runs out — it's that four of the 16 vCPU machines cost roughly $2,800/month for 64 vCPUs total, well under the $4,200 for one 64 vCPU machine with the same raw capacity. Horizontal scaling on smaller, cheaper instances is often less expensive per unit of capacity, on top of removing the single point of failure a lone large machine represents. The catch, as covered earlier, is that those four machines only work as a substitute if the workload can actually be split across them — which is exactly the statelessness requirement.",
+        },
+        {
+          kind: "example",
+          heading: "What horizontal scaling looks like operationally: an autoscaling policy",
+          body: "In practice, horizontal scaling is rarely a fixed number of servers — it's a policy that adds and removes capacity automatically based on load, so you're not paying for peak capacity around the clock.",
+          language: "yaml",
+          code: `# Simplified autoscaling group policy
+min_instances: 3        # never scale below this, for redundancy alone
+max_instances: 50        # a ceiling to cap runaway cost
+target_cpu_utilization: 60%
+
+scale_out:
+  when: avg_cpu > 70% for 3 minutes
+  add: 2 instances
+
+scale_in:
+  when: avg_cpu < 30% for 10 minutes
+  remove: 1 instance      # remove cautiously — scale in slower than scale out`,
         },
         {
           kind: "text",
@@ -135,6 +228,26 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "A third pattern, less common but worth recognizing",
+          bullets: [
+            "Write-behind (write-back) — the write goes to the cache immediately and returns, while the write to the database happens asynchronously afterward. Fast writes, at the real risk of losing data if the cache crashes before that async write completes — used sparingly, mostly for write-heavy workloads that can tolerate some loss.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Why hit ratio matters more than almost any other cache metric",
+          description: "Illustrative average response time as the cache hit ratio improves, for a lookup that costs 2ms from cache versus 80ms from the database.",
+          chartType: "line",
+          unit: "ms",
+          data: [
+            { label: "50% hit ratio", value: 41 },
+            { label: "80% hit ratio", value: 18 },
+            { label: "95% hit ratio", value: 6 },
+            { label: "99% hit ratio", value: 3 },
+          ],
+        },
+        {
           kind: "text",
           heading: "Why cache invalidation is the hard part, not the cache itself",
           body: [
@@ -155,6 +268,30 @@ export const course: CourseSeed = {
           tone: "warning",
           heading: "Cache stampede",
           body: "A popular cache entry expires, and a sudden burst of concurrent requests all miss the cache at once and hit the database simultaneously — sometimes hard enough to take it down. A short random jitter added to each TTL, or a lock so only one request repopulates the cache while others wait, are the two standard defenses.",
+        },
+        {
+          kind: "bullets",
+          heading: "Eviction: what happens when the cache itself fills up",
+          intro: "TTLs handle staleness. Eviction handles a different problem entirely — the cache has a fixed memory budget, and it's full.",
+          bullets: [
+            "LRU (least recently used) — evict whatever hasn't been read in the longest time. The default in most caching systems, and a reasonable one: recently accessed data tends to be accessed again soon.",
+            "LFU (least frequently used) — evict whatever has been read the fewest times overall, regardless of recency. Better than LRU for data with a stable \"always popular\" set that shouldn't get evicted just because of one quiet hour.",
+            "Redis and most managed caches let you configure the eviction policy per instance — picking the wrong one for your access pattern silently degrades your hit ratio without throwing any error to tell you why.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Setting a TTL and watching it expire, in Redis",
+          description: "The everyday commands behind everything this lesson describes conceptually.",
+          lines: [
+            { text: "redis-cli SET user:123:profile '{\"name\":\"Ada\"}' EX 300" },
+            { text: "OK", output: true },
+            { text: "redis-cli TTL user:123:profile" },
+            { text: "(integer) 300", output: true },
+            { text: "# ... 300 seconds later ..." },
+            { text: "redis-cli GET user:123:profile" },
+            { text: "(nil)", output: true },
+          ],
         },
       ],
     },
@@ -209,6 +346,34 @@ export const course: CourseSeed = {
           heading: "The load balancer is also a single point of failure — worth naming out loud",
           body: "Putting one load balancer in front of many servers just moves the single point of failure up one level. Real deployments run at least two load balancers, with a mechanism (often DNS or a floating IP) to fail over between them — worth mentioning explicitly in a design discussion, since it's the kind of detail that shows you're not just naming techniques but actually reasoning about where the system can still break.",
         },
+        {
+          kind: "bullets",
+          heading: "Sticky sessions: a pragmatic, imperfect middle ground",
+          bullets: [
+            "A load balancer can be configured to route the same client's requests to the same server every time — usually via a cookie — instead of distributing them freely. This makes an otherwise-stateful server workable without a shared session store.",
+            "The trade-off: it partially reintroduces the exact problem statelessness was meant to solve. If that one server goes down, every session pinned to it is lost or has to be rebuilt elsewhere, and load distribution gets less even since some servers may end up with disproportionately \"sticky\" clients.",
+            "It's a reasonable short-term or lower-stakes answer, but a shared session store is almost always the better long-term one — sticky sessions are worth mentioning as a trade-off you're consciously choosing, not something to lean on by default.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Weighted routing: not every server is equal",
+          body: "When servers differ in capacity — a mixed fleet during a migration, or intentionally provisioned differently — a load balancer can send proportionally more traffic to the bigger ones instead of splitting evenly.",
+          language: "nginx",
+          code: `upstream backend {
+    server 10.0.1.10:8080 weight=3;  # a larger instance — gets 3x the traffic
+    server 10.0.1.11:8080 weight=1;
+    server 10.0.1.12:8080 weight=1;
+}
+
+# roughly 60% of requests go to .10, 20% each to .11 and .12`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "TLS termination is usually the load balancer's job too",
+          body: "Decrypting HTTPS traffic is CPU work, and doing it once at the load balancer — then forwarding plain HTTP to app servers over the private network — means every app server doesn't have to repeat that cost, and certificates only need managing in one place instead of on every instance. This is called TLS termination, and it's one of the load balancer's jobs that's easy to forget when first sketching a design, but worth naming since \"where does HTTPS actually get decrypted\" is a real, concrete question in any web-facing system.",
+        },
       ],
     },
     {
@@ -242,6 +407,12 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "Synchronous replication exists too — it just trades away availability for it",
+          body: "Everything above assumes asynchronous replication, the common default. A synchronous replica requires the primary to wait for the replica to confirm the write before telling the client it succeeded — guaranteeing zero lag, but meaning the primary is now only as available as its slowest synchronous replica, and a network blip between them stalls every write. Some systems use a middle ground — semi-synchronous, requiring confirmation from just one of several replicas — to bound the worst-case lag without fully coupling write latency to replica health.",
+        },
+        {
           kind: "bullets",
           heading: "Sharding: splitting the data itself",
           bullets: [
@@ -251,10 +422,30 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "Three ways to pick which shard a given piece of data lives on",
+          bullets: [
+            "Hash-based — hash the key (e.g. user ID) and mod by the shard count. Distributes evenly with no natural hot spot, but adding a shard later means most keys hash to a different shard than before, which is expensive to rebalance without a technique like consistent hashing.",
+            "Range-based — shard A holds users 1-1,000,000, shard B holds 1,000,001-2,000,000, and so on. Makes range queries (\"everyone who signed up in March\") cheap, since they typically hit one shard — but is exactly what creates a hot shard when activity isn't evenly spread across ranges, like all-new-signups landing on the newest, single shard.",
+            "Directory-based — a separate lookup service tracks exactly which shard holds which key. Most flexible (rebalancing means updating the directory, not rehashing everything), but that directory is now its own critical, highly-available piece of infrastructure.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "The hot shard problem",
           body: "Sharding by user ID sounds even until one user — a celebrity account, a viral post — generates disproportionate traffic and its shard becomes a bottleneck all by itself, while every other shard sits idle. Choosing a shard key is one of the highest-leverage decisions in a sharded design, precisely because a bad one reintroduces the exact bottleneck sharding was meant to remove.",
+        },
+        {
+          kind: "diagram",
+          heading: "A query that has to fan out across shards",
+          description: "The real cost of sharding, made concrete — a query no single shard can answer alone.",
+          steps: [
+            { label: "\"Top 10 most active users overall\" arrives", detail: "No single shard has the full picture" },
+            { label: "Application queries every shard in parallel", detail: "Each returns its own local top 10" },
+            { label: "Application merges the partial results", detail: "Re-sorts across all shards' results together" },
+            { label: "Final top 10 returned", detail: "Work the database did for free with one primary now lives in application code" },
+          ],
         },
         {
           kind: "text",
@@ -281,6 +472,27 @@ export const course: CourseSeed = {
           body: [
             "Functional scope: submit a long URL, get back a short code; visiting the short URL redirects to the original. Custom aliases and click analytics are explicitly out of scope for this pass. Scale: 100 million shortened links created total, 1 billion redirects served per day — a workload that is overwhelmingly reads over writes, roughly 1000:1.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "A detail worth deciding explicitly: how the short code is generated",
+          body: "This is a small decision that's easy to wave past, but it has real trade-offs — worth naming in a real design conversation rather than assuming \"something randomish\" is enough.",
+          language: "text",
+          code: `Option 1 — random string, check for collision, retry on conflict
+  Simple. At 100M links the collision odds per attempt are still low with
+  a 7-character base62 code (62^7 ≈ 3.5 trillion possibilities), but every
+  write now needs a uniqueness check against the database — extra latency
+  on the write path, and a retry loop for the rare collision.
+
+Option 2 — auto-incrementing ID, encoded as base62
+  No collision possible, no uniqueness check needed. The trade-off: IDs
+  are sequential and guessable (code "aB3" followed by "aB4" reveals link
+  volume and creation order) — acceptable for this use case, not for
+  something like an invoice or account number.
+
+Chosen: Option 2 — the write path stays simple (encode an incrementing
+ID, no DB round-trip to check uniqueness), and guessability isn't a
+real concern for a public link-shortening product.`,
         },
         {
           kind: "bullets",
@@ -314,6 +526,12 @@ Read path (redirect):
     cache miss -> read replica -> populate cache -> redirect`,
         },
         {
+          kind: "callout",
+          tone: "insight",
+          heading: "What a strong answer names explicitly, and a weaker one skips",
+          body: "It's easy to stop at the diagram above and call the design done. A stronger answer keeps going for one more beat: what happens if the cache cluster itself goes down entirely? Every request becomes a cache miss simultaneously — effectively a self-inflicted cache stampede, exactly the failure mode from the caching lesson, at the worst possible moment. The honest answer is that read replicas need enough spare headroom to absorb 100% of read traffic temporarily, not just the cache-miss fraction, and that's a capacity number worth stating out loud rather than assuming away.",
+        },
+        {
           kind: "diagram",
           heading: "The read path, the request that happens a billion times a day",
           description: "A redirect — by far the dominant traffic for this system, given the 1000:1 read/write ratio.",
@@ -327,11 +545,19 @@ Read path (redirect):
           ],
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "A sanity check worth doing: does the storage number even matter here?",
+          body: "100 million links, each maybe 500 bytes once you include the long URL, the short code, metadata, and index overhead, comes to about 50GB total — small enough to fit comfortably on a single modern database instance, replication aside. That's a useful, explicit reason sharding is deferred to \"only if\" rather than designed in from the start: the write-volume trigger this course keeps coming back to (50,000 writes/second, from the practice exercise coming up next) is a real concern here, but raw data size on its own isn't. Saying that out loud, with the actual number, is stronger than just asserting \"sharding isn't needed yet.\"",
+        },
+        {
           kind: "summary",
           heading: "What this example demonstrates",
           bullets: [
             "Every technique was introduced to fix a specific, named bottleneck — not applied by default because it's a well-known pattern.",
             "The read-heavy ratio, identified back in step 1, is the single fact that shaped almost every later decision — caching and read replicas both exist because of it.",
+            "Even a detail as small as \"how is the short code generated\" carries a real trade-off (collision-checked random vs. encoded auto-increment) worth deciding on purpose, not by default.",
+            "A design isn't finished at the happy-path diagram — naming what happens when a supporting piece (the cache cluster) fails entirely is part of a complete answer, not an optional extra.",
             "This is the shape a real design answer should take: naive design, identified bottleneck, targeted fix, repeated — not a diagram of every technique you know, applied all at once.",
           ],
         },
@@ -375,6 +601,25 @@ Application code       Expensive-specific-endpoint abuse Per endpoint, per user
                         (e.g. "send password reset email")`,
         },
         {
+          kind: "example",
+          heading: "Telling the client what happened, not just rejecting silently",
+          body: "A rejected request should say so clearly enough that a well-behaved client can react correctly — retrying immediately just recreates the same problem a moment later.",
+          language: "http",
+          code: `HTTP/1.1 429 Too Many Requests
+Retry-After: 30
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1719432600
+
+{"error": "rate_limit_exceeded", "message": "Try again in 30 seconds"}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Circuit breakers: backpressure applied to an unhealthy dependency",
+          body: "A related pattern worth knowing by name: a circuit breaker wraps calls to a downstream dependency and, after enough failures in a row, \"trips\" — failing new calls immediately, without even attempting them, for a cooldown period before cautiously letting a few through to test recovery. It protects the caller from wasting time and resources on a dependency that's already struggling, and protects the struggling dependency from being hit with retries piling on top of its existing problems. Rate limiting protects a system from its clients; a circuit breaker protects a system from a dependency it relies on — the same defensive instinct, aimed in the other direction.",
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Backpressure: rate limiting's quieter cousin",
@@ -409,6 +654,12 @@ Application code       Expensive-specific-endpoint abuse Per endpoint, per user
             "Two open-ended design scenarios. Work through scope, scale, naive design, and bottlenecks before checking the worked solution — that order is most of the exercise.",
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to work through these",
+          body: "Resist the urge to jump straight to the solution's structure — a database change, a new caching layer. Start by naming exactly which specific number in the scenario is the actual constraint (a request rate, a write volume, a fan-out size), and only then ask which technique from this course targets that specific number. The scenarios below are deliberately close to how these questions get asked in practice: a working design, plus one new fact that breaks something specific about it.",
+        },
+        {
           kind: "practice",
           heading: "1. Design a rate limiter for a public API",
           prompt:
@@ -429,12 +680,23 @@ Application code       Expensive-specific-endpoint abuse Per endpoint, per user
             "The single primary database is what breaks first — read replicas don't help write throughput at all, since every write still funnels through the one primary regardless of how many read replicas exist. 50,000 writes/second sustained is well beyond what a single primary can typically absorb, especially with cache invalidation or write-through work happening per write.\n\nFix: this is exactly the scenario sharding exists for — shard the links table by a hash of the short code (the same shard key reasoned about in the worked example, chosen specifically because it distributes evenly with no natural hot key), splitting the 50,000 writes/second across N primaries instead of one. Each shard handles a fraction of the import load in parallel. The read path barely changes — a redirect still checks the cache first, and a cache miss now has to be routed to the correct shard's replica based on the same short-code hash used for writes, rather than a single replica pool.\nKey decision: read replicas and sharding solve different problems (read scale vs. write/data-volume scale), and this scenario is a clean illustration of why the course's rule of thumb — reach for sharding only once write volume has genuinely outgrown a single primary — applies here specifically because the bottleneck moved from reads to writes, not because sharding is simply the \"next step up\" from replication.",
         },
         {
+          kind: "practice",
+          heading: "3. A celebrity post creates a hot key in the feed cache",
+          prompt:
+            "A social feed system caches each user's feed as a pre-computed list under the key feed:{userId}. This works well until a celebrity account with 40 million followers posts, and a background job needs to update all 40 million cached feed entries — meanwhile, reads for the celebrity's own profile page (a single key, hit by a huge share of those same 40 million users checking the post) spike so hard they degrade the cache cluster for unrelated traffic. Identify the two distinct problems here and propose a fix for each.",
+          hint:
+            "These are two different mechanisms even though they share a trigger. One is a write-amplification problem (updating a huge number of cache entries for one event). The other is the same single key being read so heavily it behaves like the hot shard problem from the database lesson, just applied to a cache node instead of a database shard.",
+          solution:
+            "Problem 1 — write amplification: pre-computing and pushing a feed update to 40 million individual cached entries for a single post is the wrong model at this scale; it turns one event into 40 million writes. The standard fix is to flip from a push (fan-out-on-write) model to a pull (fan-out-on-read) model specifically for high-follower accounts: instead of writing the post into every follower's cached feed, store the post once, and merge it into a follower's feed at read time by checking a small list of \"who does this user follow that has enough followers to warrant pull instead of push.\" Most systems use a hybrid — fan-out-on-write for typical accounts (cheap, since follower counts are small), fan-out-on-read for high-follower accounts specifically (the celebrity threshold), rather than picking one model globally.\n\nProblem 2 — hot key: one cache key (the celebrity's profile or post) receiving a disproportionate share of reads is functionally identical to the hot shard problem, just at the cache layer — sharding the cache by key hash doesn't help, because it's one key, not a distribution-across-keys issue. The standard fix is local, in-process caching of that specific hot value on each app server (an additional cache layer in front of the shared cache, holding just the small number of genuinely hot keys), or replicating that one key across several cache nodes and load-balancing reads across the copies, rather than treating it as a normal key living on a single cache node.\nKey decision: recognizing that \"a celebrity posts\" isn't one problem — it's a write-side fan-out problem and a read-side hot-key problem that happen to share a trigger, and they need genuinely different fixes, not one bigger cache.",
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Matching the algorithm to the actual traffic shape (token bucket tolerating legitimate bursts) rather than picking whichever rate-limiting technique is most familiar.",
             "Recognizing that shared enforcement across multiple servers requires a shared, atomic store — not assuming any in-memory or per-server approach generalizes.",
             "Correctly attributing a new bottleneck to the specific part of the system it actually stresses (writes vs. reads) instead of reflexively reapplying the same fix that solved a previous, different bottleneck.",
+            "Separating two problems that share a trigger but need distinct fixes — a single \"add more cache\" instinct doesn't address either the fan-out or the hot-key dynamic on its own.",
           ],
         },
       ],

@@ -94,6 +94,55 @@ distanceFromOrigin(dot); // 5 — extra fields like color are simply ignored`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "What types cost you — and when that cost is worth it",
+          intro: "Types aren't free. Weighing them honestly is part of using them well, not just selling the upside.",
+          bullets: [
+            "A build/compile step gets added to your workflow — even a fast one is one more thing between saving a file and seeing it run.",
+            "You'll spend real time fighting the type checker on genuinely awkward cases — a third-party library with bad or missing types, a deeply nested generic, a migration that needs `any` as a temporary escape hatch.",
+            "Prototyping something throwaway is often faster in plain JavaScript — you're not paying for a contract you don't intend to keep.",
+            "On a small script you'll run once and delete, the safety net rarely pays for itself. On anything a team will touch for months, it almost always does — and the earlier a codebase adds types, the cheaper that transition stays.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "The bigger payoff: types catch mistakes across a refactor, not just at one call site",
+          body: "A single typo is the easy case. The real value shows up when you rename a field that's used in thirty places across a codebase you didn't write and don't fully remember — plain JavaScript won't tell you which of those thirty call sites you missed until each one fails at runtime, possibly in production, possibly for a user in a timezone you're asleep in.",
+          language: "typescript",
+          code: `interface Order {
+  id: string;
+  totalCents: number; // renamed from "total" during a refactor
+}
+
+function formatOrder(order: Order) {
+  return \`Order \${order.id}: $\${(order.total / 100).toFixed(2)}\`;
+  // Error: Property 'total' does not exist on type 'Order'.
+  // Did you mean 'totalCents'? — caught here, not in three other files
+}`,
+        },
+        {
+          kind: "terminal",
+          heading: "Adopting types without a rewrite: allowJs and checkJs",
+          description: "Most real migrations don't start by renaming every file to .ts. They start by turning on checking for the .js files a project already has, and fixing what surfaces one error at a time.",
+          lines: [
+            { text: "# tsconfig.json: \"allowJs\": true, \"checkJs\": true" },
+            { text: "npx tsc --noEmit" },
+            { text: "src/billing.js:14:3 - error TS2554: Expected 2 arguments, but got 1.", output: true },
+            { text: "", output: true },
+            { text: "14   applyDiscount(100);", output: true },
+            { text: "     ~~~~~~~~~~~~~~~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in src/billing.js:14", output: true },
+            { text: "# Fix that one call, rerun, fix the next — no rewrite required" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "\"Add types later\" quietly becomes \"never\"",
+          body: "Plenty of teams start a project in plain JavaScript planning to add types once it's proven out — and then never do, because a growing codebase with no types is exactly the kind of codebase that's hardest to safely add them to later. The cheapest time to add TypeScript to a project is at the start, or the moment it stops being a throwaway script.",
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "TypeScript disappears at runtime",
@@ -220,6 +269,83 @@ s === "active"; // reads naturally, matches what you'd log or send over the wire
             "never — a function that never returns normally, like one that always throws or loops forever. Rare, but shows up in exhaustiveness checks.",
           ],
         },
+        {
+          kind: "example",
+          heading: "Literal types apply to numbers and booleans too, not just strings",
+          body: "A number or boolean can be narrowed to one exact value the same way a string can — which is what lets a union like 1 | 2 | 3 or \"asc\" | \"desc\" act as a genuinely restricted set of allowed values, not just a loose description of the general type.",
+          language: "typescript",
+          code: `type DiceRoll = 1 | 2 | 3 | 4 | 5 | 6;
+
+function roll(): DiceRoll {
+  return (Math.floor(Math.random() * 6) + 1) as DiceRoll;
+}
+
+type SortDirection = "asc" | "desc";
+function sortBy(field: string, direction: SortDirection) { /* ... */ }
+sortBy("price", "up"); // Error — "up" is not "asc" | "desc"`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Object literals widen more aggressively than primitives",
+          body: "let retries = 3 infers the literal type 3 for a moment, then TypeScript widens it to plain number because let means the value can change. That's expected. What surprises people is that the same widening happens to every field inside an object literal too — const config = { retries: 3, mode: \"fast\" } infers { retries: number; mode: string }, not the specific values, even though config itself can never be reassigned.",
+        },
+        {
+          kind: "example",
+          heading: "as const locks a literal's fields down to their exact values",
+          body: "Adding `as const` after an object or array literal tells TypeScript to infer the narrowest possible type for every field instead of widening it — turning number into the literal 3, string into a specific literal, and making the whole structure readonly in the process. It's the object-level version of what const alone does for a single variable.",
+          language: "typescript",
+          code: `const config = { retries: 3, mode: "fast" };
+// inferred as { retries: number; mode: string }
+
+const strictConfig = { retries: 3, mode: "fast" } as const;
+// inferred as { readonly retries: 3; readonly mode: "fast" }
+
+const directions = ["asc", "desc"] as const;
+// inferred as readonly ["asc", "desc"], not string[]`,
+        },
+        {
+          kind: "terminal",
+          heading: "strictNullChecks catching a real bug before it ships",
+          description: "With strict mode on (the default for new tsconfig.json files), TypeScript refuses to let you call a method on a value that might be null or undefined — you have to prove it isn't first.",
+          lines: [
+            { text: "npx tsc profile.ts --strict --noEmit" },
+            { text: "profile.ts:8:20 - error TS18048: 'user.nickname' is possibly 'undefined'.", output: true },
+            { text: "", output: true },
+            { text: "8   return user.nickname.toUpperCase();", output: true },
+            { text: "                     ~~~~~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in profile.ts:8" , output: true },
+            { text: "# Fix: user.nickname?.toUpperCase() ?? user.name.toUpperCase()" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Inference stops at function boundaries — on purpose",
+          body: "TypeScript happily infers the type of a local variable from the value you give it, but it deliberately does not infer a function's parameter types from how the function is later called — it only looks at the parameter's own annotation, or lack of one. That asymmetry is why you'll still write explicit parameter types constantly even in a codebase that leans on inference everywhere else: a function's parameters are its public contract, and that contract shouldn't silently shift depending on who happens to call it first.",
+        },
+        {
+          kind: "example",
+          heading: "Template literal types build a string type out of other types, the same way template literals build a string value",
+          body: "This is one of the newer, less obvious corners of the type system — but it shows up constantly in typed CSS-in-JS libraries, typed routing, and typed event names, where a huge but well-structured set of valid strings needs describing without listing every single one by hand.",
+          language: "typescript",
+          code: `type Size = "sm" | "md" | "lg";
+type Direction = "top" | "right" | "bottom" | "left";
+
+type Spacing = \`margin-\${Direction}-\${Size}\`;
+// "margin-top-sm" | "margin-top-md" | ... all 12 combinations, generated for you
+
+function setSpacing(prop: Spacing, value: string) { /* ... */ }
+setSpacing("margin-top-sm", "8px");   // fine
+setSpacing("margin-diagonal-sm", "8px"); // Error — not a valid combination`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Inference works the same way for arrays as it does for primitives",
+          body: "const tags = [\"a\", \"b\"] infers string[], and pushing a number onto it later is caught immediately — but an empty array, const items = [], infers any[] because there's nothing yet to infer from. Give it an explicit type the moment you declare it, const items: string[] = [], rather than letting the first .push() implicitly decide the element type for the rest of the array's life.",
+        },
       ],
     },
     {
@@ -340,6 +466,83 @@ function totalWords(counts: WordCounts): number {
           heading: "Optional (?) is not the same as nullable",
           body: "age?: number means the field can be left out of the object entirely — but if it's present, it must be a number, not null. If you need to allow either a real value or an explicit null, write age: number | null instead.",
         },
+        {
+          kind: "example",
+          heading: "Nesting interfaces mirrors how the real data is actually shaped",
+          body: "Most real objects aren't flat — a User has an Address, an order has line items, a comment has replies. Rather than inlining every nested field, define the smaller shape once and reference it by name; it reads closer to the data and each piece can be reused or tested on its own.",
+          language: "typescript",
+          code: `interface Address {
+  street: string;
+  city: string;
+  postalCode: string;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  billingAddress: Address;
+  shippingAddress?: Address; // falls back to billingAddress when absent
+}
+
+function ship(customer: Customer) {
+  const dest = customer.shippingAddress ?? customer.billingAddress;
+  return \`Shipping to \${dest.city}\`;
+}`,
+        },
+        {
+          kind: "example",
+          heading: "Recursive types describe self-referential data, like a comment thread",
+          body: "An interface is allowed to reference itself — the compiler doesn't try to \"unroll\" it into infinite depth, it just checks each level as you actually build one. This is the standard shape for anything tree-like: nested comments, a file system, an org chart, a category with subcategories.",
+          language: "typescript",
+          code: `interface CommentNode {
+  id: string;
+  author: string;
+  body: string;
+  replies: CommentNode[]; // each reply is a full CommentNode of its own
+}
+
+function countAll(node: CommentNode): number {
+  return 1 + node.replies.reduce((sum, r) => sum + countAll(r), 0);
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "extends and & usually agree — but they fail differently on a conflict",
+          body: "interface Admin extends User { role: string } and type Admin = User & { role: string } produce the same shape when the fields don't collide. Where they diverge is a genuine conflict — extending User with a role field that's typed differently than one User already declares is a compile error right at the interface declaration, with a clear message. The intersection version instead quietly collapses that field's type to never, which only surfaces later, as a confusing error the first time you try to actually assign a value to it.",
+        },
+        {
+          kind: "terminal",
+          heading: "What a shape mismatch looks like from tsc",
+          description: "This is the everyday error you'll see most: an object that's close, but missing or misspelling one required field.",
+          lines: [
+            { text: "npx tsc customer.ts --noEmit" },
+            { text: "customer.ts:12:7 - error TS2741: Property 'postalCode' is missing in type", output: true },
+            { text: "  '{ street: string; city: string; }' but required in type 'Address'.", output: true },
+            { text: "", output: true },
+            { text: "12 const addr: Address = { street: \"1 Elm St\", city: \"Boise\" };", output: true },
+            { text: "         ~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in customer.ts:12", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Naming conventions worth adopting early",
+          intro: "None of these are enforced by the compiler, but they save real confusion once a codebase has a few hundred types in it.",
+          bullets: [
+            "Name a type after what it represents, not where it's used — Customer, not CustomerFormData or CustomerFromApi, unless the shape genuinely differs at that boundary.",
+            "Suffix input/payload types clearly — CreateCustomerInput, UpdateCustomerInput — so it's obvious at a glance which one a function expects.",
+            "Don't prefix interfaces with I (IUser) — that convention comes from languages where interfaces and classes are separate concepts; in TypeScript's structural system it just adds noise.",
+            "Keep a shared types.ts (or a types/ folder) for shapes used across multiple files, and colocate a type with its file when nothing else uses it.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "A type alias for a primitive is cheap, and pays for itself quickly",
+          body: "type UserId = string and type ProductId = string look pointless at first — they're both still just string underneath, and TypeScript won't stop you from passing a ProductId where a UserId is expected, because it checks structure, not the alias name. What they do buy you is readability at every call site: function transferOwnership(from: UserId, to: UserId) documents itself far better than four interchangeable string parameters in a row, and renaming the alias later (say, to a branded type for real mix-up prevention) touches one declaration instead of every function signature in the codebase.",
+        },
       ],
     },
     {
@@ -431,6 +634,59 @@ const b = parseInput(4.7);      // typed as number — not string | number
           tone: "tip",
           heading: "Rest parameters and object parameters both type cleanly",
           body: "function sum(...nums: number[]): number types a variable-length argument list. For functions that take several optional settings, destructuring an object parameter — function search({ query, limit = 10 }: SearchOptions) — reads far better than five positional arguments and types just as easily.",
+        },
+        {
+          kind: "example",
+          heading: "Higher-order functions: typing a function that returns a function",
+          body: "Once you're comfortable with (n: number) => number as a function type, composing them is direct — a function that builds and returns another function types the outer signature to whatever the inner one takes and returns, and each level gets checked independently.",
+          language: "typescript",
+          code: `function multiplyBy(factor: number): (n: number) => number {
+  return (n) => n * factor;
+}
+
+const double = multiplyBy(2);
+double(5); // 10 — TypeScript knows double is (n: number) => number
+
+const triple = multiplyBy(3);
+triple("5"); // Error — triple only accepts a number`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "this inside a regular function isn't typed by default",
+          body: "A regular function declaration doesn't know what this will be until it's actually called — call it as a method and this is the object it was called on; call it detached from that object and this is undefined in strict mode. TypeScript can catch a wrong this usage if you annotate it explicitly as a fake first parameter, function greet(this: User) { ... }, which is removed at the call site and only used for checking. Arrow functions sidestep the whole question by capturing this from their enclosing scope at definition time instead, which is why they're the default choice for callbacks and class fields.",
+        },
+        {
+          kind: "terminal",
+          heading: "An inferred return type widening further than you meant it to",
+          description: "Skipping the explicit return type here lets a second, unintended return path slip an undefined into the inferred type — the kind of bug an explicit return type would have caught immediately.",
+          lines: [
+            { text: "npx tsc lookup.ts --noEmit" },
+            { text: "lookup.ts:9:3 - error TS2322: Type 'string | undefined' is not assignable to type 'string'.", output: true },
+            { text: "", output: true },
+            { text: "9   const label: string = describeStatus(order.status);", output: true },
+            { text: "          ~~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in lookup.ts:9" , output: true },
+            { text: "# describeStatus had no explicit return type — a missing switch case silently returned undefined" },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Common mistakes when typing functions",
+          intro: "These show up constantly in real code review, not just in tutorials.",
+          bullets: [
+            "Skipping the explicit return type on a function with more than one return statement — inference can quietly produce a wider union than you intended, like string | undefined leaking out of a function you meant to always return a string.",
+            "Reaching for a generic when a plain union or concrete type would do — save <T> for cases where the input and output types are genuinely linked, not just because it looks more advanced.",
+            "Annotating a parameter that's already fully inferred from context, like the callback passed to .map — legal, just noisy, and one more thing to keep in sync if the array's type ever changes.",
+            "Reaching for overloads where a single parameter typed as a union would cover the same cases with less code and one implementation to maintain instead of several.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Function overloads and default parameters solve different problems",
+          body: "It's tempting to reach for overloads the moment a function behaves differently depending on what's passed in, but most of the time a default parameter or an optional field is the simpler fix. Overloads earn their keep specifically when the return type itself changes shape based on the input type — parseInput(string) returning string versus parseInput(number) returning number is a real case for it. If the return type stays the same no matter what's passed, a union parameter or a default value is almost always the better call, and it's one implementation instead of several to keep in sync.",
         },
       ],
     },
@@ -551,6 +807,68 @@ const userBox: Box<User> = { value: { id: "1", name: "Ada", email: "a@x.com" } }
           heading: "You'll read generics far more than you'll write them",
           body: "Most day-to-day TypeScript work is using generic types other code already defines — useState<User>(), Promise<Invoice>, Array<string> — rather than writing your own generic functions. Recognizing the pattern matters more early on than mastering every generic feature.",
         },
+        {
+          kind: "example",
+          heading: "keyof plus a generic constraint gives you safe, dynamic property access",
+          body: "Array indexing already narrows automatically to the right value type based on the array's element type. The same idea works for objects: constraining a generic key parameter to keyof T means the compiler knows exactly which value type comes back for whichever key you actually pass in, and rejects a key that doesn't exist on T at all, at compile time, before the property lookup ever runs.",
+          language: "typescript",
+          code: `function getProp<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+
+const user = { name: "Ada", age: 30 };
+const age = getProp(user, "age");   // typed as number, not "any property"
+getProp(user, "email");             // Error — "email" is not a key of typeof user`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A generic parameter used only once isn't doing its job",
+          body: "The whole point of a generic is connecting two or more places in a signature — an input type to an output type, or one parameter to another. function wrap<T>(value: T): { value: T } genuinely needs T twice to describe that relationship. function logMessage<T>(message: T): void, where T shows up exactly once and is never constrained, isn't buying you anything a plain unknown or a concrete string wouldn't — it's a common sign of reaching for a generic out of habit rather than because two things actually need to stay linked.",
+        },
+        {
+          kind: "example",
+          heading: "Generic classes work the same way as generic functions",
+          body: "A class can take its own type parameter too, most commonly for a container that needs to hold one specific type of thing consistently across every method — a typed cache, a queue, a simple in-memory store. The parameter is declared once on the class and every method that touches T stays in sync automatically.",
+          language: "typescript",
+          code: `class Stack<T> {
+  private items: T[] = [];
+  push(item: T) { this.items.push(item); }
+  pop(): T | undefined { return this.items.pop(); }
+  get size() { return this.items.length; }
+}
+
+const numbers = new Stack<number>();
+numbers.push(5);
+numbers.push("6"); // Error — this Stack<number> only accepts numbers`,
+        },
+        {
+          kind: "terminal",
+          heading: "A constraint violation, caught right at the call site",
+          description: "The extends constraint on logLength from earlier isn't just documentation — it's enforced the moment you call the function with something that doesn't qualify.",
+          lines: [
+            { text: "npx tsc lengths.ts --noEmit" },
+            { text: "lengths.ts:9:11 - error TS2345: Argument of type 'number' is not assignable to", output: true },
+            { text: "  parameter of type '{ length: number }'.", output: true },
+            { text: "", output: true },
+            { text: "9   logLength(42);", output: true },
+            { text: "              ~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in lengths.ts:9", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A quick way to read an unfamiliar generic signature",
+          intro: "Library type definitions can look intimidating at first — Array.prototype.reduce's real signature has three overloads and a generic parameter. A consistent approach cuts through most of it.",
+          bullets: [
+            "Find each generic parameter's declaration (<T>, <U>) before reading the parameter list — it tells you what's a placeholder versus a concrete, fixed type.",
+            "Trace where each placeholder shows up across the parameters and the return type — that mapping is the entire point of the signature, and usually the whole story.",
+            "Ignore extends constraints on a first pass; they narrow what's allowed to call it with, but the input-to-output relationship is usually clear without them.",
+            "Hover the call site in your editor rather than the generic definition — most editors show the generic already resolved to the concrete types for that specific call, which reads far easier than the abstract version.",
+            "If it still doesn't click, write a tiny throwaway call with a concrete type and read what your editor infers — seeing one resolved example is often faster than parsing the generic definition in your head.",
+          ],
+        },
       ],
     },
     {
@@ -656,6 +974,64 @@ function speak(animal: Cat | Dog) {
             "Truthy checks narrow out null/undefined: if (user) { user.name /* safe here */ }.",
             "Array.isArray(value) narrows unknown or a union down to an array type.",
           ],
+        },
+        {
+          kind: "example",
+          heading: "Narrowing an optional, nullable field combines naturally with union narrowing",
+          body: "A field typed as string | null | undefined narrows the same way any other union does — a truthy check, optional chaining, or the nullish coalescing operator each rule out null and undefined in a way TypeScript tracks through the rest of the branch.",
+          language: "typescript",
+          code: `interface Profile { bio?: string | null }
+
+function summarize(profile: Profile): string {
+  if (profile.bio) {
+    return profile.bio.slice(0, 100); // narrowed: string here, null/undefined ruled out
+  }
+  return profile.bio?.slice(0, 100) ?? "No bio yet";
+}`,
+        },
+        {
+          kind: "example",
+          heading: "Assertion functions: a narrowing sibling to type guards",
+          body: "A type guard (value is SomeType) narrows only inside an if. An assertion function narrows for the rest of the enclosing block once it's called, without needing to wrap the following code in a branch — useful for validating input at the top of a function and then writing the rest of it as if the check already happened.",
+          language: "typescript",
+          code: `function assertIsString(value: unknown): asserts value is string {
+  if (typeof value !== "string") {
+    throw new Error("Expected a string");
+  }
+}
+
+function shout(value: unknown) {
+  assertIsString(value);
+  return value.toUpperCase(); // narrowed to string for the rest of this function
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Narrowing on an object's property is more fragile than narrowing a local variable",
+          body: "TypeScript narrows based on control flow it can directly see — an if check on a value, followed immediately by code in that same branch. Narrowing a local variable (const status = getStatus(); if (status === \"active\") { ... }) is rock solid. Narrowing a property reached through an object (if (user.status === \"active\") { ... }) is more fragile — call another function in between the check and the use, and TypeScript can't prove that function didn't mutate user.status, so it may widen the type back out. Destructuring the field into its own local variable first sidesteps the issue entirely.",
+        },
+        {
+          kind: "terminal",
+          heading: "What a forgotten case in a discriminated union actually looks like",
+          description: "Add a fourth LoadState variant and forget to update the switch, and the exhaustiveness check from two slides ago turns that gap into a compile error instead of a silent runtime gap.",
+          lines: [
+            { text: "npx tsc render.ts --noEmit" },
+            { text: "render.ts:9:11 - error TS2322: Type '{ kind: \"stale\"; data: string[] }' is not", output: true },
+            { text: "  assignable to type 'never'.", output: true },
+            { text: "", output: true },
+            { text: "9     const _exhaustive: never = state;", output: true },
+            { text: "            ~~~~~~~~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in render.ts:9" , output: true },
+            { text: "# Translation: a new \"stale\" variant exists but no case handles it yet" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Narrowing is why unions are usually better than a single loose type",
+          body: "A common instinct when a value could take a few different shapes is to type it as one broad, permissive type — everything optional, or a plain Record<string, unknown> — and check what's actually there with ad hoc conditionals as needed. A union of specific variants, paired with narrowing, is almost always the better trade: instead of remembering yourself which fields are safe to read in which situation, the compiler tracks that for you at every single call site, and it's impossible to forget a check the type system already knows is required. The extra minute spent defining the variants up front routinely saves far more time later, the first time someone new touches that code without the full mental model in their head.",
         },
         {
           kind: "summary",
@@ -766,12 +1142,73 @@ function logAndCreate(...args: CreateUserArgs): User {
           body: "const config: Record<string, number> = { a: 1 } gives config the broad Record type — you lose the fact that it specifically has key a. const config = { a: 1 } satisfies Record<string, number> checks the same constraint, but config keeps its precise inferred type ({ a: number }), so config.a still autocompletes correctly afterward. Prefer satisfies over an explicit annotation whenever you want validation without losing the specific shape.",
         },
         {
+          kind: "example",
+          heading: "NonNullable strips null and undefined out of a union",
+          body: "Some values are typed as possibly null or undefined earlier in a pipeline. After a validation step confirms a value is actually present, NonNullable<T> gives you a type reflecting what the value now actually is, instead of leaving null and undefined listed as possibilities everywhere downstream that no longer applies.",
+          language: "typescript",
+          code: `type MaybeUser = User | null | undefined;
+type ConfirmedUser = NonNullable<MaybeUser>;
+// User — null and undefined removed from the union
+
+function requireUser(user: MaybeUser): ConfirmedUser {
+  if (!user) throw new Error("Expected a user");
+  return user; // narrowed to User here, which matches ConfirmedUser
+}`,
+        },
+        {
+          kind: "example",
+          heading: "ReturnType<typeof fn> derives a type from a function you already wrote",
+          body: "Retyping a function's return shape by hand is exactly the kind of thing that drifts out of sync the first time someone edits the function and forgets the duplicate definition. ReturnType<typeof fn> reads the shape straight off the function itself, so the two can never disagree.",
+          language: "typescript",
+          code: `function createInvoice(customerId: string, total: number) {
+  return { id: crypto.randomUUID(), customerId, total, createdAt: new Date() };
+}
+
+type Invoice = ReturnType<typeof createInvoice>;
+// { id: string; customerId: string; total: number; createdAt: Date }
+
+type CreateInvoiceArgs = Parameters<typeof createInvoice>;
+// [customerId: string, total: number] — the two derived types stay in lockstep`,
+        },
+        {
+          kind: "example",
+          heading: "Awaited<T> unwraps a Promise, including a nested one",
+          body: "Awaited<T> mirrors what the await keyword does at the type level — it's what lets you combine it with ReturnType to get exactly what calling and awaiting an async function actually resolves to, in one expression.",
+          language: "typescript",
+          code: `async function getUser(id: string): Promise<User> { /* ... */ return {} as User; }
+
+type Result = Awaited<ReturnType<typeof getUser>>;
+// User — both the Promise wrapper and the function wrapper unwrapped`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Utility types reshape a compile-time type — they do nothing at runtime",
+          body: "Omit<User, \"password\"> guarantees the compiler won't let code treat a value typed that way as having a password field. It does not remove a password field from an actual object at runtime — if you build the value by spreading a real User that has one, the password is still sitting right there in memory and in JSON.stringify output. Actually stripping a field requires a real runtime operation, like destructuring it out; the type only controls what the compiler will let you access, not what data is physically present.",
+        },
+        {
+          kind: "terminal",
+          heading: "Picking a field that doesn't exist",
+          description: "Pick and Omit still check their key arguments against the real type — a typo in the key list is caught immediately, not discovered later when a field turns up missing.",
+          lines: [
+            { text: "npx tsc preview.ts --noEmit" },
+            { text: "preview.ts:3:25 - error TS2344: Type '\"prise\"' does not satisfy the constraint", output: true },
+            { text: "  'keyof User'.", output: true },
+            { text: "", output: true },
+            { text: "3 type UserPreview = Pick<User, \"id\" | \"prise\">;", output: true },
+            { text: "                          ~~~~~~~~~~~~~~~", output: true },
+            { text: "", output: true },
+            { text: "Found 1 error in preview.ts:3" , output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "A few more worth recognizing",
           bullets: [
             "Readonly<T> — every field becomes read-only; assigning to it after creation is a compile error.",
             "ReturnType<typeof someFunction> — pulls out a function's return type without retyping it, so it can't drift out of sync if the function changes.",
             "These compose freely: Partial<Pick<User, \"name\" | \"email\">> is a fully valid type — \"an object with just name and email, both optional.\"",
+            "When a derived type built from several nested utility types gets hard to read, that's often a signal the source interface is doing too much — sometimes the fix is splitting the original type rather than adding a sixth layer of Pick and Omit around it.",
           ],
         },
         {
@@ -781,12 +1218,19 @@ function logAndCreate(...args: CreateUserArgs): User {
           body: "There are a couple dozen built-in utility types, but Partial, Pick, Omit, and Record cover the large majority of real usage. When you catch yourself about to hand-write a slightly modified copy of an existing type, that's usually the moment to reach for one of these instead — it keeps both types tied together, so an edit to the original doesn't quietly fall out of sync.",
         },
         {
+          kind: "callout",
+          tone: "tip",
+          heading: "You can write your own utility type once the built-ins run out",
+          body: "The built-in utility types are just type aliases with a generic parameter — nothing magic about them. When a shape keeps showing up across a codebase and no built-in quite matches, defining your own (type Nullable<T> = T | null, or a small mapped type) is completely normal, and it's often the cleanest way to name a pattern your team reaches for constantly, the same way Partial and Pick name patterns the TypeScript team decided were common enough to ship.",
+        },
+        {
           kind: "summary",
           heading: "What to carry forward",
           bullets: [
             "Partial<T> and Required<T> flip every field between optional and required at once.",
             "Pick<T, Keys> narrows to specific fields; Omit<T, Keys> excludes specific fields — both avoid retyping a near-duplicate.",
             "Record<Keys, ValueType> types a dictionary object, and enforces that every key in the union is actually present.",
+            "Readonly<T>, Extract<T, U>, NonNullable<T>, and Awaited<T> extend the same pattern to immutability, union filtering, and promise unwrapping.",
             "Utility types compose — deriving a type from another is almost always better than maintaining two independent, near-identical ones.",
           ],
         },
@@ -800,7 +1244,28 @@ function logAndCreate(...args: CreateUserArgs): User {
           kind: "title",
           heading: "Practice: Deriving Types with Utility Types",
           subheading:
-            "Three exercises using Partial, Omit, Pick, and Record to derive new types from one Product interface, instead of hand-writing duplicates.",
+            "Six exercises using Partial, Omit, Pick, Record, Readonly, Extract, and Required to derive new types from a couple of base shapes, instead of hand-writing near-duplicates every time a new view of the data shows up.",
+        },
+        {
+          kind: "diagram",
+          heading: "The mental model behind every exercise here",
+          description: "Every one of these exercises follows the same shape: start from one type you've already defined honestly, then derive whatever narrower or wider view you actually need for a specific job.",
+          steps: [
+            { label: "1. A base type", detail: "The full, honest shape of the data — Product, AppEvent, ProductDraft" },
+            { label: "2. A utility type", detail: "Pick, Omit, Partial, Required, Readonly, Record, or Extract applied to it" },
+            { label: "3. A derived type", detail: "Exactly the shape one function or one view actually needs — nothing hand-duplicated" },
+            { label: "4. One source of truth", detail: "Edit the base type, and every derived type that depends on it updates or breaks loudly" },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Before you start",
+          intro: "A few habits that make these exercises — and real utility-type usage — go faster.",
+          bullets: [
+            "Read the base interface first and decide, in plain English, what the derived type should actually contain before reaching for a specific utility type — the English description usually maps directly onto Pick, Omit, Partial, or some combination.",
+            "When a shape needs two operations (some fields removed, the rest made optional), nest the utility types rather than inventing a new named type for the intermediate step — Partial<Omit<T, \"id\">> is the whole answer, not two separate types.",
+            "If you can't express the shape with a single nested utility type, that's a real signal too — sometimes the honest fix is a hand-written type or an intersection (&) instead of forcing a utility type where it doesn't fit.",
+          ],
         },
         {
           kind: "practice",
@@ -846,13 +1311,73 @@ const statusLabels: StatusLabels = {
 };`,
         },
         {
+          kind: "practice",
+          heading: "A Safe, Read-Only Snapshot for Client Rendering",
+          prompt:
+            "Product objects get passed into a rendering function that should only ever read from them — never mutate the object it was given. Define a type ProductSnapshot that is a read-only version of the full Product interface (every field still present, none removed, but none of them assignable), then write a function renderProduct(product: ProductSnapshot): string that returns a formatted string like \"Widget — $19.99\".",
+          hint: "Readonly<T> wraps every field of an existing type as readonly, without changing which fields exist at all — layer it directly over Product rather than retyping the fields.",
+          solution: `type ProductSnapshot = Readonly<Product>;
+
+function renderProduct(product: ProductSnapshot): string {
+  return \`\${product.name} — $\${product.price.toFixed(2)}\`;
+}
+
+function badRender(product: ProductSnapshot) {
+  product.price = 0; // Error — price is readonly on ProductSnapshot
+}`,
+        },
+        {
+          kind: "practice",
+          heading: "Extracting One Variant From a Union of App Events",
+          prompt:
+            "Given this discriminated union of application events, define a type PurchaseEvent representing only the purchase variant, and write a function logPurchase(event: PurchaseEvent): string that reads its amount field.\n\ntype AppEvent =\n  | { kind: \"login\"; userId: string }\n  | { kind: \"logout\"; userId: string }\n  | { kind: \"purchase\"; userId: string; amount: number };",
+          hint: "Extract<T, U> pulls out exactly the union members that match the shape U — Extract<AppEvent, { kind: \"purchase\" }> keeps only the variant with that literal kind.",
+          solution: `type PurchaseEvent = Extract<AppEvent, { kind: "purchase" }>;
+// { kind: "purchase"; userId: string; amount: number }
+
+function logPurchase(event: PurchaseEvent): string {
+  return \`User \${event.userId} spent $\${event.amount.toFixed(2)}\`;
+}
+
+function handleEvent(event: AppEvent) {
+  if (event.kind === "purchase") {
+    logPurchase(event); // already narrowed to PurchaseEvent here — matches what Extract derived
+  }
+}`,
+        },
+        {
+          kind: "practice",
+          heading: "A Draft-to-Submission Conversion With Required",
+          prompt:
+            "A product draft form lets fields get filled in over time, so every field on ProductDraft is optional except id, which is assigned once when the draft is first created:\n\ninterface ProductDraft {\n  id: string;\n  name?: string;\n  price?: number;\n  inStock?: boolean;\n}\n\nWrite a function submitDraft(draft: ProductDraft): Product that throws a runtime error listing what's missing if any field besides id hasn't been filled in yet, and otherwise returns a value TypeScript accepts as a complete Product.",
+          hint: "Required<Omit<ProductDraft, \"id\">> & Pick<ProductDraft, \"id\"> describes a fully filled-in draft — check for missing fields at runtime first, then build a value that actually satisfies that stricter type.",
+          solution: `type CompleteDraft = Required<Omit<ProductDraft, "id">> & Pick<ProductDraft, "id">;
+
+function submitDraft(draft: ProductDraft): Product {
+  const { name, price, inStock } = draft;
+  if (name === undefined || price === undefined || inStock === undefined) {
+    throw new Error("Draft is missing required fields before it can be submitted");
+  }
+  const complete: CompleteDraft = { id: draft.id, name, price, inStock };
+  return complete; // satisfies Product — every field is now present and correctly typed
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "If you found yourself hand-writing a type here, look again",
+          body: "Every one of these six exercises has a version that works by defining a brand-new interface from scratch and just retyping the fields you want — and every one of those versions is a maintenance liability the moment the base type changes. If your first instinct on a real project is to write out a fresh type rather than derive it from something that already exists, that's worth noticing as a habit to break, not just a stylistic preference. The check is simple: before defining a new type, ask whether it's actually a subset, a superset, or a transformation of a type you already have. Almost always, one of Partial, Required, Pick, Omit, Record, Readonly, or Extract already describes exactly that relationship — and reaching for it means the two types genuinely can't drift apart, because one is generated from the other by the compiler itself, not just by convention or good intentions from whoever wrote it first.",
+        },
+        {
           kind: "summary",
           heading: "What a correct solution demonstrates",
           bullets: [
             "Partial<Omit<T, \"id\">> is the standard shape for an update input — everything optional except the identifier, which shouldn't be editable at all.",
             "Pick<T, Keys> narrows a large interface down to exactly what one specific view needs, without duplicating field definitions that can drift out of sync.",
             "Record<Keys, ValueType> forces an object to cover every key in a union exactly once — a missing or misspelled key is a compile error, not a runtime surprise.",
-            "All three compose with each other and with plain object types — deriving a type is almost always better than hand-writing a near-duplicate.",
+            "Readonly<T> and Extract<T, U> extend the same idea to immutability and to narrowing a union down to one variant, without hand-writing either shape.",
+            "Required<Omit<T, \"id\">> & Pick<T, \"id\"> is the standard shape for \"every field must now be filled in, except the identifier, which was already fixed at creation.\"",
+            "All of these compose with each other and with plain object types — deriving a type is almost always better than hand-writing a near-duplicate that can silently drift out of sync with the original.",
           ],
         },
       ],

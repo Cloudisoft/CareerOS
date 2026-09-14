@@ -69,6 +69,33 @@ query {
           heading: "GraphQL moves the decision from server to client",
           body: "In REST, the server decides what shape of data each endpoint returns, and every consumer of that endpoint gets the same shape whether they need all of it or not. In GraphQL, the server exposes what data and relationships exist, and each client decides exactly which fields it wants for its specific need. That single shift is the root of almost every other difference covered in this course.",
         },
+        {
+          kind: "bullets",
+          heading: "How teams patched over-fetching before GraphQL existed, and why the patches fall short",
+          intro: "Over-fetching wasn't an undiscovered problem — REST APIs have tried several workarounds over the years, each with its own real downside:",
+          bullets: [
+            "A `fields` or `?include=` query parameter (/api/users/42?fields=name,avatar) lets a client trim the response, but it's untyped and unenforced — a typo in a field name silently returns less than expected, and nested selections (only some fields, only for the third order) get unwieldy fast.",
+            "A dedicated endpoint per screen (/api/mobile/user-summary) gives an exact shape, but multiplies endpoints — every new screen or client need means another bespoke endpoint to design, build, document, and maintain indefinitely.",
+            "API versioning (/v1/users, /v2/users) manages breaking changes over time, but doesn't touch the shape problem at all — v2 still returns one fixed shape to every consumer, same as v1 did.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Under-fetching's usual REST fix is just... more endpoints",
+          body: "Teams facing under-fetching in REST often respond by building composite endpoints — /api/dashboard that stitches together a user, their orders, and their notifications server-side for one specific screen. This works, but every new screen with a different combination of data needs its own composite endpoint, and those endpoints tend to accumulate for years, since removing one risks breaking a client nobody remembers is still calling it. GraphQL replaces an ever-growing pile of bespoke composite endpoints with one general mechanism: the client just asks for the shape it needs, this week's or next year's, without anyone having to build a new endpoint first.",
+        },
+        {
+          kind: "terminal",
+          heading: "Seeing the size difference for real",
+          description: "Same underlying user record, requested two different ways — the REST call ships every field the user model has; the GraphQL call ships exactly the two fields asked for and nothing else.",
+          lines: [
+            { text: "curl -s http://localhost:3001/api/users/42 | wc -c" },
+            { text: "4238", output: true },
+            { text: `curl -s -X POST http://localhost:4000/graphql -d '{"query":"{ user(id:\\"42\\"){ name avatar } }"}' | wc -c` },
+            { text: "312", output: true },
+          ],
+        },
       ],
     },
     {
@@ -114,6 +141,32 @@ type Query {
           ],
         },
         {
+          kind: "example",
+          heading: "Enums and input types round out the everyday type system",
+          body: "Beyond scalars and object types, two more constructs show up in almost every real schema: an enum restricts a field to a fixed set of named values, and an input type is a special object type used only for arguments — you can pass an input type into a field, but you can never return one.",
+          language: "graphql",
+          code: `enum OrderStatus {
+  PENDING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+input CreateOrderInput {
+  userId: ID!
+  items: [OrderItemInput!]!
+}
+
+input OrderItemInput {
+  productId: ID!
+  quantity: Int!
+}
+
+type Mutation {
+  createOrder(input: CreateOrderInput!): Order!
+}`,
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Why the strictness is a feature, not friction",
@@ -125,6 +178,46 @@ type Query {
           body: [
             "Because the schema fully describes every type, field, and relationship, tools can generate interactive documentation and auto-complete directly from it. This is a genuinely different experience than REST, where documentation is a separate artifact that has to be written and kept in sync by hand — in GraphQL, the schema and the documentation are, practically speaking, the same artifact.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "Interfaces and unions: modeling data that comes in more than one shape",
+          intro: "A single field sometimes needs to return one of several different types — search results mixing products and articles, for instance — and two schema constructs handle exactly that:",
+          bullets: [
+            "An interface declares a set of fields every implementing type must have — a SearchResult interface with a title field, implemented by both Product and Article, lets a query ask for title once and get it back no matter which concrete type actually matched.",
+            "A union groups otherwise-unrelated types without requiring any shared fields at all — union SearchResult = Product | Article works even though Product and Article share nothing structurally in common.",
+            "Querying either one needs an inline fragment per possible concrete type to reach type-specific fields — `... on Product { price }` and `... on Article { author }` — with the client picking which type-specific fields it wants based on which type actually came back.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "__typename tells the client which concrete type it actually got back",
+          body: "__typename is a meta-field available on every type automatically, without ever declaring it in the schema. It's essential when querying an interface or union, since the client needs to know which concrete type came back before it can decide which inline fragment's fields actually apply.",
+          language: "graphql",
+          code: `query {
+  search(term: "wireless") {
+    __typename
+    title
+    ... on Product {
+      price
+    }
+    ... on Article {
+      author
+    }
+  }
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Custom scalars extend the five built-ins for domain-specific values",
+          body: "The five built-in scalars (String, Int, Float, Boolean, ID) don't cover everything a real schema needs — a DateTime, an EmailAddress, or a URL benefits from its own validation and serialization logic rather than being passed around as an unchecked String. Most GraphQL server libraries support declaring a custom scalar (scalar DateTime) and supplying serialize/parseValue functions for it, so an invalid value is rejected right at the schema boundary instead of causing a confusing failure three layers deeper in application code.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "@deprecated marks a field as on its way out, without breaking existing clients",
+          body: "Removing a field outright breaks every client still querying it, often without warning. The @deprecated directive — email: String! @deprecated(reason: \"Use contactEmail instead\") — marks a field as discouraged while keeping it fully functional: tooling surfaces a warning to anyone still using it, and the schema stays fully introspectable, so teams can migrate consumers off a field on their own timeline before it's finally deleted for good.",
         },
       ],
     },
@@ -178,6 +271,45 @@ type Query {
           ],
         },
         {
+          kind: "example",
+          heading: "Aliases: requesting the same field twice, differently shaped",
+          body: "A query can't repeat a field name at the same level with two different arguments — the response object would end up with a duplicate key. An alias renames the field in the response instead, which is exactly what's needed when a client wants, say, two specific orders by id in one round trip.",
+          code: `query {
+  firstOrder: order(id: "101") {
+    total
+  }
+  secondOrder: order(id: "102") {
+    total
+  }
+}
+
+// Response:
+// { "data": { "firstOrder": { "total": 42 }, "secondOrder": { "total": 15 } } }`,
+        },
+        {
+          kind: "example",
+          heading: "Multiple root fields and operation names in one request",
+          body: "A single query can ask for more than one unrelated thing at the root level, and naming the operation (GetDashboardData instead of an anonymous query {) makes debugging, logging, and client-side tooling meaningfully easier once an app has more than a couple of queries in it.",
+          code: `query GetDashboardData {
+  currentUser {
+    name
+  }
+  recentOrders: orders(first: 5) {
+    id
+  }
+  unreadNotificationCount
+}`,
+        },
+        {
+          kind: "bullets",
+          heading: "Directives: @include and @skip conditionally include a field",
+          bullets: [
+            "@include(if: $showDetails) keeps a field in the response only when the given boolean variable is true — otherwise it's left out entirely, without needing two separate query strings for two versions of the same screen.",
+            "@skip(if: $condensed) is the inverse — the field is included unless the condition is true.",
+            "Both are evaluated per request from variables, not hardcoded into the query text, so one query definition can serve a \"compact\" and a \"detailed\" version of the same screen depending on what the client passes in.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Variables: don't hand-build query strings",
           intro: "Real applications pass dynamic values as variables rather than string-interpolating them directly into the query:",
@@ -192,6 +324,31 @@ type Query {
           tone: "warning",
           heading: "Mutations run in the order you write them, queries might not",
           body: "The GraphQL spec guarantees that top-level mutation fields execute one after another, in the order listed — important when one write might depend on another. Top-level query fields, by contrast, are allowed to execute in parallel and don't carry that same ordering guarantee, since reads typically don't depend on each other's side effects.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A 200 OK response can still contain errors — check the errors array, not just the status code",
+          body: "Unlike REST, where a failure usually shows up as a 4xx or 5xx status, GraphQL almost always responds with HTTP 200, even when something went wrong. The response body carries a top-level errors array alongside (or instead of) data — and because GraphQL resolves field by field, one failing field doesn't necessarily fail the whole request: data can come back partially populated, with null standing in for whatever failed and a matching entry in errors explaining why. Client code that only checks response.ok and ignores the errors array will silently treat a partial failure as a full success.",
+        },
+        {
+          kind: "example",
+          heading: "What a partial failure actually looks like on the wire",
+          body: "name resolved fine here; orders failed, so it comes back null inside data, with the reason recorded separately in errors — the response is neither a clean success nor a clean failure, and handling it correctly means checking both parts.",
+          code: `{
+  "data": {
+    "user": {
+      "name": "Priya",
+      "orders": null
+    }
+  },
+  "errors": [
+    {
+      "message": "Failed to fetch orders: connection timeout",
+      "path": ["user", "orders"]
+    }
+  ]
+}`,
         },
       ],
     },
@@ -254,6 +411,40 @@ type Query {
         },
         {
           kind: "callout",
+          tone: "insight",
+          heading: "Resolvers can return a value, a promise, or throw — GraphQL handles either way",
+          body: "The resolver examples so far return whatever context.db.user.findUnique(...) returns, which is itself a promise, not the eventual data directly. GraphQL execution understands this: if a resolver returns a promise, GraphQL awaits it automatically before moving on and assembling that part of the response. This is why real resolvers, which almost always call an async data source, don't strictly need async/await syntax to work correctly — though most are written with it anyway, purely for readability.",
+        },
+        {
+          kind: "example",
+          heading: "Throwing inside a resolver becomes an entry in the errors array",
+          body: "A resolver that throws doesn't crash the whole request — GraphQL catches it, records the message (and the field's path) as an entry in the response's top-level errors array, sets that specific field to null in data, and keeps resolving every other field normally. This is exactly the partial-failure shape from the previous lesson, and it's how it actually gets produced.",
+          code: `const resolvers = {
+  Query: {
+    user: async (parent, args, context) => {
+      const user = await context.db.user.findUnique({ where: { id: args.id } });
+      if (!user) {
+        throw new Error(\`No user found with id \${args.id}\`);
+      }
+      return user;
+    },
+  },
+};
+
+// A query for a missing id comes back:
+// { "data": { "user": null }, "errors": [{ "message": "No user found with id 999", ... }] }`,
+        },
+        {
+          kind: "bullets",
+          heading: "context is built fresh per request, never shared or reused across requests",
+          bullets: [
+            "A new context object is created for every incoming request — it's the right place for a per-request database connection, the currently authenticated user (decoded from that request's auth token), or a DataLoader instance that needs to reset its cache between requests.",
+            "Anything meant to be shared across every request instead — a connection pool, a config object — should be set up once outside the request lifecycle and referenced from context, not recreated on every single call.",
+            "This distinction matters most for authorization: checking context.currentUser inside a resolver is the standard place to enforce \"can this specific caller see this specific field,\" since context is guaranteed fresh and correct for whichever request is currently being handled.",
+          ],
+        },
+        {
+          kind: "callout",
           tone: "warning",
           heading: "The N+1 query trap",
           body: "Naively written, resolving `orders` for each of 50 users in a single query result triggers 50 separate database calls — one per user — plus the original query, instead of one efficient batched call. This N+1 problem is one of the most common real GraphQL performance issues, and it's usually solved with a batching layer (a \"DataLoader\" pattern) that collects individual resolver requests within a tick and issues one combined query instead.",
@@ -307,12 +498,37 @@ type Query {
           body: "Because a GraphQL query can request arbitrarily deep, arbitrarily broad data in one call, an API without query complexity limits or depth limits is exposed to a client (malicious or just careless) sending one enormous, expensive query — something REST's fixed, separate endpoints naturally cap without extra effort. Real GraphQL deployments need explicit safeguards here; they don't come for free.",
         },
         {
+          kind: "bullets",
+          heading: "A gradual adoption path: GraphQL doesn't have to replace REST overnight",
+          intro: "The most common real-world starting point isn't a rewrite:",
+          bullets: [
+            "A Backend-For-Frontend (BFF) layer is the typical entry point: a single GraphQL server sits in front of existing REST services and databases, and its resolvers simply call out to those existing endpoints internally, rather than requiring every underlying service to be rewritten first.",
+            "This lets a team ship GraphQL to actual clients quickly, while the resolvers behind it are refactored to talk directly to a database (or another service) over time — invisibly to whoever's calling the GraphQL API from the outside.",
+            "Most companies running GraphQL in production today still have plenty of REST underneath it, or running alongside it for cases like webhooks and file uploads where REST remains the better fit — full replacement is rare, and rarely even the goal.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Two example teams, two different right answers",
+          body: [
+            "An early-stage startup with one web app and three engineers, doing straightforward CRUD against a Postgres database, is very unlikely to need GraphQL — a handful of REST endpoints, maybe with a thin fields= parameter for the one screen that needs trimming, gets them shipping faster with less to learn and less to operate.",
+            "A company with a public API serving a web app, an iOS app, an Android app, and third-party integration partners — each historically maintaining its own bespoke REST endpoints that have quietly diverged over two years — is closer to a textbook case for GraphQL: one typed schema replaces the divergence, and each client's different data needs are finally served by one mechanism instead of four codebases slowly growing apart from each other.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "At large-organization scale, GraphQL federation splits one graph across many teams",
+          body: "A single schema owned by one team works fine at moderate scale, but breaks down once dozens of teams each own a different slice of the data graph — every change then requires coordinating through one shared schema file. Federation (an approach popularized by Apollo, later formalized further) lets each team publish its own subgraph — a Users service owns User, an Orders service owns Order — and a gateway composes them into one graph the client queries against, without any single team needing write access to the whole thing. It's real added infrastructure, worth reaching for only once organizational scale, not technical curiosity, actually demands it.",
+        },
+        {
           kind: "summary",
           heading: "Recap",
           bullets: [
             "GraphQL exists to fix over-fetching and under-fetching by letting the client shape the response instead of the server dictating it.",
             "A typed schema, queries, mutations, and resolvers are the core mechanics — but the client-driven query flexibility is the underlying idea behind all of them.",
             "The choice between GraphQL and REST is a real tradeoff, not a strict upgrade — client diversity and nested data favor GraphQL; simple CRUD, caching, and file transfer often still favor REST.",
+            "Adoption is usually gradual (a BFF layer in front of existing REST services), not a rewrite — and federation is the answer only once many teams, not one, need to own separate parts of the same graph.",
           ],
         },
       ],
@@ -403,6 +619,18 @@ type Query {
           ],
         },
         {
+          kind: "example",
+          heading: "Offset-based pagination, for contrast",
+          body: "Simpler to implement than cursors, and fine for a small or rarely-changing list — but it's the shape most APIs eventually migrate away from once a list gets large or volatile, for exactly the reason on the next slide.",
+          code: `type Query {
+  orders(offset: Int!, limit: Int!): [Order!]!
+}
+
+# query {
+#   orders(offset: 40, limit: 20) { id total }
+# }`,
+        },
+        {
           kind: "bullets",
           heading: "Why cursors instead of just an offset/limit",
           bullets: [
@@ -410,6 +638,46 @@ type Query {
             "A cursor (often an encoded ID or a sort key) points at an actual position, so \"give me the 20 after this cursor\" stays correct even as the underlying data changes between requests.",
             "This shape — edges, node, cursor, pageInfo — became a de facto standard (popularized as the Relay connection spec) precisely because so many APIs independently needed the same answer to the same problem.",
           ],
+        },
+        {
+          kind: "bullets",
+          heading: "Paging backward too: first/after and last/before",
+          intro: "The examples so far only page forward. The same connection pattern usually supports the reverse direction as well:",
+          bullets: [
+            "first (how many) plus after (cursor) page forward; last (how many from the end) plus before (cursor) page backward — useful for a client loading older messages after scrolling to the top of a chat, for instance.",
+            "totalCount is a common, though non-standard, addition to a connection type — it gives the client an overall count without having to fetch and count every page itself, useful for a \"page 3 of 40\" style UI.",
+            "hasPreviousPage joins hasNextPage in a fuller PageInfo, so a client paging in either direction can tell reliably when it's actually reached either end of the list.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Fragments can include other fragments",
+          body: "Nesting keeps a large query's field list organized by what it actually represents — an order summary made of order items — rather than as one long, flat list of fields with no structure of its own.",
+          code: `fragment OrderItem on OrderLineItem {
+  productName
+  quantity
+  price
+}
+
+fragment OrderSummary on Order {
+  id
+  total
+  items {
+    ...OrderItem
+  }
+}
+
+query GetOrder($id: ID!) {
+  order(id: $id) {
+    ...OrderSummary
+  }
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Colocating fragments with the components that use them",
+          body: "In frontend frameworks paired with GraphQL (Apollo Client, Relay), a genuinely useful pattern is defining a fragment right next to the UI component that renders those fields — a UserAvatar component declares its own UserAvatar_user fragment, and a parent screen's query simply spreads it in without needing to know or care exactly which fields UserAvatar needs internally. Change what UserAvatar renders, and only that fragment's definition needs updating — the parent query's text doesn't change at all, even though the data it fetches does.",
         },
         {
           kind: "callout",
