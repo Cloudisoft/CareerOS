@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications/service";
+import type { ReactionType } from "@prisma/client";
 
 export class NetworkError extends Error {
   code: string;
@@ -133,27 +134,44 @@ async function areConnected(userAId: string, userBId: string) {
   return connection?.status === "ACCEPTED";
 }
 
+const POST_AUTHOR_SELECT = { select: { id: true, firstName: true, lastName: true, avatarUrl: true } };
+
 const POST_INCLUDE = {
-  author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+  author: POST_AUTHOR_SELECT,
   reactions: true,
   comments: {
-    include: { author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } },
+    include: { author: POST_AUTHOR_SELECT },
     orderBy: { createdAt: "asc" as const },
   },
   circle: { select: { slug: true, name: true } },
   job: { select: { id: true, title: true, location: true, workplaceType: true, company: { select: { name: true, slug: true, logoUrl: true } } } },
+  repostOf: {
+    include: {
+      author: POST_AUTHOR_SELECT,
+      job: {
+        select: { id: true, title: true, location: true, workplaceType: true, company: { select: { name: true, slug: true, logoUrl: true } } },
+      },
+    },
+  },
+  _count: { select: { reposts: true } },
 };
 
 export async function createPost(
   authorId: string,
   content: string,
-  options?: { circleId?: string; jobId?: string; imageUrl?: string; videoUrl?: string }
+  options?: { circleId?: string; jobId?: string; imageUrl?: string; videoUrl?: string; repostOfId?: string }
 ) {
   if (options?.circleId) {
     const membership = await prisma.circleMember.findUnique({
       where: { circleId_userId: { circleId: options.circleId, userId: authorId } },
     });
     if (!membership) throw new NetworkError("Join this circle before posting in it.", "NOT_A_MEMBER");
+  }
+  if (options?.repostOfId) {
+    const original = await prisma.post.findUnique({ where: { id: options.repostOfId }, select: { id: true, repostOfId: true } });
+    if (!original) throw new NetworkError("This post could not be found.", "NOT_FOUND");
+    // Repost the original, not the repost, so a chain never nests more than one deep.
+    options = { ...options, repostOfId: original.repostOfId ?? original.id };
   }
   return prisma.post.create({
     data: {
@@ -163,9 +181,25 @@ export async function createPost(
       jobId: options?.jobId,
       imageUrl: options?.imageUrl,
       videoUrl: options?.videoUrl,
+      repostOfId: options?.repostOfId,
     },
     include: POST_INCLUDE,
   });
+}
+
+/** A single post by ID — for permalinks (the "share a link" feature). Visible
+    to the author, to anyone if it's a general-feed post, or to circle
+    members if it's scoped to a circle. */
+export async function getPost(userId: string, postId: string) {
+  const post = await prisma.post.findUnique({ where: { id: postId, deletedAt: null }, include: POST_INCLUDE });
+  if (!post) throw new NetworkError("This post could not be found.", "NOT_FOUND");
+  if (post.circleId && post.authorId !== userId) {
+    const membership = await prisma.circleMember.findUnique({
+      where: { circleId_userId: { circleId: post.circleId, userId } },
+    });
+    if (!membership) throw new NetworkError("This post isn't visible to you.", "NOT_VISIBLE");
+  }
+  return post;
 }
 
 /**
@@ -193,14 +227,20 @@ export async function getFeed(userId: string) {
   });
 }
 
-export async function toggleReaction(userId: string, postId: string) {
+/** Clicking the same reaction again removes it; clicking a different one
+    switches it — mirrors how every social feed's reaction picker behaves. */
+export async function toggleReaction(userId: string, postId: string, type: ReactionType = "LIKE") {
   const existing = await prisma.reaction.findUnique({ where: { postId_userId: { postId, userId } } });
   if (existing) {
-    await prisma.reaction.delete({ where: { id: existing.id } });
-    return false;
+    if (existing.type === type) {
+      await prisma.reaction.delete({ where: { id: existing.id } });
+      return null;
+    }
+    await prisma.reaction.update({ where: { id: existing.id }, data: { type } });
+    return type;
   }
-  await prisma.reaction.create({ data: { postId, userId } });
-  return true;
+  await prisma.reaction.create({ data: { postId, userId, type } });
+  return type;
 }
 
 export async function addComment(userId: string, postId: string, content: string) {
@@ -314,6 +354,8 @@ export async function getPublicProfile(viewerId: string, targetUserId: string) {
       experiences: { orderBy: { startDate: "desc" }, take: 8 },
       education: { orderBy: { startDate: "desc" }, take: 5 },
       skills: { include: { skill: true }, take: 20 },
+      certifications: { orderBy: { issueDate: "desc" }, take: 10 },
+      languages: true,
     },
   });
   if (!profile) throw new NetworkError("This profile could not be found.", "NOT_FOUND");
@@ -353,6 +395,16 @@ export async function getPublicProfile(viewerId: string, targetUserId: string) {
       endDate: e.endDate,
     })),
     skills: profile.skills.map((s) => s.skill.name),
+    certifications: profile.certifications.map((c) => ({
+      name: c.name,
+      issuer: c.issuer,
+      issueDate: c.issueDate,
+      credentialUrl: c.credentialUrl,
+    })),
+    languages: profile.languages.map((l) => ({ language: l.language, proficiency: l.proficiency })),
+    linkedinUrl: profile.linkedinUrl,
+    githubUrl: profile.githubUrl,
+    portfolioUrl: profile.portfolioUrl,
     isOwner,
     connectionStatus: isOwner ? null : connection?.status ?? null,
   };

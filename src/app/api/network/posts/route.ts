@@ -6,9 +6,10 @@ import { assertValidImageDataUrl, assertValidVideoUrl } from "@/lib/upload/valid
 import { apiCatch, apiOk } from "@/lib/api-response";
 
 const schema = z.object({
-  content: z.string().trim().min(1).max(2000),
+  content: z.string().trim().max(2000),
   imageUrl: z.string().optional(),
   videoUrl: z.string().optional(),
+  repostOfId: z.string().optional(),
 });
 
 export async function GET() {
@@ -24,10 +25,12 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireCandidate();
-    const { content, imageUrl, videoUrl } = schema.parse(await req.json());
+    const { content, imageUrl, videoUrl, repostOfId } = schema.parse(await req.json());
+    // A repost may carry no added commentary; an original post always needs real content.
+    if (!repostOfId && !content.trim()) throw new z.ZodError([{ code: "custom", message: "Say something in your post.", path: ["content"] }]);
     if (imageUrl) assertValidImageDataUrl(imageUrl);
     if (videoUrl) assertValidVideoUrl(videoUrl);
-    const post = await createPost(user.id, content, { imageUrl, videoUrl });
+    const post = await createPost(user.id, content, { imageUrl, videoUrl, repostOfId });
     return apiOk({ post });
   } catch (error) {
     return apiCatch(error);

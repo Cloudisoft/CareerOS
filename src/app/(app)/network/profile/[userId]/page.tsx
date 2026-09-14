@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, MapPin, Briefcase, UserPlus, Check, Clock } from "lucide-react";
+import { Loader2, ArrowLeft, MapPin, Briefcase, UserPlus, Check, Clock, Link2, Code2, Globe, Award, Languages } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,11 @@ interface PublicProfile {
   experiences: { title: string; company: string; location: string | null; startDate: string; endDate: string | null; isCurrent: boolean; description: string | null }[];
   education: { school: string; degree: string | null; fieldOfStudy: string | null; endDate: string | null }[];
   skills: string[];
+  certifications: { name: string; issuer: string | null; issueDate: string | null; credentialUrl: string | null }[];
+  languages: { language: string; proficiency: string }[];
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  portfolioUrl: string | null;
   isOwner: boolean;
   connectionStatus: "PENDING" | "ACCEPTED" | "DECLINED" | null;
 }
@@ -127,6 +132,34 @@ export default function PublicProfilePage() {
             )}
           </div>
 
+          {(profile.currentCompany || profile.careerLevel || profile.totalExperienceYears != null) && (
+            <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {profile.currentCompany && <span>at {profile.currentCompany}</span>}
+              {profile.careerLevel && <span>{profile.careerLevel.charAt(0) + profile.careerLevel.slice(1).toLowerCase()} level</span>}
+              {profile.totalExperienceYears != null && <span>{profile.totalExperienceYears} yrs experience</span>}
+            </p>
+          )}
+
+          {(profile.linkedinUrl || profile.githubUrl || profile.portfolioUrl) && (
+            <div className="mt-3 flex gap-3">
+              {profile.linkedinUrl && (
+                <a href={profile.linkedinUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                  <Link2 className="h-3.5 w-3.5" /> LinkedIn
+                </a>
+              )}
+              {profile.githubUrl && (
+                <a href={profile.githubUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                  <Code2 className="h-3.5 w-3.5" /> GitHub
+                </a>
+              )}
+              {profile.portfolioUrl && (
+                <a href={profile.portfolioUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                  <Globe className="h-3.5 w-3.5" /> Portfolio
+                </a>
+              )}
+            </div>
+          )}
+
           {profile.bio && <p className="mt-4 whitespace-pre-line text-sm text-foreground">{profile.bio}</p>}
 
           {profile.skills.length > 0 && (
@@ -183,6 +216,50 @@ export default function PublicProfilePage() {
               </Card>
             ))}
           </div>
+        </div>
+      )}
+
+      {profile.certifications.length > 0 && (
+        <div className="mt-4">
+          <h2 className="mb-2 text-sm font-semibold text-foreground">Certifications</h2>
+          <div className="space-y-2">
+            {profile.certifications.map((c, i) => (
+              <Card key={i}>
+                <CardContent className="flex items-start gap-3 p-4">
+                  <Award className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {c.credentialUrl ? (
+                        <a href={c.credentialUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                          {c.name}
+                        </a>
+                      ) : (
+                        c.name
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {[c.issuer, c.issueDate ? new Date(c.issueDate).getFullYear() : null].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {profile.languages.length > 0 && (
+        <div className="mt-4">
+          <h2 className="mb-2 text-sm font-semibold text-foreground">Languages</h2>
+          <Card>
+            <CardContent className="flex flex-wrap gap-2 p-4">
+              {profile.languages.map((l, i) => (
+                <Badge key={i} variant="outline" className="gap-1">
+                  <Languages className="h-3 w-3" /> {l.language} · {l.proficiency.charAt(0) + l.proficiency.slice(1).toLowerCase().replace(/_/g, " ")}
+                </Badge>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

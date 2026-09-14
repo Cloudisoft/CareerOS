@@ -1,13 +1,19 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { requireCandidate } from "@/lib/auth/guards";
 import { toggleReaction } from "@/lib/network/service";
 import { apiCatch, apiOk } from "@/lib/api-response";
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+const schema = z.object({
+  type: z.enum(["LIKE", "CELEBRATE", "SUPPORT", "LOVE", "INSIGHTFUL", "FUNNY"]).optional(),
+});
+
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { user } = await requireCandidate();
-    const liked = await toggleReaction(user.id, params.id);
-    return apiOk({ liked });
+    const { type } = schema.parse(await req.json().catch(() => ({})));
+    const reaction = await toggleReaction(user.id, params.id, type);
+    return apiOk({ reaction });
   } catch (error) {
     return apiCatch(error);
   }

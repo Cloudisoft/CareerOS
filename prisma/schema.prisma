@@ -1279,6 +1279,16 @@ model Post {
   jobId    String?
   job      Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
+  /**
+   * Set when this post is a repost of another — content holds the reposter's
+   * own added commentary, if any (may be empty). onDelete: Cascade because a
+   * repost with its original gone is meaningless, unlike circle/job which
+   * degrade gracefully to SetNull.
+   */
+  repostOfId String?
+  repostOf   Post?   @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
+  reposts    Post[]  @relation("PostRepost")
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1288,6 +1298,7 @@ model Post {
 
   @@index([authorId])
   @@index([circleId])
+  @@index([repostOfId])
   @@map("posts")
 }
 
@@ -1305,12 +1316,22 @@ model Comment {
   @@map("comments")
 }
 
+enum ReactionType {
+  LIKE
+  CELEBRATE
+  SUPPORT
+  LOVE
+  INSIGHTFUL
+  FUNNY
+}
+
 model Reaction {
-  id     String @id @default(cuid())
+  id     String       @id @default(cuid())
   postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post   Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   ReactionType @default(LIKE)
 
   createdAt DateTime @default(now())
 
