@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword, generateToken, hashToken } from "@/lib/auth/crypto";
 import { sendEmail, emailVerificationEmail } from "@/lib/email";
 import type { SignupInput, LoginInput } from "@/lib/validations/auth";
-import type { User } from "@prisma/client";
+import type { GoogleProfile } from "@/lib/auth/google";
+import type { User, UserRole } from "@prisma/client";
 
 export class AppAuthError extends Error {
   code: string;
@@ -86,6 +87,10 @@ export async function authenticateUser(input: LoginInput): Promise<User> {
     throw new AppAuthError("Invalid email or password.", "INVALID_CREDENTIALS");
   }
 
+  if (!user.passwordHash) {
+    throw new AppAuthError("This account signs in with Google. Use the “Continue with Google” button.", "GOOGLE_ONLY_ACCOUNT");
+  }
+
   const valid = await verifyPassword(input.password, user.passwordHash);
   if (!valid) {
     throw new AppAuthError("Invalid email or password.", "INVALID_CREDENTIALS");
@@ -138,4 +143,42 @@ export async function resetPasswordWithToken(token: string, newPassword: string)
     // Invalidate all existing sessions on password change.
     prisma.session.deleteMany({ where: { userId: record.userId } }),
   ]);
+}
+
+/**
+ * The three outcomes of a Google sign-in callback:
+ *  - a known Google account signs in (googleId matches)
+ *  - an existing password account with the same, Google-verified email
+ *    silently gains Google as an additional way in (no separate "link your
+ *    accounts" step — Google already vouched for the email)
+ *  - neither exists: a brand new account is created, email pre-verified
+ *    since Google already confirmed it
+ * `isNewUser` tells the callback route whether to send someone to
+ * onboarding (matches signupUser's own behavior) or straight to the app.
+ */
+export async function findOrCreateGoogleUser(
+  profile: GoogleProfile,
+  accountType: UserRole
+): Promise<{ user: User; isNewUser: boolean }> {
+  const byGoogleId = await prisma.user.findUnique({ where: { googleId: profile.sub } });
+  if (byGoogleId) return { user: byGoogleId, isNewUser: false };
+
+  const byEmail = await prisma.user.findUnique({ where: { email: profile.email } });
+  if (byEmail) {
+    const linked = await prisma.user.update({ where: { id: byEmail.id }, data: { googleId: profile.sub } });
+    return { user: linked, isNewUser: false };
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      email: profile.email,
+      googleId: profile.sub,
+      emailVerified: profile.email_verified ? new Date() : null,
+      firstName: profile.given_name || profile.name?.split(" ")[0] || "there",
+      lastName: profile.family_name || "",
+      role: accountType,
+      ...(accountType === "CANDIDATE" ? { candidateProfile: { create: {} } } : { employerProfile: { create: {} } }),
+    },
+  });
+  return { user, isNewUser: true };
 }

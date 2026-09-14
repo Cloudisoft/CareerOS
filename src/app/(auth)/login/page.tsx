@@ -8,12 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { GoogleSignInButton } from "@/components/auth/google-signin-button";
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  google_not_configured: "Google sign-in isn't available yet. Use email and password instead.",
+  google_auth_failed: "Google sign-in didn't complete. Please try again.",
+  rate_limited: "Too many attempts. Please wait a moment and try again.",
+};
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => {
+    const oauthError = searchParams.get("error");
+    return oauthError ? (OAUTH_ERROR_MESSAGES[oauthError] ?? "Something went wrong. Please try again.") : null;
+  });
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -84,6 +94,13 @@ function LoginForm() {
             Log in
           </Button>
         </form>
+
+        <div className="my-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <GoogleSignInButton />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           New to Career OS?{" "}

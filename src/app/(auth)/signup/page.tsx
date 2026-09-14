@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 import { cn } from "@/lib/utils";
 
 type AccountType = "CANDIDATE" | "EMPLOYER";
@@ -69,6 +70,13 @@ export default function SignupPage() {
               {type === "CANDIDATE" ? "I'm job searching" : "I'm hiring"}
             </button>
           ))}
+        </div>
+
+        <GoogleSignInButton accountType={accountType} />
+        <div className="my-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <div className="h-px flex-1 bg-border" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

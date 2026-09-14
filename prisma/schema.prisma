@@ -29,7 +29,12 @@ model User {
   email         String        @unique
   emailVerified DateTime?
   phone         String?
-  passwordHash  String
+  /// Null for an account created via Google sign-in that has never set a
+  /// password — authenticateUser rejects password login for those.
+  passwordHash  String?
+  /// Google's "sub" claim. Set the moment an account is created or linked
+  /// via Google sign-in; null for password-only accounts.
+  googleId      String?       @unique
   firstName     String
   lastName      String
   role          UserRole      @default(CANDIDATE)
