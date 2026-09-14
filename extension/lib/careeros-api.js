@@ -12,7 +12,7 @@
 
   const { Storage } = root.CareerOS;
 
-  const DEFAULT_BASE = 'http://localhost:3000/api/extension';
+  const DEFAULT_BASE = 'https://careeros.silverspringstaffing.com/api/extension';
 
   async function base() {
     const settings = await Storage.getSettings();
