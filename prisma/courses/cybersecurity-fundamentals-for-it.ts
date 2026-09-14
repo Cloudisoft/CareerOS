@@ -233,6 +233,47 @@ Fixed (parameterized query):
           heading: "Why both principles together matter",
           body: "Least privilege limits how much any single compromised point can reach. Defense in depth ensures no single compromised point is enough on its own.",
         },
+        {
+          kind: "bullets",
+          heading: "A common mistake: privilege creep",
+          intro:
+            "Least privilege is usually implemented correctly on day one — the failure mode is what happens over the following years.",
+          bullets: [
+            "An employee who moves between three roles over five years typically accumulates the access each role needed, without anyone removing what the previous roles required — nobody's job is explicitly \"take access away,\" so it just doesn't happen without a deliberate process.",
+            "This is called privilege creep, and it means tenure, not current job function, ends up determining how much damage a compromised account can do — a long-tenured employee's account is often a far bigger prize for an attacker than their current role would suggest.",
+            "Role-based access control (RBAC) — defining access by role rather than granting it person by person — helps, but only if role definitions are actually kept current and access is reviewed periodically, not just assigned once and forgotten.",
+            "A practical fix: a recurring access review (quarterly is common) where a manager has to actively re-affirm that each direct report still needs each permission they currently hold, rather than access silently persisting by default.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Privilege creep, traced through one employee's history",
+          body: "Nobody made a single bad decision here — each individual grant was reasonable at the time it was made.",
+          code: `Year 1: Hired as Support Rep
+  -> granted read access to customer support tickets
+
+Year 2: Promoted to Support Team Lead
+  -> granted access to team performance dashboards (kept ticket access)
+
+Year 3: Moved to a Product role
+  -> granted access to the product roadmap tool and analytics
+     (nobody removed the support-ticket or dashboard access,
+      since "it might still be useful")
+
+Year 5 — account compromised via phishing:
+  attacker inherits ticket data, team performance data, AND
+  product roadmap access — far more than the current Product
+  role would ever justify on its own.`,
+        },
+        {
+          kind: "summary",
+          heading: "Least privilege and defense in depth, in short",
+          bullets: [
+            "Least privilege limits how far any single compromised account can reach; defense in depth ensures no single failed control is catastrophic on its own.",
+            "Privilege creep — access accumulating across role changes without being removed — is the most common way least privilege quietly erodes over time.",
+            "A recurring access review, not just a correct policy at hire time, is what actually keeps least privilege true years into an employee's tenure.",
+          ],
+        },
       ],
     },
     {
@@ -267,10 +308,29 @@ Fixed (parameterized query):
           ],
         },
         {
+          kind: "bullets",
+          heading: "Making patching actually happen, not just agreeing it matters",
+          intro:
+            "Almost every IT team already agrees patching is important — the gap is usually process, not awareness.",
+          bullets: [
+            "Severity-based timelines work better than \"patch everything eventually\": a critical, actively-exploited vulnerability gets patched within days (sometimes hours), while a low-severity one might reasonably wait for the next regular maintenance window.",
+            "A vulnerability scanner that reports issues nobody acts on provides a false sense of security that's arguably worse than not scanning at all — it creates a paper trail showing the organization knew, and did nothing.",
+            "Password managers turn \"use a long, unique password on every account\" from an unrealistic ask into an actually achievable habit — the realistic alternative to a password manager isn't perfect unique passwords, it's password reuse, which is exactly what makes credential stuffing effective.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A common mistake: dismissing a low-severity finding in isolation",
+          body: "A single low-severity misconfiguration — a verbose error message revealing a software version, a slightly too-permissive internal API — is often deprioritized on its own, reasonably. The real risk is chaining: an attacker combines that version disclosure with a known vulnerability for that exact version, then uses the overly permissive API to move further than a single well-configured control would have allowed. Treating each finding in total isolation, rather than asking what it enables in combination with everything else already known about the system, is how a list of individually-minor issues adds up to a real breach path.",
+        },
+        {
           kind: "summary",
           heading: "The unifying theme",
           bullets: [
             "A sophisticated architecture with unpatched systems and no MFA is weaker in practice than a simple architecture where the basics are actually, reliably applied.",
+            "Patching works when it has a severity-based timeline attached to it, not just a general policy that vulnerabilities should eventually be fixed.",
+            "Small, individually low-severity issues can chain together into a real breach path — evaluate findings in combination, not purely one at a time.",
           ],
         },
       ],
@@ -350,6 +410,17 @@ Fixed (parameterized query):
           tone: "warning",
           heading: "Hashing and encryption are not interchangeable",
           body: "A system that \"encrypts\" stored passwords (reversibly) rather than hashing them is a real, common design flaw — anyone who obtains the decryption key (an attacker who breaches the server, or a malicious insider) can recover every plaintext password at once. Passwords should be hashed, since there's never a legitimate reason to need the original password back — a lost password should be reset, never \"looked up.\"",
+        },
+        {
+          kind: "bullets",
+          heading: "Not all hashes are built for the same job — and using the wrong one is a real mistake",
+          intro:
+            "\"Hashing\" isn't one interchangeable operation — a hash function fast enough for checking file integrity is the wrong choice for passwords specifically.",
+          bullets: [
+            "MD5 and SHA-1 are fast, general-purpose hash functions, and both are considered broken for security purposes — fast enough that an attacker with stolen hashes can try billions of password guesses per second, and both have known collision weaknesses (two different inputs producing the same hash).",
+            "Password-specific hash functions (bcrypt, scrypt, Argon2) are deliberately slow and tunable — that slowness is a feature, not a flaw, since it's exactly what makes guessing billions of candidate passwords against a stolen hash impractical.",
+            "Using a general-purpose fast hash (even SHA-256, which isn't \"broken\" the way MD5 is) for password storage is still a common real-world mistake — fast is the wrong property to optimize for when the whole point is making guessing expensive.",
+          ],
         },
         {
           kind: "summary",

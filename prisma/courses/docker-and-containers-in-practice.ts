@@ -153,12 +153,75 @@ CMD ["node", "server.js"]`,
           body: "Docker caches each layer and reuses it if the instruction and its inputs haven't changed. Copying package.json before the rest of the code means the (slow) `npm ci` layer only re-runs when dependencies actually change — editing application code no longer invalidates it. Copy everything at once instead, and every code change forces a full dependency reinstall on every build.",
         },
         {
+          kind: "example",
+          heading: "A real .dockerignore",
+          body: "Without this file, COPY . . copies everything in the build context — including things you specifically don't want in the image.",
+          code: `node_modules
+npm-debug.log
+.git
+.env
+.env.local
+Dockerfile
+.dockerignore
+*.md
+coverage/
+.vscode/`,
+        },
+        {
+          kind: "bullets",
+          heading: "ARG vs. ENV — easy to mix up, different lifetimes",
+          bullets: [
+            "ARG defines a build-time-only variable, available during `docker build` (e.g., ARG NODE_ENV=production, referenced as $NODE_ENV in RUN instructions) — it does not exist inside the running container unless you separately assign it to an ENV.",
+            "ENV sets an environment variable baked into the image and present in every container started from it, for the entire life of that container.",
+            "The pattern for making a build-time value available at runtime too: ARG APP_VERSION then ENV APP_VERSION=$APP_VERSION — two separate declarations, not one.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Never pass secrets as ARG",
+          body: "ARG values are visible in `docker history` on the final image, even though the variable itself isn't set at runtime — anyone who can pull or inspect the image can recover an API key or password passed this way. Use Docker's `--secret` build flag (mounted only during the specific RUN step that needs it, never written to a layer) or fetch secrets from a secrets manager at container startup instead.",
+        },
+        {
+          kind: "example",
+          heading: "ENTRYPOINT vs. CMD — they compose, they don't just override",
+          language: "dockerfile",
+          code: `# ENTRYPOINT is the fixed command that always runs
+# CMD supplies default arguments to it — overridable at \`docker run\` time
+ENTRYPOINT ["node"]
+CMD ["server.js"]
+
+# docker run myapp:1.0            -> runs: node server.js
+# docker run myapp:1.0 worker.js  -> runs: node worker.js (CMD overridden, ENTRYPOINT fixed)`,
+        },
+        {
+          kind: "text",
+          heading: "Why bother with both instead of just CMD",
+          body: [
+            "CMD alone is fully replaced by anything you pass after the image name at `docker run` time — docker run myapp:1.0 bash runs bash, not your app at all. Splitting the fixed part into ENTRYPOINT and the overridable part into CMD means docker run myapp:1.0 worker.js still runs through node, just with a different script — you get flexibility on the argument without accidentally being able to bypass the entrypoint entirely.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "HEALTHCHECK: telling Docker how to tell if the app is actually up",
+          language: "dockerfile",
+          code: `HEALTHCHECK --interval=30s --timeout=3s --retries=3 \\
+  CMD curl -f http://localhost:3000/healthz || exit 1`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "What HEALTHCHECK actually buys you",
+          body: "Without it, `docker ps` shows a container as \"Up\" the moment its main process starts — even if that process is stuck, deadlocked, or hasn't finished initializing. With HEALTHCHECK, docker ps shows \"unhealthy\" once the check starts failing, and orchestrators (Compose's depends_on: condition: service_healthy, or Kubernetes' own probes) can wait for real readiness instead of just process existence.",
+        },
+        {
           kind: "bullets",
           heading: "Common Dockerfile mistakes",
           bullets: [
             "Running as root inside the container with no USER instruction — fine for local dev, a real problem for anything production-facing.",
             "No .dockerignore — without one, `COPY . .` happily ships your local node_modules, .git folder, and .env file into the image.",
             "Using `latest` as a base image tag — it silently changes what \"the same Dockerfile\" builds from one day to the next.",
+            "Passing a secret through ARG or a plain ENV instead of a build secret or runtime secrets manager, where it ends up recoverable from the image itself.",
           ],
         },
       ],
@@ -226,6 +289,50 @@ CMD ["node", "dist/server.js"]`,
             { label: "Multi-Stage", value: 180 },
           ],
         },
+        {
+          kind: "example",
+          heading: "A third stage: running tests as part of the build",
+          language: "dockerfile",
+          code: `FROM node:20 AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM deps AS test
+COPY . .
+RUN npm test          # build fails here if tests fail — nothing after this stage runs
+
+FROM deps AS builder
+COPY . .
+RUN npm run build
+
+FROM node:20-slim AS runtime
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=deps /app/node_modules ./node_modules
+CMD ["node", "dist/server.js"]`,
+        },
+        {
+          kind: "bullets",
+          heading: "--target: building just one stage",
+          bullets: [
+            "docker build --target test . builds only through the test stage and stops there — CI can run this specifically to fail fast on a broken test suite without ever producing the final runtime image.",
+            "docker build --target builder . is useful for debugging a build failure interactively — `docker run -it $(docker build -q --target builder .) sh` drops you into the exact intermediate stage that's misbehaving.",
+            "Without --target, `docker build .` always builds through the last stage (runtime here) — the earlier stages still run to produce its inputs, but they're skipped entirely if you only need one of them for inspection.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "BuildKit cache mounts speed up dependency installs beyond layer caching alone",
+          body: "RUN --mount=type=cache,target=/root/.npm npm ci keeps npm's download cache across builds even when package-lock.json changes and invalidates the layer itself — normally a lockfile change means re-downloading every package from the network; a cache mount means only new or changed packages are actually fetched. This needs BuildKit (the default builder in current Docker) and is one of the highest-value additions to a slow CI build with frequently-changing dependencies.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Switching your final stage to Alpine can silently break native dependencies",
+          body: "node:20-slim is Debian-based (glibc); node:20-alpine is musl-based — smaller, but a package with a native addon (bcrypt, sharp, many database drivers) compiled against glibc in a builder stage will fail to load in an Alpine runtime stage with a cryptic \"Error loading shared library\" message. Either build and run on the same libc family, or use an Alpine-based builder stage too so the compiled output actually matches the runtime it ships to.",
+        },
       ],
     },
     {
@@ -280,6 +387,43 @@ docker run -d --name web \\
             "Named volumes — for data a container produces and needs to persist (database files, uploaded assets). Docker owns the storage location; you just reference the volume by name.",
             "Bind mounts — for mapping a host directory straight into the container, most often your local source code during development so edits show up without a rebuild.",
             "Neither — for anything genuinely disposable (a cache that's fine to lose, a temp directory) — let it live in the container's writable layer and vanish with it.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Where a named volume actually lives",
+          description: "docker volume inspect answers \"where is this data, physically\" — useful the moment you need to back it up or move it.",
+          lines: [
+            { text: "docker volume inspect pgdata" },
+            { text: "[", output: true },
+            { text: "    {", output: true },
+            { text: "        \"Name\": \"pgdata\",", output: true },
+            { text: "        \"Mountpoint\": \"/var/lib/docker/volumes/pgdata/_data\",", output: true },
+            { text: "        \"Driver\": \"local\"", output: true },
+            { text: "    }", output: true },
+            { text: "]", output: true },
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Backing up a named volume without stopping to inspect the host path",
+          body: "A throwaway container mounts both the volume and a host directory, and copies between them — the standard pattern since you shouldn't rely on the host mountpoint path directly:",
+          code: `docker run --rm \\
+  -v pgdata:/data:ro \\
+  -v $(pwd)/backups:/backup \\
+  busybox tar czf /backup/pgdata-$(date +%F).tar.gz -C /data .`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Bind mounts can create confusing file-permission errors",
+          body: "A container process running as UID 1000 writing into a bind-mounted host directory owned by a different UID on the host produces files the host user can't read without sudo — or, the reverse, a host directory owned by root that the container's non-root user can't write to at all, throwing EACCES. This is purely a UID-matching problem, not a Docker bug — match the container's USER UID to the host directory's owning UID, or run the specific container with --user \"$(id -u):$(id -g)\" in development to sidestep it.",
+        },
+        {
+          kind: "text",
+          heading: "tmpfs mounts: for data that shouldn't touch disk at all",
+          body: [
+            "A named volume and a bind mount both eventually write to a real disk. `docker run --tmpfs /app/secrets myapp:1.0` mounts an in-memory filesystem instead — anything written there disappears the instant the container stops, and it's never persisted to the host's disk in the first place. This is the right tool for a short-lived decrypted secret or session data you specifically don't want recoverable from a forgotten disk image or a filesystem backup later.",
           ],
         },
         {

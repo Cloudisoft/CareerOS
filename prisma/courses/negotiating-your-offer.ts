@@ -260,10 +260,24 @@ Best,
         },
         {
           kind: "text",
+          heading: "Putting a rough number on a non-salary ask",
+          body: [
+            "Before asking for something beyond salary, translate it into a number in your own head, even roughly — it sharpens the ask and helps you actually compare offers later. An extra week of PTO is worth something close to 1/52 of your salary. A professional development budget of $2,000/year is worth exactly that, literally.",
+            "This isn't about turning everything into a spreadsheet during the conversation itself — it's about knowing, privately, whether a non-salary concession the company offers actually closes the gap you cared about, or just sounds like it does.",
+          ],
+        },
+        {
+          kind: "text",
           heading: "How to prioritize",
           body: [
             "Before the conversation, rank what actually matters to you. If equity matters more than a sign-on bonus, lead with that — asking for everything at once, with equal weight, makes it harder for the other side to say yes to any of it.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Not every lever is a fair trade for cash",
+          body: "A company offering extra PTO or a title bump in place of the base increase you asked for isn't automatically an equal trade — PTO you may not use has less real value than cash, and a title alone doesn't pay rent. It's a fine outcome if it's genuinely what you value most, but don't accept a substitute lever just because it was offered instead of the one you actually asked for.",
         },
         {
           kind: "callout",

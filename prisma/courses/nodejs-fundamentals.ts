@@ -238,6 +238,38 @@ console.log(add(2, 3));`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Interop between the two isn't fully symmetric",
+          bullets: [
+            "ESM importing CommonJS mostly just works — Node wraps a CommonJS module's module.exports as the default export automatically.",
+            "CommonJS requiring ESM does not work the same way — require() is synchronous, and loading an ES module is inherently asynchronous, so a plain require() of a .mjs file throws rather than silently working. Dynamic import() (below) is the way around this from a CommonJS file.",
+            "This asymmetry is the single most common real reason a project can't just \"add one ESM-only package\" to an otherwise CommonJS codebase without some friction.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Dynamic import() works in both systems",
+          body: "Unlike static import/require, import() is a function that returns a promise — it works inside CommonJS files too, and is the standard way to load a module conditionally or lazily, without needing it upfront.",
+          code: `// Works in a CommonJS file, not just an ESM one
+async function loadFormatter(locale) {
+  const { format } = await import(\`./formatters/\${locale}.js\`);
+  return format;
+}`,
+        },
+        {
+          kind: "text",
+          heading: "Top-level await: an ESM-only feature",
+          body: [
+            "ESM allows await at the top level of a module, outside any async function — useful for a module that needs to load some configuration or data before anything importing it can run. CommonJS has no equivalent; await there is only valid inside an async function, which is one more real reason a project leaning on top-level await needs to be ESM.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "package.json's \"exports\" field narrows what's importable",
+          body: "A package can declare an \"exports\" field in its package.json to explicitly list which files consumers are allowed to import — anything left out becomes inaccessible from outside the package, even if the file physically exists on disk. This is an increasingly common, deliberate way for library authors to stop consumers from reaching into internal files, and a real reason \"importing a file that clearly exists in node_modules\" can still fail with a resolution error.",
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Why this matters practically, not just academically",
@@ -291,6 +323,13 @@ server.listen(3000, () => {
           ],
         },
         {
+          kind: "text",
+          heading: "One callback, called once per request — not once per connection",
+          body: [
+            "A single TCP connection can carry multiple HTTP requests over time thanks to keep-alive — the callback passed to createServer runs once for each individual request, not once when a connection opens. In practice you rarely need to think about the connection layer directly; Node's http module handles the framing of where one request ends and the next begins.",
+          ],
+        },
+        {
           kind: "example",
           heading: "A minimal router by hand",
           body: "Without a framework, routing is just checking req.url and req.method yourself — this is exactly the repetitive work that frameworks like Express exist to remove.",
@@ -313,6 +352,28 @@ server.listen(3000, () => {
 });`,
         },
         {
+          kind: "example",
+          heading: "Parsing a JSON request body by hand",
+          body: "req is a readable stream, not already-parsed data — this is the exact manual work a framework like Express removes with a single line, app.use(express.json()).",
+          code: `function handlePost(req, res) {
+  let body = "";
+  req.on("data", (chunk) => {
+    body += chunk;
+  });
+  req.on("end", () => {
+    const data = JSON.parse(body);
+    res.writeHead(201, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ received: data }));
+  });
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "req and res are streams, not simple objects",
+          body: "req is a readable stream — you listen for \"data\" events as chunks arrive, and \"end\" once they're done — and res is a writable stream, where you can call res.write() multiple times before res.end(). This is why a large response can be sent incrementally instead of built entirely in memory first, and why frameworks built on top of http still expose stream-like behavior for things like file downloads.",
+        },
+        {
           kind: "bullets",
           heading: "Why almost nobody ships raw http in production",
           bullets: [
@@ -320,6 +381,15 @@ server.listen(3000, () => {
             "Parsing a JSON request body requires manually collecting data chunks from the request stream yourself — the raw module doesn't do it for you.",
             "Middleware patterns (authentication, logging, error handling applied consistently across routes) have to be built from scratch.",
             "This is exactly what frameworks like Express or Fastify provide — they're built on top of this same http module, not a replacement for it.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A couple of headers worth understanding, not just setting",
+          bullets: [
+            "Content-Type tells the client how to interpret the body — get it wrong (say, sending JSON with a text/plain Content-Type) and a client's automatic parsing may not kick in, even though the actual bytes are valid JSON.",
+            "Content-Length, when set explicitly, tells the client exactly how many bytes to expect; without it (or chunked transfer-encoding), a client can't always tell where a response actually ends.",
+            "Status codes carry real meaning that clients and tools rely on: the 200 range for success, 400 range for a client mistake, 500 range for a server-side failure — returning 200 with an error message in the body, a common shortcut, breaks any tooling that checks the status code rather than parsing every response body.",
           ],
         },
         {

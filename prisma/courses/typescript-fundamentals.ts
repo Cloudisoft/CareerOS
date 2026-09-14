@@ -411,6 +411,22 @@ type Formatter = (price: number) => string;
 const format: Formatter = (p) => \`$\${p.toFixed(2)}\`;`,
         },
         {
+          kind: "example",
+          heading: "Overloads: one function name, several distinct call signatures",
+          body: "Sometimes a function's return type genuinely depends on which shape of arguments it's called with, in a way a single signature can't express. Overloads list each valid call shape above one real implementation.",
+          language: "typescript",
+          code: `function parseInput(value: string): string;
+function parseInput(value: number): number;
+function parseInput(value: string | number): string | number {
+  return typeof value === "string" ? value.trim() : Math.round(value);
+}
+
+const a = parseInput("  hi  "); // typed as string
+const b = parseInput(4.7);      // typed as number — not string | number
+// Callers see only the specific overloads; the combined signature is
+// just the implementation's own internal contract, never exposed`,
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Rest parameters and object parameters both type cleanly",
@@ -466,6 +482,45 @@ num.toUpperCase();                        // Error — correctly caught!
 
 const name = firstElement(["Ada", "Grace"]); // T is inferred as string
 name.toUpperCase();                          // fine — TypeScript knows it's a string`,
+        },
+        {
+          kind: "example",
+          heading: "Constraining a generic with extends",
+          body: "T on its own could be anything, which means you can only do things every possible type supports. extends narrows that down — \"T can be any type, as long as it has at least this shape\" — unlocking safe access to specific fields.",
+          language: "typescript",
+          code: `function logLength<T extends { length: number }>(value: T): T {
+  console.log(value.length); // safe — every T is guaranteed to have .length
+  return value;
+}
+
+logLength("hello");        // fine — strings have .length
+logLength([1, 2, 3]);      // fine — arrays have .length
+logLength(42);             // Error — number has no .length property`,
+        },
+        {
+          kind: "example",
+          heading: "Multiple type parameters, and generics on a type itself",
+          body: "Generics aren't limited to one parameter, or to functions — an interface or type alias can take its own type parameter too, the same way Array<T> and Promise<T> do.",
+          language: "typescript",
+          code: `function merge<T, U>(a: T, b: U): T & U {
+  return { ...a, ...b };
+}
+
+const merged = merge({ name: "Ada" }, { age: 30 });
+// typed as { name: string } & { age: number }
+
+interface Box<T> {
+  value: T;
+}
+
+const numberBox: Box<number> = { value: 42 };
+const userBox: Box<User> = { value: { id: "1", name: "Ada", email: "a@x.com" } };`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "A generic parameter can have its own default",
+          body: "interface ApiResponse<T = unknown> lets you write ApiResponse without a type argument and get a safe fallback (T becomes unknown) instead of an error, while ApiResponse<User> still works exactly as before. It's most useful for generic types that are usually, but not always, given a specific argument.",
         },
         {
           kind: "terminal",
@@ -554,6 +609,45 @@ function render(state: LoadState) {
           ],
         },
         {
+          kind: "example",
+          heading: "Exhaustiveness checking: let the compiler catch a forgotten case",
+          body: "Add a fourth LoadState variant six months from now, and this default case stops compiling — assigning state (now impossible to be one of the known variants, so its type is never) to a never-typed variable is only valid if every case was actually handled above.",
+          language: "typescript",
+          code: `function render(state: LoadState) {
+  switch (state.kind) {
+    case "loading":
+      return "Loading...";
+    case "success":
+      return state.data.join(", ");
+    case "error":
+      return state.message;
+    default:
+      const _exhaustive: never = state; // errors if a case was missed
+      throw new Error(\`Unhandled state: \${_exhaustive}\`);
+  }
+}`,
+        },
+        {
+          kind: "example",
+          heading: "Custom type guards: functions that narrow for you",
+          body: "A function whose return type is value is SomeType (rather than plain boolean) teaches TypeScript that a true result narrows its argument — useful when the check is too complex for typeof or in alone.",
+          language: "typescript",
+          code: `interface Cat { meow(): void }
+interface Dog { bark(): void }
+
+function isCat(animal: Cat | Dog): animal is Cat {
+  return typeof (animal as Cat).meow === "function";
+}
+
+function speak(animal: Cat | Dog) {
+  if (isCat(animal)) {
+    animal.meow(); // narrowed to Cat here, based on the guard's result
+  } else {
+    animal.bark(); // narrowed to Dog by elimination
+  }
+}`,
+        },
+        {
           kind: "bullets",
           heading: "Other everyday narrowing tools",
           bullets: [
@@ -630,6 +724,46 @@ const permissions: RolePermissions = {
   viewer: ["read"],
   // missing a key, or adding one not in the union, is a compile error
 };`,
+        },
+        {
+          kind: "example",
+          heading: "Exclude and Extract work on unions, not object fields",
+          body: "Pick and Omit select which keys of an object survive. Exclude and Extract do the equivalent job for a union of values instead — pulling members out of, or filtering members into, a set of alternatives.",
+          language: "typescript",
+          code: `type Status = "pending" | "active" | "cancelled" | "archived";
+
+type ActiveOnly = Exclude<Status, "cancelled" | "archived">;
+// "pending" | "active" — those two members removed from the union
+
+type FinishedOnly = Extract<Status, "cancelled" | "archived">;
+// "cancelled" | "archived" — only the members that match are kept
+
+// A common real use: pulling one case out of a discriminated union
+type SuccessState = Extract<LoadState, { kind: "success" }>;
+// { kind: "success"; data: string[] }`,
+        },
+        {
+          kind: "example",
+          heading: "Parameters<T> mirrors ReturnType<T> for the argument list",
+          body: "Just as ReturnType<typeof fn> derives a function's output type, Parameters<typeof fn> derives its argument list as a tuple — useful for wrapping a function without retyping its signature by hand.",
+          language: "typescript",
+          code: `function createUser(name: string, age: number): User {
+  return { id: crypto.randomUUID(), name, age } as User;
+}
+
+type CreateUserArgs = Parameters<typeof createUser>;
+// [name: string, age: number]
+
+function logAndCreate(...args: CreateUserArgs): User {
+  console.log("Creating user with:", args);
+  return createUser(...args); // args is guaranteed to match createUser's signature
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "satisfies checks a value against a type without widening it",
+          body: "const config: Record<string, number> = { a: 1 } gives config the broad Record type — you lose the fact that it specifically has key a. const config = { a: 1 } satisfies Record<string, number> checks the same constraint, but config keeps its precise inferred type ({ a: number }), so config.a still autocompletes correctly afterward. Prefer satisfies over an explicit annotation whenever you want validation without losing the specific shape.",
         },
         {
           kind: "bullets",

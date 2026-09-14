@@ -39,6 +39,14 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "The employer side of the same shift",
+          body: [
+            "It isn't just candidates who have new AI tools — employers increasingly use AI-assisted screening to handle the flood of applications the same automation makes possible. Some of these tools are explicitly built to detect generic, templated applications and to score genuine overlap between a resume and the specific posting.",
+            "The practical effect is that a resume tailored with real, specific language from the posting doesn't just read better to a human — it increasingly scores better to the automated first pass too. The old advice (\"tailor your resume\") and the new reality (AI screening on both sides) point in the same direction, not opposite ones.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "What targeting actually buys you",
           bullets: [
@@ -46,6 +54,12 @@ export const course: CourseSeed = {
             "Fewer, better-matched applications means more energy per application for the parts that matter — a thoughtful cover letter, a warm introduction, real preparation if you get a screen.",
             "It's more sustainable. A search built on quantity alone burns people out well before it produces results.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Targeting doesn't mean maximal customization on every application",
+          body: "There's a point of diminishing return — rewriting a resume from scratch for every single role burns the same energy spray-and-pray was wasting, just differently. A strong default resume for each of your 2-4 target titles, adjusted with the specific language a given posting uses, gets most of the benefit of full customization at a fraction of the time cost.",
         },
         {
           kind: "callout",
@@ -72,6 +86,45 @@ export const course: CourseSeed = {
             "Start with roles, not just titles. Write down what you actually want to be doing day-to-day, then translate that into the 2-4 titles that map to it.",
             "List 20-40 companies, not just roles — sized realistically against your experience level. Mix a few reaches, a solid core, and a few safer bets.",
             "For each company, note why it's on the list. \"Growing team in my space\" is different from \"known for strong mentorship\" — knowing why helps you tailor a cover letter later.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "What one real target-list entry looks like",
+          body: "Not just a company name — enough detail that revisiting the list in a month still tells you why it was there.",
+          code: `Company: Northwind Logistics
+Tier: Core (realistic match)
+Why: Series C, scaling ops team fast per recent funding news;
+posting patterns show 3 relevant roles opened in the last
+quarter — genuine hiring momentum, not a single stale posting.
+Titles this maps to: Senior Ops Analyst, Analytics Lead
+Contact: Priya (LinkedIn, 2nd-degree via Jordan) — not yet
+reached out
+Status: Watching career page; no live posting fits yet`,
+        },
+        {
+          kind: "bullets",
+          heading: "What to actually check before adding a company",
+          intro: "A name on a list is only useful if you know something real about it — a few minutes of research per company pays off later.",
+          bullets: [
+            "Recent funding, layoffs, or leadership changes — a company that just raised a large round or just had a round of layoffs tells you very different things about how much real hiring room exists right now.",
+            "Whether the team you'd join is actually growing — a company's LinkedIn page often shows recent hires in a function, which is a better live signal than a single job posting.",
+            "What current and former employees say in aggregate on sites like Glassdoor — not to over-weight any one review, but a consistent theme across many reviews (chronic overtime, high turnover in a specific team) is worth knowing before you invest time in a company.",
+            "Whether the company is actually hiring for your level, not just adjacent ones — a company with no mid-level postings in the last six months for a track that's otherwise active may simply not be hiring at that level right now.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "An all-reach or all-safe list defeats the purpose",
+          body: "A list of 30 companies that are all a stretch produces a search that's mostly rejection, with too little real signal to calibrate against. A list that's all safe bets under-shoots what you could actually get. A rough split — a few genuine reaches, a solid core of realistic matches, a few safer bets you'd still be glad to land — keeps both your options and your morale in better shape over a multi-month search.",
+        },
+        {
+          kind: "text",
+          heading: "Sizing the list to your actual timeline",
+          body: [
+            "20-40 companies is a reasonable range for most searches, but the right number depends on urgency and how niche your target roles are. A search with real runway (still employed, no hard deadline) can run leaner and go deeper on fewer companies. A search with a firm deadline (end of severance, a visa clock, a hard financial runway) generally needs the wider end of the range, simply to keep enough live opportunities moving in parallel that a single stalled process doesn't leave you with nothing in motion.",
+            "A very niche target (a specific, rare specialization, or a small set of companies that do exactly the thing you want) may legitimately have fewer than 20 realistic entries — in that case, depth of relationship at each one matters more than list size.",
           ],
         },
         {
@@ -108,6 +161,29 @@ export const course: CourseSeed = {
             "Form-filling. Retyping the same identity and work-history fields across dozens of ATS platforms is pure friction with no signal value.",
             "First-draft generation. Having an AI-tailored cover letter or bullet rewrite as a starting point, that you then edit into your own voice, is faster than a blank page.",
             "Volume on well-matched roles. For roles that genuinely fit, automation lets you cover more of your target list without every application being manual data entry.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "An AI first draft, edited into your own voice",
+          body: "The AI draft isn't wrong, exactly — it's generic in a way that's easy to spot once you know what to look for. The edit adds the one detail only you actually have.",
+          code: `AI first draft: "Led cross-functional initiatives to drive
+operational efficiency and enhance team collaboration, resulting
+in measurable improvements to key performance indicators."
+
+Edited into your voice: "Restructured how our support and
+engineering teams triaged bugs together, cutting the average
+time from bug report to fix from nine days to three."`,
+        },
+        {
+          kind: "bullets",
+          heading: "Sanity-checking the specific tool, not just \"AI\" in general",
+          intro: "\"AI tools\" covers a wide range of things with different real risk levels — worth evaluating each on its own terms.",
+          bullets: [
+            "Resume-tailoring tools that reword existing bullets to match a posting: generally low-risk, as long as you verify every fact and number it touched is still true after the rewrite.",
+            "Auto-apply browser extensions that submit applications on your behalf: useful for volume on roles you've already vetted, risky if left unsupervised on roles you haven't — set them loose only on your pre-approved target list, not an unfiltered search.",
+            "AI interview-prep tools that generate practice questions or mock feedback: a reasonable way to rehearse, but treat the feedback as a starting opinion to sanity-check against a real person's read, not a verdict.",
+            "Fully AI-written cover letters with no edit pass: the highest-risk category — these are the ones most likely to sound generic to an attentive reader, and the ones most worth the extra ten minutes to personalize.",
           ],
         },
         {
