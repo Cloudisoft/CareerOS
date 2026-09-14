@@ -60,6 +60,7 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
   const [jobResults, setJobResults] = useState<JobSearchResult[]>([]);
   const [searchingJobs, setSearchingJobs] = useState(false);
   const [settingTarget, setSettingTarget] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   function update(patch: Partial<ResumeContent>) {
     setContent((prev) => ({ ...prev, ...patch }));
@@ -111,14 +112,21 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
 
   async function improveSummary() {
     setImprovingSummary(true);
-    const res = await fetch(`/api/resumes/${resumeId}/ai/improve-summary`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ currentSummary: content.summary }),
-    });
-    const json = await res.json();
-    setImprovingSummary(false);
-    if (res.ok) update({ summary: json.text });
+    setAiError(null);
+    try {
+      const res = await fetch(`/api/resumes/${resumeId}/ai/improve-summary`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentSummary: content.summary }),
+      });
+      const json = await res.json();
+      if (res.ok) update({ summary: json.data.text });
+      else setAiError(json.error?.message ?? "Couldn't improve the summary. Please try again.");
+    } catch {
+      setAiError("Couldn't reach the AI service. Check your connection and try again.");
+    } finally {
+      setImprovingSummary(false);
+    }
   }
 
   function updateExperience(index: number, patch: Partial<ResumeExperience>) {
@@ -154,15 +162,22 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
   async function rewriteBullet(expIndex: number, bulletIndex: number) {
     const key = `${expIndex}-${bulletIndex}`;
     setRewritingBulletKey(key);
+    setAiError(null);
     const exp = content.experience[expIndex];
-    const res = await fetch(`/api/resumes/${resumeId}/ai/rewrite-bullet`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bullet: exp.bullets[bulletIndex], jobTitle: exp.title }),
-    });
-    const json = await res.json();
-    setRewritingBulletKey(null);
-    if (res.ok) updateBullet(expIndex, bulletIndex, json.text);
+    try {
+      const res = await fetch(`/api/resumes/${resumeId}/ai/rewrite-bullet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bullet: exp.bullets[bulletIndex], jobTitle: exp.title }),
+      });
+      const json = await res.json();
+      if (res.ok) updateBullet(expIndex, bulletIndex, json.data.text);
+      else setAiError(json.error?.message ?? "Couldn't rewrite that bullet. Please try again.");
+    } catch {
+      setAiError("Couldn't reach the AI service. Check your connection and try again.");
+    } finally {
+      setRewritingBulletKey(null);
+    }
   }
 
   function updateEducation(index: number, patch: Partial<ResumeEducation>) {
@@ -173,6 +188,15 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {aiError && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">{aiError}</span>
+          <button type="button" onClick={() => setAiError(null)} aria-label="Dismiss" className="shrink-0 hover:opacity-70">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Input
           value={name}

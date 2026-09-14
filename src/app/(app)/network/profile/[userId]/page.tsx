@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, MapPin, Briefcase, UserPlus, Check, Clock, Link2, Code2, Globe, Award, Languages } from "lucide-react";
+import { Loader2, ArrowLeft, MapPin, Briefcase, UserPlus, Check, Clock, Link2, Code2, Globe, Award, Languages, Pencil, Camera, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ImagePickerButton } from "@/components/network/image-picker-button";
 import { initials } from "@/lib/utils";
 
 interface PublicProfile {
@@ -52,6 +53,20 @@ export default function PublicProfilePage() {
       .finally(() => setLoading(false));
   }, [params.userId]);
 
+  async function saveImage(endpoint: string, field: "avatarUrl" | "coverUrl", dataUrl: string) {
+    setProfile((prev) => (prev ? { ...prev, [field]: dataUrl } : prev));
+    await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl }),
+    });
+  }
+
+  async function removeImage(endpoint: string, field: "avatarUrl" | "coverUrl") {
+    setProfile((prev) => (prev ? { ...prev, [field]: null } : prev));
+    await fetch(endpoint, { method: "DELETE" });
+  }
+
   async function connect() {
     setSent(true);
     await fetch("/api/network/connections", {
@@ -86,19 +101,65 @@ export default function PublicProfilePage() {
       </Link>
 
       <Card className="overflow-hidden">
-        <div className="h-28 bg-brand-gradient sm:h-32">
+        <div className="relative h-28 bg-brand-gradient sm:h-32">
           {profile.coverUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- stored upload, not an optimizable remote asset
             <img src={profile.coverUrl} alt="" className="h-full w-full object-cover" />
+          )}
+          {profile.isOwner && (
+            <div className="absolute right-3 top-3 flex items-center gap-1.5">
+              <ImagePickerButton
+                maxDimension={1600}
+                onPicked={(dataUrl) => saveImage("/api/profile/cover", "coverUrl", dataUrl)}
+                className="flex items-center gap-1.5 rounded-md bg-background/80 px-2.5 py-1.5 text-xs font-medium text-foreground backdrop-blur transition-colors hover:bg-background"
+              >
+                <Camera className="h-3.5 w-3.5" /> {profile.coverUrl ? "Change cover" : "Add cover photo"}
+              </ImagePickerButton>
+              {profile.coverUrl && (
+                <button
+                  type="button"
+                  onClick={() => removeImage("/api/profile/cover", "coverUrl")}
+                  className="flex items-center rounded-md bg-background/80 p-1.5 text-foreground backdrop-blur transition-colors hover:bg-background"
+                  aria-label="Remove cover photo"
+                  title="Remove cover photo"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           )}
         </div>
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Avatar className="-mt-12 h-16 w-16 border-4 border-surface">
-                {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} />}
-                <AvatarFallback className="text-lg">{initials(profile.firstName, profile.lastName)}</AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="-mt-12 h-16 w-16 border-4 border-surface">
+                  {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} />}
+                  <AvatarFallback className="text-lg">{initials(profile.firstName, profile.lastName)}</AvatarFallback>
+                </Avatar>
+                {profile.isOwner && (
+                  <>
+                    <ImagePickerButton
+                      maxDimension={400}
+                      onPicked={(dataUrl) => saveImage("/api/profile/avatar", "avatarUrl", dataUrl)}
+                      className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-primary text-primary-foreground"
+                    >
+                      <Camera className="h-3 w-3" />
+                    </ImagePickerButton>
+                    {profile.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => removeImage("/api/profile/avatar", "avatarUrl")}
+                        className="absolute -right-1 -top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-surface bg-destructive text-destructive-foreground"
+                        aria-label="Remove profile photo"
+                        title="Remove profile photo"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
               <div>
                 <h1 className="text-xl font-semibold text-foreground">
                   {profile.firstName} {profile.lastName}
@@ -113,7 +174,13 @@ export default function PublicProfilePage() {
                 )}
               </div>
             </div>
-            {!profile.isOwner && (
+            {profile.isOwner ? (
+              <Link href="/profile">
+                <Button size="sm" variant="outline">
+                  <Pencil className="h-4 w-4" /> Edit profile
+                </Button>
+              </Link>
+            ) : (
               <div>
                 {profile.connectionStatus === "ACCEPTED" ? (
                   <Badge variant="outline" className="gap-1">

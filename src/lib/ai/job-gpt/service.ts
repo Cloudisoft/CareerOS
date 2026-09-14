@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { generateChat, type ChatMessage } from "@/lib/ai/gateway";
+import { generateChatStream, type ChatMessage } from "@/lib/ai/gateway";
 import { buildCareerContext } from "@/lib/ai/job-gpt/context";
 
 const SYSTEM_PROMPT = `You are Job GPT, the career copilot inside Career OS.
@@ -72,7 +72,20 @@ export async function deleteConversation(userId: string, conversationId: string)
   await prisma.aiConversation.delete({ where: { id: conversationId } });
 }
 
-export async function sendMessage(userId: string, conversationId: string, text: string, executiveMode = false) {
+/**
+ * Streams the assistant's reply back as Server-Sent Events instead of
+ * waiting for the full response — reasoning models can take a while to
+ * generate a complete answer, and showing it appear incrementally is both
+ * faster to the first visible word and doesn't feel stuck the way a long
+ * silent wait does. The SSE payloads are `{delta}` per chunk, then either
+ * `{done: true, id}` or `{error}` as the terminal event.
+ */
+export async function sendMessageStream(
+  userId: string,
+  conversationId: string,
+  text: string,
+  executiveMode = false
+): Promise<ReadableStream<Uint8Array>> {
   const conversation = await getConversation(userId, conversationId);
   const careerContext = await buildCareerContext(userId);
 
@@ -86,37 +99,60 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     { role: "user" as const, content: text },
   ];
 
-  const { text: replyText, provider } = await generateChat({
-    system: `${SYSTEM_PROMPT}${executiveMode ? EXECUTIVE_COACHING_PROMPT : ""}\n\nCareerContext for this candidate:\n${careerContext}`,
-    messages: history,
-    maxTokens: 1024,
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      function send(event: Record<string, unknown>) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      }
+
+      let replyText: string;
+      let provider: string;
+      try {
+        ({ text: replyText, provider } = await generateChatStream(
+          {
+            system: `${SYSTEM_PROMPT}${executiveMode ? EXECUTIVE_COACHING_PROMPT : ""}\n\nCareerContext for this candidate:\n${careerContext}`,
+            messages: history,
+            maxTokens: 1024,
+          },
+          (chunk) => send({ delta: chunk })
+        ));
+      } catch (error) {
+        send({ error: error instanceof Error ? error.message : "Something went wrong. Please try again." });
+        controller.close();
+        return;
+      }
+
+      // The AI call above can take a while, and in that window the user may
+      // delete this conversation from the sidebar. Without this guard,
+      // saving the reply then fails an unhandled foreign-key error — this
+      // turns that into a clear, expected "it was deleted" outcome instead.
+      try {
+        const assistantMessage = await prisma.aiMessage.create({
+          data: { conversationId, role: "ASSISTANT", content: replyText },
+        });
+
+        await prisma.aiConversation.update({
+          where: { id: conversationId },
+          data: {
+            updatedAt: new Date(),
+            ...(conversation.title ? {} : { title: text.slice(0, 60) }),
+          },
+        });
+
+        await prisma.aiUsage.create({ data: { userId, feature: "job_gpt", provider } });
+
+        send({ done: true, id: assistantMessage.id });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2003" || error.code === "P2025")) {
+          send({ error: "This conversation was deleted before the reply could be saved." });
+        } else {
+          send({ error: "Something went wrong saving the reply. Please try again." });
+        }
+      } finally {
+        controller.close();
+      }
+    },
   });
-
-  // The AI call above can take a while (slower models, provider fallback
-  // retries), and in that window the user may delete this conversation
-  // from the sidebar. Without this guard, saving the reply then fails an
-  // unhandled foreign-key error and surfaces as a generic 500 — this turns
-  // that into a clear, expected "it was deleted" outcome instead.
-  try {
-    const assistantMessage = await prisma.aiMessage.create({
-      data: { conversationId, role: "ASSISTANT", content: replyText },
-    });
-
-    await prisma.aiConversation.update({
-      where: { id: conversationId },
-      data: {
-        updatedAt: new Date(),
-        ...(conversation.title ? {} : { title: text.slice(0, 60) }),
-      },
-    });
-
-    await prisma.aiUsage.create({ data: { userId, feature: "job_gpt", provider } });
-
-    return assistantMessage;
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2003" || error.code === "P2025")) {
-      throw new JobGptError("This conversation was deleted before the reply could be saved.", "NOT_FOUND");
-    }
-    throw error;
-  }
 }

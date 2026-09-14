@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth/session";
 import { requireEntitlement } from "@/lib/billing/entitlements";
-import { sendMessage, countMonthlyUserMessages } from "@/lib/ai/job-gpt/service";
-import { apiCatch, apiError, apiOk } from "@/lib/api-response";
+import { sendMessageStream, countMonthlyUserMessages } from "@/lib/ai/job-gpt/service";
+import { apiCatch, apiError } from "@/lib/api-response";
 import { rateLimit } from "@/lib/rate-limit";
 import { rateLimitForTier } from "@/lib/billing/priority";
 
@@ -31,8 +31,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!limit.allowed) return apiError("You're sending messages too quickly. Please slow down.", 429, "RATE_LIMITED");
 
     const { text } = schema.parse(await req.json());
-    const message = await sendMessage(user.id, params.id, text, entitlements.executiveMode);
-    return apiOk({ message });
+    const stream = await sendMessageStream(user.id, params.id, text, entitlements.executiveMode);
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error) {
     return apiCatch(error);
   }

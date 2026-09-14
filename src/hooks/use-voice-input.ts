@@ -90,8 +90,9 @@ export function useVoiceInput(onFinalText: (text: string) => void) {
         // this — re-requesting the mic in the same instant the previous
         // grant was released has been observed to come back as a spurious
         // denial on some browsers even when permission is genuinely
-        // granted. A brief pause lets the device actually release first.
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // granted. A brief pause lets the device actually release first;
+        // kept short since it's pure added latency before dictation starts.
+        await new Promise((resolve) => setTimeout(resolve, 50));
       } catch (err) {
         const name = err instanceof Error ? err.name : "";
         if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
