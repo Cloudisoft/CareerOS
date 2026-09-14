@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MessengerWidget } from "@/components/messaging/messenger-widget";
+import { IdleLogoutGuard } from "@/components/auth/idle-logout-guard";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -12,6 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-background">
+      <IdleLogoutGuard />
       <Sidebar role={user.role} />
       <div className="flex flex-1 flex-col">
         <Topbar user={user} />

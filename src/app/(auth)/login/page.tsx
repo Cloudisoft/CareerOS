@@ -14,6 +14,7 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   google_not_configured: "Google sign-in isn't available yet. Use email and password instead.",
   google_auth_failed: "Google sign-in didn't complete. Please try again.",
   rate_limited: "Too many attempts. Please wait a moment and try again.",
+  idle_timeout: "You were signed out after 30 minutes of inactivity. Please sign in again.",
 };
 
 function LoginForm() {

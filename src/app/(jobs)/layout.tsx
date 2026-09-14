@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MarketingNavbar } from "@/components/marketing/navbar";
 import { MarketingFooter } from "@/components/marketing/footer";
+import { IdleLogoutGuard } from "@/components/auth/idle-logout-guard";
 
 /**
  * The job marketplace is browsable without an account (only applying/saving
@@ -16,6 +17,7 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
   if (user) {
     return (
       <div className="flex min-h-screen bg-background">
+        <IdleLogoutGuard />
         <Sidebar role={user.role} />
         <div className="flex flex-1 flex-col">
           <Topbar user={user} />
@@ -27,7 +29,7 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="flex min-h-screen flex-col">
-      <MarketingNavbar />
+      <MarketingNavbar user={null} />
       <main className="flex-1">{children}</main>
       <MarketingFooter />
     </div>

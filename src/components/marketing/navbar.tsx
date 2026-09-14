@@ -1,12 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut, LayoutDashboard } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn, initials } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "/features", label: "Features" },
@@ -16,8 +26,19 @@ const NAV_LINKS = [
   { href: "/faq", label: "FAQ" },
 ];
 
-export function MarketingNavbar() {
+interface MarketingNavbarProps {
+  user?: { firstName: string; lastName: string; email: string; avatarUrl: string | null } | null;
+}
+
+export function MarketingNavbar({ user = null }: MarketingNavbarProps) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
@@ -38,12 +59,38 @@ export function MarketingNavbar() {
 
         <div className="hidden items-center gap-2 lg:flex">
           <ThemeToggle />
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/login">Log in</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/signup">Get Started</Link>
-          </Button>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="outline-none">
+                <Avatar className="h-9 w-9">
+                  {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.firstName} />}
+                  <AvatarFallback>{initials(user.firstName, user.lastName)}</AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard">
+                    <LayoutDashboard className="h-4 w-4" /> Dashboard
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={handleLogout}>
+                  <LogOut className="h-4 w-4" /> Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/login">Log in</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link href="/signup">Get Started</Link>
+              </Button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1 lg:hidden">
@@ -76,12 +123,27 @@ export function MarketingNavbar() {
             </Link>
           ))}
           <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-            <Button asChild variant="secondary" size="md">
-              <Link href="/login">Log in</Link>
-            </Button>
-            <Button asChild size="md">
-              <Link href="/signup">Get Started</Link>
-            </Button>
+            {user ? (
+              <>
+                <Button asChild variant="secondary" size="md">
+                  <Link href="/dashboard" onClick={() => setOpen(false)}>
+                    <LayoutDashboard className="h-4 w-4" /> Dashboard
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="md" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" /> Log out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button asChild variant="secondary" size="md">
+                  <Link href="/login">Log in</Link>
+                </Button>
+                <Button asChild size="md">
+                  <Link href="/signup">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

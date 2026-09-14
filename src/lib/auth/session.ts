@@ -5,12 +5,20 @@ import { generateToken, hashToken } from "@/lib/auth/crypto";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
 import type { User } from "@prisma/client";
 
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// The DB-tracked expiry is a sliding idle timeout, renewed on every active
+// request in getSessionUser() — it's the source of truth for "logged out".
+// The cookie's own expiry is just a browser-side ceiling and deliberately
+// longer, since Next.js can't rewrite a cookie from a plain Server Component
+// render (only from a Route Handler / Server Action), so it can't be slid
+// on every request the way the DB row can.
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const IDLE_RENEW_THRESHOLD_MS = 5 * 60 * 1000; // renew once 5+ min have elapsed
+const COOKIE_CEILING_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export async function createSession(userId: string) {
   const token = generateToken();
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(Date.now() + IDLE_TIMEOUT_MS);
 
   const headerList = await headers();
 
@@ -29,7 +37,7 @@ export async function createSession(userId: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    expires: expiresAt,
+    expires: new Date(Date.now() + COOKIE_CEILING_MS),
     path: "/",
   });
 
@@ -62,6 +70,17 @@ export async function getSessionUser(): Promise<User | null> {
 
   if (session.user.status !== "ACTIVE" || session.user.deletedAt) {
     return null;
+  }
+
+  // Sliding idle timeout: renew once at least IDLE_RENEW_THRESHOLD_MS has
+  // elapsed since the last renewal, rather than on every single call — an
+  // active user's session never expires, but a quiet one still times out
+  // within IDLE_TIMEOUT_MS instead of getting extended by a background poll.
+  const msUntilExpiry = session.expiresAt.getTime() - Date.now();
+  if (msUntilExpiry < IDLE_TIMEOUT_MS - IDLE_RENEW_THRESHOLD_MS) {
+    await prisma.session
+      .update({ where: { id: session.id }, data: { expiresAt: new Date(Date.now() + IDLE_TIMEOUT_MS) } })
+      .catch(() => {});
   }
 
   return session.user;
