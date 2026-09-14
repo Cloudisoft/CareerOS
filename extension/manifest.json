@@ -34,7 +34,7 @@
     "notifications"
   ],
   "host_permissions": [
-    "https://*.careeros.example/*",
+    "https://careeros.silverspringstaffing.com/*",
     "http://localhost:3000/*"
   ],
   "web_accessible_resources": [

@@ -22,12 +22,15 @@
     tailorCoverLetter: true,
     tailorScreeningAnswers: true,
     /* The Career OS app's API. Set this once per deployment — the pairing
-       screen writes the token beside it. */
-    apiBase: 'http://localhost:3000/api/extension',
+       screen writes the token beside it. Defaults to the production
+       deployment so the extension works immediately after a Chrome Web
+       Store install with no manual setup; override in Options only for a
+       local dev server or a self-hosted deployment. */
+    apiBase: 'https://careeros.silverspringstaffing.com/api/extension',
     /* Where the sign-in/approval pages live. Same host as apiBase for Career
        OS's own Next.js deployment; kept separate in settings in case a
        self-hosted install ever splits them. */
-    webAppUrl: 'http://localhost:3000',
+    webAppUrl: 'https://careeros.silverspringstaffing.com',
     deviceToken: '',
     pairedAs: '',
     pairedAt: null,

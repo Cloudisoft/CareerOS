@@ -40,7 +40,7 @@ reviewers scrutinise hardest here, and nothing was using what it granted.
 
 **Required host permissions**
 
-> `https://*.careeros.example/*` and `http://localhost:3000/*` — the CareerOS backend. It holds the user's profile and generates the tailored resume for each role.
+> `https://careeros.silverspringstaffing.com/*` and `http://localhost:3000/*` — the CareerOS backend. It holds the user's profile and generates the tailored resume for each role.
 
 **Optional host permissions**
 
