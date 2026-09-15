@@ -44,7 +44,7 @@ reviewers scrutinise hardest here, and nothing was using what it granted.
 
 **Optional host permissions**
 
-> Job sites and job search APIs. None are requested at install. The user grants a group from the extension's settings when they choose to use those sites, and can revoke it there. The extension has no access to any site the user has not enabled.
+> Job sites the user chooses to apply through. None are requested at install. The user grants a group from the extension's settings when they choose to use those sites, and can revoke it there. The extension has no access to any site the user has not enabled. Broader job search (Adzuna, JSearch) runs entirely server-side against the CareerOS account, using CareerOS's own keys — the browser never talks to those APIs directly, so there's no separate host permission for them.
 
 ## Remote code
 

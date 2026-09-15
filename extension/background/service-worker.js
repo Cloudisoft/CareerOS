@@ -129,33 +129,9 @@ async function handleEngineCommand(msg) {
   if (msg.command === 'start')  return { ok: true, state: await Engine.start() };
   if (msg.command === 'stop')   return { ok: true, state: await Engine.stop('Stopped by you') };
   if (msg.command === 'state')  return { ok: true, state: await Engine.getState() };
-  if (msg.command === 'testSource') return testSource(msg.source);
   if (msg.command === 'add')    return Object.assign({ ok: true }, await Engine.add(msg.jobs));
   if (msg.command === 'clear')  return { ok: true, state: await Engine.setState({ queue: [], done: [], running: false }) };
   return { ok: false, error: `Unknown command ${msg.command}` };
-}
-
-async function testSource(source) {
-  const profile = Profile.hydrate(await Storage.getProfile());
-  const settings = await Storage.getSettings();
-  const sources = await Storage.get('careeros.sources', { boards: [] });
-
-  const cfg = sources[source] || {};
-  if (source === 'adzuna' && !(cfg.appId && cfg.appKey)) {
-    return { ok: false, error: 'Adzuna needs both an App ID and an App key. The App ID is the shorter one.' };
-  }
-  if (source === 'jsearch' && !cfg.key) return { ok: false, error: 'Add your RapidAPI key first.' };
-  if (source === 'usajobs' && !cfg.email) return { ok: false, error: 'Add the email you registered with.' };
-
-  try {
-    const only = { boards: [] };
-    only[source] = cfg;
-    const { jobs, errors } = await self.CareerOS.Discovery.search(profile, settings, only);
-    if (errors.length) return { ok: false, error: errors[0] };
-    return { ok: true, count: jobs.length };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
 }
 
 async function pairDevice(code) {

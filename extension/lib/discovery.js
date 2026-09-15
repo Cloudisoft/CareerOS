@@ -1,30 +1,24 @@
 /* CareerOS — discovery
  *
- * Finds live postings through documented, public APIs. Nothing here scrapes a
- * job board's HTML, which is both the compliant route and the fast one: a board
- * API returns fifty structured postings in one request where scraping needs
- * fifty page loads.
+ * Finds postings from company ATS boards the person is specifically
+ * watching. Nothing here scrapes a job board's HTML — this hits the same
+ * public, documented board APIs the company's own careers page uses.
  *
- * Two kinds of source:
- *   aggregators   Location and keyword search across the whole market.
- *                 Adzuna, JSearch and USAJobs all publish free-tier APIs.
- *   boards        Per-company ATS feeds. Exact, current, and they hand you the
- *                 direct apply URL, which is what the engine actually needs.
+ * Broader keyword/location search across the whole market (Adzuna, JSearch)
+ * runs server-side against CareerOS's own account — see
+ * CareerOS.Api.getJobs() in careeros-api.js — never with keys in the
+ * browser, so there's nothing to configure here for that.
  */
 (function (root) {
   'use strict';
 
   const Discovery = {
-    /* Run every configured source and return a deduplicated, scored list. */
+    /* Run every watched company board and return a deduplicated, scored list. */
     async search(profile, settings, sources) {
       const jobs = [];
       const errors = [];
 
-      const runs = [];
-      if (sources.adzuna && sources.adzuna.appId) runs.push(adzuna(profile, settings, sources.adzuna));
-      if (sources.jsearch && sources.jsearch.key) runs.push(jsearch(profile, settings, sources.jsearch));
-      if (sources.usajobs && sources.usajobs.email) runs.push(usajobs(profile, settings, sources.usajobs));
-      (sources.boards || []).forEach((b) => runs.push(board(b)));
+      const runs = (sources.boards || []).map((b) => board(b));
 
       const settled = await Promise.allSettled(runs);
       settled.forEach((r) => {
@@ -35,7 +29,7 @@
       return { jobs: dedupe(jobs), errors };
     },
 
-    /* Follow an aggregator result through to the employer's own ATS, so the
+    /* Follow a result through to the employer's own ATS, so the
        application happens where automation is allowed. */
     resolveApplyUrl(job) {
       const url = job.applyUrl || job.url || '';
@@ -45,136 +39,6 @@
 
     classifyUrl
   };
-
-  /* ---------------- aggregators ---------------- */
-
-  async function adzuna(profile, settings, cfg) {
-    const country = (cfg.country || 'in').toLowerCase();
-    const what = (profile.targeting.titles || []).slice(0, 3).join(' ') || profile.experience.currentTitle;
-    const where = (profile.targeting.locations || [])[0] || profile.identity.city || '';
-
-    const params = new URLSearchParams({
-      app_id: cfg.appId,
-      app_key: cfg.appKey,
-      results_per_page: String(cfg.perPage || 50),
-      what: what,
-      max_days_old: String(cfg.maxDaysOld || 7),
-      content_type: 'application/json'
-    });
-    if (where) params.set('where', where);
-
-    // Adzuna's salary filter drops every posting that doesn't publish a range,
-    // which in some markets is most of them. The matcher applies the floor
-    // afterwards against what the description actually says.
-    if (profile.targeting.minSalary && cfg.filterSalary) {
-      params.set('salary_min', String(profile.targeting.minSalary));
-    }
-    if ((profile.targeting.workModes || []).includes('remote') && !where) {
-      params.set('what_or', `${what} remote`);
-    }
-
-    const res = await fetch(`https://api.adzuna.com/v1/api/jobs/${country}/search/1?${params}`);
-    if (res.status === 401 || res.status === 403) {
-      throw new Error('Adzuna rejected the credentials — check the App ID and App key are the right way round.');
-    }
-    if (!res.ok) throw new Error(`Adzuna returned ${res.status}`);
-    const data = await res.json();
-
-    return (data.results || []).map((j) => ({
-      source: 'adzuna',
-      externalId: `adzuna:${j.id}`,
-      title: j.title,
-      company: (j.company || {}).display_name || '',
-      location: (j.location || {}).display_name || '',
-      description: stripTags(j.description || ''),
-      url: j.redirect_url,
-      applyUrl: j.redirect_url,
-      postedAt: Date.parse(j.created) || Date.now(),
-      salaryMin: j.salary_min,
-      salaryMax: j.salary_max,
-      remote: /remote/i.test(`${j.title} ${j.description}`)
-    }));
-  }
-
-  async function jsearch(profile, settings, cfg) {
-    const query = [
-      (profile.targeting.titles || [])[0] || profile.experience.currentTitle,
-      (profile.targeting.locations || [])[0] || profile.identity.city
-    ].filter(Boolean).join(' in ');
-
-    const params = new URLSearchParams({
-      query,
-      page: '1',
-      num_pages: String(cfg.pages || 2),
-      date_posted: cfg.datePosted || 'week'
-    });
-    if (cfg.country) params.set('country', String(cfg.country).toLowerCase());
-    if ((profile.targeting.workModes || []).includes('remote')) params.set('remote_jobs_only', 'true');
-
-    const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}`, {
-      headers: {
-        'X-RapidAPI-Key': cfg.key,
-        'X-RapidAPI-Host': 'jsearch.p.rapidapi.com'
-      }
-    });
-    if (res.status === 401 || res.status === 403) {
-      throw new Error('RapidAPI rejected the key — check it is subscribed to JSearch, not just created.');
-    }
-    if (res.status === 429) {
-      throw new Error('RapidAPI quota is used up for this period. Reduce pages per search, or upgrade the plan.');
-    }
-    if (!res.ok) throw new Error(`JSearch returned ${res.status}`);
-    const data = await res.json();
-
-    return (data.data || []).map((j) => ({
-      source: 'jsearch',
-      externalId: `jsearch:${j.job_id}`,
-      title: j.job_title,
-      company: j.employer_name,
-      location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', '),
-      description: j.job_description || '',
-      url: j.job_apply_link,
-      // JSearch tells you when a link goes straight to the employer's ATS.
-      applyUrl: j.job_apply_link,
-      direct: j.job_apply_is_direct === true,
-      postedAt: (j.job_posted_at_timestamp || 0) * 1000 || Date.now(),
-      salaryMin: j.job_min_salary,
-      salaryMax: j.job_max_salary,
-      remote: j.job_is_remote === true
-    }));
-  }
-
-  async function usajobs(profile, settings, cfg) {
-    const params = new URLSearchParams({
-      Keyword: (profile.targeting.titles || [])[0] || '',
-      LocationName: (profile.targeting.locations || [])[0] || profile.identity.city || '',
-      ResultsPerPage: '50'
-    });
-    const res = await fetch(`https://data.usajobs.gov/api/search?${params}`, {
-      headers: {
-        Host: 'data.usajobs.gov',
-        'User-Agent': cfg.email,
-        'Authorization-Key': cfg.key || ''
-      }
-    });
-    if (!res.ok) throw new Error(`USAJobs returned ${res.status}`);
-    const data = await res.json();
-
-    return ((data.SearchResult || {}).SearchResultItems || []).map((item) => {
-      const d = item.MatchedObjectDescriptor || {};
-      return {
-        source: 'usajobs',
-        externalId: `usajobs:${item.MatchedObjectId}`,
-        title: d.PositionTitle,
-        company: d.OrganizationName,
-        location: (d.PositionLocationDisplay || ''),
-        description: ((d.UserArea || {}).Details || {}).JobSummary || d.QualificationSummary || '',
-        url: d.PositionURI,
-        applyUrl: (d.ApplyURI || [])[0] || d.PositionURI,
-        postedAt: Date.parse(d.PublicationStartDate) || Date.now()
-      };
-    });
-  }
 
   /* ---------------- per-company ATS boards ---------------- */
 

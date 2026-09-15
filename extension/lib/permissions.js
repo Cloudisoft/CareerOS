@@ -61,16 +61,6 @@
       ],
       recommended: false,
     },
-    search: {
-      label: 'Job search APIs',
-      description: 'Only needed if you add your own Adzuna, JSearch or USAJobs keys to find roles automatically.',
-      origins: [
-        'https://api.adzuna.com/*',
-        'https://jsearch.p.rapidapi.com/*',
-        'https://data.usajobs.gov/*',
-      ],
-      recommended: false,
-    },
   };
 
   const Permissions = {
