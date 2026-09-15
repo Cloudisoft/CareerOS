@@ -22,7 +22,7 @@
     <button class="tab" data-panel="targeting">What you want</button>
     <button class="tab" data-panel="history">Experience</button>
     <button class="tab" data-panel="resume">Resume</button>
-    <button class="tab" data-panel="sources">Job sources</button>
+    <button class="tab" data-panel="sources">Companies to watch</button>
     <button class="tab" data-panel="platforms">Platforms</button>
     <button class="tab" data-panel="settings">How it runs</button>
   </nav>
@@ -47,10 +47,6 @@
           </div>
           <p class="note" id="pairMsg"></p>
         </details>
-
-        <div class="grid" style="margin-top:16px">
-          <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://careeros.silverspringstaffing.com/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension. Leave as the default unless you're pointed at a local or self-hosted deployment.</small></label>
-        </div>
       </div>
 
       <div id="pairedBox" class="pairBox" hidden>
@@ -192,67 +188,14 @@
 
     <!-- SOURCES -->
     <section class="panel" id="panel-sources">
-      <p class="note">Optional and advanced. CareerOS already finds postings on the job sites you turn on
-        under Account without any of this — add these only for extra sources beyond that.</p>
-      <p class="note">CareerOS finds jobs through documented APIs rather than scraping job boards. One request returns fifty structured postings, which is both faster and the only version that stays inside a platform's terms.</p>
+      <p class="note">CareerOS already finds and scores postings for your target roles automatically —
+        nothing to configure. Add a company below only if you want to specifically watch one employer's
+        own careers page in addition to that.</p>
 
-      <h2>Adzuna</h2>
-      <p class="note">Free developer tier, worldwide coverage, good for location searches. Register at developer.adzuna.com.</p>
-      <div class="grid">
-        <label>App ID<input data-source="adzuna.appId"></label>
-        <label>App key<input data-source="adzuna.appKey" type="password"></label>
-        <label>Country code<input data-source="adzuna.country" placeholder="in"></label>
-        <label>Posted within (days)<input data-source="adzuna.maxDaysOld" type="number" placeholder="7"></label>
-      </div>
-      <div class="row">
-        <button class="ghost" data-test="adzuna">Test Adzuna</button>
-        <span class="note" data-testresult="adzuna"></span>
-      </div>
-
-      <h2>JSearch</h2>
-      <p class="note">Aggregates Google for Jobs. Tells you when a link goes straight to the employer's ATS, which is where CareerOS can finish the application on its own. Key from RapidAPI.</p>
-      <div class="grid">
-        <label>RapidAPI key<input data-source="jsearch.key" type="password"></label>
-        <label>Country code<input data-source="jsearch.country" placeholder="in"><small>Two letters. Your search is scoped to this.</small></label>
-        <label>Pages per search<input data-source="jsearch.pages" type="number" min="1" max="5" placeholder="2"><small>Each page is one API call. Free tiers are usually 200 calls a month.</small></label>
-        <label>Posted within
-          <select data-source="jsearch.datePosted">
-            <option value="today">Today</option>
-            <option value="3days">3 days</option>
-            <option value="week" selected>A week</option>
-            <option value="month">A month</option>
-          </select>
-        </label>
-      </div>
-      <div class="row">
-        <button class="ghost" data-test="jsearch">Test JSearch</button>
-        <span class="note" data-testresult="jsearch"></span>
-      </div>
-
-      <h2>USAJobs</h2>
-      <p class="note">Free US federal listings. The email you registered with is sent as the user agent.</p>
-      <div class="grid">
-        <label>Registered email<input data-source="usajobs.email"></label>
-        <label>Authorization key<input data-source="usajobs.key" type="password"></label>
-      </div>
-      <div class="row">
-        <button class="ghost" data-test="usajobs">Test USAJobs</button>
-        <span class="note" data-testresult="usajobs"></span>
-      </div>
-
-      <h2>Import and export</h2>
-      <p class="note">Paste a source config to set every key at once, or export the current one to move it to another machine. Keys stay in this browser — putting them in the extension folder would ship them to every user.</p>
-      <label class="wide">Config
-        <textarea id="sourceConfig" rows="8" spellcheck="false" placeholder='{"adzuna":{"appId":"","appKey":"","country":"in"},"jsearch":{"key":"","country":"in"},"boards":[{"ats":"greenhouse","token":"stripe"}]}'></textarea>
-      </label>
-      <div class="row">
-        <button class="btn" id="importSources">Apply this config</button>
-        <button class="ghost" id="exportSources">Load current config</button>
-        <span class="note" id="importState"></span>
-      </div>
-
-      <h2>Company job boards<button class="ghost" id="addBoard">Add a board</button></h2>
-      <p class="note">The most reliable source there is: a company's own ATS feed, current to the minute, with the direct apply link. The token is the last part of the board URL — for boards.greenhouse.io/stripe it is "stripe".</p>
+      <h2>Watch a specific company<button class="ghost" id="addBoard">Add a company</button></h2>
+      <p class="note">Pulls straight from that employer's own careers feed, current to the minute, with the
+        direct apply link. The token is the last part of their careers page URL — for
+        boards.greenhouse.io/stripe it's "stripe".</p>
       <div id="boards" class="repeater"></div>
     </section>
 
@@ -293,14 +236,6 @@
         <label>Applications per day<input data-setting="dailyLimit" type="number" min="1" max="200"></label>
         <label>Seconds between applications<input data-setting="pacingSeconds" type="number" min="10"></label>
         <label>Tabs applying at once<input data-setting="concurrency" type="number" min="1" max="6"><small>Three is a good balance. Higher gets loud.</small></label>
-      </div>
-
-      <h2>JobGPT</h2>
-      <p class="note">Generation runs through the CareerOS backend, which holds the model key server-side. A provider key placed in a browser extension is readable by anyone who installs it, so the direct path is developer-only and refuses to run unless you turn it on below.</p>
-      <div class="grid">
-        <label class="wide">API base<input data-setting="apiBase"></label>
-        <label class="wide">Token<input data-setting="apiToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
-        <label class="check danger wide"><input type="checkbox" data-setting="allowDirectKey"> Developer mode: allow a provider key to be used directly from this browser<small>Also needs the dev manifest — run <code>./build.sh dev</code>. The shipped build does not permit it.</small></label>
       </div>
 
       <h2>Your data</h2>

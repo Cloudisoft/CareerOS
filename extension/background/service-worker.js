@@ -232,7 +232,7 @@ async function generate({ kind, payload, posting, match }) {
     if (!settings.allowDirectKey) {
       return {
         ok: false,
-        error: 'That looks like a provider key. Use a CareerOS token from your backend instead. The direct path needs both developer mode and the dev manifest (./build.sh dev), and is not permitted in a shipped build.'
+        error: 'That looks like a provider key. JobGPT already works through your paired CareerOS account — this direct path is for local development only, needs the dev manifest (./build.sh dev), and is not permitted in a shipped build.'
       };
     }
     text = await callAnthropic(settings, prompt, system);
@@ -316,15 +316,19 @@ function summarizeProfile(p) {
 }
 
 async function callCareerOS(settings, body) {
+  // Same paired device token as every other CareerOS call — not a separate
+  // manually-issued token. There has never been a way for a real user to
+  // obtain one of those, so keying this off settings.apiToken (as this used
+  // to) meant JobGPT silently failed for every properly signed-in user.
   const res = await fetch(`${settings.apiBase.replace(/\/$/, '')}/jobgpt/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(settings.apiToken ? { Authorization: `Bearer ${settings.apiToken}` } : {})
+      ...(settings.deviceToken ? { Authorization: `Bearer ${settings.deviceToken}` } : {})
     },
     body: JSON.stringify(body)
   });
-  if (res.status === 401) throw new Error('Your CareerOS token was rejected. Check it under How it runs.');
+  if (res.status === 401) throw new Error('This browser is not paired. Open CareerOS and sign in from the extension.');
   if (res.status === 402) throw new Error('This account has used its generation quota for the month.');
   if (res.status === 409) throw new Error('Save your profile to the server before generating.');
   if (res.status === 422) throw new Error('Needs you');

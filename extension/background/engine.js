@@ -70,7 +70,21 @@
       const settings = await Storage.getSettings();
       const sources = await Storage.get('careeros.sources', { boards: [] });
 
-      const { jobs, errors } = await Discovery.search(profile, settings, sources);
+      // Company boards the person is watching (client-side, no keys needed)
+      // plus whatever CareerOS already found server-side for this account —
+      // the aggregator APIs run with CareerOS's own keys, never the browser's.
+      const [discovered, server] = await Promise.all([
+        Discovery.search(profile, settings, sources),
+        Api.getJobs().catch((err) => ({ jobs: [], message: err.message }))
+      ]);
+
+      const serverJobs = (server.jobs || []).map((j) => Object.assign({ source: 'careeros' }, j, {
+        ats: Discovery.classifyUrl(j.applyUrl || j.url)
+      }));
+
+      const jobs = discovered.jobs.concat(serverJobs);
+      const errors = discovered.errors.slice();
+      if (server.message) errors.push(server.message);
 
       const scored = [];
       for (const job of jobs) {

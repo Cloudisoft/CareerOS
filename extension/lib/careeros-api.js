@@ -173,6 +173,13 @@
       }
     },
 
+    /* Job postings CareerOS already found for this account server-side — the
+       same Adzuna/JSearch aggregation and matching that powers the website,
+       run with CareerOS's own keys. Nothing for the person to configure. */
+    async getJobs() {
+      return request('/jobs');
+    },
+
     async markPackageSubmitted(applicationId) {
       return request('/package/submitted', {
         method: 'POST',

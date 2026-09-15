@@ -171,11 +171,6 @@
       description: 'LinkedIn, Indeed, ZipRecruiter, Dice, Glassdoor. CareerOS fills forms here but does not submit them.',
       recommended: false,
     },
-    search: {
-      label: 'Job search APIs',
-      description: 'Only needed if you add your own Adzuna, JSearch or USAJobs keys.',
-      recommended: false,
-    },
   };
 
   async function renderSiteGroups() {
@@ -359,48 +354,8 @@
 
   renderPlatforms();
 
-  /* ---------- job sources ---------- */
+  /* ---------- companies to watch ---------- */
   let sources = await Storage.get('careeros.sources', { boards: [] });
-
-  $$('[data-source]').forEach((el) => {
-    const path = el.dataset.source;
-    el.value = readPath(sources, path) || '';
-    el.addEventListener('input', async () => {
-      writePath(sources, path, el.type === 'number' ? Number(el.value) : el.value);
-      await Storage.set('careeros.sources', sources);
-      flagSaved();
-    });
-  });
-
-  function readPath(obj, path) {
-    return path.split('.').reduce((a, k) => (a == null ? a : a[k]), obj);
-  }
-  function writePath(obj, path, value) {
-    const keys = path.split('.');
-    const last = keys.pop();
-    keys.reduce((a, k) => (a[k] = a[k] || {}), obj)[last] = value;
-  }
-
-  /* Check credentials before a run rather than during one. */
-  $$('[data-test]').forEach((btn) => {
-    const source = btn.dataset.test;
-    const out = document.querySelector(`[data-testresult="${source}"]`);
-    btn.onclick = async () => {
-      btn.disabled = true;
-      out.textContent = 'Checking…';
-      const res = await new Promise((resolve) =>
-        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'testSource', source }, resolve)
-      );
-      btn.disabled = false;
-      if (!res || !res.ok) {
-        out.textContent = (res && res.error) || 'No response from the extension.';
-        return;
-      }
-      out.textContent = res.count
-        ? `Working — ${res.count} postings came back for your current targets.`
-        : 'Connected, but nothing matched your target roles and location. Widen them or check the country code.';
-    };
-  });
 
   const ATS_OPTIONS = ['greenhouse', 'lever', 'ashby', 'workable', 'smartrecruiters'];
 
@@ -437,28 +392,6 @@
       host.appendChild(entry);
     });
   }
-
-  $('#exportSources').onclick = () => {
-    $('#sourceConfig').value = JSON.stringify(sources, null, 2);
-    $('#importState').textContent = 'Loaded. Careful where you paste it — these are live keys.';
-  };
-
-  $('#importSources').onclick = async () => {
-    const raw = $('#sourceConfig').value.trim();
-    if (!raw) { $('#importState').textContent = 'Paste a config first.'; return; }
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      $('#importState').textContent = 'That is not valid JSON. Check for a trailing comma.';
-      return;
-    }
-    sources = Object.assign(sources, parsed);
-    sources.boards = sources.boards || [];
-    await Storage.set('careeros.sources', sources);
-    $('#importState').textContent = 'Applied. Test each source below before running.';
-    setTimeout(() => location.reload(), 900);
-  };
 
   $('#addBoard').onclick = () => {
     sources.boards = sources.boards || [];
