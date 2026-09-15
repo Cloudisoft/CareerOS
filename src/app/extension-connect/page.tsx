@@ -1,13 +1,14 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck, XCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 function ConnectContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const state = searchParams.get("state");
   const [status, setStatus] = useState<"idle" | "loading" | "approved" | "denied" | "error">("idle");
@@ -24,6 +25,15 @@ function ConnectContent() {
       });
       const json = await res.json();
       if (!res.ok) {
+        // A cookie can be present but no longer valid (expired session, a
+        // password reset elsewhere) — middleware's coarse check let this
+        // page through, but the account check here is authoritative. Rather
+        // than dead-end on a raw "Not authenticated" message, send them to
+        // log back in and return here with the same connection request.
+        if (json.error?.code === "UNAUTHENTICATED") {
+          router.push(`/login?next=${encodeURIComponent(`/extension-connect?state=${state}`)}`);
+          return;
+        }
         setError(json.error?.message ?? "Something went wrong.");
         setStatus("error");
         return;

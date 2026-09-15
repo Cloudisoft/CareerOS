@@ -33,17 +33,24 @@
     <section class="panel is-on" id="panel-account">
       <div id="pairState" class="pairBox">
         <h2>Connect this browser</h2>
-        <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
+        <p class="note">Sign in to pull your profile, resume, target roles and resume straight from your
+          CareerOS account — nothing to type in here by hand.</p>
+        <button class="btn" id="signinBtn">Sign in to CareerOS</button>
+        <p class="note" id="signinMsg"></p>
 
-        <div class="grid">
+        <details class="codeFallback">
+          <summary>Or enter a pairing code instead</summary>
+          <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
+          <div class="pairRow">
+            <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
+            <button class="ghost" id="pairBtn">Connect</button>
+          </div>
+          <p class="note" id="pairMsg"></p>
+        </details>
+
+        <div class="grid" style="margin-top:16px">
           <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://careeros.silverspringstaffing.com/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension. Leave as the default unless you're pointed at a local or self-hosted deployment.</small></label>
         </div>
-
-        <div class="pairRow">
-          <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
-          <button class="btn" id="pairBtn">Connect</button>
-        </div>
-        <p class="note" id="pairMsg"></p>
       </div>
 
       <div id="pairedBox" class="pairBox" hidden>

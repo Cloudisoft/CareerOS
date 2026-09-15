@@ -23,8 +23,18 @@ function GoogleIcon() {
   );
 }
 
-export function GoogleSignInButton({ accountType }: { accountType?: "CANDIDATE" | "EMPLOYER" }) {
-  const href = accountType ? `/api/auth/google/start?accountType=${accountType}` : "/api/auth/google/start";
+export function GoogleSignInButton({
+  accountType,
+  next,
+}: {
+  accountType?: "CANDIDATE" | "EMPLOYER";
+  next?: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (accountType) params.set("accountType", accountType);
+  if (next) params.set("next", next);
+  const query = params.toString();
+  const href = query ? `/api/auth/google/start?${query}` : "/api/auth/google/start";
   return (
     <Button asChild variant="outline" className="w-full">
       <a href={href}>

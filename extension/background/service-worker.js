@@ -38,7 +38,7 @@ chrome.permissions.onRemoved.addListener(() => { void Permissions.registerScript
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     await Storage.saveSettings({});
-    chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html?welcome=1') });
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome/welcome.html') });
   }
 });
 

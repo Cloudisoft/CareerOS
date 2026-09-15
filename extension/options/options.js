@@ -228,6 +228,28 @@
       : 'This browser is connected to CareerOS.';
   }
 
+  $('#signinBtn').onclick = async () => {
+    $('#signinBtn').disabled = true;
+    $('#signinBtn').textContent = 'Waiting for approval…';
+    $('#signinMsg').textContent = 'Approve it in the tab that just opened.';
+
+    const res = await new Promise((resolve) =>
+      chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'connect' }, resolve)
+    );
+
+    if (res && res.ok) {
+      $('#signinMsg').textContent = 'Connected. Pulling your profile…';
+      await new Promise((resolve) =>
+        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
+      );
+      location.reload();
+    } else {
+      $('#signinBtn').disabled = false;
+      $('#signinBtn').textContent = 'Sign in to CareerOS';
+      $('#signinMsg').textContent = (res && res.error) || 'Could not sign in. Try again.';
+    }
+  };
+
   const codeInput = $('#pairCode');
   codeInput.addEventListener('input', () => {
     codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
@@ -550,9 +572,5 @@
   }
   function attr(s) {
     return esc(s).replace(/"/g, '&quot;');
-  }
-
-  if (new URLSearchParams(location.search).get('welcome')) {
-    setState('saving', 'Start with your name and email');
   }
 })();

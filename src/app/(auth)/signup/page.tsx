@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,11 @@ import { cn } from "@/lib/utils";
 
 type AccountType = "CANDIDATE" | "EMPLOYER";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  const fromExtension = next?.startsWith("/extension-connect") ?? false;
   const [accountType, setAccountType] = useState<AccountType>("CANDIDATE");
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "" });
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +42,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push(json.data.needsOnboarding ? "/onboarding" : "/dashboard");
+      router.push(next || (json.data.needsOnboarding ? "/onboarding" : "/dashboard"));
       router.refresh();
     } catch {
       setError("Something went wrong. Your data is safe — please try again.");
@@ -51,7 +54,11 @@ export default function SignupPage() {
     <Card>
       <CardHeader>
         <CardTitle>Create your account</CardTitle>
-        <CardDescription>Start building your Career Profile — it's free.</CardDescription>
+        <CardDescription>
+          {fromExtension
+            ? "Create an account to connect the CareerOS browser extension."
+            : "Start building your Career Profile — it's free."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="mb-5 grid grid-cols-2 gap-2 rounded-md bg-muted p-1">
@@ -72,7 +79,7 @@ export default function SignupPage() {
           ))}
         </div>
 
-        <GoogleSignInButton accountType={accountType} />
+        <GoogleSignInButton accountType={accountType} next={next} />
         <div className="my-4 flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
           <span className="text-xs text-muted-foreground">or</span>
@@ -143,11 +150,22 @@ export default function SignupPage() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-primary hover:underline">
+          <Link
+            href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+            className="font-medium text-primary hover:underline"
+          >
             Log in
           </Link>
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
   );
 }

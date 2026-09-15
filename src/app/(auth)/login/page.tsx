@@ -20,6 +20,8 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  const fromExtension = next?.startsWith("/extension-connect") ?? false;
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(() => {
     const oauthError = searchParams.get("error");
@@ -46,7 +48,7 @@ function LoginForm() {
         return;
       }
 
-      router.push(searchParams.get("next") ?? "/dashboard");
+      router.push(next ?? "/dashboard");
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
@@ -58,7 +60,11 @@ function LoginForm() {
     <Card>
       <CardHeader>
         <CardTitle>Welcome back</CardTitle>
-        <CardDescription>Log in to your Career OS account.</CardDescription>
+        <CardDescription>
+          {fromExtension
+            ? "Sign in to connect the CareerOS browser extension to your account."
+            : "Log in to your Career OS account."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -101,11 +107,14 @@ function LoginForm() {
           <span className="text-xs text-muted-foreground">or</span>
           <div className="h-px flex-1 bg-border" />
         </div>
-        <GoogleSignInButton />
+        <GoogleSignInButton next={next} />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           New to Career OS?{" "}
-          <Link href="/signup" className="font-medium text-primary hover:underline">
+          <Link
+            href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
+            className="font-medium text-primary hover:underline"
+          >
             Create an account
           </Link>
         </p>

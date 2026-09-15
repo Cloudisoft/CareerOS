@@ -1,0 +1,65 @@
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 0;
+}
+
+.welcomeWrap {
+  max-width: none;
+  width: 100%;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.welcomeCard {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 36px 32px;
+  text-align: center;
+}
+
+.welcomeCard .mark {
+  width: 56px;
+  height: 56px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--brand-tint-08);
+  margin-bottom: 14px;
+}
+
+.welcomeCard h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: 18px;
+}
+
+.welcomeCard .lead {
+  font-size: 14.5px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.welcomeCard .note { text-align: left; }
+.welcomeCard .note.center { text-align: center; }
+.welcomeCard .note.small { font-size: 10.8px; }
+
+.welcomeCard .btn.wide,
+.welcomeCard .ghost.wide {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 13.5px;
+  margin-top: 14px;
+}
+
+.welcomeCard .btn[disabled] { opacity: 0.6; cursor: default; }

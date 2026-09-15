@@ -8,6 +8,7 @@ import type { UserRole } from "@prisma/client";
 
 const STATE_COOKIE = "google_oauth_state";
 const ACCOUNT_TYPE_COOKIE = "google_oauth_account_type";
+const NEXT_COOKIE = "google_oauth_next";
 
 export async function GET(req: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -25,8 +26,10 @@ export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
   const expectedState = cookieStore.get(STATE_COOKIE)?.value;
   const accountType = (cookieStore.get(ACCOUNT_TYPE_COOKIE)?.value === "EMPLOYER" ? "EMPLOYER" : "CANDIDATE") as UserRole;
+  const next = cookieStore.get(NEXT_COOKIE)?.value;
   cookieStore.delete(STATE_COOKIE);
   cookieStore.delete(ACCOUNT_TYPE_COOKIE);
+  cookieStore.delete(NEXT_COOKIE);
 
   if (!expectedState || state !== expectedState) return fail("google_auth_failed");
 
@@ -37,7 +40,11 @@ export async function GET(req: NextRequest) {
     const { user, isNewUser } = await findOrCreateGoogleUser(profile, accountType);
     await createSession(user.id);
 
-    const destination = isNewUser && user.role === "CANDIDATE" ? "/onboarding" : "/dashboard";
+    // A caller that sent us here with somewhere specific to go back to (e.g.
+    // the extension's connect handshake) takes priority over the default
+    // post-signup destination — the cookie was already validated as an
+    // in-app relative path when it was set.
+    const destination = next || (isNewUser && user.role === "CANDIDATE" ? "/onboarding" : "/dashboard");
     return NextResponse.redirect(`${appUrl}${destination}`);
   } catch (error) {
     if (error instanceof GoogleAuthError) console.error("Google sign-in failed:", error);

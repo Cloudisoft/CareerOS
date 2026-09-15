@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="../options/options.css">
+  <link rel="stylesheet" href="welcome.css">
+  <title>CareerOS — Welcome</title>
+</head>
+<body>
+  <main class="welcomeWrap">
+    <div class="welcomeCard">
+      <img src="../icons/icon128.png" alt="" class="mark">
+      <h1>CareerOS</h1>
+
+      <section id="signinStep">
+        <p class="lead">Sign in to connect this browser to your CareerOS account.</p>
+        <p class="note">Your Career Profile, resume, target roles and Auto Apply settings all come from your
+          account — nothing to fill in here by hand.</p>
+        <button class="btn wide" id="signinBtn">Sign in to CareerOS</button>
+        <p class="note center" id="signinMsg"></p>
+        <p class="note center small">Opens careeros.silverspringstaffing.com, where you can log in or
+          continue with Google. Approve the connection there and come back.</p>
+      </section>
+
+      <section id="connectedStep" hidden>
+        <p class="lead" id="connectedAs">Connected.</p>
+        <p class="note">Your profile is synced. You're ready to start finding and applying to roles.</p>
+        <button class="btn wide" id="startBtn">Start Auto Apply</button>
+        <button class="ghost wide" id="reviewBtn">Review my profile first</button>
+      </section>
+    </div>
+  </main>
+
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/profile.js"></script>
+  <script src="welcome.js"></script>
+</body>
+</html>

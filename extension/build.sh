@@ -22,7 +22,7 @@ case "${1:-package}" in
     ;;
 esac
 
-cp -R manifest.json background content dashboard icons lib options popup "$STAGE/"
+cp -R manifest.json background content dashboard icons lib options popup welcome "$STAGE/"
 
 rm -f "$OUT"
 (cd "$STAGE" && zip -rq - .) > "$OUT"
