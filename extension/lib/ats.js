@@ -132,6 +132,20 @@
     { key: 'linkedin',   re: /\blinked\s?in\b/,                                           path: 'identity.linkedin' },
     { key: 'github',     re: /\bgit\s?hub\b/,                                             path: 'identity.github' },
     { key: 'portfolio',  re: /\b(portfolio|website|personal site|web ?site|url)\b/,       path: 'identity.portfolio' },
+
+    /* Ahead of the address block on purpose: the standard EEO/eligibility
+       question — "Are you legally authorized to work in the country this
+       job is located in?" — contains the bare word "country", which would
+       otherwise match the country field below first and try to pick a
+       matching option in a Yes/No select (and fail, blocking a required
+       field on a huge share of real Greenhouse/Lever forms that phrase it
+       exactly this way). More specific patterns need to run before more
+       generic single-word ones whenever a real question can contain both. */
+    { key: 'workAuth',    re: /\bauthoriz\w*\b|\bauthoris\w*\b|\beligible to work\b|\blegally (able|entitled|authorized|authorised) to work\b|\bright to work\b/, resolve: (p) => p.workAuth.needsSponsorship ? 'No' : 'Yes' },
+    { key: 'sponsorship', re: /\bsponsor\w*\b|\bvisa (support|sponsorship)\b|\bh-?1b\b/,  resolve: (p) => p.workAuth.needsSponsorship ? 'Yes' : 'No' },
+    { key: 'relocate',    re: /\b(relocat|willing to move)\w*\b/,                         resolve: (p) => p.workAuth.willingToRelocate ? 'Yes' : 'No' },
+    { key: 'remote',      re: /\b(remote|hybrid|on-?site|work from)\b/,                   resolve: (p) => (p.targeting.workModes || [])[0] || '' },
+
     { key: 'address',    re: /\b(street|address ?(line)? ?1|mailing address)\b/,          path: 'identity.addressLine1' },
     { key: 'city',       re: /\b(city|town|current city)\b/,                              path: 'identity.city' },
     { key: 'state',      re: /\b(state|province|region)\b/,                               path: 'identity.state' },
@@ -147,13 +161,15 @@
     { key: 'salary',         re: /\b(salary|compensation|expected pay|rate)\b/,                      resolve: (p) => p.targeting.minSalary ? String(p.targeting.minSalary) : '' },
     { key: 'skills',         re: /\b(skills|technolog|tech stack|proficienc)\w*\b/,                  resolve: (p, P) => P.allSkills(p).join(', ') },
     { key: 'summary',        re: /\b(summary|about you|tell us about|profile|bio)\b/,                path: 'narrative.summary' },
-    { key: 'coverLetter',    re: /\b(cover letter|why (do you want|are you interested)|motivation)\b/, generated: 'coverLetter' },
-    { key: 'whyCompany',     re: /\bwhy (this )?(company|us|role|position)\b/,                       generated: 'whyCompany' },
-
-    { key: 'workAuth',    re: /\b(authoriz|authoris|eligible to work|legally (able|entitled) to work|right to work)\b/, resolve: (p) => p.workAuth.needsSponsorship ? 'No' : 'Yes' },
-    { key: 'sponsorship', re: /\b(sponsor|visa (support|sponsorship)|h-?1b)\b/,                      resolve: (p) => p.workAuth.needsSponsorship ? 'Yes' : 'No' },
-    { key: 'relocate',    re: /\b(relocat|willing to move)\w*\b/,                                    resolve: (p) => p.workAuth.willingToRelocate ? 'Yes' : 'No' },
-    { key: 'remote',      re: /\b(remote|hybrid|on-?site|work from)\b/,                              resolve: (p) => (p.targeting.workModes || [])[0] || '' },
+    /* "Why do you want this job" / "why are you interested" phrasing goes to
+       whyCompany, not coverLetter — those get a properly-scoped 60-90 word
+       answer written for that specific question, rather than the full
+       200-word cover letter verbatim. A form with both a real Cover Letter
+       field and a separate custom "why this role" question would otherwise
+       get the identical generated paragraph pasted into both, which reads
+       as an obvious tell that a bot filled it out. */
+    { key: 'coverLetter',    re: /\b(cover letter|motivation letter|letter of motivation)\b/,        generated: 'coverLetter' },
+    { key: 'whyCompany',     re: /\bwhy (this )?(company|us|role|position)\b|\bwhy (do you want|are you interested)\b/, generated: 'whyCompany' },
 
     { key: 'gender',     re: /\bgender\b/,                    path: 'voluntary.gender' },
     { key: 'race',       re: /\b(race|ethnic)\w*\b/,          path: 'voluntary.race' },
