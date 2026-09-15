@@ -228,6 +228,26 @@
       : 'This browser is connected to CareerOS.';
   }
 
+  const siteUrl = (settings.webAppUrl || 'https://careeros.silverspringstaffing.com').replace(/\/$/, '');
+  $('#editOnSiteBtn').onclick = () => chrome.tabs.create({ url: `${siteUrl}/profile` });
+
+  /* Once connected, every sync overwrites identity/targeting/experience/
+     skills/education with whatever's on the account (see syncFromServer in
+     the service worker) — so editing them here would just get discarded on
+     the next sync. Hide those tabs entirely rather than let someone type
+     into a form that's silently thrown away; Resume stays, since the
+     account doesn't yet supply resume text to sync down. */
+  if (paired) {
+    ['you', 'targeting', 'history'].forEach((panel) => {
+      const tab = document.querySelector(`.tab[data-panel="${panel}"]`);
+      if (tab) tab.hidden = true;
+    });
+    // Parsing a resume into the profile would just be discarded by the next
+    // sync (same reason as the hidden tabs above) — the resume text/file
+    // itself is untouched by syncing and stays available above.
+    $('#parseResumeRow').hidden = true;
+  }
+
   $('#signinBtn').onclick = async () => {
     $('#signinBtn').disabled = true;
     $('#signinBtn').textContent = 'Waiting for approval…';

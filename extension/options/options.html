@@ -56,14 +56,16 @@
       <div id="pairedBox" class="pairBox" hidden>
         <h2>Connected</h2>
         <p class="note" id="pairedAs"></p>
+        <p class="note">Your profile, target roles, skills, experience and education all sync automatically
+          from your CareerOS account — there's nothing to fill in here. Edit them on the site and this
+          browser will pick up the changes.</p>
         <div class="row">
+          <button class="btn" id="editOnSiteBtn">Edit my profile on CareerOS</button>
           <button class="ghost" id="syncBtn">Sync now</button>
           <button class="ghost danger" id="unpairBtn">Disconnect</button>
           <span class="note" id="syncMsg"></span>
         </div>
       </div>
-
-      <p class="note">Your profile, target roles and resume come from CareerOS, so changing them anywhere reaches every browser you have connected.</p>
 
       <h2>Which sites CareerOS can use</h2>
       <p class="note">Nothing is granted at install. Turn on only the sites you actually apply through — CareerOS cannot see any site you have not enabled here.</p>
@@ -169,7 +171,8 @@
 
     <!-- RESUME -->
     <section class="panel" id="panel-resume">
-      <p class="note">The file gets attached to every application that asks for one. The text is what JobGPT reads.</p>
+      <p class="note">The one thing that doesn't sync from your CareerOS account yet — add it here once. The
+        file gets attached to every application that asks for one; the text is what JobGPT reads.</p>
       <div class="dropzone" id="dropzone">
         <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.txt" hidden>
         <strong id="resumeName">Drop a resume here, or choose a file</strong>
@@ -180,7 +183,7 @@
       <label class="wide">Resume text
         <textarea id="resumeText" rows="14" placeholder="Paste your resume text here."></textarea>
       </label>
-      <div class="row">
+      <div class="row" id="parseResumeRow">
         <button class="btn" id="parseResume">Build my profile from this text</button>
         <span class="note" id="parseState"></span>
       </div>
@@ -189,6 +192,8 @@
 
     <!-- SOURCES -->
     <section class="panel" id="panel-sources">
+      <p class="note">Optional and advanced. CareerOS already finds postings on the job sites you turn on
+        under Account without any of this — add these only for extra sources beyond that.</p>
       <p class="note">CareerOS finds jobs through documented APIs rather than scraping job boards. One request returns fifty structured postings, which is both faster and the only version that stays inside a platform's terms.</p>
 
       <h2>Adzuna</h2>

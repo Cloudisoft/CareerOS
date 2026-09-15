@@ -4,12 +4,10 @@
   const { Storage, Profile, Matcher, Policy } = window.CareerOS;
   const $ = (id) => document.getElementById(id);
 
-  const profile = Profile.hydrate(await Storage.getProfile());
-  const settings = await Storage.getSettings();
+  let settings = await Storage.getSettings();
   let tabId = null;
 
   $('openSettings').onclick = () => chrome.runtime.openOptionsPage();
-  $('goSetup').onclick = () => chrome.runtime.openOptionsPage();
   $('openRun').onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
   $('mode').textContent = settings.autoSubmit ? 'Auto submit is on' : 'Review before submit';
 
@@ -38,6 +36,18 @@
     };
     return;
   }
+
+  // Connected: pull whatever's changed on the account before rendering, so
+  // this doesn't show stale gaps for something the person already finished
+  // on the website since the last explicit "Sync now".
+  await new Promise((resolve) =>
+    chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
+  );
+  settings = await Storage.getSettings();
+  const profile = Profile.hydrate(await Storage.getProfile());
+
+  $('goSetup').onclick = () =>
+    chrome.tabs.create({ url: `${(settings.webAppUrl || 'https://careeros.silverspringstaffing.com').replace(/\/$/, '')}/profile` });
 
   const gaps = Profile.gaps(profile);
   if (!Profile.isReady(profile) || gaps.length) {
