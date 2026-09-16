@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, LogOut, CreditCard, Laptop, User as UserIcon } from "lucide-react";
+import { Bell, LogOut, CreditCard, Laptop, Menu, User as UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -18,9 +18,10 @@ import { initials } from "@/lib/utils";
 
 interface TopbarProps {
   user: { firstName: string; lastName: string; email: string; avatarUrl: string | null };
+  onMenuClick?: () => void;
 }
 
-export function Topbar({ user }: TopbarProps) {
+export function Topbar({ user, onMenuClick }: TopbarProps) {
   const router = useRouter();
   const [unread, setUnread] = useState(0);
 
@@ -51,7 +52,18 @@ export function Topbar({ user }: TopbarProps) {
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-md">
-      <div />
+      {onMenuClick ? (
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Open menu"
+          className="-ml-2 flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-raised hover:text-foreground lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      ) : (
+        <div />
+      )}
       <div className="flex items-center gap-2">
         <ThemeToggle />
         <Link

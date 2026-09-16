@@ -82,7 +82,22 @@ export async function listUsers(filters: { q?: string; role?: UserRole; status?:
     prisma.user.count({ where }),
   ]);
 
-  return { users, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  // Session rows are append-only (a new one per login, none updated), so the
+  // most recent createdAt per user is the last-signed-in timestamp.
+  const lastSignIns = await prisma.session.groupBy({
+    by: ["userId"],
+    where: { userId: { in: users.map((u) => u.id) } },
+    _max: { createdAt: true },
+  });
+  const lastSignInByUserId = new Map(lastSignIns.map((s) => [s.userId, s._max.createdAt]));
+
+  return {
+    users: users.map((u) => ({ ...u, lastSignInAt: lastSignInByUserId.get(u.id) ?? null })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
 }
 
 export async function setUserStatus(adminUserId: string, targetUserId: string, status: AccountStatus, ipAddress?: string) {

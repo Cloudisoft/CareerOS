@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { isGoogleAuthConfigured, exchangeGoogleCode, GoogleAuthError } from "@/lib/auth/google";
-import { findOrCreateGoogleUser } from "@/lib/auth/service";
+import { findOrCreateGoogleUser, sendNewSignInAlert } from "@/lib/auth/service";
 import { createSession } from "@/lib/auth/session";
 import { rateLimit, ipFromRequest } from "@/lib/rate-limit";
 import type { UserRole } from "@prisma/client";
@@ -39,6 +39,12 @@ export async function GET(req: NextRequest) {
 
     const { user, isNewUser } = await findOrCreateGoogleUser(profile, accountType);
     await createSession(user.id);
+    if (!isNewUser) {
+      await sendNewSignInAlert(user, {
+        ipAddress: ipFromRequest(req),
+        userAgent: req.headers.get("user-agent"),
+      });
+    }
 
     // A caller that sent us here with somewhere specific to go back to (e.g.
     // the extension's connect handshake) takes priority over the default

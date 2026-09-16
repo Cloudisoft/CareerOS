@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword, generateToken, hashToken } from "@/lib/auth/crypto";
-import { sendEmail, emailVerificationEmail } from "@/lib/email";
+import { sendEmail, emailVerificationEmail, newSignInEmail } from "@/lib/email";
 import type { SignupInput, LoginInput } from "@/lib/validations/auth";
 import type { GoogleProfile } from "@/lib/auth/google";
 import type { User, UserRole } from "@prisma/client";
@@ -101,6 +101,32 @@ export async function authenticateUser(input: LoginInput): Promise<User> {
   }
 
   return user;
+}
+
+/**
+ * Fire-and-forget: a login must never fail because the alert email did.
+ * Called from the password login route and the Google OAuth callback, but
+ * not from signup — a brand-new account already gets a welcome/verification
+ * email, so a second "new sign-in" alert for the same event is just noise.
+ */
+export async function sendNewSignInAlert(
+  user: Pick<User, "email" | "firstName">,
+  meta: { ipAddress?: string | null; userAgent?: string | null }
+) {
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "New sign-in to your Career OS account",
+      html: newSignInEmail(user.firstName, {
+        when: new Date().toUTCString(),
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      }),
+      text: `New sign-in to your Career OS account at ${new Date().toUTCString()}.${meta.ipAddress ? ` IP: ${meta.ipAddress}.` : ""}`,
+    });
+  } catch (error) {
+    console.error("Failed to send new sign-in alert:", error);
+  }
 }
 
 export async function requestPasswordReset(email: string) {

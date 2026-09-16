@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { CANDIDATE_NAV, EMPLOYER_NAV, ADMIN_NAV, type NavItem } from "@/config/nav";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
   role?: "CANDIDATE" | "EMPLOYER" | "COMPANY_ADMIN" | "PLATFORM_ADMIN";
+  mobileOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({ role = "CANDIDATE" }: SidebarProps) {
+export function Sidebar({ role = "CANDIDATE", mobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const items: NavItem[] =
     role === "PLATFORM_ADMIN"
@@ -20,11 +22,8 @@ export function Sidebar({ role = "CANDIDATE" }: SidebarProps) {
         ? EMPLOYER_NAV
         : CANDIDATE_NAV;
 
-  return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface lg:flex">
-      <div className="flex h-16 items-center border-b border-border px-6">
-        <Logo />
-      </div>
+  const navAndUpgrade = (
+    <>
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {items.map((item) => {
           const active = pathname === item.href;
@@ -48,6 +47,7 @@ export function Sidebar({ role = "CANDIDATE" }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                 active
@@ -68,6 +68,7 @@ export function Sidebar({ role = "CANDIDATE" }: SidebarProps) {
       <div className="border-t border-border p-4">
         <Link
           href="/pricing"
+          onClick={onClose}
           className="group relative flex flex-col gap-1 overflow-hidden rounded-lg border border-border bg-surface-raised p-4 transition-colors hover:border-primary/40"
         >
           <div
@@ -84,6 +85,37 @@ export function Sidebar({ role = "CANDIDATE" }: SidebarProps) {
           </span>
         </Link>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface lg:flex">
+        <div className="flex h-16 items-center border-b border-border px-6">
+          <Logo />
+        </div>
+        {navAndUpgrade}
+      </aside>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+          <aside className="relative flex h-full w-72 max-w-[85vw] flex-col bg-surface shadow-xl">
+            <div className="flex h-16 items-center justify-between border-b border-border px-6">
+              <Logo />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close menu"
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {navAndUpgrade}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

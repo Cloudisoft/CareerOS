@@ -1,9 +1,7 @@
 import { getSessionUser } from "@/lib/auth/session";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Topbar } from "@/components/layout/topbar";
+import { AppShell } from "@/components/layout/app-shell";
 import { MarketingNavbar } from "@/components/marketing/navbar";
 import { MarketingFooter } from "@/components/marketing/footer";
-import { IdleLogoutGuard } from "@/components/auth/idle-logout-guard";
 
 /**
  * The job marketplace is browsable without an account (only applying/saving
@@ -15,16 +13,7 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
   const user = await getSessionUser();
 
   if (user) {
-    return (
-      <div className="flex min-h-screen bg-background">
-        <IdleLogoutGuard />
-        <Sidebar role={user.role} />
-        <div className="flex flex-1 flex-col">
-          <Topbar user={user} />
-          <main className="flex-1 p-6">{children}</main>
-        </div>
-      </div>
-    );
+    return <AppShell user={user}>{children}</AppShell>;
   }
 
   return (
