@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit/log";
+import { downgradeExpiredSubscriptions } from "@/lib/billing/lifecycle";
 import type { AccountStatus, UserRole } from "@prisma/client";
 
 export class AdminError extends Error {
@@ -12,6 +13,8 @@ export class AdminError extends Error {
 }
 
 export async function getPlatformStats() {
+  await downgradeExpiredSubscriptions();
+
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [
