@@ -11,7 +11,7 @@
   $('findJobs').onclick = async () => {
     setBusy($('findJobs'), 'Searching…');
     const res = await cmd('build');
-    setBusy($('findJobs'), 'Find jobs', false);
+    setBusy($('findJobs'), 'Just find jobs', false);
     if (!res || !res.ok) return note(`Search failed: ${(res && res.error) || 'no response'}`);
     if (res.errors && res.errors.length) note(`Some sources failed: ${res.errors.join(' · ')}`);
     else if (!res.queued) note(`Found ${res.found} postings but none cleared your match threshold. Lower it, or widen your target roles.`);
@@ -19,8 +19,21 @@
     refresh();
   };
 
-  $('startRun').onclick = async () => {
+  $('autoApplyNow').onclick = async () => {
+    setBusy($('autoApplyNow'), 'Searching…');
+    const build = await cmd('build');
+    if (!build || !build.ok) {
+      setBusy($('autoApplyNow'), 'Auto Apply Now', false);
+      return note(`Search failed: ${(build && build.error) || 'no response'}`);
+    }
+    if (!build.queued) {
+      setBusy($('autoApplyNow'), 'Auto Apply Now', false);
+      note(`Found ${build.found} postings but none cleared your match threshold. Lower it, or widen your target roles.`);
+      return refresh();
+    }
+    setBusy($('autoApplyNow'), 'Starting…');
     const res = await cmd('start');
+    setBusy($('autoApplyNow'), 'Auto Apply Now', false);
     if (res && res.state && res.state.lastError && !res.state.running) note(res.state.lastError);
     refresh();
   };
@@ -47,8 +60,8 @@
 
     $('runState').dataset.on = s.running ? 'running' : '';
     $('runState').textContent = s.running ? 'Running' : 'Idle';
-    $('startRun').hidden = s.running;
-    $('startRun').disabled = !s.queue.length;
+    $('autoApplyNow').hidden = s.running;
+    $('findJobs').hidden = s.running;
     $('stopRun').hidden = !s.running;
 
     $('cQueued').textContent = s.queue.filter((j) => j.state === 'queued').length;
@@ -58,6 +71,9 @@
     $('cFailed').textContent = s.stats.failed;
 
     if (s.lastError && !s.running) note(s.lastError);
+    else if (s.running && !settings.autoSubmit) {
+      note('Auto-submit is off — CareerOS is filling each application and pausing for you to review and press submit. Turn on "Submit without asking me first" in Settings for a hands-off run.');
+    } else if (s.running) hideNote();
 
     const rows = s.queue;
     $('queueEmpty').hidden = rows.length > 0;

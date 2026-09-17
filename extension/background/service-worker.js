@@ -5,6 +5,7 @@ importScripts(
   '/lib/storage.js',
   '/lib/profile.js',
   '/lib/ats.js',
+  '/lib/geo.js',
   '/lib/matcher.js',
   '/lib/policy.js',
   '/lib/careeros-api.js',

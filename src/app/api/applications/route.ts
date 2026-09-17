@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
           title: a.job.title,
           location: a.job.location,
           workplaceType: a.job.workplaceType,
+          source: a.job.source,
           company: { name: a.job.company.name, slug: a.job.company.slug },
         },
       })),

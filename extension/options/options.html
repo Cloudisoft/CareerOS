@@ -122,6 +122,8 @@
         </label>
         <label>Work modes<input data-bind="targeting.workModes" data-list placeholder="remote, hybrid"></label>
         <label>Locations you'd take<input data-bind="targeting.locations" data-list placeholder="Ahmedabad, Bengaluru, Remote"></label>
+        <label>Anchor city for radius search<input data-bind="targeting.location" placeholder="Austin, TX"><small>Used with the radius below to score postings by real distance instead of just name matching.</small></label>
+        <label>Radius (miles)<input data-bind="targeting.radiusMiles" type="number" min="0" max="500" placeholder="0 = off"></label>
         <label>Salary floor<input data-bind="targeting.minSalary" type="number" placeholder="0"></label>
         <label>Currency<input data-bind="targeting.salaryCurrency"></label>
       </div>

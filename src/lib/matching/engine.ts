@@ -1,4 +1,5 @@
 import "server-only";
+import { distanceMiles } from "@/lib/geo/distance";
 
 /**
  * Career OS matching engine.
@@ -60,6 +61,7 @@ export interface MatchProfileInput {
   careerLevel: Level | null;
   workplaceTypes: string[];
   desiredLocations: string[];
+  desiredLocationRadiusMiles: number | null;
   desiredSalaryMin: number | null;
   desiredSalaryMax: number | null;
   skillNames: string[]; // lowercase-normalized by caller not required; we normalize here
@@ -139,12 +141,28 @@ function scoreExperience(profile: MatchProfileInput, job: MatchJobInput) {
 function scoreLocation(profile: MatchProfileInput, job: MatchJobInput) {
   const wantsRemote = profile.workplaceTypes.includes("REMOTE");
   const workplaceMatch = profile.workplaceTypes.length === 0 || profile.workplaceTypes.includes(job.workplaceType);
+
+  if (job.workplaceType === "REMOTE" && wantsRemote) return 100;
+
+  // A real radius, in miles, beats the plain substring match below when both
+  // the candidate's anchor city and the job's city resolve in the bundled
+  // lookup (lib/geo/cities.ts) — falls through to the substring match for
+  // anything that doesn't resolve (a small town, "Remote", a typo, etc.).
+  if (profile.desiredLocationRadiusMiles && profile.desiredLocationRadiusMiles > 0 && profile.desiredLocations[0]) {
+    const distance = distanceMiles(profile.desiredLocations[0], job.location);
+    if (distance != null) {
+      const radius = profile.desiredLocationRadiusMiles;
+      if (distance <= radius) return workplaceMatch ? 100 : 65;
+      const over = (distance - radius) / radius;
+      return Math.max(0, Math.round(100 - over * 70));
+    }
+  }
+
   const locationMatch =
     profile.desiredLocations.length === 0 ||
     (job.location != null &&
       profile.desiredLocations.some((loc) => job.location!.toLowerCase().includes(loc.toLowerCase())));
 
-  if (job.workplaceType === "REMOTE" && wantsRemote) return 100;
   if (workplaceMatch && locationMatch) return 100;
   if (workplaceMatch || locationMatch) return 65;
   return 30;

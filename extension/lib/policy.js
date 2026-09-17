@@ -70,8 +70,11 @@
       return { allowed: true, reason: policy.overridden ? 'Enabled by you for this platform' : policy.note };
     },
 
+    /* Whether the run loop may open and fill this posting at all. "auto" and
+       "assist" both qualify — the difference between them is decided later,
+       per job, by canAutoSubmit(). Only "discover" (read-only) is excluded. */
     canQueue(atsId, settings) {
-      return Policy.for(atsId, settings).mode === 'auto';
+      return Policy.for(atsId, settings).mode !== 'discover';
     },
 
     /* Seconds between applications on a platform, never below its floor. */

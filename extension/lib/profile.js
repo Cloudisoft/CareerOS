@@ -27,6 +27,8 @@
       seniority: '',         // intern | junior | mid | senior | lead | director
       workModes: [],         // remote | hybrid | onsite
       locations: [],
+      location: '',          // anchor city for radius search, e.g. "Austin, TX"
+      radiusMiles: 0,        // 0 = off; distance scoring only applies when this and location are both set
       minSalary: 0,
       salaryCurrency: 'USD',
       salaryPeriod: 'year'

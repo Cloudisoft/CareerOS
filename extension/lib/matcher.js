@@ -82,7 +82,7 @@
       }
 
       // Location and work mode
-      const locScore = scoreLocation(p, jdText, reasons);
+      const locScore = scoreLocation(p, jdText, reasons, posting.location);
 
       // Seniority band
       const senScore = scoreSeniority(p, jdTitle, reasons);
@@ -176,13 +176,28 @@
     return { min: toNum(m[1]), max: toNum(m[2]) };
   }
 
-  function scoreLocation(p, jdText, reasons) {
+  function scoreLocation(p, jdText, reasons, postingLocation) {
     const modes = p.targeting.workModes || [];
     const wantsRemote = modes.includes('remote');
     const jdRemote = /\bremote\b|\bwork from home\b|\bdistributed\b/.test(jdText);
     const jdOnsite = /\bon-?site\b|\bin-?office\b|\bhybrid\b/.test(jdText);
 
     if (wantsRemote && jdRemote) { reasons.push('Posting says remote'); return 1; }
+
+    // A real radius beats the plain substring match below when both the
+    // anchor city and the posting's city resolve in lib/geo.js. Falls
+    // through to substring matching for anything that doesn't resolve.
+    const Geo = root.CareerOS && root.CareerOS.Geo;
+    const radius = Number(p.targeting.radiusMiles) || 0;
+    if (Geo && radius > 0 && p.targeting.location && postingLocation) {
+      const distance = Geo.distanceMiles(p.targeting.location, postingLocation);
+      if (distance != null) {
+        if (distance <= radius) { reasons.push(`${distance} mi from ${p.targeting.location}, within your ${radius} mi radius`); return 1; }
+        reasons.push(`${distance} mi from ${p.targeting.location}, outside your ${radius} mi radius`);
+        return Math.max(0, 1 - ((distance - radius) / radius) * 0.7);
+      }
+    }
+
     const locs = [...(p.targeting.locations || []), p.identity.city].filter(Boolean);
     const hit = locs.find((l) => jdText.includes(norm(l)));
     if (hit) { reasons.push(`Based in ${hit}`); return 1; }

@@ -64,10 +64,16 @@ export async function getResume(profileId: string, resumeId: string) {
   return resume;
 }
 
-export async function createResume(profileId: string, name: string, fromProfile: boolean, resumeImportLimit: number) {
-  let content: ResumeContent = resumeContentSchema.parse({});
+export async function createResume(
+  profileId: string,
+  name: string,
+  fromProfile: boolean,
+  resumeImportLimit: number,
+  uploadedContent?: ResumeContent
+) {
+  let content: ResumeContent = uploadedContent ?? resumeContentSchema.parse({});
 
-  if (fromProfile) {
+  if (!uploadedContent && fromProfile) {
     const profile = await prisma.candidateProfile.findUniqueOrThrow({
       where: { id: profileId },
       include: { experiences: true, education: true, skills: { include: { skill: true } } },

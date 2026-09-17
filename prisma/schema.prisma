@@ -235,15 +235,19 @@ model CandidateProfile {
   industry             String?
 
   // Job preferences
-  desiredTitles     String[]
-  desiredIndustries String[]
-  desiredLocations  String[]
-  workplaceTypes    WorkplaceType[]
-  employmentTypes   EmploymentType[]
-  desiredSalaryMin  Int?
-  desiredSalaryMax  Int?
-  salaryCurrency    String           @default("USD")
-  noticePeriodDays  Int?
+  desiredTitles              String[]
+  desiredIndustries          String[]
+  desiredLocations           String[]
+  /// Radius in miles around desiredLocations[0] to treat as "close enough" —
+  /// only meaningful when the location resolves in lib/geo/cities.ts; unset
+  /// (null) keeps the previous substring-only location matching.
+  desiredLocationRadiusMiles Int?
+  workplaceTypes             WorkplaceType[]
+  employmentTypes            EmploymentType[]
+  desiredSalaryMin           Int?
+  desiredSalaryMax           Int?
+  salaryCurrency             String           @default("USD")
+  noticePeriodDays           Int?
 
   // Work authorization
   workAuthorization String?

@@ -118,6 +118,7 @@ export async function savePreferencesStep(profileId: string, currentStep: number
       desiredTitles: input.desiredTitles,
       desiredIndustries: input.desiredIndustries,
       desiredLocations: input.desiredLocations,
+      desiredLocationRadiusMiles: input.desiredLocationRadiusMiles ?? null,
       workplaceTypes: input.workplaceTypes,
       employmentTypes: input.employmentTypes,
       desiredSalaryMin: input.desiredSalaryMin ?? null,

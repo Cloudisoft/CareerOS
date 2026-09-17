@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Plus, Trash2, Loader2, Check, Star, Printer, Target, X, AlertTriangle } from "lucide-react";
+import { Sparkles, Plus, Trash2, Loader2, Check, Star, Printer, Target, X, AlertTriangle, Pencil, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,15 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { TagInput } from "@/components/ui/tag-input";
 import { MicButton } from "@/components/voice/mic-button";
+import { ResumePreview } from "@/components/resume/resume-preview";
 import type { ResumeContent, ResumeExperience, ResumeEducation } from "@/lib/validations/resume";
+
+interface ResumeHeader {
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+}
 
 interface TargetJob {
   id: string;
@@ -26,6 +34,7 @@ interface ResumeEditorProps {
   initialIsPrimary: boolean;
   initialContent: ResumeContent;
   initialTargetJob: TargetJob | null;
+  header: ResumeHeader;
 }
 
 interface JobSearchResult {
@@ -46,11 +55,12 @@ const EMPTY_EXPERIENCE: ResumeExperience = {
 
 const EMPTY_EDUCATION: ResumeEducation = { school: "", degree: "", fieldOfStudy: "", startDate: "", endDate: "" };
 
-export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialContent, initialTargetJob }: ResumeEditorProps) {
+export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialContent, initialTargetJob, header }: ResumeEditorProps) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
   const [isPrimary, setIsPrimary] = useState(initialIsPrimary);
   const [content, setContent] = useState<ResumeContent>(initialContent);
+  const [view, setView] = useState<"edit" | "preview">("edit");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [improvingSummary, setImprovingSummary] = useState(false);
@@ -212,7 +222,22 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
             <Star className={isPrimary ? "h-4 w-4 fill-primary text-primary" : "h-4 w-4"} />
             {isPrimary ? "Primary" : "Set as primary"}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => window.print()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setView((v) => (v === "edit" ? "preview" : "edit"))}
+          >
+            {view === "edit" ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            {view === "edit" ? "Preview" : "Edit"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setView("preview");
+              requestAnimationFrame(() => window.print());
+            }}
+          >
             <Printer className="h-4 w-4" /> Print / Save PDF
           </Button>
           <Button variant="ghost" size="icon" onClick={remove} aria-label="Delete resume">
@@ -226,6 +251,10 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
         </div>
       </div>
 
+      {view === "preview" ? (
+        <ResumePreview header={header} content={content} />
+      ) : (
+      <>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -428,6 +457,8 @@ export function ResumeEditor({ resumeId, initialName, initialIsPrimary, initialC
           <TagInput value={content.skills} onChange={(skills) => update({ skills })} placeholder="Add a skill…" max={30} />
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

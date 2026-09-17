@@ -15,6 +15,7 @@ export function toProfileInput(profile: ProfileWithSkills): MatchProfileInput {
     careerLevel: profile.careerLevel,
     workplaceTypes: profile.workplaceTypes,
     desiredLocations: profile.desiredLocations,
+    desiredLocationRadiusMiles: profile.desiredLocationRadiusMiles,
     desiredSalaryMin: profile.desiredSalaryMin,
     desiredSalaryMax: profile.desiredSalaryMax,
     skillNames: profile.skills.map((s) => s.skill.name),

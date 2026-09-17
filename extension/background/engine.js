@@ -92,6 +92,7 @@
           title: job.title,
           company: job.company,
           description: `${job.description} ${job.location}`,
+          location: job.location,
           url: job.applyUrl || job.url
         };
         const match = Matcher.score(profile, posting);
@@ -150,6 +151,7 @@
           title: job.title,
           company: job.company,
           description: `${job.title} ${job.location}`,
+          location: job.location,
           url: job.url
         });
         if (rough.blocked) { duplicates += 1; continue; }
@@ -175,21 +177,19 @@
     /* ---------------- running ---------------- */
 
     async start() {
-      const settings = await Storage.getSettings();
-      if (!settings.autoSubmit) {
-        // A run that fills forty forms and submits none just leaves forty
-        // half-finished applications behind. Better to say so than to pretend.
-        return Engine.setState({
-          running: false,
-          lastError: 'Turn on "Submit without asking me first" before starting a run. Without it, use the panel on individual postings instead.'
-        });
-      }
+      // Whether autoSubmit is on decides, per job, whether the loop presses
+      // submit (canAutoSubmit(), checked in handleReady()) — it no longer
+      // gates whether a run can start at all. With it off, every posting
+      // still gets opened and filled; the run just pauses each one for the
+      // person to review and submit themselves, same as canAutoSubmit
+      // already reports through the "assisted" outcome.
       const state = await Engine.getState();
       if (!state.queue.length) await Engine.build();
       await Engine.setState({
         running: true,
         startedAt: Date.now(),
         runId: `run_${Date.now().toString(36)}`,
+        lastError: null,
       });
       chrome.alarms.create('careeros:tick', { periodInMinutes: 1 });
       Engine.loop();
