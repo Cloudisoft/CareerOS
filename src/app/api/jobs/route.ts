@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const careerLevels = params.get("careerLevel")?.split(",").filter(Boolean);
     const minSalary = params.get("minSalary") ? Number(params.get("minSalary")) : undefined;
     const page = Math.max(1, Number(params.get("page")) || 1);
+    const sort = params.get("sort");
 
     const where: Prisma.JobWhereInput = {
       status: "OPEN",
@@ -39,6 +40,17 @@ export async function GET(req: NextRequest) {
       ...(minSalary ? { salaryMax: { gte: minSalary } } : {}),
     };
 
+    const user = await getSessionUser();
+    let profileId: string | null = null;
+    if (user && user.role === "CANDIDATE") {
+      const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
+      profileId = profile?.id ?? null;
+    }
+
+    if (sort === "match" && profileId) {
+      where.NOT = { applications: { some: { profileId } } };
+    }
+
     const [jobs, total] = await Promise.all([
       prisma.job.findMany({
         where,
@@ -50,14 +62,16 @@ export async function GET(req: NextRequest) {
       prisma.job.count({ where }),
     ]);
 
-    const user = await getSessionUser();
     let scores = new Map<string, number>();
-    if (user && user.role === "CANDIDATE") {
+    if (user && user.role === "CANDIDATE" && profileId) {
       const entitlements = await getEntitlements(user.id);
       if (entitlements.matchInsights) {
-        const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
-        if (profile) scores = await scoreJobsForProfile(profile.id, jobs.map((j) => j.id));
+        scores = await scoreJobsForProfile(profileId, jobs.map((j) => j.id));
       }
+    }
+
+    if (sort === "match" && scores.size) {
+      jobs.sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0));
     }
 
     return apiOk({

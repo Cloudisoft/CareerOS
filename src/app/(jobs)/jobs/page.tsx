@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search, MapPin, Loader2 } from "lucide-react";
+import { Search, MapPin, Loader2, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,11 +73,16 @@ function JobsContent() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">Jobs</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {loading ? "Searching…" : `${total} open role${total === 1 ? "" : "s"}`}
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Jobs</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading ? "Searching…" : `${total} open role${total === 1 ? "" : "s"}`}
+          </p>
+        </div>
+        <Link href="/jobs/swipe" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <Layers className="h-4 w-4" /> Swipe view
+        </Link>
       </div>
 
       <form onSubmit={handleSearch} className="mb-4 flex flex-col gap-3 sm:flex-row">
