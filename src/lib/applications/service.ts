@@ -66,6 +66,68 @@ export async function createApplication(
   return application;
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const TREND_WEEKS = 10;
+
+/** Cross-platform application analytics for one candidate — status mix, which job boards/ATS sourced the postings, and a recent weekly trend. */
+export async function getApplicationAnalytics(profileId: string) {
+  const since = new Date(Date.now() - TREND_WEEKS * WEEK_MS);
+
+  const [byStatus, applications] = await Promise.all([
+    prisma.application.groupBy({ by: ["status"], where: { profileId }, _count: { _all: true } }),
+    prisma.application.findMany({
+      where: { profileId },
+      select: { appliedAt: true, job: { select: { source: true } } },
+    }),
+  ]);
+
+  const bySourceMap = new Map<string, number>();
+  for (const a of applications) {
+    bySourceMap.set(a.job.source, (bySourceMap.get(a.job.source) ?? 0) + 1);
+  }
+
+  const weekBuckets: { weekStart: string; count: number }[] = [];
+  for (let i = TREND_WEEKS - 1; i >= 0; i--) {
+    const weekStart = new Date(Date.now() - (i + 1) * WEEK_MS);
+    const weekEnd = new Date(Date.now() - i * WEEK_MS);
+    const count = applications.filter((a) => a.appliedAt >= weekStart && a.appliedAt < weekEnd).length;
+    weekBuckets.push({ weekStart: weekStart.toISOString().slice(0, 10), count });
+  }
+
+  return {
+    total: applications.length,
+    byStatus: byStatus.map((s) => ({ status: s.status, count: s._count._all })),
+    bySource: Array.from(bySourceMap.entries()).map(([source, count]) => ({ source, count })),
+    weeklyTrend: weekBuckets,
+    sinceApplications: applications.filter((a) => a.appliedAt >= since).length,
+  };
+}
+
+/** Full application history as CSV — title, company, platform, status, applied date, match score. */
+export async function exportApplicationsCsv(profileId: string): Promise<string> {
+  const applications = await prisma.application.findMany({
+    where: { profileId },
+    include: { job: { include: { company: true } } },
+    orderBy: { appliedAt: "desc" },
+  });
+
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const header = ["Title", "Company", "Platform", "Location", "Status", "Applied At", "Match Score"].join(",");
+  const rows = applications.map((a) =>
+    [
+      escape(a.job.title),
+      escape(a.job.company.name),
+      escape(a.job.source),
+      escape(a.job.location ?? ""),
+      escape(a.status),
+      escape(a.appliedAt.toISOString()),
+      a.matchScoreAtApply ?? "",
+    ].join(",")
+  );
+
+  return [header, ...rows].join("\n");
+}
+
 export async function withdrawApplication(profileId: string, applicationId: string, note?: string) {
   const application = await prisma.application.findUnique({ where: { id: applicationId } });
   if (!application || application.profileId !== profileId) {

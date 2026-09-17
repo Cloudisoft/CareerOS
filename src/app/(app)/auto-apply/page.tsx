@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { UpgradeRequired } from "@/components/billing/upgrade-required";
+import { sourceLabel } from "@/lib/jobs/source-labels";
 
 interface Settings {
   minMatchScore: number;
@@ -44,26 +45,6 @@ interface DeviceSession {
   id: string;
   deviceLabel: string | null;
   lastSeenAt: string;
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  careeros: "Career OS",
-  adzuna: "Adzuna",
-  jsearch: "JSearch",
-  greenhouse: "Greenhouse",
-  lever: "Lever",
-  ashby: "Ashby",
-  workable: "Workable",
-  smartrecruiters: "SmartRecruiters",
-  linkedin: "LinkedIn",
-  indeed: "Indeed",
-  ziprecruiter: "ZipRecruiter",
-  dice: "Dice",
-  glassdoor: "Glassdoor",
-};
-
-function sourceLabel(source: string): string {
-  return SOURCE_LABELS[source] ?? source;
 }
 
 export default function AutoApplyPage() {
