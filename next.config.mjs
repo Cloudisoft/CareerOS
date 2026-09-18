@@ -29,6 +29,16 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // pdf-parse (via pdfjs-dist) loads its worker script from a path relative
+  // to its own package directory at runtime. Webpack-bundling it into the
+  // API route moves that code out of node_modules, so the worker path no
+  // longer resolves ("Cannot find module '.../pdf.worker.mjs'"). Excluding
+  // it from bundling makes Next require() it straight from node_modules
+  // instead, where its relative paths are correct. (Next 14.2 still calls
+  // this experimental — it isn't stable until Next 15.)
+  experimental: {
+    serverComponentsExternalPackages: ["pdf-parse", "pdfjs-dist"],
+  },
   async headers() {
     return [
       {
