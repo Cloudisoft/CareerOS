@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square, Volume2, VolumeX, RotateCcw, Clock } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square, Volume2, VolumeX, RotateCcw, Clock, BookMarked, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,6 +55,8 @@ export default function InterviewSessionPage() {
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(ANSWER_TIME_LIMIT_SECONDS);
+  const [savingStoryId, setSavingStoryId] = useState<string | null>(null);
+  const [savedStoryIds, setSavedStoryIds] = useState<Set<string>>(new Set());
   const voice = useVoiceInput((text) => setDraft((prev) => (prev ? `${prev} ${text}` : text)));
   const voiceOut = useVoiceOutput();
   const lastSpokenIdRef = useRef<string | null>(null);
@@ -166,6 +168,17 @@ export default function InterviewSessionPage() {
     performSubmit(trimmed);
   }
 
+  async function saveAsStory(questionId: string) {
+    setSavingStoryId(questionId);
+    const res = await fetch("/api/interview/stories/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questionId }),
+    });
+    setSavingStoryId(null);
+    if (res.ok) setSavedStoryIds((prev) => new Set(prev).add(questionId));
+  }
+
   async function finishSession() {
     setCompleting(true);
     const res = await fetch(`/api/interview/sessions/${params.id}/complete`, { method: "POST" });
@@ -202,7 +215,26 @@ export default function InterviewSessionPage() {
               <CardContent className="space-y-3 p-5">
                 <div className="flex items-center justify-between">
                   <Badge variant="outline">{q.category}</Badge>
-                  {q.score != null && <span className="text-sm font-semibold text-foreground">{q.score}%</span>}
+                  <div className="flex items-center gap-2">
+                    {q.score != null && <span className="text-sm font-semibold text-foreground">{q.score}%</span>}
+                    {q.answer && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={savingStoryId === q.id || savedStoryIds.has(q.id)}
+                        onClick={() => saveAsStory(q.id)}
+                      >
+                        {savingStoryId === q.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : savedStoryIds.has(q.id) ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <BookMarked className="h-3.5 w-3.5" />
+                        )}
+                        {savedStoryIds.has(q.id) ? "Saved" : "Save as story"}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm font-medium text-foreground">{q.question}</p>
                 {q.answer && <p className="whitespace-pre-line text-sm text-muted-foreground">{q.answer}</p>}

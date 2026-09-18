@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Sparkles, ChevronRight } from "lucide-react";
+import { Loader2, Sparkles, ChevronRight, BookMarked } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -76,11 +76,19 @@ export default function InterviewAiPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Interview AI</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Practice with adaptive mock interviews, scored question-by-question.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Interview AI</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Practice with adaptive mock interviews, scored question-by-question.
+          </p>
+        </div>
+        <Link
+          href="/interview-ai/stories"
+          className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <BookMarked className="h-4 w-4" /> Story bank
+        </Link>
       </div>
 
       {entitled === false ? (

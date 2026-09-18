@@ -294,6 +294,10 @@ model CandidateProfile {
   courseLessonProgress CourseLessonProgress[]
   autoApplySettings    AutoApplySettings?
   autoApplyRuns        AutoApplyRun[]
+  jobEvaluations       JobEvaluation[]
+  interviewStories     InterviewStory[]
+  negotiationScripts   NegotiationScript[]
+  outreachDrafts       OutreachDraft[]
 
   @@map("candidate_profiles")
 }
@@ -542,14 +546,17 @@ model Job {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  skills            JobSkill[]
-  savedBy           SavedJob[]
-  matches           JobMatch[]
-  applications      Application[]
-  resumeScores      ResumeScore[]
-  interviewSessions InterviewSession[]
-  targetedResumes   Resume[]           @relation("ResumeTargetJob")
-  posts             Post[]
+  skills             JobSkill[]
+  savedBy            SavedJob[]
+  matches            JobMatch[]
+  applications       Application[]
+  resumeScores       ResumeScore[]
+  interviewSessions  InterviewSession[]
+  targetedResumes    Resume[]            @relation("ResumeTargetJob")
+  posts              Post[]
+  evaluations        JobEvaluation[]
+  negotiationScripts NegotiationScript[]
+  outreachDrafts     OutreachDraft[]
 
   @@unique([source, externalId])
   @@index([companyId])
@@ -1011,8 +1018,131 @@ model InterviewQuestion {
 
   createdAt DateTime @default(now())
 
+  stories InterviewStory[]
+
   @@index([sessionId])
   @@map("interview_questions")
+}
+
+// ============================================================
+// CAREER-OPS-INSPIRED TOOLS — a holistic per-job evaluation with a
+// legitimacy check, a reusable STAR+Reflection interview story bank,
+// negotiation-script generation, and draft-only outreach. All four are
+// on-demand (a button press, not automatic background work) since each
+// is a real AI call.
+// ============================================================
+
+enum JobLegitimacy {
+  CLEAR
+  CAUTION
+  LIKELY_SCAM
+}
+
+/// A narrative, holistic evaluation of one posting for one candidate —
+/// deliberately separate from JobMatch's automatic 0-100 sub-scores, which
+/// are cheap and computed for every job. This is an on-demand AI judgement
+/// call: a 1-5 fit score, a written case for it, and a legitimacy check
+/// that flags scam/ghost postings and an explicit no-sponsorship blocker.
+model JobEvaluation {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /// 1-5 in tenths (e.g. 4.5 stored as 45), reached by holistic judgement,
+  /// not an arithmetic formula.
+  score Int
+
+  summary         String
+  cvMatchNotes    String
+  levelStrategy   String
+  compNotes       String
+  personalization String
+  interviewPrep   String
+
+  legitimacy         JobLegitimacy @default(CLEAR)
+  legitimacyNotes    String
+  sponsorshipBlocker Boolean       @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, jobId])
+  @@index([jobId])
+  @@map("job_evaluations")
+}
+
+/// A reusable bank of STAR(+Reflection) stories the candidate can draw on
+/// for any behavioral question, either written by hand or generated from a
+/// strong completed interview answer.
+model InterviewStory {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title    String
+  category String
+
+  situation  String
+  task       String
+  action     String
+  result     String
+  reflection String?
+
+  sourceQuestionId String?
+  sourceQuestion   InterviewQuestion? @relation(fields: [sourceQuestionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+  @@map("interview_stories")
+}
+
+/// A generated negotiation script for one scenario (counter-offer,
+/// competing-offer leverage, geographic-discount pushback, ...), grounded
+/// in the candidate's real desired range and, when tied to a job, that
+/// job's posted range and the offer actually on the table.
+model NegotiationScript {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String?
+  job       Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  scenario      String
+  offeredSalary Int?
+  currency      String @default("USD")
+  script        String
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@map("negotiation_scripts")
+}
+
+/// A drafted cold email or LinkedIn message — CareerOS never sends this,
+/// it only writes the draft for the candidate to review and send
+/// themselves. Contact details are whatever the candidate supplied; this
+/// never invents a name, title, or address.
+model OutreachDraft {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String?
+  job       Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  channel     String
+  contactName String?
+  contactRole String?
+  subject     String?
+  body        String
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@map("outreach_drafts")
 }
 
 // ============================================================
