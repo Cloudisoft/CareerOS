@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatSalaryRange, cn } from "@/lib/utils";
+
+const RADIUS_OPTIONS = [10, 25, 50, 100];
 
 interface JobListItem {
   id: string;
@@ -38,6 +41,8 @@ function JobsContent() {
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get("q") ?? "");
   const [location, setLocation] = useState(searchParams.get("location") ?? "");
+  const [radius, setRadius] = useState(searchParams.get("radius") ?? "25");
+  const isZipSearch = /^\d{5}$/.test(location.trim());
   const [workplaceType, setWorkplaceType] = useState<string[]>(
     searchParams.get("workplaceType")?.split(",").filter(Boolean) ?? []
   );
@@ -50,13 +55,14 @@ function JobsContent() {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (location) params.set("location", location);
+    if (/^\d{5}$/.test(location.trim())) params.set("radius", radius);
     if (workplaceType.length) params.set("workplaceType", workplaceType.join(","));
     const res = await fetch(`/api/jobs?${params.toString()}`);
     const json = await res.json();
     setJobs(json.data?.jobs ?? []);
     setTotal(json.data?.total ?? 0);
     setLoading(false);
-  }, [q, location, workplaceType]);
+  }, [q, location, radius, workplaceType]);
 
   useEffect(() => {
     fetchJobs();
@@ -92,8 +98,27 @@ function JobsContent() {
         </div>
         <div className="relative sm:w-56">
           <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
+          <Input
+            className="pl-9"
+            placeholder="City or zip code"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+          />
         </div>
+        {isZipSearch && (
+          <Select value={radius} onValueChange={setRadius}>
+            <SelectTrigger className="sm:w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RADIUS_OPTIONS.map((miles) => (
+                <SelectItem key={miles} value={String(miles)}>
+                  Within {miles} mi
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Button type="submit">Search</Button>
       </form>
 

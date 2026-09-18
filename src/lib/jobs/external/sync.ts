@@ -56,17 +56,23 @@ async function upsertExternalJob(job: NormalizedExternalJob): Promise<"created" 
  * are keyed on (source, externalId), so a repeat sync updates in place
  * instead of duplicating.
  */
-export async function syncExternalJobs(queries: string[], options?: { country?: string }): Promise<SyncResult[]> {
+export async function syncExternalJobs(
+  queries: string[],
+  options?: { country?: string; pagesPerQuery?: number }
+): Promise<SyncResult[]> {
   const results: SyncResult[] = [];
   const hasAdzuna = Boolean(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY);
   const hasJSearch = Boolean(process.env.JSEARCH_API_KEY);
+  const pages = Math.max(1, options?.pagesPerQuery ?? 1);
 
   for (const query of queries) {
     const result: SyncResult = { query, fetched: 0, created: 0, updated: 0, errors: [] };
 
     const fetches: Promise<NormalizedExternalJob[]>[] = [];
-    if (hasAdzuna) fetches.push(fetchAdzunaJobs(query, options?.country ?? "us"));
-    if (hasJSearch) fetches.push(fetchJSearchJobs(query));
+    for (let page = 1; page <= pages; page++) {
+      if (hasAdzuna) fetches.push(fetchAdzunaJobs(query, options?.country ?? "us", page));
+      if (hasJSearch) fetches.push(fetchJSearchJobs(query, page));
+    }
 
     const settled = await Promise.allSettled(fetches);
     const jobs: NormalizedExternalJob[] = [];
