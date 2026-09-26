@@ -49,12 +49,28 @@
 
       $('connectBtn').disabled = false;
       $('connectBtn').textContent = 'Sign in';
-      if (res && res.ok) {
-        $('connectMsg').textContent = 'Signed in. Reopen this to continue.';
-        window.close();
-      } else {
+      if (!res || !res.ok) {
         $('connectMsg').textContent = (res && res.error) || 'Could not sign in.';
+        return;
       }
+
+      $('connectMsg').textContent = 'Signed in. Pulling your profile…';
+      const sync = await engineCmd('sync');
+      if (!sync || sync.ok === false || sync.entitled === false) {
+        $('connectMsg').textContent = (sync && sync.message) || 'Signed in. Reopen this to continue.';
+        return;
+      }
+
+      $('signin').hidden = true;
+      $('fetched').hidden = false;
+      const fresh = Profile.hydrate(await Storage.getProfile());
+      const skillCount = Profile.allSkills(fresh).length;
+      $('fetchedList').innerHTML = [
+        Profile.fullName(fresh) && `Name: ${esc(Profile.fullName(fresh))}`,
+        skillCount ? `${skillCount} skill${skillCount === 1 ? '' : 's'}` : null,
+        (fresh.targeting.titles || []).length ? `Targeting: ${esc(fresh.targeting.titles.slice(0, 3).join(', '))}` : null
+      ].filter(Boolean).map((i) => `<li>${i}</li>`).join('');
+      setUpAutoApply();
     };
     return;
   }

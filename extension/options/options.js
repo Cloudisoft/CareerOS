@@ -304,10 +304,10 @@
     $('#connectBtn').textContent = 'Sign in';
     if (res && res.ok) {
       $('#connectMsg').textContent = 'Signed in. Pulling your profile…';
-      await new Promise((resolve) =>
+      const sync = await new Promise((resolve) =>
         chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
       );
-      location.reload();
+      await showFetchedSummary(sync);
     } else {
       $('#connectMsg').textContent = (res && res.error) || 'Could not sign in.';
     }
@@ -330,11 +330,75 @@
       return;
     }
     $('#pairMsg').textContent = 'Connected. Pulling your profile…';
-    await new Promise((resolve) =>
+    const sync = await new Promise((resolve) =>
       chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
     );
-    location.reload();
+    await showFetchedSummary(sync);
   };
+
+  /* Pairing used to just reload the page silently — no confirmation of what
+     was actually pulled in, and no obvious next step. Show the real fetched
+     data (not a generic "done!") and put the one-click Auto Apply action
+     right there, since that's the entire point of connecting an account. */
+  async function showFetchedSummary(sync) {
+    if (!sync || sync.ok === false || sync.entitled === false) {
+      location.reload();
+      return;
+    }
+    const fresh = Profile.hydrate(await Storage.getProfile());
+    const items = [];
+    const name = Profile.fullName(fresh);
+    if (name) items.push(`Name: ${esc(name)}`);
+    if (fresh.identity.email) items.push(`Email: ${esc(fresh.identity.email)}`);
+    const skillCount = Profile.allSkills(fresh).length;
+    if (skillCount) items.push(`${skillCount} skill${skillCount === 1 ? '' : 's'}`);
+    if ((fresh.targeting.titles || []).length) {
+      items.push(`Targeting: ${esc(fresh.targeting.titles.slice(0, 3).join(', '))}`);
+    }
+    const resume = await Storage.getResume();
+    items.push(resume ? `Resume on file: ${esc(resume.name || 'yes')}` : 'No resume on file yet');
+
+    $('#pairState').hidden = true;
+    $('#fetchedBox').hidden = false;
+    $('#fetchedList').innerHTML = items.map((i) => `<li>${i}</li>`).join('');
+
+    $('#startAutoApplyBtn').onclick = async () => {
+      const btn = $('#startAutoApplyBtn');
+      btn.disabled = true;
+      btn.textContent = 'Finding jobs…';
+      $('#startAutoApplyMsg').textContent = '';
+
+      const build = await new Promise((resolve) =>
+        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'build' }, resolve)
+      );
+      if (!build || !build.ok) {
+        btn.disabled = false;
+        btn.textContent = 'Start finding & applying to jobs';
+        $('#startAutoApplyMsg').textContent = (build && build.error) || 'Could not search for jobs.';
+        return;
+      }
+
+      const current = await Storage.getSettings();
+      if (!current.autoSubmit) {
+        btn.disabled = false;
+        btn.textContent = 'Start finding & applying to jobs';
+        $('#startAutoApplyMsg').innerHTML = `Found ${build.queued} job${build.queued === 1 ? '' : 's'}, but auto-submit is off, so CareerOS can only fill forms, not send them. `
+          + `<a href="#" id="turnOnAutoSubmitFromWelcome">Turn on auto-submit</a> and try again.`;
+        $('#turnOnAutoSubmitFromWelcome').onclick = async (e) => {
+          e.preventDefault();
+          await Storage.saveSettings({ autoSubmit: true });
+          btn.click();
+        };
+        return;
+      }
+
+      btn.textContent = 'Applying…';
+      await new Promise((resolve) =>
+        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'start' }, resolve)
+      );
+      chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+    };
+  }
 
   $('#unpairBtn').onclick = async () => {
     await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
