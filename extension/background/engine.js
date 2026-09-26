@@ -86,7 +86,13 @@
       ]);
 
       const serverJobs = (serverResult.jobs || []).map((j) => Object.assign({ source: 'careeros', radiusSearched: true }, j));
-      const jobs = discovered.jobs.concat(serverJobs);
+      // Board fetches and the server's own Adzuna/JSearch pull are two
+      // independent sources that can easily surface the same real posting
+      // under two different URLs (an aggregator redirect vs. the employer's
+      // direct apply link) — Discovery.search() only dedupes within its own
+      // results, so the combined list needs a second pass or the same job
+      // can be queued (and counted) twice.
+      const jobs = Discovery.dedupe(discovered.jobs.concat(serverJobs));
       const errors = discovered.errors.slice();
       if (serverResult.message) errors.push(serverResult.message);
 

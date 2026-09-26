@@ -43,7 +43,8 @@
       return { url, ats, direct: ats !== 'generic' };
     },
 
-    classifyUrl
+    classifyUrl,
+    dedupe
   };
 
   /* ---------------- aggregators ---------------- */
