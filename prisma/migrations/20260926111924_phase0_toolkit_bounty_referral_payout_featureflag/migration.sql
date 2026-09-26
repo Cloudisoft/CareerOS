@@ -166,11 +166,15 @@ ALTER TABLE "payouts" ADD CONSTRAINT "payouts_referralId_fkey" FOREIGN KEY ("ref
 -- AddForeignKey
 ALTER TABLE "payouts" ADD CONSTRAINT "payouts_referrerId_fkey" FOREIGN KEY ("referrerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- RenameIndex
-ALTER INDEX "addon_subscriptions_stripeSubscriptionId_key" RENAME TO "addon_subscriptions_paypalSubscriptionId_key";
-
--- RenameIndex
-ALTER INDEX "payments_stripeInvoiceId_key" RENAME TO "payments_paypalTransactionId_key";
-
--- RenameIndex
-ALTER INDEX "subscriptions_stripeSubscriptionId_key" RENAME TO "subscriptions_paypalSubscriptionId_key";
+-- Note: prisma migrate dev also generated 3 RenameIndex statements here
+-- (addon_subscriptions/payments/subscriptions stripe->paypal index names).
+-- Deliberately removed: the local database this migration was generated
+-- against was built purely by replaying committed migration files, which
+-- still declared the old stripe-named indexes since no migration ever
+-- renamed them — but production's real database already has the paypal
+-- names (renamed out-of-band at some point, outside any migration file).
+-- Running the rename against production fails with "relation ... does not
+-- exist" because there's nothing left to rename. This file only creates
+-- the new Phase 0 tables/enum value; it doesn't touch the pre-existing
+-- stripe/paypal naming drift, which is a separate, harmless inconsistency
+-- (index names don't affect query correctness) to clean up on its own.
