@@ -6,9 +6,13 @@ import { Sparkles } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { CANDIDATE_NAV, EMPLOYER_NAV, ADMIN_NAV, type NavItem } from "@/config/nav";
 import { cn } from "@/lib/utils";
+import type { UserRole } from "@prisma/client";
 
 interface SidebarProps {
-  role?: "CANDIDATE" | "EMPLOYER" | "COMPANY_ADMIN" | "PLATFORM_ADMIN";
+  // The real UserRole enum, not a hand-copied list — a role added there
+  // (e.g. REFERRER) falls through to CANDIDATE_NAV below by default rather
+  // than failing to compile.
+  role?: UserRole;
 }
 
 export function Sidebar({ role = "CANDIDATE" }: SidebarProps) {

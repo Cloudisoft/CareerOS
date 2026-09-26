@@ -16,6 +16,10 @@ enum UserRole {
   EMPLOYER
   COMPANY_ADMIN
   PLATFORM_ADMIN
+  /** Refers candidates into a company's open Bounty (Phase 5 — Earn). Not
+      necessarily a job seeker on the platform, so kept separate from
+      CANDIDATE rather than overloading it. */
+  REFERRER
 }
 
 enum AccountStatus {
@@ -68,6 +72,10 @@ model User {
   reactions           Reaction[]
   conversationMembers ConversationMember[]
   messages            Message[]
+
+  referralsMade     Referral[] @relation("ReferralsMade")
+  referralsReceived Referral[] @relation("ReferralsReceived")
+  payouts           Payout[]
 
   @@index([email])
   @@map("users")
@@ -285,6 +293,7 @@ model CandidateProfile {
   courseLessonProgress CourseLessonProgress[]
   autoApplySettings    AutoApplySettings?
   autoApplyRuns        AutoApplyRun[]
+  toolkitOutputs       ToolkitOutput[]
 
   @@map("candidate_profiles")
 }
@@ -454,6 +463,7 @@ model Company {
   members   CompanyMember[]
   followers CompanyFollower[]
   jobs      Job[]
+  bounties  Bounty[]
 
   @@index([slug])
   @@map("companies")
@@ -541,6 +551,8 @@ model Job {
   interviewSessions InterviewSession[]
   interviewPrepPacks InterviewPrepPack[]
   targetedResumes   Resume[]           @relation("ResumeTargetJob")
+  toolkitOutputs    ToolkitOutput[]
+  bounties          Bounty[]
 
   @@unique([source, externalId])
   @@index([companyId])
@@ -1401,4 +1413,194 @@ model Message {
 
   @@index([conversationId])
   @@map("messages")
+}
+
+// ============================================================
+// AI TOOLKIT — persisted output of each AI Toolkit generator run
+// (Cover Letter, Email, Question Response, Resume Review — Phase 2).
+// Mirrors ResumeScore's "timestamped, never-mutated snapshot" pattern:
+// every generation is its own row, so a candidate can see/reuse past
+// outputs rather than only the most recent one.
+// ============================================================
+
+enum ToolkitType {
+  COVER_LETTER
+  EMAIL
+  QUESTION_RESPONSE
+  RESUME_REVIEW
+}
+
+model ToolkitOutput {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  type ToolkitType
+
+  /** The job this output was generated for, if any (cover letters/emails
+      are usually job-specific; a resume review may not be). */
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  /** Free-form input the candidate supplied beyond their Career Profile
+      (e.g. a pasted question to respond to, a recipient name for an email).
+      Never used to invent facts — only Career Profile + Job data is
+      grounding; this is prompt input, not a source of truth. */
+  input Json?
+
+  /** The generated body. */
+  output String
+
+  /** Which AI provider actually served this call — kept here too since
+      AiUsage rows are not queryable per-output. */
+  provider String
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@index([profileId, type])
+  @@index([jobId])
+  @@map("toolkit_outputs")
+}
+
+// ============================================================
+// EARN — referral bounties (Phase 5). Ships only with the user's explicit
+// confirmation per docs/ROADMAP.md's payments + consent gates — bounty/
+// payout tables underpin a real payments feature.
+// ============================================================
+
+enum BountyStatus {
+  DRAFT
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+model Bounty {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobId     String? // optional: a bounty can target a specific open Job
+  job       Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String
+  status      BountyStatus @default(DRAFT)
+  amountCents Int
+  currency    String       @default("USD")
+  /** Paid once the referred candidate reaches INTERVIEW (or similar). */
+  interviewBonusCents Int @default(0)
+  /** Paid after the post-hire guarantee period. */
+  hireBonusCents      Int @default(0)
+  guaranteeDays       Int @default(90)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  closedAt  DateTime?
+
+  referrals Referral[]
+  payouts   Payout[]
+
+  @@index([companyId])
+  @@index([status])
+  @@map("bounties")
+}
+
+enum ReferralStatus {
+  PENDING_CONSENT // candidate consent email sent, not yet confirmed
+  CONSENTED
+  SUBMITTED // visible to employer
+  INTERVIEWING
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model Referral {
+  id       String @id @default(cuid())
+  bountyId String
+  bounty   Bounty @relation(fields: [bountyId], references: [id], onDelete: Cascade)
+
+  referrerId String
+  referrer   User   @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+  /** The person being referred — may not have a CareerOS account yet, so
+      this is captured as plain fields, not a required User relation, until/
+      unless they sign up and the candidate side of the flow links them. */
+  candidateName   String
+  candidateEmail  String
+  candidateUserId String?
+  candidateUser   User?   @relation("ReferralsReceived", fields: [candidateUserId], references: [id], onDelete: SetNull)
+
+  endorsement String
+  status      ReferralStatus @default(PENDING_CONSENT)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  consentedAt DateTime?
+
+  payouts Payout[]
+
+  @@index([bountyId])
+  @@index([referrerId])
+  @@index([status])
+  @@map("referrals")
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+}
+
+enum PayoutTrigger {
+  INTERVIEW_REACHED
+  HIRE_CONFIRMED
+}
+
+model Payout {
+  id         String   @id @default(cuid())
+  bountyId   String
+  bounty     Bounty   @relation(fields: [bountyId], references: [id], onDelete: Cascade)
+  referralId String
+  referral   Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  referrerId String
+  referrer   User     @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+
+  trigger     PayoutTrigger
+  amountCents Int
+  currency    String       @default("USD")
+  status      PayoutStatus @default(PENDING)
+
+  paypalPayoutId String? @unique
+
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  @@index([bountyId])
+  @@index([referrerId])
+  @@index([status])
+  @@map("payouts")
+}
+
+// ============================================================
+// FEATURE FLAGS — simple runtime on/off switches, checked by key. No
+// per-user targeting beyond an optional rollout percentage; add a proper
+// targeting table later if that's ever actually needed instead of
+// speculatively building it now.
+// ============================================================
+
+model FeatureFlag {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  description String?
+  enabled     Boolean @default(false)
+  /** 0-100. When enabled, the flag is also gated by this percentage of
+      users (stable-hashed on userId) — 100 means everyone. */
+  rolloutPercent Int @default(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("feature_flags")
 }
