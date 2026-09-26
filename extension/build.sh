@@ -15,7 +15,7 @@ cd "$(dirname "$0")"
 
 OUT_DIR="dist"
 ZIP_NAME="careeros.zip"
-EXCLUDE_NAMES=(build.sh manifest.dev.json STORE_SUBMISSION.md .DS_Store "$OUT_DIR" "$ZIP_NAME")
+EXCLUDE_NAMES=(build.sh manifest.dev.json STORE_SUBMISSION.md test .DS_Store "$OUT_DIR" "$ZIP_NAME")
 
 usage() {
   echo "Usage: ./build.sh <package|dev|clean>"
@@ -56,6 +56,10 @@ case "${1:-}" in
     cp manifest.json "$OUT_DIR/manifest.json"
     rm -f "$ZIP_NAME"
     ( cd "$OUT_DIR" && zip -qr "../$ZIP_NAME" . )
+    if unzip -l "$ZIP_NAME" | grep -qE '(^|/)(test|node_modules|\.git)/'; then
+      echo "error: $ZIP_NAME contains a test/node_modules/.git path — a new dev-only folder isn't in EXCLUDE_NAMES yet." >&2
+      exit 1
+    fi
     rm -rf "$OUT_DIR"
     echo "Built $ZIP_NAME ($(du -h "$ZIP_NAME" | cut -f1)) from manifest.json — upload this file, unmodified, to the Chrome Web Store."
     ;;
