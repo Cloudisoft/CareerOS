@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CareerOS — Auto Apply (dev)",
   "short_name": "CareerOS Dev",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Development build. Points at localhost by default and permits calling a model provider directly from the browser for local testing — never upload this manifest to the Chrome Web Store.",
   "author": "Career OS",
   "icons": {

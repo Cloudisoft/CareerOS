@@ -632,4 +632,12 @@
   if (new URLSearchParams(location.search).get('welcome')) {
     setState('saving', 'Start with your name and email');
   }
+
+  // Deep link from the in-page panel's Profile tab ("edit your profile" ->
+  // options.html?tab=you), same pattern as the ?welcome= flag above.
+  const requestedTab = new URLSearchParams(location.search).get('tab');
+  if (requestedTab) {
+    const tab = $$('.tab').find((t) => t.dataset.panel === requestedTab);
+    if (tab) tab.click();
+  }
 })();

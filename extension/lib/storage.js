@@ -49,6 +49,7 @@
     apiToken: '',
     allowDirectKey: false,   // developer only: call the model provider from the browser
     highlightFields: true,   // outline filled fields and ones still needing you
+    panelTutorialSeenAt: null, // when the docked panel's first-run tour was dismissed/completed; null = show it once
     /* Per-platform overrides. 'default' keeps the policy in lib/policy.js;
        'auto' turns on full automation for that platform. */
     platformModes: {},

@@ -30,6 +30,7 @@
     policy: null,
     ready: false,
     busy: false,
+    autoRunning: false, // an automated run (runAutomated) is actively working this tab
     report: null
   };
 
@@ -127,7 +128,10 @@
       state.match = Matcher.score(state.profile, posting);
     }
     state.report = null;
-    showQuickApplyWidget();
+    panelState.selectedProfileId = null;
+    panelState.lastError = null;
+    panelState.justLogged = false;
+    showPanel();
   }
 
   function watchForChanges() {
@@ -144,78 +148,257 @@
         lastUrl = location.href;
         state.posting = null;
         state.report = null;
-        hideQuickApplyWidget();
+        hidePanel();
         setTimeout(scan, 1200);
       }
     }, 1000);
   }
 
-  /* ================= one-click, no popup needed ================= */
+  /* ================= the docked panel ================= */
 
   /* The popup is the full picture, but making someone open it just to start
-     a fill is exactly the friction competitors like Simplify/SpeedyApply
-     don't have — their whole pitch is a button right on the page. This is
-     that button: a small floating card with the match score and a single
-     "Fill this application" action, wired to the same doFill() the popup
-     itself calls. Only ever shown outside an automated run (scan() is never
-     called during one — see init()), so it can't collide with the
-     autofill-in-progress banner. */
-  let quickWidget = null;
+     a fill is exactly the friction competitors like Simplify don't have —
+     their whole pitch is a persistent panel docked to the job page itself.
+     This is that panel: header, tabs (Autofill / Match Score / Profile), the
+     current posting, a live per-field checklist once state.report exists,
+     and a "Run Autofill Again" button wired to the same doFill() the popup
+     itself calls. Shown whenever there's a posting to act on — during a
+     driven session (scan()) or an automated run (runAutomated()) alike, so
+     there's exactly one on-page UI surface, never two overlapping ones. */
+  let panel = null;
+  const panelState = { collapsed: false, tab: 'autofill', selectedProfileId: null, filling: false };
 
-  function showQuickApplyWidget() {
-    if (!state.posting || !document.body) return;
-    if (!quickWidget) {
-      quickWidget = document.createElement('div');
-      quickWidget.className = 'careeros-quickapply';
-      document.body.appendChild(quickWidget);
+  function showPanel() {
+    if (!document.body) return;
+    const isNew = !panel;
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'careeros-panel';
+      document.body.appendChild(panel);
     }
-    renderQuickApplyWidget();
+    renderPanel();
+    // First time this tab shows the panel this page-life, and only once ever
+    // per install (gated on settings, not a per-tab flag) — a quick, skippable
+    // tour of the panel's own real elements, not the browser toolbar a
+    // content script can't point at anyway.
+    if (isNew && !panelState.collapsed && !state.settings.panelTutorialSeenAt) startTour();
   }
 
-  function hideQuickApplyWidget() {
-    if (quickWidget && quickWidget.parentNode) quickWidget.parentNode.removeChild(quickWidget);
-    quickWidget = null;
+  function hidePanel() {
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+    panel = null;
   }
 
-  function renderQuickApplyWidget() {
-    if (!quickWidget) return;
-    const match = state.match;
-    const blocked = Boolean(match && match.blocked);
-    const score = match && !blocked ? match.score : null;
-    const label = blocked
-      ? 'On your skip list'
-      : score == null ? 'Scoring…' : Matcher.verdict(score, state.settings.minMatchScore).label;
+  function currentMatch() {
+    if (panelState.selectedProfileId && state.matchAll) {
+      return state.matchAll.find((m) => m.profileId === panelState.selectedProfileId) || state.match;
+    }
+    return state.match;
+  }
 
-    quickWidget.innerHTML = `
-      <div class="careeros-quickapply__score" data-tone="${scoreTone(score)}">${score == null ? '—' : score}</div>
-      <div class="careeros-quickapply__body">
-        <strong>CareerOS</strong>
-        <span class="careeros-quickapply__status">${esc(label)}</span>
+  function renderPanel() {
+    if (!panel) return;
+
+    if (panelState.collapsed) {
+      const match = currentMatch();
+      const score = match && !match.blocked ? match.score : null;
+      panel.className = 'careeros-panel careeros-panel--collapsed';
+      panel.innerHTML = `
+        <button type="button" class="careeros-panel__edge" aria-label="Open CareerOS">
+          <img class="careeros-panel__edge-icon" src="${iconUrl()}" alt="">
+          <span class="careeros-panel__edge-score" data-tone="${scoreTone(score)}">${score == null ? '—' : score}</span>
+        </button>
+      `;
+      panel.querySelector('.careeros-panel__edge').onclick = () => {
+        panelState.collapsed = false;
+        renderPanel();
+      };
+      if (tourState.active) endTour(true); // nothing to point at once collapsed
+      return;
+    }
+
+    panel.className = 'careeros-panel';
+    panel.innerHTML = `
+      <div class="careeros-panel__header">
+        <img class="careeros-panel__logo" src="${iconUrl()}" alt="">
+        <span class="careeros-panel__brand">CareerOS</span>
+        <button type="button" class="careeros-panel__icon-btn" data-action="settings" aria-label="Settings">${ICON_GEAR}</button>
+        <button type="button" class="careeros-panel__icon-btn" data-action="collapse" aria-label="Collapse">${ICON_CHEVRON}</button>
       </div>
-      <button type="button" class="careeros-quickapply__btn" ${blocked ? 'disabled' : ''}>${state.report ? 'Fill again' : 'Fill this application'}</button>
-      <button type="button" class="careeros-quickapply__close" aria-label="Dismiss">×</button>
+      <div class="careeros-panel__tabs">
+        <button type="button" class="careeros-panel__tabbtn${panelState.tab === 'autofill' ? ' is-active' : ''}" data-tab="autofill">Autofill</button>
+        <button type="button" class="careeros-panel__tabbtn${panelState.tab === 'match' ? ' is-active' : ''}" data-tab="match">Match Score</button>
+        <button type="button" class="careeros-panel__tabbtn${panelState.tab === 'profile' ? ' is-active' : ''}" data-tab="profile">Profile</button>
+      </div>
+      <div class="careeros-panel__body">${renderPanelBody()}</div>
+      <div class="careeros-panel__footer">${renderPanelFooter()}</div>
     `;
 
-    quickWidget.querySelector('.careeros-quickapply__close').onclick = () => hideQuickApplyWidget();
+    panel.querySelector('[data-action="settings"]').onclick = () => {
+      send({ type: 'careeros:openOptions', tab: 'you' });
+    };
+    panel.querySelector('[data-action="collapse"]').onclick = () => {
+      panelState.collapsed = true;
+      renderPanel();
+    };
+    panel.querySelectorAll('.careeros-panel__tabbtn').forEach((btn) => {
+      btn.onclick = () => {
+        panelState.tab = btn.dataset.tab;
+        renderPanel();
+      };
+    });
 
-    const btn = quickWidget.querySelector('.careeros-quickapply__btn');
-    if (btn) {
-      btn.onclick = async () => {
-        btn.disabled = true;
-        btn.textContent = 'Filling…';
-        const res = await doFill();
-        const status = quickWidget && quickWidget.querySelector('.careeros-quickapply__status');
-        if (status) {
-          status.textContent = res.ok
-            ? `Filled ${res.report.filled} of ${res.report.total} fields — open the popup to submit.`
-            : res.error || 'Could not fill this form.';
-        }
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = res.ok ? 'Fill again' : 'Try again';
-        }
+    const profileOptions = panel.querySelectorAll('.careeros-panel__profile-option');
+    profileOptions.forEach((opt) => {
+      opt.onclick = () => {
+        panelState.selectedProfileId = opt.dataset.profileId;
+        renderPanel();
+      };
+    });
+    const editProfile = panel.querySelector('[data-action="edit-profile"]');
+    if (editProfile) editProfile.onclick = () => send({ type: 'careeros:openOptions', tab: 'you' });
+
+    const cta = panel.querySelector('.careeros-panel__cta');
+    if (cta && !cta.disabled) {
+      cta.onclick = async () => {
+        if (tourState.active) endTour(true); // a real click means they don't need the walk-through
+        panelState.filling = true;
+        renderPanel();
+        const res = await doFill(panelState.selectedProfileId);
+        panelState.filling = false;
+        panelState.lastError = res.ok ? null : res.error;
+        // Storage.logApplication (inside doFill) only writes once per URL —
+        // priorApplication is set when this posting was already logged, so a
+        // real, one-time "saved" note only shows the first time, not on
+        // every "Run Autofill Again".
+        panelState.justLogged = res.ok && !res.priorApplication;
+        renderPanel();
       };
     }
+
+    // Keep the tour's callout pinned to its target through every re-render
+    // (a tab switch, a live checklist update while the tour is still up).
+    if (tourState.active) renderTour();
+  }
+
+  function renderPanelFooter() {
+    const match = currentMatch();
+    const blocked = Boolean(match && match.blocked);
+    if (panelState.filling) return `<button type="button" class="careeros-panel__cta" disabled>Filling…</button>`;
+    const label = state.report ? 'Run Autofill Again' : (match && match.score < state.settings.minMatchScore ? 'Fill anyway' : 'Fill this application');
+    return `<button type="button" class="careeros-panel__cta" ${blocked ? 'disabled' : ''}>${esc(label)}</button>`;
+  }
+
+  function renderPanelBody() {
+    if (panelState.tab === 'match') return renderMatchTab();
+    if (panelState.tab === 'profile') return renderProfileTab();
+    return renderAutofillTab();
+  }
+
+  function renderPostingCard() {
+    if (!state.posting) {
+      return `<div class="careeros-panel__posting careeros-panel__posting--empty">Looking for a job posting on this page…</div>`;
+    }
+    return `
+      <div class="careeros-panel__posting">
+        <strong>${esc(state.posting.title || 'Untitled role')}</strong>
+        ${state.posting.company ? `<span>${esc(state.posting.company)}</span>` : ''}
+      </div>
+    `;
+  }
+
+  function renderAutofillTab() {
+    const parts = [renderPostingCard()];
+
+    if (panelState.filling || state.busy || state.autoRunning) {
+      parts.push(`
+        <div class="careeros-panel__status">
+          <span class="careeros-panel__status-dot"></span>
+          <span>Filling…</span>
+        </div>
+      `);
+    } else if (state.report) {
+      const needsYou = state.report.skipped.filter((s) => s.required);
+      parts.push(`
+        <div class="careeros-panel__status" data-tone="${needsYou.length ? 'warn' : 'ok'}">
+          ${needsYou.length ? `${needsYou.length} field${needsYou.length > 1 ? 's need' : ' needs'} you` : 'Autofill complete!'}
+        </div>
+      `);
+      parts.push(renderChecklist(state.report));
+      if (panelState.justLogged) parts.push(`<div class="careeros-panel__toast">Saved to your tracker.</div>`);
+    } else if (panelState.lastError) {
+      parts.push(`<div class="careeros-panel__status" data-tone="warn">${esc(panelState.lastError)}</div>`);
+    } else {
+      parts.push(`<div class="careeros-panel__status">Not filled yet — press the button below.</div>`);
+    }
+
+    return parts.join('');
+  }
+
+  function renderChecklist(report) {
+    const rows = [];
+    report.filled.forEach((f) => rows.push(checklistRow(f.label, 'filled')));
+    report.generated.forEach((f) => rows.push(checklistRow(f.label, 'generated')));
+    report.skipped.filter((s) => s.required).forEach((s) => rows.push(checklistRow(s.label, 'attention', s.reason)));
+    if (!rows.length) return '';
+    return `<ul class="careeros-panel__checklist">${rows.join('')}</ul>`;
+  }
+
+  function checklistRow(label, kind, reason) {
+    const icon = kind === 'attention' ? ICON_ATTENTION : ICON_CHECK;
+    const badge = kind === 'generated' ? `<span class="careeros-panel__badge" title="Written by JobGPT">${ICON_SPARKLE} AI</span>` : '';
+    return `
+      <li class="careeros-panel__item" data-kind="${kind}">
+        <span class="careeros-panel__item-icon">${icon}</span>
+        <span class="careeros-panel__item-label">${esc(label)}${reason ? `<small>${esc(reason)}</small>` : ''}</span>
+        ${badge}
+      </li>
+    `;
+  }
+
+  function renderMatchTab() {
+    const match = currentMatch();
+    if (!match) return `<div class="careeros-panel__status">Scoring this posting…</div>`;
+    const blocked = Boolean(match.blocked);
+    const score = blocked ? null : match.score;
+    const verdict = blocked ? { label: 'On your skip list' } : Matcher.verdict(score, state.settings.minMatchScore);
+    const reasons = (blocked ? match.blockers : match.reasons) || [];
+
+    return `
+      <div class="careeros-panel__score-row">
+        <div class="careeros-panel__score-circle" data-tone="${scoreTone(score)}">${score == null ? '—' : score}</div>
+        <div class="careeros-panel__verdict">
+          <strong>${esc(verdict.label)}</strong>
+          <span>${esc((state.adapter && state.adapter.label) || '')}</span>
+        </div>
+      </div>
+      ${reasons.length ? `<ul class="careeros-panel__reasons">${reasons.slice(0, 4).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+    `;
+  }
+
+  function renderProfileTab() {
+    const ids = Object.keys(state.profiles || {});
+    const parts = [];
+
+    if (state.matchAll && state.matchAll.length > 1) {
+      const selected = panelState.selectedProfileId || (state.matchAll[0] && state.matchAll[0].profileId) || state.activeProfileId;
+      parts.push(`<div class="careeros-panel__profile-list">${state.matchAll.map((m) => `
+        <button type="button" class="careeros-panel__profile-option${m.profileId === selected ? ' is-active' : ''}" data-profile-id="${esc(m.profileId)}">
+          <span>${esc(m.profileName)}</span>
+          <span class="careeros-panel__profile-score">${m.score}</span>
+        </button>
+      `).join('')}</div>`);
+    } else {
+      const name = ids.length && state.profiles[ids[0]] ? state.profiles[ids[0]].name : 'your profile';
+      parts.push(`<div class="careeros-panel__status">Filling from ${esc(name)}.</div>`);
+    }
+
+    parts.push(`<button type="button" class="careeros-panel__link" data-action="edit-profile">Edit your profile in CareerOS settings →</button>`);
+    return parts.join('');
+  }
+
+  function iconUrl() {
+    try { return chrome.runtime.getURL('icons/icon32.png'); } catch (err) { return ''; }
   }
 
   function scoreTone(score) {
@@ -223,6 +406,91 @@
     if (score >= 85) return 'strong';
     if (score >= state.settings.minMatchScore) return 'good';
     return 'weak';
+  }
+
+  const ICON_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  const ICON_ATTENTION = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+  const ICON_SPARKLE = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z"></path></svg>';
+  const ICON_GEAR = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>';
+  const ICON_CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = String(s == null ? '' : s);
+    return d.innerHTML;
+  }
+
+  /* ================= first-run tour ================= */
+
+  /* A short, skippable walk-through of the panel's own real elements — shown
+     once per install (gated on settings.panelTutorialSeenAt, same
+     get/saveSettings pattern as every other one-time flag, not a separate
+     storage key), never the ten-step click-through gauntlet a competitor's
+     reference screenshot showed. Points at things that actually exist on
+     this panel; nothing here claims a feature (like a data-collection
+     consent step) CareerOS doesn't really have. */
+  const TOUR_STEPS = [
+    { selector: '.careeros-panel__tabs', text: 'See your match score and switch profiles here.' },
+    { selector: '.careeros-panel__posting', text: 'This is the job CareerOS detected on this page.' },
+    { selector: '.careeros-panel__body', text: 'Every field CareerOS fills shows up here as it happens.' },
+    { selector: '.careeros-panel__cta', text: 'One click fills the whole form.' },
+    { selector: '.careeros-panel__icon-btn[data-action="settings"]', text: 'Manage your profile, resume, and which sites CareerOS can use.' }
+  ];
+  const tourState = { active: false, step: 0 };
+  let tourEl = null;
+
+  function startTour() {
+    if (tourState.active || !panel) return;
+    panelState.tab = 'autofill'; // steps 2-3 point at elements only on this tab
+    renderPanel();
+    tourState.active = true;
+    tourState.step = 0;
+    renderTour();
+  }
+
+  function endTour(markSeen) {
+    tourState.active = false;
+    if (tourEl && tourEl.parentNode) tourEl.parentNode.removeChild(tourEl);
+    tourEl = null;
+    if (markSeen) {
+      state.settings.panelTutorialSeenAt = Date.now();
+      Storage.saveSettings({ panelTutorialSeenAt: state.settings.panelTutorialSeenAt });
+    }
+  }
+
+  function renderTour() {
+    if (!tourState.active || !panel) return;
+    const step = TOUR_STEPS[tourState.step];
+    const target = panel.querySelector(step.selector);
+    if (!target) { endTour(true); return; } // e.g. the panel got collapsed mid-tour
+
+    if (!tourEl) {
+      tourEl = document.createElement('div');
+      tourEl.className = 'careeros-tour';
+      document.body.appendChild(tourEl);
+    }
+
+    const isLast = tourState.step === TOUR_STEPS.length - 1;
+    tourEl.innerHTML = `
+      <div class="careeros-tour__count">${tourState.step + 1}/${TOUR_STEPS.length}</div>
+      <p class="careeros-tour__text">${esc(step.text)}</p>
+      <div class="careeros-tour__actions">
+        <button type="button" class="careeros-tour__skip">Skip</button>
+        <button type="button" class="careeros-tour__next">${isLast ? 'Got it' : 'Next'}</button>
+      </div>
+    `;
+
+    const panelRect = panel.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    tourEl.style.right = `${Math.max(window.innerWidth - panelRect.left + 12, 12)}px`;
+    tourEl.style.top = `${Math.min(Math.max(targetRect.top - 6, 12), window.innerHeight - 140)}px`;
+
+    tourEl.querySelector('.careeros-tour__skip').onclick = () => endTour(true);
+    tourEl.querySelector('.careeros-tour__next').onclick = () => {
+      if (isLast) { endTour(true); return; }
+      tourState.step += 1;
+      renderTour();
+    };
   }
 
   /* ================= auto-harvest ================= */
@@ -372,6 +640,7 @@
       : state.match;
 
     state.busy = true;
+    if (panel) renderPanel(); // also reflects a fill triggered from the popup, not just the panel's own button
     try {
       const prior = await Storage.alreadyApplied(location.href);
       const form = ATS.findForm(state.adapter, document) || document.body;
@@ -395,6 +664,7 @@
       return { ok: false, error: err.message };
     } finally {
       state.busy = false;
+      if (panel) renderPanel();
     }
   }
 
@@ -440,23 +710,34 @@
     }
   }
 
-  /* A small, dismissible on-page signal that this tab is being worked
-     automatically — the one thing a hidden background tab can't show, but
-     costs nothing to add for the times a run tab (or a showApplyTabs window)
-     is actually on screen. Closing it only hides it; the fill keeps going. */
-  let banner = null;
+  /* A dismissible on-page signal that this tab is being worked automatically
+     — the one thing a hidden background tab can't show, but costs nothing to
+     add for the times a run tab (or a showApplyTabs window) is actually on
+     screen. Rather than a second, separate floating pill, this drives the
+     same docked panel scan()/doFill() use — one on-page UI surface, not two
+     overlapping ones — showing a "Filling…" status line until the run's
+     Filler.fillForm calls land in state.report. Collapsing (or the panel
+     never having been shown yet) only hides the status; the fill itself
+     keeps going regardless. */
   function showAutofillBanner() {
-    if (banner || !document.body) return;
-    banner = document.createElement('div');
-    banner.className = 'careeros-banner';
-    banner.innerHTML = '<span class="careeros-banner__dot"></span><span>Autofill in progress…</span>'
-      + '<button type="button" class="careeros-banner__close" aria-label="Dismiss">×</button>';
-    banner.querySelector('.careeros-banner__close').onclick = () => hideAutofillBanner();
-    document.body.appendChild(banner);
+    state.autoRunning = true;
+    showPanel();
   }
   function hideAutofillBanner() {
-    if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
-    banner = null;
+    state.autoRunning = false;
+    if (state.posting) renderPanel();
+    else hidePanel();
+  }
+
+  /* The generic-ATS and aggregator-flow paths below fill the same form as
+     doFill(), just without going through it — this keeps state.report (and
+     so the panel's live checklist) current across every step of an
+     automated run too, not only a person-driven fill from the popup. */
+  async function fillTracked(scope, profile, context) {
+    const rep = await Filler.fillForm(scope, profile, context);
+    state.report = rep;
+    if (panel) renderPanel();
+    return rep;
   }
 
   /* Aggregator flows: open the apply surface, then work it step by step. */
@@ -491,7 +772,7 @@
       if (flow.isDone()) return { outcome: 'submitted', detail: `${filledTotal} fields over ${step} step${step === 1 ? '' : 's'}` };
 
       const before = { sig: formSignature(scope), progress: flow.progress(scope) };
-      const filled = await Filler.fillForm(scope, context.profileOverride || state.profile, context);
+      const filled = await fillTracked(scope, context.profileOverride || state.profile, context);
       filledTotal += filled.filled.length + filled.generated.length;
       reportProgress(step + 1, directive.directive.maxSteps, filledTotal);
 
@@ -558,7 +839,7 @@
    * form on (caller's step loop should just continue), or {filledDelta,
    * outcome:{...}} with a terminal result otherwise. */
   async function retryFlowValidationOnce(flow, scope, context, before) {
-    const retryReport = await Filler.fillForm(scope, context.profileOverride || state.profile, context);
+    const retryReport = await fillTracked(scope, context.profileOverride || state.profile, context);
     const filledDelta = retryReport.filled.length + retryReport.generated.length;
     const changed = describeChangedFields(retryReport);
 
@@ -638,7 +919,7 @@
       const form = ATS.findForm(state.adapter, document) || document.body;
       const before = formSignature(form);
 
-      const filled = await Filler.fillForm(form, context.profileOverride || state.profile, context);
+      const filled = await fillTracked(form, context.profileOverride || state.profile, context);
       filledTotal += filled.filled.length + filled.generated.length;
       reportProgress(step + 1, directive.maxSteps, filledTotal);
 
@@ -683,7 +964,7 @@
   /* Generic-ATS counterpart to retryFlowValidationOnce — see its comment for
    * why this is capped at exactly one attempt. */
   async function retryFormValidationOnce(form, context, before) {
-    const retryReport = await Filler.fillForm(form, context.profileOverride || state.profile, context);
+    const retryReport = await fillTracked(form, context.profileOverride || state.profile, context);
     const filledDelta = retryReport.filled.length + retryReport.generated.length;
     const changed = describeChangedFields(retryReport);
 

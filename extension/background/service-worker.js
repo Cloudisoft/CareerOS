@@ -87,6 +87,24 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     stats().then(respond);
     return true;
   }
+  if (msg.type === 'careeros:openOptions') {
+    // A content-script panel can't call chrome.tabs itself, and
+    // chrome.runtime.openOptionsPage() can't target a specific tab within
+    // options.html, so this opens (or focuses) it with a ?tab= param
+    // instead — same deep-link options.js already reads for ?welcome=1.
+    (async () => {
+      const url = chrome.runtime.getURL(`options/options.html${msg.tab ? `?tab=${encodeURIComponent(msg.tab)}` : ''}`);
+      const existing = await chrome.tabs.query({ url: chrome.runtime.getURL('options/options.html*') });
+      if (existing.length) {
+        await chrome.tabs.update(existing[0].id, { active: true, url });
+        if (existing[0].windowId != null) chrome.windows.update(existing[0].windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url });
+      }
+      respond({ ok: true });
+    })();
+    return true;
+  }
   return false;
 });
 
