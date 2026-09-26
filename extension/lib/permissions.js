@@ -115,7 +115,7 @@
     async registerScripts() {
       const granted = await chrome.permissions.getAll();
       const origins = (granted.origins || []).filter(
-        (o) => !o.includes('careeros.example') && !o.includes('localhost')
+        (o) => !o.includes('careeros.silverspringstaffing.com') && !o.includes('localhost')
       );
 
       try {

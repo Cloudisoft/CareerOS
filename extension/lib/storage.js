@@ -33,11 +33,11 @@
                                   // the person can actually watch a form get filled if they want to.
     /* The Career OS app's API. Set this once per deployment — the pairing
        screen writes the token beside it. */
-    apiBase: 'http://localhost:3000/api/extension',
+    apiBase: 'https://careeros.silverspringstaffing.com/api/extension',
     /* Where the sign-in/approval pages live. Same host as apiBase for Career
        OS's own Next.js deployment; kept separate in settings in case a
        self-hosted install ever splits them. */
-    webAppUrl: 'http://localhost:3000',
+    webAppUrl: 'https://careeros.silverspringstaffing.com',
     deviceToken: '',
     pairedAs: '',
     pairedAt: null,

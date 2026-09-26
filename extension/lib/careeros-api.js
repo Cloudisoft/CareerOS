@@ -12,7 +12,7 @@
 
   const { Storage } = root.CareerOS;
 
-  const DEFAULT_BASE = 'http://localhost:3000/api/extension';
+  const DEFAULT_BASE = 'https://careeros.silverspringstaffing.com/api/extension';
 
   async function base() {
     const settings = await Storage.getSettings();
@@ -101,7 +101,7 @@
 
       const settings = await Storage.getSettings();
       const tab = await chrome.tabs.create({
-        url: `${(settings.webAppUrl || 'http://localhost:3000').replace(/\/$/, '')}/extension-connect?state=${state}`,
+        url: `${(settings.webAppUrl || 'https://careeros.silverspringstaffing.com').replace(/\/$/, '')}/extension-connect?state=${state}`,
       });
 
       /* Poll rather than wait for a redirect, because the person may complete
