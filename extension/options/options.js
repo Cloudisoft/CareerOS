@@ -291,6 +291,28 @@
     if (e.key === 'Enter') $('#pairBtn').click();
   });
 
+  $('#connectBtn').onclick = async () => {
+    $('#connectBtn').disabled = true;
+    $('#connectBtn').textContent = 'Waiting for approval…';
+    $('#connectMsg').textContent = 'Approve it in the tab that just opened.';
+
+    const res = await new Promise((resolve) =>
+      chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'connect' }, resolve)
+    );
+
+    $('#connectBtn').disabled = false;
+    $('#connectBtn').textContent = 'Sign in';
+    if (res && res.ok) {
+      $('#connectMsg').textContent = 'Signed in. Pulling your profile…';
+      await new Promise((resolve) =>
+        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
+      );
+      location.reload();
+    } else {
+      $('#connectMsg').textContent = (res && res.error) || 'Could not sign in.';
+    }
+  };
+
   $('#pairBtn').onclick = async () => {
     const code = codeInput.value.trim();
     if (code.length !== 6) { $('#pairMsg').textContent = 'The code is six characters.'; return; }

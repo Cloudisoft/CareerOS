@@ -45,17 +45,22 @@
     <section class="panel is-on" id="panel-account">
       <div id="pairState" class="pairBox">
         <h2>Connect this browser</h2>
-        <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
+        <p class="note">One click. You'll approve it on the CareerOS site, where you're already signed in.</p>
+        <button class="btn" id="connectBtn">Sign in</button>
+        <p class="note" id="connectMsg" style="margin-top:8px"></p>
 
-        <div class="grid">
-          <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://app.careeros.example/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension.</small></label>
-        </div>
-
-        <div class="pairRow">
-          <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
-          <button class="btn" id="pairBtn">Connect</button>
-        </div>
-        <p class="note" id="pairMsg"></p>
+        <details style="margin-top:16px">
+          <summary class="note">Have a pairing code instead?</summary>
+          <div class="grid" style="margin-top:8px">
+            <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://app.careeros.example/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension.</small></label>
+          </div>
+          <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
+          <div class="pairRow">
+            <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
+            <button class="btn ghost" id="pairBtn">Connect</button>
+          </div>
+          <p class="note" id="pairMsg"></p>
+        </details>
       </div>
 
       <div id="pairedBox" class="pairBox" hidden>
