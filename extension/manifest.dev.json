@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "CareerOS \u2014 Auto Apply",
-  "short_name": "CareerOS",
+  "name": "CareerOS — Auto Apply (dev)",
+  "short_name": "CareerOS Dev",
   "version": "2.6.0",
-  "description": "Finds roles that match you, tailors your resume for each one, and fills the application. You approve before anything is sent.",
+  "description": "Development build. Points at localhost by default and permits calling a model provider directly from the browser for local testing — never upload this manifest to the Chrome Web Store.",
   "author": "Career OS",
   "icons": {
     "16": "icons/icon16.png",
@@ -12,7 +12,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "CareerOS",
+    "default_title": "CareerOS (dev)",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -35,7 +35,8 @@
   ],
   "host_permissions": [
     "https://careeros.silverspringstaffing.com/*",
-    "http://localhost:3000/*"
+    "http://localhost:3000/*",
+    "https://api.anthropic.com/*"
   ],
   "web_accessible_resources": [
     {

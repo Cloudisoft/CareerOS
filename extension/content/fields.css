@@ -55,3 +55,77 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
+
+/* The one-click "fill this application" card shown on a posting page so
+   applying doesn't require opening the popup first. */
+.careeros-quickapply {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 340px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font: 500 13px/1.35 -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a2e;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(20, 20, 40, 0.22), 0 0 0 1px rgba(20, 20, 40, 0.06);
+}
+.careeros-quickapply__score {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  background: #9aa0ab;
+}
+.careeros-quickapply__score[data-tone="strong"] { background: #22a35a; }
+.careeros-quickapply__score[data-tone="good"] { background: #4C6DF5; }
+.careeros-quickapply__score[data-tone="weak"] { background: #F46A29; }
+.careeros-quickapply__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.careeros-quickapply__body strong { font-size: 12px; }
+.careeros-quickapply__status {
+  color: #5a5a6e;
+  font-weight: 400;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.careeros-quickapply__btn {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: 600 12px/1 -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #fff;
+  background: linear-gradient(135deg, #7C5CFC, #4C6DF5);
+  cursor: pointer;
+}
+.careeros-quickapply__btn:disabled { opacity: 0.6; cursor: default; }
+.careeros-quickapply__close {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: #9aa0ab;
+  width: 18px;
+  height: 18px;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+.careeros-quickapply__close:hover { color: #5a5a6e; }

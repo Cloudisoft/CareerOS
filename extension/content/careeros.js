@@ -93,6 +93,7 @@
       state.match = Matcher.score(state.profile, posting);
     }
     state.report = null;
+    showQuickApplyWidget();
   }
 
   function watchForChanges() {
@@ -109,9 +110,85 @@
         lastUrl = location.href;
         state.posting = null;
         state.report = null;
+        hideQuickApplyWidget();
         setTimeout(scan, 1200);
       }
     }, 1000);
+  }
+
+  /* ================= one-click, no popup needed ================= */
+
+  /* The popup is the full picture, but making someone open it just to start
+     a fill is exactly the friction competitors like Simplify/SpeedyApply
+     don't have — their whole pitch is a button right on the page. This is
+     that button: a small floating card with the match score and a single
+     "Fill this application" action, wired to the same doFill() the popup
+     itself calls. Only ever shown outside an automated run (scan() is never
+     called during one — see init()), so it can't collide with the
+     autofill-in-progress banner. */
+  let quickWidget = null;
+
+  function showQuickApplyWidget() {
+    if (!state.posting || !document.body) return;
+    if (!quickWidget) {
+      quickWidget = document.createElement('div');
+      quickWidget.className = 'careeros-quickapply';
+      document.body.appendChild(quickWidget);
+    }
+    renderQuickApplyWidget();
+  }
+
+  function hideQuickApplyWidget() {
+    if (quickWidget && quickWidget.parentNode) quickWidget.parentNode.removeChild(quickWidget);
+    quickWidget = null;
+  }
+
+  function renderQuickApplyWidget() {
+    if (!quickWidget) return;
+    const match = state.match;
+    const blocked = Boolean(match && match.blocked);
+    const score = match && !blocked ? match.score : null;
+    const label = blocked
+      ? 'On your skip list'
+      : score == null ? 'Scoring…' : Matcher.verdict(score, state.settings.minMatchScore).label;
+
+    quickWidget.innerHTML = `
+      <div class="careeros-quickapply__score" data-tone="${scoreTone(score)}">${score == null ? '—' : score}</div>
+      <div class="careeros-quickapply__body">
+        <strong>CareerOS</strong>
+        <span class="careeros-quickapply__status">${esc(label)}</span>
+      </div>
+      <button type="button" class="careeros-quickapply__btn" ${blocked ? 'disabled' : ''}>${state.report ? 'Fill again' : 'Fill this application'}</button>
+      <button type="button" class="careeros-quickapply__close" aria-label="Dismiss">×</button>
+    `;
+
+    quickWidget.querySelector('.careeros-quickapply__close').onclick = () => hideQuickApplyWidget();
+
+    const btn = quickWidget.querySelector('.careeros-quickapply__btn');
+    if (btn) {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = 'Filling…';
+        const res = await doFill();
+        const status = quickWidget && quickWidget.querySelector('.careeros-quickapply__status');
+        if (status) {
+          status.textContent = res.ok
+            ? `Filled ${res.report.filled} of ${res.report.total} fields — open the popup to submit.`
+            : res.error || 'Could not fill this form.';
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = res.ok ? 'Fill again' : 'Try again';
+        }
+      };
+    }
+  }
+
+  function scoreTone(score) {
+    if (score == null) return 'unknown';
+    if (score >= 85) return 'strong';
+    if (score >= state.settings.minMatchScore) return 'good';
+    return 'weak';
   }
 
   /* ================= auto-harvest ================= */

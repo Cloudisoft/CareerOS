@@ -42,6 +42,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
+/* manifest.json declares the "open-dashboard" shortcut (Alt+Shift+J) — this
+   is what actually makes it do something. */
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'open-dashboard') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+  }
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   const tabId = sender.tab && sender.tab.id;
 
