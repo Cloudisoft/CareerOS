@@ -32,6 +32,12 @@
     return /plan upgrade|requires a plan|Standard or higher|Premium or higher/i.test(err.message || '');
   }
 
+  document.querySelectorAll('.upgradeLink').forEach((a) => {
+    a.href = `${(settings.webAppUrl || '').replace(/\/$/, '')}/settings/billing`;
+    a.target = '_blank';
+    a.rel = 'noreferrer';
+  });
+
   // ================== Mock Interview ==================
   let currentSession = null;
 
