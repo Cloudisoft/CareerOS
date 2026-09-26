@@ -152,49 +152,63 @@ export default function AutoApplyPage() {
         </CardHeader>
       </Card>
 
-      {latestRun && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Latest run</CardTitle>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Latest run</CardTitle>
+            {latestRun && (
               <Badge variant={latestRun.status === "running" ? "brand" : "outline"}>{latestRun.status}</Badge>
-            </div>
-            <CardDescription>Updated {new Date(latestRun.updatedAt).toLocaleString()}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-5 gap-3 text-center text-sm">
-              <div>
-                <Clock className="mx-auto h-4 w-4 text-muted-foreground" />
-                <p className="mt-1 font-semibold text-foreground">{latestRun.queued}</p>
-                <p className="text-xs text-muted-foreground">Queued</p>
-              </div>
-              <div>
-                <CheckCircle2 className="mx-auto h-4 w-4 text-success" />
-                <p className="mt-1 font-semibold text-foreground">{latestRun.submitted}</p>
-                <p className="text-xs text-muted-foreground">Submitted</p>
-              </div>
-              <div>
-                <Send className="mx-auto h-4 w-4 text-primary" />
-                <p className="mt-1 font-semibold text-foreground">{latestRun.assisted}</p>
-                <p className="text-xs text-muted-foreground">Assisted</p>
-              </div>
-              <div>
-                <SkipForward className="mx-auto h-4 w-4 text-muted-foreground" />
-                <p className="mt-1 font-semibold text-foreground">{latestRun.skipped}</p>
-                <p className="text-xs text-muted-foreground">Skipped</p>
-              </div>
-              <div>
-                <XCircle className="mx-auto h-4 w-4 text-destructive" />
-                <p className="mt-1 font-semibold text-foreground">{latestRun.failed}</p>
-                <p className="text-xs text-muted-foreground">Failed</p>
-              </div>
-            </div>
-            {latestRun.lastError && (
-              <p className="mt-3 text-sm text-destructive">{latestRun.lastError}</p>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <CardDescription>
+            {latestRun
+              ? `Updated ${new Date(latestRun.updatedAt).toLocaleString()}`
+              : "No run yet."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {latestRun ? (
+            <>
+              <div className="grid grid-cols-5 gap-3 text-center text-sm">
+                <div>
+                  <Clock className="mx-auto h-4 w-4 text-muted-foreground" />
+                  <p className="mt-1 font-semibold text-foreground">{latestRun.queued}</p>
+                  <p className="text-xs text-muted-foreground">Queued</p>
+                </div>
+                <div>
+                  <CheckCircle2 className="mx-auto h-4 w-4 text-success" />
+                  <p className="mt-1 font-semibold text-foreground">{latestRun.submitted}</p>
+                  <p className="text-xs text-muted-foreground">Submitted</p>
+                </div>
+                <div>
+                  <Send className="mx-auto h-4 w-4 text-primary" />
+                  <p className="mt-1 font-semibold text-foreground">{latestRun.assisted}</p>
+                  <p className="text-xs text-muted-foreground">Assisted</p>
+                </div>
+                <div>
+                  <SkipForward className="mx-auto h-4 w-4 text-muted-foreground" />
+                  <p className="mt-1 font-semibold text-foreground">{latestRun.skipped}</p>
+                  <p className="text-xs text-muted-foreground">Skipped</p>
+                </div>
+                <div>
+                  <XCircle className="mx-auto h-4 w-4 text-destructive" />
+                  <p className="mt-1 font-semibold text-foreground">{latestRun.failed}</p>
+                  <p className="text-xs text-muted-foreground">Failed</p>
+                </div>
+              </div>
+              {latestRun.lastError && (
+                <p className="mt-3 text-sm text-destructive">{latestRun.lastError}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {devices.length > 0
+                ? "This browser is paired, but hasn't started an Auto Apply run yet — open the extension and press Start."
+                : "Pair a browser above, then start a run from the extension, to see queued/submitted/skipped counts here."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {settings && (
         <Card>
