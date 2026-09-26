@@ -233,7 +233,7 @@
      Most fields never trigger either — this returns fast when nothing shows
      up, same shape as lib/flows.js's waitFor(). */
   async function settleTypeaheadOrDatePicker(node, value) {
-    const listbox = await pollFor(() => findOptionPopup(node), 350);
+    const listbox = await pollFor(() => findOptionPopup(node), 120);
     if (listbox) {
       const hit = matchOptionInPopup(listbox, value);
       if (hit) { clickLike(hit); return { matched: normalizeText(hit) }; }
@@ -241,7 +241,7 @@
 
     const date = parseDateLoose(value);
     if (date) {
-      const calendar = await pollFor(() => findCalendarPopup(), 300);
+      const calendar = await pollFor(() => findCalendarPopup(), 100);
       if (calendar) {
         const day = findMatchingDayCell(calendar, date);
         if (day) { clickLike(day); return { matched: normalizeText(day) }; }
@@ -251,12 +251,19 @@
     return {};
   }
 
+  /* This runs after every successfully-set text field, and most fields never
+     trigger a popup at all — so the "nothing showed up" case (the common
+     one) pays this cost on every field, all the way down a multi-step form.
+     A real combobox/calendar popup a page renders in response to the input
+     event we just dispatched shows up within a handful of milliseconds, not
+     hundreds — keep the interval tight so that common case stays cheap
+     rather than always burning the full timeout. */
   async function pollFor(predicate, timeout) {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       const hit = predicate();
       if (hit) return hit;
-      await sleep(90);
+      await sleep(25);
     }
     return null;
   }
