@@ -1,0 +1,39 @@
+<!-- Simplified, anonymized Greenhouse application form. Plain-text-heavy:
+     covers first/last/email/phone/linkedin/portfolio and a free-text
+     textarea question long enough to be routed to answerQuestion(). -->
+<div id="application_form">
+  <form id="application-form" action="/applications">
+    <div class="field">
+      <label for="first_name">First Name<span>*</span></label>
+      <input type="text" id="first_name" name="job_application[first_name]" required>
+    </div>
+    <div class="field">
+      <label for="last_name">Last Name<span>*</span></label>
+      <input type="text" id="last_name" name="job_application[last_name]" required>
+    </div>
+    <div class="field">
+      <label for="email">Email<span>*</span></label>
+      <input type="email" id="email" name="job_application[email]" required>
+    </div>
+    <div class="field">
+      <label for="phone">Phone</label>
+      <input type="tel" id="phone" name="job_application[phone]">
+    </div>
+    <div class="field">
+      <label for="linkedin">LinkedIn Profile</label>
+      <input type="text" id="linkedin" name="job_application[urls][linkedin]">
+    </div>
+    <div class="field">
+      <label for="portfolio">Website / Portfolio</label>
+      <input type="text" id="portfolio" name="job_application[urls][portfolio]">
+    </div>
+    <div class="field">
+      <!-- Deliberately outside every FIELD_PATTERN in lib/ats.js, so this
+           exercises the "unrecognised free-text question -> answerQuestion()"
+           branch of Filler.fill() rather than a pattern match. -->
+      <label for="cover">What's the most interesting technical problem you've solved recently?</label>
+      <textarea id="cover" name="job_application[cover]"></textarea>
+    </div>
+    <input type="submit" id="submit_app" value="Submit Application">
+  </form>
+</div>

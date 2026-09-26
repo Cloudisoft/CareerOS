@@ -29,6 +29,10 @@
       seniority: '',         // intern | junior | mid | senior | lead | director
       workModes: [],         // remote | hybrid | onsite
       locations: [],
+      country: '',            // ISO-ish country code this profile targets, e.g. "IN", "US" — see
+                                // Matcher.scoreAll()'s country weighting and lib/search-urls.js's Indeed domain pick.
+                                // Distinct from identity.country (where the person actually lives): someone can
+                                // live in one country and keep a separate profile targeting another.
       radiusMiles: 25,        // 0 = no radius limit. Passed to aggregator APIs and to LinkedIn's own search URL.
       minSalary: 0,
       salaryCurrency: 'USD',

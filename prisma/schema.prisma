@@ -1084,6 +1084,28 @@ model AutoApplyRun {
 }
 
 // ============================================================
+// EXTENSION SELECTOR OVERRIDES — a single admin-editable row the extension
+// polls so a DOM change on an ATS can be patched without a store release.
+// Kept as one JSON blob rather than a table per selector: the shape mirrors
+// extension/lib/ats.js's ADAPTERS entries exactly, and a single row is all a
+// first version needs (see src/app/api/admin/extension/selectors and
+// src/app/api/extension/selectors).
+// ============================================================
+
+model ExtensionSelectorOverride {
+  /** Always "singleton" — one row holds every adapter's overrides. */
+  id String @id @default("singleton")
+
+  /** { [atsId]: { form?, submit?, title?, company?, description? } } */
+  overrides Json @default("{}")
+
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("extension_selector_overrides")
+}
+
+// ============================================================
 // LEARNING HUB — a curated catalog of real external resources
 // (official docs, free courses), recommended from the candidate's
 // actual missing skills as surfaced by the matching engine.

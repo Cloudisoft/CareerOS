@@ -202,6 +202,17 @@
     async heartbeat(run) {
       return request('/run', { method: 'POST', body: JSON.stringify(run) });
     },
+
+    /* Remote selector overrides — see ATS.applyOverrides(). Never throws:
+       a fetch failure just means the extension keeps running on whatever it
+       already had cached (or the hardcoded defaults if nothing is cached). */
+    async getSelectorOverrides() {
+      try {
+        return await request('/selectors');
+      } catch (err) {
+        return { overrides: null, message: err.message };
+      }
+    },
   };
 
   function deviceLabel() {

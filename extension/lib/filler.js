@@ -103,7 +103,14 @@
       }
 
       setValue(field.node, String(value));
-      return { label, status: 'filled', value: String(value) };
+      // Workday/Greenhouse-style combobox: typing opens a listbox and the
+      // form's own JS only registers the value once an option is clicked —
+      // a raw setValue leaves the field looking filled but unset underneath.
+      // A real calendar-widget date picker gets the same treatment: clicking
+      // through to the matching day rather than leaving the popup open over
+      // an otherwise-empty field.
+      const settled = await settleTypeaheadOrDatePicker(field.node, String(value));
+      return { label, status: 'filled', value: settled.matched || String(value) };
     },
 
     /* Fill a whole form. */
@@ -111,7 +118,37 @@
       const fields = Filler.collectFields(scope);
       const report = { filled: [], skipped: [], generated: [], total: fields.length };
 
-      for (const field of fields) {
+      /* Many ATS forms auto-populate name/email/experience the instant a
+         resume is uploaded and parsed, which can silently clobber whatever
+         was already typed into those fields if the resume input happens to
+         sit later in the DOM. Filling the resume field first, then giving
+         the page a moment to run its own parse/autofill before re-collecting
+         the rest of the form, avoids that ordering hazard. Re-collecting
+         (rather than reusing the original snapshot) matters too: the parse
+         can add fields that didn't exist yet, or change which ones are
+         visible/required. */
+      const resumeField = fields.find((f) => f.kind === 'file');
+      let rest = fields;
+
+      if (resumeField) {
+        let result;
+        try {
+          result = await Filler.fill(resumeField, profile, context);
+        } catch (err) {
+          result = { label: resumeField.label, status: 'skipped', reason: err.message };
+        }
+        (result.status === 'filled' ? report.filled : report.skipped).push(result);
+
+        if (result.status === 'filled') {
+          await sleep(400 + Math.random() * 300); // resume-parse debounce is slower than a keystroke
+          rest = Filler.collectFields(scope).filter((f) => f.kind !== 'file');
+          report.total = rest.length + 1;
+        } else {
+          rest = fields.filter((f) => f !== resumeField);
+        }
+      }
+
+      for (const field of rest) {
         let result;
         try {
           result = await Filler.fill(field, profile, context);
@@ -189,6 +226,119 @@
     if (!hit) return null;
     clickLike(hit.node);
     return hit.text;
+  }
+
+  /* Poll briefly for either a typeahead/combobox popup or a calendar overlay
+     to appear after a plain setValue, and click through it when one does.
+     Most fields never trigger either — this returns fast when nothing shows
+     up, same shape as lib/flows.js's waitFor(). */
+  async function settleTypeaheadOrDatePicker(node, value) {
+    const listbox = await pollFor(() => findOptionPopup(node), 350);
+    if (listbox) {
+      const hit = matchOptionInPopup(listbox, value);
+      if (hit) { clickLike(hit); return { matched: normalizeText(hit) }; }
+    }
+
+    const date = parseDateLoose(value);
+    if (date) {
+      const calendar = await pollFor(() => findCalendarPopup(), 300);
+      if (calendar) {
+        const day = findMatchingDayCell(calendar, date);
+        if (day) { clickLike(day); return { matched: normalizeText(day) }; }
+      }
+    }
+
+    return {};
+  }
+
+  async function pollFor(predicate, timeout) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const hit = predicate();
+      if (hit) return hit;
+      await sleep(90);
+    }
+    return null;
+  }
+
+  function findOptionPopup(node) {
+    const scopes = [];
+    const controls = node.getAttribute('aria-controls') || node.getAttribute('aria-owns');
+    if (controls) controls.split(/\s+/).forEach((id) => { const el = document.getElementById(id); if (el) scopes.push(el); });
+    const wrapper = node.closest('[class*="combobox"], [class*="autocomplete"], [class*="typeahead"]');
+    if (wrapper) scopes.push(wrapper);
+    scopes.push(document);
+
+    for (const scope of scopes) {
+      const el = scope.querySelector(
+        '[role="listbox"], [role="option"], [aria-autocomplete] ~ [class*="menu"], [class*="dropdown-menu"], [class*="suggestions"]'
+      );
+      if (el && isVisible(el)) return el;
+    }
+    return null;
+  }
+
+  function matchOptionInPopup(popup, value) {
+    const want = normalize(value);
+    const inside = Array.from(popup.querySelectorAll('[role="option"], li[class*="option"], li[class*="suggestion"], li[class*="item"]'));
+    // findOptionPopup may itself have returned a single [role="option"] node
+    // (its own scan matches on one directly) rather than the listbox that
+    // contains it — include it too so a one-item popup still matches.
+    const options = (popup.getAttribute && popup.getAttribute('role') === 'option' ? [popup, ...inside] : inside)
+      .filter(isVisible);
+    if (!options.length) return null;
+
+    // Same matching chain as pickOption/pickRadio: exact, then substring
+    // either direction, nothing invented beyond that.
+    return (
+      options.find((o) => normalize(o.textContent) === want) ||
+      options.find((o) => normalize(o.textContent).includes(want) && want.length > 2) ||
+      options.find((o) => want.includes(normalize(o.textContent)) && normalize(o.textContent).length > 2) ||
+      null
+    );
+  }
+
+  function findCalendarPopup() {
+    const els = Array.from(document.querySelectorAll('[role="dialog"], .datepicker, [class*="calendar"], [class*="date-picker"]'));
+    return els.find(isVisible) || null;
+  }
+
+  /* A profile date is normally ISO-ish ("2024-06-01") or free text ("June 2024").
+     Anything Date can't make sense of is left alone rather than guessed at. */
+  function parseDateLoose(value) {
+    if (!/\d/.test(value)) return null;
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function findMatchingDayCell(popup, date) {
+    const day = date.getDate();
+    const month = date.toLocaleString('en-US', { month: 'long' }).toLowerCase();
+    const monthShort = date.toLocaleString('en-US', { month: 'short' }).toLowerCase();
+    const year = String(date.getFullYear());
+    const candidates = Array.from(
+      popup.querySelectorAll('[role="gridcell"] button, [role="gridcell"], td button, td, button[class*="day"], [class*="day"]:not([class*="days"])')
+    ).filter((c) => isVisible(c) && !c.disabled && c.getAttribute('aria-disabled') !== 'true');
+
+    // Best case: an aria-label spelling out the whole date, so the right
+    // month is picked even when the grid shows adjacent months' overflow days.
+    let hit = candidates.find((c) => {
+      const label = (c.getAttribute('aria-label') || c.title || '').toLowerCase();
+      return label.includes(year) && (label.includes(month) || label.includes(monthShort)) && new RegExp(`\\b${day}\\b`).test(label);
+    });
+
+    // Fallback: a bare day-of-month number is only safe to click when it's
+    // the single such cell on screen — otherwise it's as likely to be last
+    // month's "12" as this month's.
+    if (!hit) {
+      const bare = candidates.filter((c) => normalize(c.textContent) === String(day));
+      if (bare.length === 1) hit = bare[0];
+    }
+    return hit || null;
+  }
+
+  function normalizeText(node) {
+    return (node.getAttribute('aria-label') || node.textContent || '').trim().replace(/\s+/g, ' ');
   }
 
   function clickLike(node) {

@@ -1,0 +1,42 @@
+<!-- Simplified Workday-style form: no <label for>, text read from
+     aria-labelledby / data-automation-id wrapper text instead — the pattern
+     that makes Workday the trickiest of the common adapters. -->
+<div data-automation-id="jobApplication">
+  <form>
+    <div class="css-field" data-automation-id="formField-firstName">
+      <div id="firstName-label" class="css-label">First Name</div>
+      <input type="text" aria-labelledby="firstName-label" data-automation-id="legalNameSection_firstName">
+    </div>
+
+    <div class="css-field" data-automation-id="formField-lastName">
+      <div id="lastName-label" class="css-label">Last Name</div>
+      <input type="text" aria-labelledby="lastName-label" data-automation-id="legalNameSection_lastName">
+    </div>
+
+    <div class="css-field" data-automation-id="formField-email">
+      <div id="email-label" class="css-label">Email Address</div>
+      <input type="text" aria-labelledby="email-label" data-automation-id="email">
+    </div>
+
+    <div class="css-field" data-automation-id="formField-yearsExperience">
+      <div id="years-label" class="css-label">How many years of relevant experience do you have?</div>
+      <select aria-labelledby="years-label" data-automation-id="yearsExperience" required>
+        <option value="">Select</option>
+        <option value="0-2">0-2 years</option>
+        <option value="3-5">3-5 years</option>
+        <option value="6-9">6-9 years</option>
+        <option value="10+">10+ years</option>
+      </select>
+    </div>
+
+    <div class="css-field" data-automation-id="formField-sponsorship">
+      <div id="sponsor-label" class="css-label">Will you now or in the future require visa sponsorship?</div>
+      <div role="radiogroup" aria-labelledby="sponsor-label">
+        <label><input type="radio" name="sponsorship" value="yes"> Yes</label>
+        <label><input type="radio" name="sponsorship" value="no"> No</label>
+      </div>
+    </div>
+
+    <button type="button" data-automation-id="bottom-navigation-next-button">Next</button>
+  </form>
+</div>

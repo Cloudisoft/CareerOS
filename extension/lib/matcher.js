@@ -129,17 +129,52 @@
     /* Score the same posting against every profile the person has, best fit
        first. Used once there's more than one profile, so a posting queues or
        fills against whichever profile actually fits it rather than always
-       the one that happens to be active. */
+       the one that happens to be active.
+       Country-aware tiebreak: someone running a US profile and an India
+       profile side by side wants the India one picked for an India posting
+       even when both happen to score close on title/skills — see
+       targeting.country on lib/profile.js. This only ever settles a near
+       tie; a real difference in fit still wins outright. */
     scoreAll(profiles, posting) {
       const list = Array.isArray(profiles) ? profiles : Object.values(profiles || {});
-      return list
-        .map((profile) => Object.assign(
+      const jdText = norm(`${posting.title} ${posting.description} ${posting.location || ''}`);
+
+      const scored = list.map((profile) => {
+        const result = Object.assign(
           { profileId: profile.id, profileName: profile.name || 'Profile' },
           Matcher.score(profile, posting)
-        ))
-        .sort((a, b) => b.score - a.score);
+        );
+        const code = norm((profile.targeting || {}).country || '');
+        result.countryMatch = Boolean(code) && (jdText.includes(code) || jdText.includes(countryName(code)));
+        return result;
+      });
+
+      const TIEBREAK_MARGIN = 5;
+      return scored.sort((a, b) => {
+        const diff = b.score - a.score;
+        if (Math.abs(diff) > TIEBREAK_MARGIN) return diff;
+        if (a.countryMatch !== b.countryMatch) return a.countryMatch ? -1 : 1;
+        return diff;
+      });
     }
   };
+
+  /* Common country codes only — enough to break a tie between profiles, not
+     a general geocoder. Falls back to the bare code (already checked above)
+     for anything not listed. */
+  const COUNTRY_NAMES = {
+    us: 'united states', usa: 'united states',
+    gb: 'united kingdom', uk: 'united kingdom',
+    in: 'india', ca: 'canada', au: 'australia', nz: 'new zealand',
+    de: 'germany', fr: 'france', es: 'spain', it: 'italy', nl: 'netherlands',
+    ie: 'ireland', sg: 'singapore', ae: 'united arab emirates', za: 'south africa',
+    br: 'brazil', mx: 'mexico', jp: 'japan', ph: 'philippines', pk: 'pakistan',
+    se: 'sweden', ch: 'switzerland', at: 'austria', be: 'belgium', pl: 'poland'
+  };
+
+  function countryName(code) {
+    return COUNTRY_NAMES[code] || '';
+  }
 
   function norm(s) {
     return String(s || '').toLowerCase().replace(/\s+/g, ' ');

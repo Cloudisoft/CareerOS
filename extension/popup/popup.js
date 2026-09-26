@@ -1,7 +1,7 @@
 (async function () {
   'use strict';
 
-  const { Storage, Profile, Matcher, Policy } = window.CareerOS;
+  const { Storage, Profile, Matcher, Policy, SearchUrls } = window.CareerOS;
   const $ = (id) => document.getElementById(id);
 
   const profile = Profile.hydrate(await Storage.getProfile());
@@ -147,17 +147,20 @@
 
   function showIdle() {
     $('idle').hidden = false;
-    const btn = $('searchPosition');
     const title = (profile.targeting.titles || [])[0];
-    if (!title) { btn.hidden = true; return; }
-    btn.hidden = false;
-    btn.onclick = () => {
-      const place = (profile.targeting.locations || [])[0] || '';
-      const radius = profile.targeting.radiusMiles;
-      const params = new URLSearchParams({ keywords: title });
-      if (place) params.set('location', place);
-      if (radius) params.set('distance', String(radius));
-      chrome.tabs.create({ url: `https://www.linkedin.com/jobs/search/?${params.toString()}` });
+
+    const liBtn = $('searchPosition');
+    const inBtn = $('searchPositionIndeed');
+    if (!title) { liBtn.hidden = true; inBtn.hidden = true; return; }
+
+    liBtn.hidden = false;
+    liBtn.onclick = () => {
+      chrome.tabs.create({ url: SearchUrls.linkedin(profile, settings) });
+    };
+
+    inBtn.hidden = false;
+    inBtn.onclick = () => {
+      chrome.tabs.create({ url: SearchUrls.indeed(profile, settings) });
     };
   }
 

@@ -15,7 +15,7 @@
   window.__careerosLoaded = true;
   if (window.top !== window.self && document.body && document.body.innerText.length < 200) return;
 
-  const { Storage, Profile, ATS, Matcher, Filler, Policy, Flows, Harvest } = window.CareerOS;
+  const { Storage, Profile, ATS, Matcher, Filler, Policy, Flows, Harvest, Api } = window.CareerOS;
 
   const state = {
     adapter: null,
@@ -53,11 +53,20 @@
     state.activeProfileId = profilesData.activeId;
     state.profile = Profile.hydrate(profilesData.profiles[profilesData.activeId]);
 
+    // Remote selector overrides, if anything was ever fetched — see
+    // refreshSelectorOverrides() below and lib/ats.js's applyOverrides().
+    // Applied before the first detect() so this very page-load benefits
+    // from a patch, not just the next one.
+    const cachedOverrides = await Storage.getCachedSelectorOverrides();
+    if (cachedOverrides && cachedOverrides.overrides) ATS.applyOverrides(cachedOverrides.overrides);
+
     state.resume = await Storage.getResume();
     state.adapter = ATS.detect(location);
     state.policy = Policy.for(state.adapter.id, state.settings);
     state.ready = Profile.isReady(state.profile);
     Filler.setHighlight(state.settings.highlightFields);
+
+    refreshSelectorOverrides(cachedOverrides); // fire and forget
 
     if (Harvest.isSearchPage() && state.settings.autoHarvest !== false) startAutoHarvest();
 
@@ -72,6 +81,31 @@
 
     scan();
     watchForChanges();
+  }
+
+  /* A DOM change on some ATS breaking a selector shouldn't need a store
+   * release to fix — the backend can push a patch (see
+   * src/app/api/extension/selectors and src/app/api/admin/extension/selectors)
+   * that this merges over lib/ats.js's hardcoded ADAPTERS. Refetched at most
+   * once every few hours per browser, and any failure here just means the
+   * extension keeps running on whatever it already had cached, or the
+   * hardcoded defaults if it never fetched anything — this must never be a
+   * point where a fill can break. */
+  const SELECTOR_OVERRIDES_TTL_MS = 6 * 60 * 60 * 1000;
+
+  async function refreshSelectorOverrides(cached) {
+    if (cached && cached.fetchedAt && Date.now() - cached.fetchedAt < SELECTOR_OVERRIDES_TTL_MS) return;
+    try {
+      const res = await Api.getSelectorOverrides();
+      if (!res || !res.overrides) return;
+      await Storage.saveCachedSelectorOverrides(res.overrides);
+      ATS.applyOverrides(res.overrides);
+      // Re-detect in case this exact page's adapter selectors just changed.
+      state.adapter = ATS.detect(location);
+      state.policy = Policy.for(state.adapter.id, state.settings);
+    } catch (err) {
+      // Keep whatever was already applied — never let this block a fill.
+    }
   }
 
   /* ================= reading the page ================= */
@@ -497,13 +531,69 @@
       }
       if (!moved) {
         const errors = readFormErrors();
+        if (errors) {
+          const retry = await retryFlowValidationOnce(flow, scope, context, before);
+          filledTotal += retry.filledDelta;
+          if (retry.outcome) { await flow.close(); return retry.outcome; }
+          reportProgress(step + 1, directive.directive.maxSteps, filledTotal);
+          continue; // the retry's press actually moved the form on
+        }
         await flow.close();
-        return { outcome: errors ? 'skipped' : 'failed', detail: errors || 'the form did not move' };
+        return { outcome: 'failed', detail: 'the form did not move' };
       }
     }
 
     await flow.close();
     return { outcome: 'failed', detail: 'ran out of steps before a confirmation' };
+  }
+
+  /* One retry after a submit/next press left validation errors on screen —
+   * the classifier may have answered a field wrong (a phone format the form
+   * rejected) or skipped a required one it didn't recognise. Re-fills the
+   * same scope (a fixed field may now read differently, e.g. a highlighted
+   * error) and presses once more. Capped at exactly this one attempt: a
+   * regular retry loop on the same failing submission is exactly the
+   * metronome pattern lib/policy.js's jitter exists to avoid. Returns
+   * {filledDelta, outcome:null} when the retry's press actually moved the
+   * form on (caller's step loop should just continue), or {filledDelta,
+   * outcome:{...}} with a terminal result otherwise. */
+  async function retryFlowValidationOnce(flow, scope, context, before) {
+    const retryReport = await Filler.fillForm(scope, context.profileOverride || state.profile, context);
+    const filledDelta = retryReport.filled.length + retryReport.generated.length;
+    const changed = describeChangedFields(retryReport);
+
+    const unanswered = retryReport.skipped.filter((f) => f.required);
+    if (unanswered.length) {
+      return { filledDelta, outcome: { outcome: 'skipped', detail: `still needs you after retrying (changed: ${changed}): ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` } };
+    }
+
+    const c = flow.controls(scope);
+    const button = c.submit || c.review || c.next;
+    if (!button || !await Flows.press(button)) {
+      return { filledDelta, outcome: { outcome: 'failed', detail: `retried (changed: ${changed}) but found nothing to press` } };
+    }
+
+    const movedAgain = await Flows.waitFor(() => {
+      if (flow.isDone()) return 'done';
+      if (flow.progress(scope) !== before.progress) return 'progress';
+      if (formSignature(scope) !== before.sig) return 'changed';
+      return null;
+    }, 14000);
+
+    if (flow.isDone()) {
+      return { filledDelta, outcome: { outcome: 'submitted', detail: `submitted after one retry (changed: ${changed})` } };
+    }
+    if (!movedAgain) {
+      const stillErrors = readFormErrors();
+      return {
+        filledDelta,
+        outcome: {
+          outcome: stillErrors ? 'skipped' : 'failed',
+          detail: `retried once (changed: ${changed}) — ${stillErrors || 'the form still did not move'}`
+        }
+      };
+    }
+    return { filledDelta, outcome: null };
   }
 
   /* Some flows show the posting first and the form only after a button. */
@@ -577,10 +667,63 @@
       }
       if (!changed) {
         const errors = readFormErrors();
-        return { outcome: errors ? 'skipped' : 'failed', detail: errors || 'the form did not move after submit' };
+        if (errors) {
+          const retry = await retryFormValidationOnce(form, context, before);
+          filledTotal += retry.filledDelta;
+          if (retry.outcome) return retry.outcome;
+          reportProgress(step + 1, directive.maxSteps, filledTotal);
+          continue; // the retry's press actually moved the form on
+        }
+        return { outcome: 'failed', detail: 'the form did not move after submit' };
       }
     }
     return { outcome: 'failed', detail: 'ran out of steps before a confirmation' };
+  }
+
+  /* Generic-ATS counterpart to retryFlowValidationOnce — see its comment for
+   * why this is capped at exactly one attempt. */
+  async function retryFormValidationOnce(form, context, before) {
+    const retryReport = await Filler.fillForm(form, context.profileOverride || state.profile, context);
+    const filledDelta = retryReport.filled.length + retryReport.generated.length;
+    const changed = describeChangedFields(retryReport);
+
+    const unanswered = retryReport.skipped.filter((s) => s.required);
+    if (unanswered.length) {
+      return { filledDelta, outcome: { outcome: 'skipped', detail: `still needs you after retrying (changed: ${changed}): ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` } };
+    }
+
+    const button = ATS.findSubmit(state.adapter, form)
+      || ATS.findSubmit(state.adapter, document)
+      || Flows.byText(['submit application', 'submit', 'send application', 'next', 'continue', 'save and continue', 'review']);
+
+    if (!await Flows.press(button)) {
+      return { filledDelta, outcome: { outcome: 'failed', detail: `retried (changed: ${changed}) but found nothing to press` } };
+    }
+
+    const movedAgain = await waitForChange(before);
+    if (isConfirmation()) {
+      return { filledDelta, outcome: { outcome: 'submitted', detail: `submitted after one retry (changed: ${changed})` } };
+    }
+    if (!movedAgain) {
+      const stillErrors = readFormErrors();
+      return {
+        filledDelta,
+        outcome: {
+          outcome: stillErrors ? 'skipped' : 'failed',
+          detail: `retried once (changed: ${changed}) — ${stillErrors || 'the form still did not move'}`
+        }
+      };
+    }
+    return { filledDelta, outcome: null };
+  }
+
+  /* A short, human-readable list of what the retry actually changed, for the
+   * result detail the dashboard shows — "why did the retry work/fail" is
+   * otherwise invisible. */
+  function describeChangedFields(report) {
+    const labels = report.filled.map((f) => f.label).concat(report.generated.map((f) => f.label));
+    if (!labels.length) return 'nothing';
+    return labels.slice(0, 4).join(', ') + (labels.length > 4 ? ` +${labels.length - 4} more` : '');
   }
 
   function report(result) {

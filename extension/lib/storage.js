@@ -10,7 +10,8 @@
     SETTINGS: 'careeros.settings',
     APPLICATIONS: 'careeros.applications',
     ANSWERS: 'careeros.answerBank',
-    RESUME: 'careeros.resume'
+    RESUME: 'careeros.resume',
+    SELECTOR_OVERRIDES: 'careeros.selectorOverrides' // cached { overrides, fetchedAt } from /extension/selectors
   };
 
   const DEFAULT_SETTINGS = {
@@ -25,6 +26,10 @@
     autoHarvest: true,           // keep collecting cards from a search page without a click
     harvestMaxScrolls: 12,       // stop auto-scrolling a search page after this many loads
     harvestMaxJobsPerVisit: 150, // stop collecting once a single page-visit has found this many
+    /* LinkedIn's f_TPR window for the "Search this position" URL builder
+       (see lib/search-urls.js). '24h' | 'week' | 'month' | 'any'. This is the
+       one search preference that can't be derived from the profile. */
+    searchDatePosted: 'week',
     fastLinkedIn: false,         // opt-in: raise LinkedIn's rate limit and drop its 1-tab cap.
                                   // Real account risk tradeoff, so it stays off until the person
                                   // turns it on for themselves — see lib/policy.js.
@@ -207,6 +212,14 @@
       const id = profileId || (await getProfilesData()).activeId;
       const hit = (bank[id] || {})[normalizeQuestion(question)];
       return hit ? hit.answer : null;
+    },
+
+    /* ---------------- remote selector overrides ---------------- */
+    async getCachedSelectorOverrides() {
+      return get(KEYS.SELECTOR_OVERRIDES, null); // { overrides, fetchedAt } or null
+    },
+    async saveCachedSelectorOverrides(overrides) {
+      return set(KEYS.SELECTOR_OVERRIDES, { overrides: overrides || {}, fetchedAt: Date.now() });
     }
   };
 
