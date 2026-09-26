@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CareerOS — Interview Prep",
   "short_name": "Interview Prep",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Practice adaptive mock interviews and lock your best answers to the questions every interview asks, from your signed-in CareerOS account.",
   "author": "Career OS",
   "icons": {
