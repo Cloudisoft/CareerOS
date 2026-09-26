@@ -35,8 +35,38 @@
     <button id="openStories" class="btn ghost">My Stories</button>
     <button id="signOut" class="linkBtn">Sign out</button>
   </section>
+
+  <!-- Live Copilot: a distinct, opt-in feature — only shown at all when the
+       active tab is a call platform, and never enabled without consent. -->
+  <section id="liveCopilot" class="card liveCard" hidden>
+    <h2>Live Copilot <span class="beta">Beta · Opt-in</span></h2>
+
+    <div id="lcConsent" hidden>
+      <p class="muted" id="lcConsentText"></p>
+      <label class="checkRow">
+        <input type="checkbox" id="lcConsentCheck">
+        <span>I understand and agree.</span>
+      </label>
+      <button id="lcConsentContinue" class="btn" disabled>Continue</button>
+    </div>
+
+    <div id="lcControls" hidden>
+      <label class="muted" for="lcJobSelect">Which interview is this?</label>
+      <select id="lcJobSelect"></select>
+      <p class="muted" id="lcUpgradeMsg" hidden>Company Interview Preparation (Premium+) is required for Live Copilot hints.</p>
+
+      <button id="lcTestBtn" class="btn ghost">Test call (30s)</button>
+      <div id="lcMeter" class="meter" hidden><div id="lcMeterFill" class="meterFill"></div></div>
+      <p class="muted" id="lcTestResult"></p>
+
+      <button id="lcStartBtn" class="btn">Start Live Copilot</button>
+      <button id="lcStopBtn" class="btn ghost" hidden>Stop Live Copilot</button>
+      <p class="muted" id="lcStatus"></p>
+    </div>
+  </section>
 </body>
 <script src="../lib/storage.js"></script>
 <script src="../lib/api.js"></script>
+<script src="../lib/live-copilot.js"></script>
 <script src="popup.js"></script>
 </html>

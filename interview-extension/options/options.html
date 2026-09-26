@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="options.css" />
+  <title>CareerOS Interview Prep — Settings</title>
+</head>
+<body>
+  <h1>Interview Prep settings</h1>
+
+  <section class="card">
+    <h2>Live Copilot <span class="beta">Beta · Opt-in</span></h2>
+    <p class="muted">
+      Live Copilot is a separate, off-by-default feature. It only appears when you open this extension's popup
+      on a Google Meet, Zoom, or Teams call you've joined in your browser — it never activates on its own, and
+      normal mock-interview Practice never turns it on for you.
+    </p>
+    <ul id="consentList" class="disclosure"></ul>
+    <p class="muted" id="consentState"></p>
+    <button id="resetConsent" class="btn ghost">Reset my consent (re-show the disclosure next time)</button>
+  </section>
+
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/live-copilot.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>CareerOS Live Copilot — audio capture</title>
+  </head>
+  <body>
+    <!-- No UI: this document exists only because MV3 service workers have no
+         DOM/media access. It holds the actual MediaStream and does level
+         metering + chunked recording, per Chrome's documented offscreen
+         tabCapture pattern. -->
+    <script src="../lib/storage.js"></script>
+    <script src="../lib/api.js"></script>
+    <script src="offscreen.js"></script>
+  </body>
+</html>

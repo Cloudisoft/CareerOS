@@ -158,6 +158,37 @@
     async unlockStory(question) {
       return request('/interview/stories/lock', { method: 'DELETE', body: JSON.stringify({ question }) });
     },
+
+    // ---------------- Live Copilot (grounding + transcription) ----------------
+    /** Prep packs (see src/lib/interview/prep.ts) — used only to ground live
+     * hints in the candidate's real STAR stories, never to invent content. */
+    async listPrepPacks() {
+      return request('/interview/prep-packs');
+    },
+    async transcribeChunk(applicationId, blob, mimeType) {
+      const auth = await token();
+      const url = `${await base()}/interview/live/transcribe`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': mimeType || 'audio/webm',
+          'X-CareerOS-Application-Id': applicationId || '',
+          'X-CareerOS-Version': chrome.runtime.getManifest().version,
+          ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
+        },
+        body: blob,
+      });
+      let body = null;
+      try { body = await res.json(); } catch (err) { body = null; }
+      if (!res.ok) throw new Error((body && body.error) || `Transcription failed (${res.status})`);
+      return body;
+    },
+    async getLiveHint(applicationId, transcript) {
+      return request('/interview/live/hint', {
+        method: 'POST',
+        body: JSON.stringify({ applicationId, transcript }),
+      });
+    },
   };
 
   root.CareerOSInterviewPrep = root.CareerOSInterviewPrep || {};

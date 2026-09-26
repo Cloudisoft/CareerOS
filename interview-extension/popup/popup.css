@@ -80,3 +80,49 @@ input {
   font: inherit;
 }
 details summary { cursor: pointer; }
+
+.liveCard { border-top: 1px solid var(--line); }
+.liveCard h2 { display: flex; align-items: center; gap: 6px; }
+.liveCard .beta {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--brand-amber);
+  background: rgba(247, 131, 32, 0.15);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+.checkRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11.6px;
+  color: var(--text);
+  cursor: pointer;
+}
+.checkRow input { flex: none; margin-top: 2px; }
+select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+}
+.meter {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.meterFill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--flame), var(--brand-amber));
+  transition: width 0.1s linear;
+}

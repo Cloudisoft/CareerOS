@@ -12,6 +12,7 @@
   'use strict';
 
   const KEY = 'careerosInterviewPrep.settings';
+  const LIVE_KEY = 'careerosInterviewPrep.liveCopilot';
 
   const DEFAULT_SETTINGS = {
     apiBase: 'https://careeros.silverspringstaffing.com/api/extension',
@@ -19,6 +20,18 @@
     deviceToken: '',
     pairedAs: '',
     pairedAt: null,
+  };
+
+  /* Live Copilot is opt-in and off by default. `consentVersion` records
+   * which wording of the disclosure the person agreed to, so a materially
+   * changed disclosure can re-prompt them (see LIVE_COPILOT_CONSENT_VERSION
+   * in lib/live-copilot.js) even though they consented before. */
+  const DEFAULT_LIVE_SETTINGS = {
+    enabled: false,
+    consentedVersion: 0,
+    consentedAt: null,
+    lastApplicationId: '',
+    testPassedAt: null,
   };
 
   function get(key, fallback) {
@@ -41,6 +54,15 @@
     async saveSettings(patch) {
       const current = await Storage.getSettings();
       return set(KEY, Object.assign(current, patch));
+    },
+
+    async getLiveCopilotSettings() {
+      const stored = await get(LIVE_KEY, {});
+      return Object.assign({}, DEFAULT_LIVE_SETTINGS, stored);
+    },
+    async saveLiveCopilotSettings(patch) {
+      const current = await Storage.getLiveCopilotSettings();
+      return set(LIVE_KEY, Object.assign(current, patch));
     },
   };
 

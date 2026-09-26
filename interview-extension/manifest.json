@@ -24,12 +24,28 @@
   "background": {
     "service_worker": "background/service-worker.js"
   },
+  "options_page": "options/options.html",
   "permissions": [
-    "storage"
+    "storage",
+    "tabs",
+    "tabCapture",
+    "offscreen"
   ],
   "host_permissions": [
     "https://careeros.silverspringstaffing.com/*",
     "http://localhost:3000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*",
+        "https://teams.microsoft.com/*"
+      ],
+      "js": ["content/live-copilot.js"],
+      "css": ["content/live-copilot.css"],
+      "run_at": "document_idle"
+    }
   ],
   "web_accessible_resources": [
     {
