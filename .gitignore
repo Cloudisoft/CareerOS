@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/extension/node_modules
+/interview-extension/node_modules
 /.pnp
 .pnp.js
 .yarn/install-state.gz
