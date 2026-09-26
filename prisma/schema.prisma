@@ -280,6 +280,7 @@ model CandidateProfile {
   applications         Application[]
   interviewSessions    InterviewSession[]
   interviewStories     InterviewStory[]
+  interviewPrepPacks   InterviewPrepPack[]
   learningProgress     LearningProgress[]
   courseLessonProgress CourseLessonProgress[]
   autoApplySettings    AutoApplySettings?
@@ -538,6 +539,7 @@ model Job {
   applications      Application[]
   resumeScores      ResumeScore[]
   interviewSessions InterviewSession[]
+  interviewPrepPacks InterviewPrepPack[]
   targetedResumes   Resume[]           @relation("ResumeTargetJob")
 
   @@unique([source, externalId])
@@ -786,7 +788,8 @@ model Application {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  events ApplicationEvent[]
+  events   ApplicationEvent[]
+  prepPack InterviewPrepPack?
 
   @@unique([profileId, jobId])
   @@index([profileId])
@@ -979,6 +982,7 @@ model InterviewSession {
   questions InterviewQuestion[]
 
   @@index([profileId])
+  @@index([jobId])
   @@map("interview_sessions")
 }
 
@@ -997,11 +1001,58 @@ model InterviewQuestion {
   strengths    String[]
   improvements String[]
   answeredAt   DateTime?
+  /** How many times this question has been (re)scored — 0 means the initial
+      answer only. A retry re-scores the same question in place instead of
+      advancing the session, distinct from the normal linear flow. */
+  attempts Int @default(0)
 
   createdAt DateTime @default(now())
 
   @@index([sessionId])
   @@map("interview_questions")
+}
+
+// ============================================================
+// PREPARE — an auto-generated "prep pack" for one job application, built the
+// moment its Application reaches INTERVIEW status (see
+// updateApplicationStatusForCompany in src/lib/employer/applications.ts) and
+// reused across every Practice session and the Applications page, rather
+// than regenerated on every view. See src/lib/interview/prep.ts.
+// ============================================================
+
+model InterviewPrepPack {
+  id            String      @id @default(cuid())
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  profileId     String
+  profile       CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId         String
+  job           Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /** A few sentences pulled from the real Job/Company records — never fabricated. */
+  companyBrief String
+
+  /** GeneratedQuestion[] — likely interview questions for this role. */
+  questions Json
+
+  /** PrepStory[] — 5-6 STAR-format stories grounded in the candidate's real history. */
+  stories Json
+
+  /** 3-4 good questions the candidate could ask the interviewer. */
+  questionsToAsk String[]
+
+  /** 0-100, distinct from CandidateProfile.interviewScore — how ready this
+      candidate is for THIS job specifically, computed from practice
+      performance against this pack. Recomputed after each completed
+      practice session tied to this job (see recomputeJobReadiness). */
+  readinessScore    Int       @default(0)
+  readinessUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+  @@map("interview_prep_packs")
 }
 
 // ============================================================

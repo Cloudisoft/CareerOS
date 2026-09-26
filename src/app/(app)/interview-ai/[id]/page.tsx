@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square, Volume2, VolumeX, RotateCcw } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Loader2, ArrowLeft, CheckCircle2, ThumbsUp, TrendingUp, Mic, Square, Volume2, VolumeX, RotateCcw, RefreshCw, Mail, Copy } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,15 @@ interface SessionDetail {
   job: { title: string; company: { name: string } } | null;
 }
 
+interface Recap {
+  jobTitle: string | null;
+  companyName: string | null;
+  overallScore: number | null;
+  questionsCovered: { category: string; question: string; score: number | null }[];
+  wentWell: string[];
+  toImprove: string[];
+}
+
 export default function InterviewSessionPage() {
   const params = useParams<{ id: string }>();
   const [session, setSession] = useState<SessionDetail | null>(null);
@@ -42,6 +51,15 @@ export default function InterviewSessionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [retryDraft, setRetryDraft] = useState("");
+  const [retrySubmitting, setRetrySubmitting] = useState(false);
+  const [recap, setRecap] = useState<Recap | null>(null);
+  const [thankYou, setThankYou] = useState<string | null>(null);
+  const [draftingThankYou, setDraftingThankYou] = useState(false);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
+  const [stageConfirmed, setStageConfirmed] = useState(false);
+  const [confirmingStage, setConfirmingStage] = useState(false);
   const voice = useVoiceInput((text) => setDraft((prev) => (prev ? `${prev} ${text}` : text)));
   const voiceOut = useVoiceOutput();
   const lastSpokenIdRef = useRef<string | null>(null);
@@ -63,6 +81,18 @@ export default function InterviewSessionPage() {
     return () => voiceOut.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (session?.status === "COMPLETED") {
+      fetch(`/api/interview/sessions/${params.id}/recap`)
+        .then((r) => r.json())
+        .then((json) => setRecap(json.data?.recap ?? null));
+      fetch(`/api/interview/sessions/${params.id}/application`)
+        .then((r) => r.json())
+        .then((json) => setApplicationId(json.data?.application?.id ?? null));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.status]);
 
   useEffect(() => {
     if (!session) return;
@@ -119,6 +149,46 @@ export default function InterviewSessionPage() {
     const res = await fetch(`/api/interview/sessions/${params.id}/complete`, { method: "POST" });
     setCompleting(false);
     if (res.ok) load();
+  }
+
+  async function submitRetry(questionId: string) {
+    if (!retryDraft.trim()) return;
+    setRetrySubmitting(true);
+    setError(null);
+    const res = await fetch(`/api/interview/sessions/${params.id}/questions/${questionId}/retry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer: retryDraft }),
+    });
+    const json = await res.json();
+    setRetrySubmitting(false);
+    if (!res.ok) {
+      setError(json.error?.message ?? "Something went wrong.");
+      return;
+    }
+    setRetryingId(null);
+    setRetryDraft("");
+    load();
+  }
+
+  async function draftThankYou() {
+    setDraftingThankYou(true);
+    const res = await fetch(`/api/interview/sessions/${params.id}/thank-you`, { method: "POST" });
+    const json = await res.json();
+    setDraftingThankYou(false);
+    if (res.ok) setThankYou(json.data?.draft ?? null);
+  }
+
+  async function confirmStage(status: string) {
+    if (!applicationId) return;
+    setConfirmingStage(true);
+    const res = await fetch(`/api/applications/${applicationId}/stage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    setConfirmingStage(false);
+    if (res.ok) setStageConfirmed(true);
   }
 
   return (
@@ -186,6 +256,86 @@ export default function InterviewSessionPage() {
               </CardContent>
             </Card>
           ))}
+
+          {recap && (session.job || applicationId) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Review</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(recap.wentWell.length > 0 || recap.toImprove.length > 0) && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {recap.wentWell.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-success">Went well</p>
+                        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                          {recap.wentWell.map((s) => (
+                            <li key={s}>· {s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {recap.toImprove.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-primary">To improve</p>
+                        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                          {recap.toImprove.map((s) => (
+                            <li key={s}>· {s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {session.job && (
+                  <div className="space-y-2 border-t border-border pt-4">
+                    <Button variant="secondary" size="sm" onClick={draftThankYou} disabled={draftingThankYou}>
+                      {draftingThankYou ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                      Draft thank-you email
+                    </Button>
+                    {thankYou && (
+                      <div className="relative rounded-md border border-border bg-muted/40 p-3">
+                        <p className="whitespace-pre-line text-sm text-foreground">{thankYou}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-2 top-2"
+                          onClick={() => navigator.clipboard.writeText(thankYou)}
+                          aria-label="Copy"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {applicationId && (
+                  <div className="space-y-2 border-t border-border pt-4">
+                    {stageConfirmed ? (
+                      <p className="text-sm text-success">Thanks — your application stage is updated.</p>
+                    ) : (
+                      <>
+                        <p className="text-sm text-foreground">How did the real interview go? Confirm your application's stage:</p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="secondary" disabled={confirmingStage} onClick={() => confirmStage("SCREENING")}>
+                            Still in progress
+                          </Button>
+                          <Button size="sm" variant="secondary" disabled={confirmingStage} onClick={() => confirmStage("OFFER")}>
+                            Got an offer
+                          </Button>
+                          <Button size="sm" variant="secondary" disabled={confirmingStage} onClick={() => confirmStage("REJECTED")}>
+                            Didn't move forward
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -289,6 +439,43 @@ export default function InterviewSessionPage() {
                   </div>
                   <p className="text-sm font-medium text-foreground">{q.question}</p>
                   {q.feedback && <p className="text-sm text-muted-foreground">{q.feedback}</p>}
+                  {retryingId === q.id ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        rows={4}
+                        placeholder="Try answering this question again…"
+                        value={retryDraft}
+                        onChange={(e) => setRetryDraft(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => submitRetry(q.id)} disabled={retrySubmitting || !retryDraft.trim()}>
+                          {retrySubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                          Rescore this answer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setRetryingId(null);
+                            setRetryDraft("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setRetryingId(q.id);
+                        setRetryDraft(q.answer ?? "");
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Retry this answer
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}

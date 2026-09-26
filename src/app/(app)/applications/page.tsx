@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, LayoutList, Kanban as KanbanIcon } from "lucide-react";
+import { Loader2, LayoutList, Kanban as KanbanIcon, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface ApplicationItem {
@@ -97,21 +98,35 @@ export default function ApplicationsPage() {
         <div className="space-y-3">
           {applications.map((app) => (
             <Card key={app.id}>
-              <CardContent className="flex items-center justify-between gap-4 p-5">
-                <div>
-                  <Link href={`/jobs/${app.job.id}`} className="font-medium text-foreground hover:underline">
-                    {app.job.title}
-                  </Link>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {app.job.company.name}
-                    {app.job.location ? ` · ${app.job.location}` : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Applied {new Date(app.appliedAt).toLocaleDateString()}
-                    {app.matchScoreAtApply != null ? ` · ${app.matchScoreAtApply}% match at apply` : ""}
-                  </p>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Link href={`/jobs/${app.job.id}`} className="font-medium text-foreground hover:underline">
+                      {app.job.title}
+                    </Link>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {app.job.company.name}
+                      {app.job.location ? ` · ${app.job.location}` : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Applied {new Date(app.appliedAt).toLocaleDateString()}
+                      {app.matchScoreAtApply != null ? ` · ${app.matchScoreAtApply}% match at apply` : ""}
+                    </p>
+                  </div>
+                  <Badge variant={statusVariant(app.status)}>{STAGE_LABELS[app.status]}</Badge>
                 </div>
-                <Badge variant={statusVariant(app.status)}>{STAGE_LABELS[app.status]}</Badge>
+                {app.status === "INTERVIEW" && (
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+                    <p className="text-sm text-foreground">
+                      Your interview with {app.job.company.name} — let&apos;s get you ready.
+                    </p>
+                    <Link href={`/interview-ai/prep/${app.id}`}>
+                      <Button size="sm">
+                        <Sparkles className="h-4 w-4" /> Prepare
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
