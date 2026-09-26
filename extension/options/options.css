@@ -44,6 +44,36 @@ body {
   padding-bottom: 80px;
 }
 
+/* First-run wizard: a short, guided path through the tabs that already
+   exist below it (connect -> resume -> profile basics) rather than a
+   separate onboarding flow with its own logic. */
+.welcomeWizard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 880px;
+  margin: 16px auto 0;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--brand-tint-28);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.welcomeWizard__step {
+  flex: none;
+  font: 700 10.5px/1 -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--brand-gradient);
+  padding: 5px 9px;
+  border-radius: 999px;
+}
+.welcomeWizard__body { flex: 1; min-width: 0; }
+.welcomeWizard__body strong { display: block; font-size: 14px; color: var(--text); }
+.welcomeWizard__body p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.welcomeWizard .row { flex: none; display: flex; gap: 8px; }
+
 .masthead {
   display: flex;
   align-items: center;

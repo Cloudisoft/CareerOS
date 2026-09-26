@@ -629,15 +629,57 @@
     return esc(s).replace(/"/g, '&quot;');
   }
 
-  if (new URLSearchParams(location.search).get('welcome')) {
-    setState('saving', 'Start with your name and email');
+  /* First-run wizard: a short, guided path through the tabs that already do
+     the real work (Account's sign-in, Resume's parse-from-text, You's basics)
+     rather than a separate onboarding flow with its own logic. Each step just
+     switches to the relevant existing tab and explains what to do there. */
+  const WELCOME_STEPS = [
+    { panel: 'account', title: 'Connect your CareerOS account', copy: 'Sign in below so Auto Apply can pull your profile and resume.' },
+    { panel: 'resume', title: 'Add your resume', copy: 'Paste your resume text and press "Build my profile from this text" — it fills in the tabs below for you.' },
+    { panel: 'you', title: 'Check your basics', copy: 'Confirm your name, email and phone came through right, then you’re set.' }
+  ];
+
+  function goToTab(panelId) {
+    const tab = $$('.tab').find((t) => t.dataset.panel === panelId);
+    if (tab) tab.click();
   }
 
-  // Deep link from the in-page panel's Profile tab ("edit your profile" ->
-  // options.html?tab=you), same pattern as the ?welcome= flag above.
-  const requestedTab = new URLSearchParams(location.search).get('tab');
-  if (requestedTab) {
-    const tab = $$('.tab').find((t) => t.dataset.panel === requestedTab);
-    if (tab) tab.click();
+  function startWelcomeWizard() {
+    let step = 0;
+    const wizard = $('#welcomeWizard');
+    wizard.hidden = false;
+
+    function render() {
+      const s = WELCOME_STEPS[step];
+      $('#welcomeStepLabel').textContent = `Step ${step + 1} of ${WELCOME_STEPS.length}`;
+      $('#welcomeTitle').textContent = s.title;
+      $('#welcomeCopy').textContent = s.copy;
+      $('#welcomeNext').textContent = step === WELCOME_STEPS.length - 1 ? 'Done' : 'Next';
+      goToTab(s.panel);
+    }
+
+    function finish() {
+      wizard.hidden = true;
+      // Drop ?welcome=1 from the URL so a page refresh doesn't restart the tour.
+      history.replaceState(null, '', location.pathname);
+    }
+
+    $('#welcomeNext').onclick = () => {
+      if (step === WELCOME_STEPS.length - 1) { finish(); return; }
+      step += 1;
+      render();
+    };
+    $('#welcomeSkip').onclick = finish;
+
+    render();
+  }
+
+  if (new URLSearchParams(location.search).get('welcome')) {
+    startWelcomeWizard();
+  } else {
+    // Deep link from the in-page panel's Profile tab ("edit your profile" ->
+    // options.html?tab=you), same pattern as the wizard above.
+    const requestedTab = new URLSearchParams(location.search).get('tab');
+    if (requestedTab) goToTab(requestedTab);
   }
 })();
