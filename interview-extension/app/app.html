@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="app.css">
+  <title>CareerOS Interview Prep</title>
+</head>
+<body>
+  <header class="masthead">
+    <img src="../icons/icon128.png" alt="" class="mark">
+    <div>
+      <h1>Interview Prep</h1>
+      <p>Adaptive mock interviews and a locked answer bank for the questions every interview asks.</p>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab" data-panel="interview">Mock Interview</button>
+    <button class="tab" data-panel="stories">My Stories</button>
+  </nav>
+
+  <main class="wrap">
+    <section id="panel-interview" class="panel">
+      <div id="interviewNotEntitled" class="card" hidden>
+        <p>Interview AI requires a Standard plan or higher. Upgrade at careeros.com to unlock this.</p>
+      </div>
+
+      <div id="interviewStart" class="card" hidden>
+        <h2>Start a new session</h2>
+        <p class="muted">5 questions, tailored to your background.</p>
+        <label class="field">
+          Interview type
+          <select id="typeSelect">
+            <option value="MIXED">Mixed</option>
+            <option value="BEHAVIORAL">Behavioral</option>
+            <option value="TECHNICAL">Technical</option>
+          </select>
+        </label>
+        <button id="startBtn" class="btn">Start interview</button>
+        <p class="error" id="startError" hidden></p>
+      </div>
+
+      <div id="sessionView" class="card" hidden></div>
+
+      <h2 class="sectionTitle">Past sessions</h2>
+      <ul id="sessionList" class="list"></ul>
+      <p class="muted" id="sessionsEmpty" hidden>No sessions yet.</p>
+    </section>
+
+    <section id="panel-stories" class="panel" hidden>
+      <div id="storiesNotEntitled" class="card" hidden>
+        <p>Interview AI requires a Standard plan or higher. Upgrade at careeros.com to unlock this.</p>
+      </div>
+      <p class="muted" id="storiesIntro">
+        Practice the 6 questions almost every interview asks, then lock the exact wording you want to use.
+      </p>
+      <div id="storyList"></div>
+    </section>
+  </main>
+</body>
+<script src="../lib/storage.js"></script>
+<script src="../lib/api.js"></script>
+<script src="app.js"></script>
+</html>

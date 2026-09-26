@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "CareerOS — Interview Prep",
+  "short_name": "Interview Prep",
+  "version": "1.0.0",
+  "description": "Practice adaptive mock interviews and lock your best answers to the questions every interview asks, from your signed-in CareerOS account.",
+  "author": "Career OS",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "CareerOS Interview Prep",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://careeros.silverspringstaffing.com/*",
+    "http://localhost:3000/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -81,6 +81,11 @@ export default function InterviewAiPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Practice with adaptive mock interviews, scored question-by-question.
         </p>
+        <div className="mt-3 text-sm">
+          <Link href="/interview-ai/stories" className="font-medium text-primary hover:underline">
+            My Stories — lock your answers to the 6 core questions
+          </Link>
+        </div>
       </div>
 
       {entitled === false ? (

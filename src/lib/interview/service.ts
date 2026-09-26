@@ -100,7 +100,7 @@ async function loadJobContext(jobId?: string | null): Promise<{ context: string 
   return { context: `${job.title} at ${job.company.name}\n${job.description.slice(0, 1500)}`, validId: job.id };
 }
 
-interface AnswerScore {
+export interface AnswerScore {
   score: number;
   feedback: string;
   strengths: string[];
@@ -117,7 +117,7 @@ function mockScore(answer: string): AnswerScore {
   };
 }
 
-async function scoreAnswer(question: string, category: string, answer: string): Promise<AnswerScore> {
+export async function scoreAnswer(question: string, category: string, answer: string): Promise<AnswerScore> {
   const system = `You are an expert interview coach scoring one candidate's written answer to a mock interview question.
 Score honestly on structure (e.g. STAR for behavioral questions), specificity, relevance, and clarity. Do not invent facts about the candidate beyond what they wrote; do not be falsely encouraging.
 Respond with ONLY JSON, no markdown code fences, no prose, in exactly this shape:

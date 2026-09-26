@@ -279,6 +279,7 @@ model CandidateProfile {
   jobMatches           JobMatch[]
   applications         Application[]
   interviewSessions    InterviewSession[]
+  interviewStories     InterviewStory[]
   learningProgress     LearningProgress[]
   courseLessonProgress CourseLessonProgress[]
   autoApplySettings    AutoApplySettings?
@@ -1001,6 +1002,39 @@ model InterviewQuestion {
 
   @@index([sessionId])
   @@map("interview_questions")
+}
+
+// ============================================================
+// MY STORIES — a locked personal answer bank for the handful of core
+// behavioral questions almost every interview asks. The candidate practices
+// each with the same AI coach that scores mock-interview answers (see
+// scoreAnswer in src/lib/interview/service.ts), then "locks" one final
+// wording they've approved — surfaced in the standalone practice-only
+// `interview-extension/` companion extension alongside mock interviews.
+// ============================================================
+
+model InterviewStory {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /** One of CORE_STORY_QUESTIONS in src/lib/interview/stories.ts. */
+  question String
+
+  answer       String?
+  score        Int?
+  feedback     String?
+  strengths    String[]
+  improvements String[]
+
+  /** Null until the candidate explicitly approves a final wording. */
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, question])
+  @@map("interview_stories")
 }
 
 // ============================================================

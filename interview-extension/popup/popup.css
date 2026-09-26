@@ -1,0 +1,82 @@
+/* Brand tokens sampled from the CareerOS site — duplicated here on purpose
+ * (a plain visual-consistency choice), not shared code with extension/. */
+:root {
+  --flame: #F14C2E;
+  --ember: #EF4232;
+  --brand-amber: #F78320;
+  --ink: #1F1923;
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #EDE9F0;
+  --muted: #9A929F;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 320px;
+  background: var(--ink);
+  color: var(--text);
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.brandMark img { width: 26px; height: 26px; display: block; }
+.topText { display: flex; flex-direction: column; }
+.topText strong { font-size: 13.5px; letter-spacing: 0.01em; }
+.topText span { font-size: 11px; color: var(--muted); }
+
+.card { padding: 14px; }
+.card h2 { font-size: 13px; font-weight: 640; margin-bottom: 5px; }
+.muted { color: var(--muted); font-size: 11.6px; }
+
+.btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: #FFF;
+  background: linear-gradient(135deg, var(--flame), var(--ember));
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn.ghost { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.btn.ghost:hover { background: rgba(255, 255, 255, 0.12); filter: none; }
+
+.linkBtn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  text-align: center;
+  cursor: pointer;
+}
+.linkBtn:hover { color: var(--text); }
+
+.row { display: flex; gap: 6px; }
+input {
+  flex: 1;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+}
+details summary { cursor: pointer; }
