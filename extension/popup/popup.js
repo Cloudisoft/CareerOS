@@ -90,14 +90,35 @@
   /* One click: find live postings, then apply through the queue, then take
      the person to the dashboard where the run actually plays out. Signed in
      and ready is the only requirement — it works the same from any tab. */
+  /* CareerOS can only fill a form on a site Chrome has actually granted it
+     access to — those grants are optional (see lib/permissions.js) so the
+     install prompt stays small. Someone who only ever turned on LinkedIn
+     from Settings gets a queue full of Greenhouse/Lever/Workday postings
+     that silently do nothing, because no content script is registered
+     there. Ask for the real apply surface (employer ATS + boards) right
+     here, at the one moment it's a genuine user gesture, instead of
+     hoping people find the toggle on the Account tab first. */
+  async function ensureApplyPermissions() {
+    const { Permissions } = window.CareerOS;
+    if (!Permissions) return true;
+    const origins = [...Permissions.GROUPS.ats.origins, ...Permissions.GROUPS.boards.origins];
+    return chrome.permissions.request({ origins });
+  }
+
   function setUpAutoApply() {
     $('autoApplySection').hidden = false;
     const btn = $('autoApplyBtn');
     const msg = $('autoApplyMsg');
 
     btn.onclick = async () => {
+      const permOk = await ensureApplyPermissions();
       btn.disabled = true;
       msg.textContent = '';
+      if (!permOk) {
+        btn.disabled = false;
+        msg.textContent = 'CareerOS needs permission to fill forms on job sites. Click Auto Apply again and allow access when Chrome asks.';
+        return;
+      }
       btn.textContent = 'Finding jobs…';
 
       const build = await engineCmd('build');

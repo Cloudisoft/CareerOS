@@ -364,6 +364,20 @@
 
     $('#startAutoApplyBtn').onclick = async () => {
       const btn = $('#startAutoApplyBtn');
+
+      /* Same gap as the popup: signing in doesn't grant access to the sites
+         a job actually lives on, so without this the queue fills with
+         postings CareerOS has no permission to touch and nothing happens
+         on any of them. Ask right here, in the click itself. */
+      const { Permissions } = window.CareerOS;
+      const permOk = !Permissions || await chrome.permissions.request({
+        origins: [...Permissions.GROUPS.ats.origins, ...Permissions.GROUPS.boards.origins],
+      });
+      if (!permOk) {
+        $('#startAutoApplyMsg').textContent = 'CareerOS needs permission to fill forms on job sites. Click the button again and allow access when Chrome asks.';
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = 'Finding jobs…';
       $('#startAutoApplyMsg').textContent = '';
