@@ -5,6 +5,8 @@
   'use strict';
 
   const EMPTY_PROFILE = {
+    id: '',                  // set once a profile is saved; blank only for an unsaved draft
+    name: '',                // shown in the profile switcher — "Frontend Engineer", "Product Manager"
     identity: {
       firstName: '',
       lastName: '',
@@ -27,6 +29,7 @@
       seniority: '',         // intern | junior | mid | senior | lead | director
       workModes: [],         // remote | hybrid | onsite
       locations: [],
+      radiusMiles: 25,        // 0 = no radius limit. Passed to aggregator APIs and to LinkedIn's own search URL.
       minSalary: 0,
       salaryCurrency: 'USD',
       salaryPeriod: 'year'

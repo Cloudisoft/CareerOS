@@ -82,7 +82,7 @@
       }
 
       // Location and work mode
-      const locScore = scoreLocation(p, jdText, reasons);
+      const locScore = scoreLocation(p, jdText, reasons, Boolean(posting.radiusSearched));
 
       // Seniority band
       const senScore = scoreSeniority(p, jdTitle, reasons);
@@ -124,6 +124,20 @@
       if (score >= threshold) return { label: 'Worth applying', tone: 'good' };
       if (score >= threshold - 20) return { label: 'Stretch', tone: 'weak' };
       return { label: 'Skip', tone: 'skip' };
+    },
+
+    /* Score the same posting against every profile the person has, best fit
+       first. Used once there's more than one profile, so a posting queues or
+       fills against whichever profile actually fits it rather than always
+       the one that happens to be active. */
+    scoreAll(profiles, posting) {
+      const list = Array.isArray(profiles) ? profiles : Object.values(profiles || {});
+      return list
+        .map((profile) => Object.assign(
+          { profileId: profile.id, profileName: profile.name || 'Profile' },
+          Matcher.score(profile, posting)
+        ))
+        .sort((a, b) => b.score - a.score);
     }
   };
 
@@ -176,7 +190,7 @@
     return { min: toNum(m[1]), max: toNum(m[2]) };
   }
 
-  function scoreLocation(p, jdText, reasons) {
+  function scoreLocation(p, jdText, reasons, radiusAware) {
     const modes = p.targeting.workModes || [];
     const wantsRemote = modes.includes('remote');
     const jdRemote = /\bremote\b|\bwork from home\b|\bdistributed\b/.test(jdText);
@@ -187,6 +201,16 @@
     const hit = locs.find((l) => jdText.includes(norm(l)));
     if (hit) { reasons.push(`Based in ${hit}`); return 1; }
     if (wantsRemote && jdOnsite && !jdRemote) { reasons.push('Looks onsite, you want remote'); return 0.2; }
+
+    /* The posting came from a search that already filtered by distance —
+       an aggregator API call that carried a `distance`/`Radius` param, or a
+       LinkedIn results page with `distance` in its own URL. A suburb rarely
+       restates the metro name, so a plain substring miss here isn't a real
+       signal once something upstream has already done the radius filtering. */
+    if (radiusAware && p.targeting.radiusMiles) {
+      reasons.push(`Within your ${p.targeting.radiusMiles}-mile search radius`);
+      return 0.85;
+    }
     return 0.6;
   }
 

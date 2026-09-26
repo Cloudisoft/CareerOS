@@ -122,6 +122,50 @@ main { max-width: 1040px; }
 
 .saveState[data-on="running"] { color: var(--flame); border-color: rgba(241, 127, 38, 0.45); }
 
+.progressBar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.progressBar span {
+  display: block;
+  height: 100%;
+  background: var(--brand-gradient);
+}
+
+.feedWrap { margin: 18px 0 24px; }
+.feedList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+}
+.feedList li {
+  padding: 7px 12px;
+  font-size: 12.2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.feedList li:last-child { border-bottom: none; }
+.feedList time {
+  color: var(--muted);
+  font-size: 10.6px;
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.feedList li[data-tone="ok"] { color: var(--ok); }
+.feedList li[data-tone="warn"] { color: #F6BE84; }
+.feedList li[data-tone="error"] { color: #F79C90; }
+.feedList li[data-tone="active"] { color: var(--flame); }
+.feedEmpty { padding: 10px 12px; color: var(--muted); font-size: 12.2px; }
+
 @media (max-width: 720px) {
   .counters { grid-template-columns: repeat(2, 1fr); }
   .queue thead { display: none; }

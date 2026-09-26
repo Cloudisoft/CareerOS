@@ -21,7 +21,10 @@
     adapter: null,
     posting: null,
     match: null,
-    profile: null,
+    matchAll: null,      // every profile scored against the current posting, best first
+    profile: null,       // the active profile, hydrated
+    profiles: {},         // { id: profile }, all of them
+    activeProfileId: null,
     settings: null,
     resume: null,
     policy: null,
@@ -30,16 +33,33 @@
     report: null
   };
 
+  /* Auto-harvest: what's been sent to the queue during this page-visit, and
+     where the scroll/widen loop is. Lives outside `state` since it resets per
+     page-life, not per posting. */
+  const harvestState = {
+    active: false,
+    sentIds: new Set(),
+    scrollCount: 0,
+    timer: null
+  };
+
   init();
 
   async function init() {
     state.settings = await Storage.getSettings();
-    state.profile = Profile.hydrate(await Storage.getProfile());
+
+    const profilesData = await Storage.getProfiles();
+    state.profiles = profilesData.profiles;
+    state.activeProfileId = profilesData.activeId;
+    state.profile = Profile.hydrate(profilesData.profiles[profilesData.activeId]);
+
     state.resume = await Storage.getResume();
     state.adapter = ATS.detect(location);
     state.policy = Policy.for(state.adapter.id, state.settings);
     state.ready = Profile.isReady(state.profile);
     Filler.setHighlight(state.settings.highlightFields);
+
+    if (Harvest.isSearchPage() && state.settings.autoHarvest !== false) startAutoHarvest();
 
     if (!state.ready) return;
 
@@ -62,7 +82,16 @@
     if (state.posting && state.posting.title === posting.title && state.posting.url === posting.url) return;
 
     state.posting = posting;
-    state.match = Matcher.score(state.profile, posting);
+
+    const ids = Object.keys(state.profiles || {});
+    if (ids.length > 1) {
+      const hydrated = ids.map((id) => Profile.hydrate(state.profiles[id]));
+      state.matchAll = Matcher.scoreAll(hydrated, posting);
+      state.match = state.matchAll.find((m) => m.profileId === state.activeProfileId) || state.matchAll[0];
+    } else {
+      state.matchAll = null;
+      state.match = Matcher.score(state.profile, posting);
+    }
     state.report = null;
   }
 
@@ -71,6 +100,7 @@
     new MutationObserver(() => {
       clearTimeout(timer);
       timer = setTimeout(scan, 800);
+      if (harvestState.active) harvestAndQueue();
     }).observe(document.body, { childList: true, subtree: true });
 
     let lastUrl = location.href;
@@ -82,6 +112,92 @@
         setTimeout(scan, 1200);
       }
     }, 1000);
+  }
+
+  /* ================= auto-harvest ================= */
+
+  /* Reads whatever cards are on screen right now, sends only the ones this
+     page-visit hasn't already sent, and folds their count into the running
+     total the popup badge reads from `snapshot()`. */
+  async function harvestAndQueue() {
+    const collected = Harvest.collect();
+    if (!collected.ats) return 0;
+    const fresh = collected.jobs.filter((j) => !harvestState.sentIds.has(j.id));
+    if (!fresh.length) return 0;
+    fresh.forEach((j) => harvestState.sentIds.add(j.id));
+    await send({ type: 'careeros:engine', command: 'add', jobs: fresh });
+    return fresh.length;
+  }
+
+  /* Scrolls to the bottom, or presses a "see more" / pagination control if one
+     is there, and reports whether the page actually grew — the signal that
+     there's more to collect. */
+  function scrollForMore() {
+    return new Promise((resolve) => {
+      const before = document.body.scrollHeight;
+      const more = Flows.byText(['see more jobs', 'show more jobs', 'load more', 'load more jobs', 'next']);
+      if (more) Flows.press(more);
+      window.scrollTo(0, document.body.scrollHeight);
+      setTimeout(() => resolve(Boolean(more) || document.body.scrollHeight > before), 1200);
+    });
+  }
+
+  /* Periodically harvests and gently auto-scrolls a search page without
+     needing a click, capped so it can't run forever unattended. The manual
+     "Queue these N" button in the popup still works as a top-up on demand;
+     this is what keeps the queue filling while the person is just browsing. */
+  async function startAutoHarvest() {
+    if (harvestState.active) return;
+    harvestState.active = true;
+
+    const maxScrolls = state.settings.harvestMaxScrolls || 12;
+    const maxJobs = state.settings.harvestMaxJobsPerVisit || 150;
+
+    const tick = async () => {
+      if (!harvestState.active) return;
+      await harvestAndQueue();
+
+      if (harvestState.sentIds.size >= maxJobs || harvestState.scrollCount >= maxScrolls) {
+        stopAutoHarvest();
+        return;
+      }
+
+      const grew = await scrollForMore();
+      if (!grew) { stopAutoHarvest(); return; }
+      harvestState.scrollCount += 1;
+      harvestState.timer = setTimeout(tick, 3500);
+    };
+
+    tick();
+  }
+
+  function stopAutoHarvest() {
+    harvestState.active = false;
+    clearTimeout(harvestState.timer);
+    maybeWidenLinkedInSearch();
+  }
+
+  /* If a LinkedIn search settled with almost nothing harvested, the radius is
+     probably too tight. Widen it and reload, twice at most, so a thin market
+     doesn't just quietly come back empty. */
+  function maybeWidenLinkedInSearch() {
+    if (state.adapter.id !== 'linkedin') return;
+    if (harvestState.sentIds.size >= 5) return;
+
+    let url;
+    try { url = new URL(location.href); } catch (err) { return; }
+    const steps = [25, 50, 100];
+    const current = Number(url.searchParams.get('distance') || 0);
+    const next = steps.find((s) => s > current);
+    if (!next) return;
+
+    let attempts = 0;
+    try { attempts = Number(sessionStorage.getItem('careeros:widenAttempts') || '0'); } catch (err) { /* private mode */ }
+    if (attempts >= 2) return;
+
+    try { sessionStorage.setItem('careeros:widenAttempts', String(attempts + 1)); } catch (err) { /* ignore */ }
+    url.searchParams.set('distance', String(next));
+    location.replace(url.toString());
   }
 
   /* What the popup renders itself from. */
@@ -101,8 +217,16 @@
       submitNote: permission.reason,
       posting: state.posting,
       match: state.match,
+      matchAll: state.matchAll,
       report: state.report && summarize(state.report),
-      harvest: harvest ? { ats: harvest.ats, count: harvest.jobs.length, easy: harvest.jobs.filter((j) => j.easyApply).length } : null,
+      // Auto-harvest runs continuously in the background of this tab, so the
+      // count is the running total collected this page-visit, not just what
+      // happens to be rendered on screen the instant the popup asks.
+      harvest: harvest ? {
+        ats: harvest.ats,
+        count: harvestState.sentIds.size || harvest.jobs.length,
+        easy: harvest.jobs.filter((j) => j.easyApply).length
+      } : null,
       busy: state.busy
     };
   }
@@ -120,7 +244,7 @@
 
   /* ================= driven by the popup ================= */
 
-  async function doFill() {
+  async function doFill(profileId) {
     if (state.busy) return { ok: false, error: 'Already filling' };
 
     const cap = await Storage.appliedToday();
@@ -128,11 +252,19 @@
       return { ok: false, error: `Daily cap of ${state.settings.dailyLimit} reached` };
     }
 
+    // A profileId lets the popup fill from whichever profile fits this
+    // posting best without changing which profile is globally active.
+    const override = profileId && state.profiles[profileId] ? Profile.hydrate(state.profiles[profileId]) : null;
+    const fillProfile = override || state.profile;
+    const match = override && state.matchAll
+      ? (state.matchAll.find((m) => m.profileId === profileId) || state.match)
+      : state.match;
+
     state.busy = true;
     try {
       const prior = await Storage.alreadyApplied(location.href);
       const form = ATS.findForm(state.adapter, document) || document.body;
-      const report = await Filler.fillForm(form, state.profile, buildContext(null));
+      const report = await Filler.fillForm(form, fillProfile, buildContext(null, null, override));
       state.report = report;
 
       if (!prior) {
@@ -141,7 +273,7 @@
           title: (state.posting && state.posting.title) || document.title,
           company: state.posting && state.posting.company,
           ats: state.adapter.id,
-          score: state.match ? state.match.score : null,
+          score: match ? match.score : null,
           filled: report.filled.length + report.generated.length,
           status: 'filled'
         });
@@ -177,6 +309,7 @@
   /* ================= automated run ================= */
 
   async function runAutomated(directive) {
+    showAutofillBanner();
     try {
       const flowId = Policy.flow(state.adapter.id);
       if (flowId) return report(await runFlow(Flows.get(flowId), directive));
@@ -191,7 +324,28 @@
       return report(await stepThrough(directive.directive));
     } catch (err) {
       return report({ outcome: 'failed', detail: err.message });
+    } finally {
+      hideAutofillBanner();
     }
+  }
+
+  /* A small, dismissible on-page signal that this tab is being worked
+     automatically — the one thing a hidden background tab can't show, but
+     costs nothing to add for the times a run tab (or a showApplyTabs window)
+     is actually on screen. Closing it only hides it; the fill keeps going. */
+  let banner = null;
+  function showAutofillBanner() {
+    if (banner || !document.body) return;
+    banner = document.createElement('div');
+    banner.className = 'careeros-banner';
+    banner.innerHTML = '<span class="careeros-banner__dot"></span><span>Autofill in progress…</span>'
+      + '<button type="button" class="careeros-banner__close" aria-label="Dismiss">×</button>';
+    banner.querySelector('.careeros-banner__close').onclick = () => hideAutofillBanner();
+    document.body.appendChild(banner);
+  }
+  function hideAutofillBanner() {
+    if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
+    banner = null;
   }
 
   /* Aggregator flows: open the apply surface, then work it step by step. */
@@ -216,7 +370,8 @@
     if (opened.error) return { outcome: 'failed', detail: opened.error };
 
     const scope = opened.root || document;
-    const context = buildContext(directive.directive.pregenerated, directive.directive);
+    const directiveProfile = directive.directive.profileOverride ? Profile.hydrate(directive.directive.profileOverride) : null;
+    const context = buildContext(directive.directive.pregenerated, directive.directive, directiveProfile);
     let filledTotal = 0;
 
     for (let step = 0; step < directive.directive.maxSteps; step++) {
@@ -227,6 +382,7 @@
       const before = { sig: formSignature(scope), progress: flow.progress(scope) };
       const filled = await Filler.fillForm(scope, context.profileOverride || state.profile, context);
       filledTotal += filled.filled.length + filled.generated.length;
+      reportProgress(step + 1, directive.directive.maxSteps, filledTotal);
 
       const unanswered = filled.skipped.filter((f) => f.required);
       if (unanswered.length) {
@@ -301,7 +457,8 @@
 
   /* Generic multi-step ATS form. */
   async function stepThrough(directive) {
-    const context = buildContext(directive.pregenerated, directive);
+    const directiveProfile = directive.profileOverride ? Profile.hydrate(directive.profileOverride) : null;
+    const context = buildContext(directive.pregenerated, directive, directiveProfile);
     let filledTotal = 0;
 
     for (let step = 0; step < directive.maxSteps; step++) {
@@ -316,6 +473,7 @@
 
       const filled = await Filler.fillForm(form, context.profileOverride || state.profile, context);
       filledTotal += filled.filled.length + filled.generated.length;
+      reportProgress(step + 1, directive.maxSteps, filledTotal);
 
       const unanswered = filled.skipped.filter((s) => s.required);
       if (unanswered.length) {
@@ -350,6 +508,15 @@
 
   function report(result) {
     return send({ type: 'careeros:result', result });
+  }
+
+  /* Fire-and-forget: lets the dashboard show "step 3 of 7" instead of a flat
+     "Applying" pill for however long a multi-step form takes. Losing one of
+     these to a suspended service worker is cosmetic, so no response is awaited. */
+  function reportProgress(step, maxSteps, filled) {
+    try {
+      chrome.runtime.sendMessage({ type: 'careeros:progress', step, maxSteps, filled }, () => void chrome.runtime.lastError);
+    } catch (err) { /* tab is going away */ }
   }
 
   /* ================= page signals ================= */
@@ -410,7 +577,13 @@
 
   /* ================= shared ================= */
 
-  function buildContext(pregenerated, tailored) {
+  function buildContext(pregenerated, tailored, directiveProfile) {
+    /* directiveProfile is the profile this specific job was queued and scored
+       against (see Engine.build/add + handleReady) — it may not be whichever
+       profile is globally active. Falls back to the active profile, same as
+       before, when nothing overrides it. */
+    const baseProfile = directiveProfile || state.profile;
+
     /* When a tailored package exists, the form is filled from the resume
        written for this specific posting rather than the base profile. That
        distinction is the whole product: a spray tool sends one resume
@@ -421,11 +594,16 @@
        Object.assign here would silently drop whyLeaving/availableFrom. */
     const profileForFill = tailored?.tailoredResume
       ? Profile.hydrate(
-          Object.assign({}, state.profile, {
-            narrative: Object.assign({}, state.profile.narrative, tailored.tailoredResume.narrative)
+          Object.assign({}, baseProfile, {
+            narrative: Object.assign({}, baseProfile.narrative, tailored.tailoredResume.narrative)
           })
         )
-      : state.profile;
+      : baseProfile;
+
+    // Screening answers are scoped to whichever profile is actually being used
+    // to fill this form — different profiles reasonably answer the same
+    // generic question differently.
+    const profileId = baseProfile.id || state.activeProfileId;
 
     return {
       profileOverride: profileForFill,
@@ -439,11 +617,11 @@
         );
         if (approved && approved.confidence === 'high') return approved.answer;
 
-        const remembered = await Storage.recallAnswer(question);
+        const remembered = await Storage.recallAnswer(question, profileId);
         if (remembered) return remembered;
         if (!state.settings.tailorScreeningAnswers) return null;
         const answer = await ask('answerQuestion', { question });
-        if (answer) await Storage.rememberAnswer(question, answer);
+        if (answer) await Storage.rememberAnswer(question, answer, profileId);
         return answer;
       },
 
@@ -490,7 +668,7 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     if (msg.type === 'careeros:ping') { respond(snapshot()); return true; }
-    if (msg.type === 'careeros:fill') { doFill().then(respond); return true; }
+    if (msg.type === 'careeros:fill') { doFill(msg.profileId).then(respond); return true; }
     if (msg.type === 'careeros:submit') { doSubmit().then(respond); return true; }
     if (msg.type === 'careeros:harvest') {
       const collected = Harvest.collect();

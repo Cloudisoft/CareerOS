@@ -173,6 +173,21 @@
       }
     },
 
+    /* Broad keyword/location search, run server-side against CareerOS's own
+       Adzuna/JSearch keys rather than the browser's — see discovery.js's
+       header comment. radiusMiles is the one search preference that still
+       lives client-side only (no server column for it yet), so it rides
+       along as a query param; the server defaults it when it's missing. */
+    async getJobs(profile) {
+      const radius = profile && profile.targeting && profile.targeting.radiusMiles;
+      const qs = radius ? `?radius=${encodeURIComponent(radius)}` : '';
+      try {
+        return await request(`/jobs${qs}`);
+      } catch (err) {
+        return { jobs: [], message: err.message };
+      }
+    },
+
     async markPackageSubmitted(applicationId) {
       return request('/package/submitted', {
         method: 'POST',

@@ -66,11 +66,29 @@
     /* ---------------- building the queue ---------------- */
 
     async build() {
-      const profile = Profile.hydrate(await Storage.getProfile());
+      const profilesData = await Storage.getProfiles();
+      const activeProfile = Profile.hydrate(profilesData.profiles[profilesData.activeId]);
+      const allProfiles = Object.values(profilesData.profiles).map((p) => Profile.hydrate(p));
+      const multi = allProfiles.length > 1;
       const settings = await Storage.getSettings();
       const sources = await Storage.get('careeros.sources', { boards: [] });
 
-      const { jobs, errors } = await Discovery.search(profile, settings, sources);
+      // Discovery's search terms (title/location keywords) still come from the
+      // active profile — searching once per profile would multiply API calls
+      // for a benefit that scoring against every profile already captures.
+      // Company boards + any bring-your-own-key aggregators run from here in
+      // the browser; broad market search also runs server-side against
+      // CareerOS's own keys (Api.getJobs) so results show up with nothing to
+      // configure — see careeros-api.js and discovery.js's header comment.
+      const [discovered, serverResult] = await Promise.all([
+        Discovery.search(activeProfile, settings, sources),
+        Api.getJobs(activeProfile).catch((err) => ({ jobs: [], message: err.message }))
+      ]);
+
+      const serverJobs = (serverResult.jobs || []).map((j) => Object.assign({ source: 'careeros', radiusSearched: true }, j));
+      const jobs = discovered.jobs.concat(serverJobs);
+      const errors = discovered.errors.slice();
+      if (serverResult.message) errors.push(serverResult.message);
 
       const scored = [];
       for (const job of jobs) {
@@ -78,9 +96,11 @@
           title: job.title,
           company: job.company,
           description: `${job.description} ${job.location}`,
-          url: job.applyUrl || job.url
+          url: job.applyUrl || job.url,
+          radiusSearched: Boolean(job.radiusSearched)
         };
-        const match = Matcher.score(profile, posting);
+
+        const match = multi ? Matcher.scoreAll(allProfiles, posting)[0] : Matcher.score(activeProfile, posting);
         if (match.blocked) continue;
         if (match.score < settings.minMatchScore) continue;
         if (await Storage.alreadyApplied(posting.url)) continue;
@@ -98,7 +118,9 @@
           matchedSkills: match.matchedSkills,
           description: (job.description || '').slice(0, 6000),
           postedAt: job.postedAt,
-          state: 'queued'
+          state: 'queued',
+          profileId: match.profileId || profilesData.activeId,
+          profileScore: match.score
         });
       }
 
@@ -120,7 +142,9 @@
     async add(jobs) {
       const state = await Engine.getState();
       const settings = await Storage.getSettings();
-      const profile = Profile.hydrate(await Storage.getProfile());
+      const profilesData = await Storage.getProfiles();
+      const allProfiles = Object.values(profilesData.profiles).map((p) => Profile.hydrate(p));
+      const multi = allProfiles.length > 1;
 
       const known = new Set(state.queue.map((j) => j.id));
       const fresh = [];
@@ -132,12 +156,14 @@
 
         // Only the title is available at this point, so this is a cheap first
         // pass. The real score happens in the tab against the full description.
-        const rough = Matcher.score(profile, {
+        const posting = {
           title: job.title,
           company: job.company,
           description: `${job.title} ${job.location}`,
-          url: job.url
-        });
+          url: job.url,
+          radiusSearched: Boolean(job.radiusSearched)
+        };
+        const rough = multi ? Matcher.scoreAll(allProfiles, posting)[0] : Matcher.score(allProfiles[0], posting);
         if (rough.blocked) { duplicates += 1; continue; }
 
         known.add(job.id);
@@ -146,7 +172,9 @@
           reasons: rough.reasons.slice(0, 2),
           matchedSkills: rough.matchedSkills,
           provisional: true,
-          state: 'queued'
+          state: 'queued',
+          profileId: rough.profileId || profilesData.activeId,
+          profileScore: rough.score
         }));
       }
 
@@ -220,11 +248,7 @@
             continue;
           }
 
-          // One tab at a time on a restricted platform: parallel sessions on
-          // the same account are both slower in practice and the thing most
-          // likely to get one flagged.
-          const restricted = Policy.isRestricted(next.ats);
-          const cap = restricted ? 1 : Math.max(1, Number(settings.concurrency) || 3);
+          const cap = Policy.concurrencyCap(next.ats, settings);
           const openOnPlatform = [...runtime.tabs.values()].filter((t) => t.job.ats === next.ats).length;
           if (openOnPlatform >= cap || runtime.tabs.size >= Math.max(cap, Number(settings.concurrency) || 3)) {
             await sleep(1500);
@@ -268,6 +292,18 @@
         entry.job.applicationId = pkg.applicationId;
       }
 
+      // The job was scored and queued against a specific profile (see build()/
+      // add()), which may not be whichever profile is globally active — hand
+      // the content script that exact profile so it fills from it, without
+      // ever flipping which one is active.
+      let profileOverride = null;
+      if (entry.job.profileId) {
+        const profilesData = await Storage.getProfiles();
+        if (entry.job.profileId !== profilesData.activeId && profilesData.profiles[entry.job.profileId]) {
+          profileOverride = Profile.hydrate(profilesData.profiles[entry.job.profileId]);
+        }
+      }
+
       return {
         job: entry.job,
         directive: {
@@ -276,7 +312,9 @@
           maxSteps: stepsFor(entry.job.ats),
           pregenerated: (pkg && pkg.tailored ? pkg.coverLetter : null) || runtime.pregen.get(entry.job.id) || null,
           tailoredResume: pkg && pkg.tailored ? pkg.resume : null,
-          screeningAnswers: (pkg && pkg.tailored ? pkg.screeningAnswers : null) || []
+          screeningAnswers: (pkg && pkg.tailored ? pkg.screeningAnswers : null) || [],
+          profileId: entry.job.profileId || null,
+          profileOverride
         }
       };
     },
@@ -290,6 +328,20 @@
       closeTab(tabId);
       await settle(entry.job, result);
       if (entry.resolve) entry.resolve(result);
+    },
+
+    /* Step-level progress from a content script mid-run, so the dashboard can
+       show "step 3 of 7" instead of a flat "Applying" pill. Fire-and-forget on
+       both ends — losing one to a suspended worker is cosmetic. */
+    async handleProgress(tabId, progress) {
+      const entry = runtime.tabs.get(tabId);
+      if (!entry) return;
+      entry.progress = progress;
+      const state = await Engine.getState();
+      const queue = state.queue.map((j) =>
+        j.id === entry.job.id ? Object.assign({}, j, { progress }) : j
+      );
+      await Engine.setState({ queue });
     },
 
     runtime
@@ -316,14 +368,30 @@
   }
 
   async function applyTo(job) {
-    const tab = await chrome.tabs.create({ url: job.url, active: false });
+    const settings = await Storage.getSettings();
+
+    /* Hidden background tabs are the sane default for an unattended run — fast,
+       and out of the way. showApplyTabs is opt-in for someone who wants to
+       actually watch a form get filled: a small, unfocused window off to the
+       side rather than a fully hidden tab. */
+    let tab;
+    let windowId = null;
+    if (settings.showApplyTabs) {
+      const win = await chrome.windows.create({
+        url: job.url, type: 'popup', focused: false, width: 420, height: 640, left: 20, top: 20
+      });
+      tab = (win.tabs || [])[0];
+      windowId = win.id;
+    } else {
+      tab = await chrome.tabs.create({ url: job.url, active: false });
+    }
 
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         Engine.handleResult(tab.id, { outcome: 'failed', detail: 'Timed out' });
       }, JOB_TIMEOUT_MS);
 
-      runtime.tabs.set(tab.id, { job, resolve, timer });
+      runtime.tabs.set(tab.id, { job, resolve, timer, windowId, progress: null });
     });
   }
 

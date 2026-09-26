@@ -9,6 +9,61 @@
   let settings = await Storage.getSettings();
   let saveTimer = null;
 
+  /* ---------- profiles ---------- */
+  let profilesData = await Storage.getProfiles();
+
+  function renderProfileBar() {
+    const ids = Object.keys(profilesData.profiles);
+    $('#profileSelect').innerHTML = ids.map((id) => {
+      const p = profilesData.profiles[id];
+      return `<option value="${attr(id)}"${id === profilesData.activeId ? ' selected' : ''}>${esc(p.name || 'Untitled')}</option>`;
+    }).join('');
+    $('#deleteProfile').disabled = ids.length <= 1;
+  }
+
+  $('#profileSelect').onchange = async () => {
+    await Storage.setActiveProfile($('#profileSelect').value);
+    location.reload();
+  };
+
+  $('#newProfile').onclick = async () => {
+    const name = prompt('Name this profile', 'New profile');
+    if (name == null) return;
+    const created = await Storage.createProfile(name.trim() || 'New profile');
+    await Storage.setActiveProfile(created.id);
+    location.reload();
+  };
+
+  $('#duplicateProfile').onclick = async () => {
+    const current = profilesData.profiles[profilesData.activeId];
+    const name = prompt('Name for the copy', `${(current && current.name) || 'Profile'} copy`);
+    if (name == null) return;
+    const copy = await Storage.duplicateProfile(profilesData.activeId, name.trim());
+    if (!copy) return;
+    await Storage.setActiveProfile(copy.id);
+    location.reload();
+  };
+
+  $('#renameProfile').onclick = async () => {
+    const current = profilesData.profiles[profilesData.activeId];
+    const name = prompt('Rename this profile', (current && current.name) || '');
+    if (name == null || !name.trim()) return;
+    profile.name = name.trim();
+    await Storage.saveProfile(profile);
+    renderProfileBar();
+    flagSaved();
+  };
+
+  $('#deleteProfile').onclick = async () => {
+    const current = profilesData.profiles[profilesData.activeId];
+    if (!confirm(`Delete the profile "${(current && current.name) || 'this profile'}"? There is no undo.`)) return;
+    const res = await Storage.deleteProfile(profilesData.activeId);
+    if (!res.ok) { alert(res.error); return; }
+    location.reload();
+  };
+
+  renderProfileBar();
+
   /* ---------- tabs ---------- */
   $$('.tab').forEach((tab) => {
     tab.onclick = () => {
@@ -41,7 +96,7 @@
       if (el.type === 'checkbox') write(path, el.checked);
       else if (el.dataset.list !== undefined) write(path, splitList(el.value));
       else if (el.dataset.lines !== undefined) write(path, splitLines(el.value));
-      else if (el.type === 'number') write(path, el.value === '' ? 0 : Number(el.value));
+      else if (el.type === 'number' || el.dataset.number !== undefined) write(path, el.value === '' ? 0 : Number(el.value));
       else write(path, el.value);
       queueSave();
     });

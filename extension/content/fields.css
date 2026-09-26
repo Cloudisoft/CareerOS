@@ -1,6 +1,7 @@
-/* CareerOS — the only thing injected into a host page.
-   Two outlines: what got filled, and what still needs the person. No panel,
-   no floating widget, nothing that moves the page around. */
+/* CareerOS — injected into a host page.
+   Two field outlines (what got filled, and what still needs the person) plus
+   one small status banner shown only while an automated run is actively
+   working a tab. Nothing here moves the page around or blocks input. */
 
 .careeros-filled {
   outline: 2px solid rgba(52, 168, 108, 0.7) !important;
@@ -11,4 +12,46 @@
   outline: 2px solid #F46A29 !important;
   outline-offset: 1px !important;
   background-color: rgba(244, 106, 41, 0.07) !important;
+}
+
+.careeros-banner {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 999px;
+  font: 600 12.5px/1.3 -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #fff;
+  background: linear-gradient(135deg, #7C5CFC, #4C6DF5);
+  box-shadow: 0 6px 18px rgba(20, 20, 40, 0.28);
+  pointer-events: auto;
+}
+.careeros-banner__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  animation: careeros-banner-pulse 1.1s ease-in-out infinite;
+  flex: none;
+}
+.careeros-banner__close {
+  border: 0;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  border-radius: 50%;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+.careeros-banner__close:hover { background: rgba(255, 255, 255, 0.3); }
+@keyframes careeros-banner-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }

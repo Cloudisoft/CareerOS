@@ -54,6 +54,12 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     Engine.handleResult(tabId, msg.result).then(() => respond({ ok: true }));
     return true;
   }
+  if (msg.type === 'careeros:progress') {
+    // Fire-and-forget: a dropped progress tick just means the dashboard's
+    // step counter lags one step behind for a moment.
+    Engine.handleProgress(tabId, { step: msg.step, maxSteps: msg.maxSteps, filled: msg.filled });
+    return false;
+  }
   if (msg.type === 'careeros:engine') {
     handleEngineCommand(msg).then(respond).catch((err) => respond({ ok: false, error: err.message }));
     return true;

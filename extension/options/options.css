@@ -76,6 +76,27 @@ body {
 .saveState[data-on="saving"] { color: var(--flame); border-color: rgba(241, 127, 38, 0.4); }
 .saveState[data-on="saved"]  { color: var(--ok); border-color: rgba(143, 224, 182, 0.3); }
 
+.profileBar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 24px 14px;
+}
+.profileSelectWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.6px;
+  color: var(--muted);
+  min-width: 200px;
+}
+.profileBar .row { margin-top: 0; }
+.profileBar .ghost { padding: 6px 10px; font-size: 11.6px; }
+
 .tabs {
   display: flex;
   gap: 4px;

@@ -62,6 +62,11 @@
       content_type: 'application/json'
     });
     if (where) params.set('where', where);
+    // Radius in miles from the `where` center. Only meaningful once there's a
+    // center to measure from — a bare keyword search has nothing to widen.
+    if (where && profile.targeting.radiusMiles) {
+      params.set('distance', String(profile.targeting.radiusMiles));
+    }
 
     // Adzuna's salary filter drops every posting that doesn't publish a range,
     // which in some markets is most of them. The matcher applies the floor
@@ -92,7 +97,8 @@
       postedAt: Date.parse(j.created) || Date.now(),
       salaryMin: j.salary_min,
       salaryMax: j.salary_max,
-      remote: /remote/i.test(`${j.title} ${j.description}`)
+      remote: /remote/i.test(`${j.title} ${j.description}`),
+      radiusSearched: Boolean(where && profile.targeting.radiusMiles)
     }));
   }
 
@@ -110,6 +116,8 @@
     });
     if (cfg.country) params.set('country', String(cfg.country).toLowerCase());
     if ((profile.targeting.workModes || []).includes('remote')) params.set('remote_jobs_only', 'true');
+    // JSearch has no distance/radius parameter — it resolves location as a free-text
+    // term inside `query`, so radiusMiles is left out here rather than faked.
 
     const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}`, {
       headers: {
@@ -145,11 +153,15 @@
   }
 
   async function usajobs(profile, settings, cfg) {
+    const locationName = (profile.targeting.locations || [])[0] || profile.identity.city || '';
     const params = new URLSearchParams({
       Keyword: (profile.targeting.titles || [])[0] || '',
-      LocationName: (profile.targeting.locations || [])[0] || profile.identity.city || '',
+      LocationName: locationName,
       ResultsPerPage: '50'
     });
+    if (locationName && profile.targeting.radiusMiles) {
+      params.set('Radius', String(profile.targeting.radiusMiles));
+    }
     const res = await fetch(`https://data.usajobs.gov/api/search?${params}`, {
       headers: {
         Host: 'data.usajobs.gov',
@@ -171,7 +183,8 @@
         description: ((d.UserArea || {}).Details || {}).JobSummary || d.QualificationSummary || '',
         url: d.PositionURI,
         applyUrl: (d.ApplyURI || [])[0] || d.PositionURI,
-        postedAt: Date.parse(d.PublicationStartDate) || Date.now()
+        postedAt: Date.parse(d.PublicationStartDate) || Date.now(),
+        radiusSearched: Boolean(locationName && profile.targeting.radiusMiles)
       };
     });
   }

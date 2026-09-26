@@ -54,12 +54,18 @@
   const Policy = {
     POLICIES,
 
-    /* The operator's per-platform overrides live in settings.platformModes. */
+    /* The operator's per-platform overrides live in settings.platformModes.
+       fastLinkedIn is a separate, narrower override: it only ever touches
+       LinkedIn's pacing number, never its mode — the ToS-acknowledgement gate
+       on auto-submit is untouched by it. */
     for(atsId, settings) {
       const base = POLICIES[atsId] || POLICIES.generic;
+      const policy = (atsId === 'linkedin' && settings && settings.fastLinkedIn)
+        ? Object.assign({}, base, { rateLimit: 40 })
+        : base;
       const override = settings && settings.platformModes && settings.platformModes[atsId];
-      if (!override || override === 'default') return base;
-      return Object.assign({}, base, { mode: override, overridden: true });
+      if (!override || override === 'default') return policy;
+      return Object.assign({}, policy, { mode: override, overridden: true });
     },
 
     /* The only function allowed to authorise an automated submit. */
@@ -86,7 +92,10 @@
        obvious bot signal there is. This is pacing, not disguise. */
     jitter(atsId, settings) {
       const base = Policy.pacing(atsId, settings) * 1000;
-      return Math.round(base * (0.75 + Math.random() * 0.7));
+      const fast = atsId === 'linkedin' && settings && settings.fastLinkedIn;
+      // Fast mode narrows the jitter window too — still not a metronome, just
+      // a tighter one, matching the higher rate limit above.
+      return Math.round(base * (fast ? 0.9 + Math.random() * 0.3 : 0.75 + Math.random() * 0.7));
     },
 
     flow(atsId) {
@@ -95,6 +104,18 @@
 
     isRestricted(atsId) {
       return (POLICIES[atsId] || POLICIES.generic).tos === 'restricted';
+    },
+
+    /* How many tabs may work this platform at once. Restricted platforms are
+       capped at one by default — parallel sessions on the same account are
+       both slower in practice and the thing most likely to get one flagged —
+       unless the person has explicitly turned fastLinkedIn on for LinkedIn,
+       in which case it shares the normal concurrency pool like everything else. */
+    concurrencyCap(atsId, settings) {
+      const pool = Math.max(1, Number(settings && settings.concurrency) || 3);
+      if (!Policy.isRestricted(atsId)) return pool;
+      if (atsId === 'linkedin' && settings && settings.fastLinkedIn) return pool;
+      return 1;
     },
 
     label(mode) {

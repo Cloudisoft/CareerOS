@@ -10,8 +10,28 @@
 
   $('openSettings').onclick = () => chrome.runtime.openOptionsPage();
   $('goSetup').onclick = () => chrome.runtime.openOptionsPage();
-  $('openRun').onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+  $('openRun').onclick = () => openOrFocusDashboard();
   $('mode').textContent = settings.autoSubmit ? 'Auto submit is on' : 'Review before submit';
+
+  /* The dashboard is where a run is actually watched, so every path that
+     starts one — this icon button and Auto Apply below — reuses the same
+     open-or-focus rather than piling up duplicate tabs. */
+  async function openOrFocusDashboard() {
+    const url = chrome.runtime.getURL('dashboard/dashboard.html');
+    const tabs = await chrome.tabs.query({ url: `${url}*` });
+    if (tabs.length) {
+      await chrome.tabs.update(tabs[0].id, { active: true });
+      if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true });
+    } else {
+      chrome.tabs.create({ url });
+    }
+  }
+
+  function engineCmd(command) {
+    return new Promise((resolve) =>
+      chrome.runtime.sendMessage({ type: 'careeros:engine', command }, resolve)
+    );
+  }
 
   /* Not signed in is the first thing to resolve. Everything else in the popup
      is meaningless until it is done, so nothing else renders. */
@@ -44,10 +64,55 @@
     $('setup').hidden = false;
     $('gaps').innerHTML = gaps.map((g) => `<li>${esc(g)}</li>`).join('');
     if (!Profile.isReady(profile)) $('tagline').textContent = 'Setup needed';
+  } else {
+    setUpAutoApply();
   }
 
   await loadStats();
   if (Profile.isReady(profile)) await loadTab();
+
+  /* One click: find live postings, then apply through the queue, then take
+     the person to the dashboard where the run actually plays out. Signed in
+     and ready is the only requirement — it works the same from any tab. */
+  function setUpAutoApply() {
+    $('autoApplySection').hidden = false;
+    const btn = $('autoApplyBtn');
+    const msg = $('autoApplyMsg');
+
+    btn.onclick = async () => {
+      btn.disabled = true;
+      msg.textContent = '';
+      btn.textContent = 'Finding jobs…';
+
+      const build = await engineCmd('build');
+      if (!build || !build.ok) {
+        btn.disabled = false;
+        btn.textContent = 'Auto Apply';
+        msg.textContent = (build && build.error) || 'Could not search for jobs.';
+        return;
+      }
+
+      const current = await Storage.getSettings();
+      if (!current.autoSubmit) {
+        btn.disabled = false;
+        btn.textContent = 'Auto Apply';
+        msg.innerHTML = `Found ${build.queued} job${build.queued === 1 ? '' : 's'}, but auto-submit is off, so CareerOS can only fill forms, not send them. `
+          + `<a href="#" id="turnOnAutoSubmit">Turn on auto-submit</a> and try again.`;
+        $('turnOnAutoSubmit').onclick = async (e) => {
+          e.preventDefault();
+          await Storage.saveSettings({ autoSubmit: true });
+          btn.click();
+        };
+        await openOrFocusDashboard();
+        return;
+      }
+
+      btn.textContent = 'Applying…';
+      await engineCmd('start');
+      await openOrFocusDashboard();
+      window.close();
+    };
+  }
 
   async function loadTab() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -80,7 +145,21 @@
     );
   }
 
-  function showIdle() { $('idle').hidden = false; }
+  function showIdle() {
+    $('idle').hidden = false;
+    const btn = $('searchPosition');
+    const title = (profile.targeting.titles || [])[0];
+    if (!title) { btn.hidden = true; return; }
+    btn.hidden = false;
+    btn.onclick = () => {
+      const place = (profile.targeting.locations || [])[0] || '';
+      const radius = profile.targeting.radiusMiles;
+      const params = new URLSearchParams({ keywords: title });
+      if (place) params.set('location', place);
+      if (radius) params.set('distance', String(radius));
+      chrome.tabs.create({ url: `https://www.linkedin.com/jobs/search/?${params.toString()}` });
+    };
+  }
 
   /* ---------- a single posting ---------- */
 
@@ -97,12 +176,33 @@
 
     $('policyLine').textContent = `${snap.atsLabel} · ${snap.policyLabel}`;
 
+    // More than one profile: show which one actually fits this posting best,
+    // and let the person fill with that one instead of whichever is active.
+    const picker = $('profilePicker');
+    const bestFit = $('bestFit');
+    let selectedProfileId = null;
+    if (snap.matchAll && snap.matchAll.length > 1) {
+      const best = snap.matchAll[0];
+      bestFit.hidden = false;
+      bestFit.textContent = `Best fit: ${best.profileName} (${best.score})`;
+      picker.hidden = false;
+      picker.innerHTML = snap.matchAll.map((m) =>
+        `<option value="${esc(m.profileId)}">${esc(m.profileName)} — ${m.score}</option>`
+      ).join('');
+      picker.value = best.profileId;
+      selectedProfileId = best.profileId;
+      picker.onchange = () => { selectedProfileId = picker.value; };
+    } else {
+      bestFit.hidden = true;
+      picker.hidden = true;
+    }
+
     const fill = $('fillNow');
     fill.textContent = match.score < settings.minMatchScore ? 'Fill anyway' : 'Fill this application';
     fill.onclick = async () => {
       fill.disabled = true;
       fill.textContent = 'Filling…';
-      const res = await ask({ type: 'careeros:fill' });
+      const res = await ask({ type: 'careeros:fill', profileId: selectedProfileId });
       fill.disabled = false;
       fill.textContent = 'Fill again';
       renderFillResult(res, snap);

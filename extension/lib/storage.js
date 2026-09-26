@@ -5,7 +5,8 @@
   'use strict';
 
   const KEYS = {
-    PROFILE: 'careeros.profile',
+    PROFILE: 'careeros.profile',      // legacy single-profile slot, kept only for migration
+    PROFILES: 'careeros.profiles',    // { activeId, profiles: { [id]: profile } }
     SETTINGS: 'careeros.settings',
     APPLICATIONS: 'careeros.applications',
     ANSWERS: 'careeros.answerBank',
@@ -21,6 +22,15 @@
     concurrency: 3,              // background tabs applying at once
     tailorCoverLetter: true,
     tailorScreeningAnswers: true,
+    autoHarvest: true,           // keep collecting cards from a search page without a click
+    harvestMaxScrolls: 12,       // stop auto-scrolling a search page after this many loads
+    harvestMaxJobsPerVisit: 150, // stop collecting once a single page-visit has found this many
+    fastLinkedIn: false,         // opt-in: raise LinkedIn's rate limit and drop its 1-tab cap.
+                                  // Real account risk tradeoff, so it stays off until the person
+                                  // turns it on for themselves — see lib/policy.js.
+    showApplyTabs: false,        // off: applies happen in fully hidden background tabs (fast,
+                                  // unattended). On: opens a small, unfocused window per apply so
+                                  // the person can actually watch a form get filled if they want to.
     /* The Career OS app's API. Set this once per deployment — the pairing
        screen writes the token beside it. */
     apiBase: 'http://localhost:3000/api/extension',
@@ -60,12 +70,71 @@
     get,
     set,
 
+    /* ---------------- profiles ----------------
+     * Storage holds many profiles now ({ activeId, profiles }), but almost every
+     * call site only ever wants "the current one" — getProfile/saveProfile stay
+     * as thin wrappers over the active profile so none of them had to change. */
+    async getProfiles() {
+      return getProfilesData();
+    },
+    async getActiveProfile() {
+      const data = await getProfilesData();
+      return data.profiles[data.activeId] || null;
+    },
     async getProfile() {
-      return get(KEYS.PROFILE, null);
+      return Storage.getActiveProfile();
+    },
+    async saveProfileById(id, profile) {
+      const data = await getProfilesData();
+      profile.id = id;
+      profile.updatedAt = Date.now();
+      data.profiles[id] = profile;
+      await set(KEYS.PROFILES, data);
+      return profile;
     },
     async saveProfile(profile) {
-      profile.updatedAt = Date.now();
-      return set(KEYS.PROFILE, profile);
+      const data = await getProfilesData();
+      const id = profile.id || data.activeId || 'default';
+      return Storage.saveProfileById(id, profile);
+    },
+    async createProfile(name) {
+      const data = await getProfilesData();
+      const id = newProfileId();
+      const blank = (root.CareerOS.Profile ? root.CareerOS.Profile.blank() : {});
+      const profile = Object.assign(blank, { id, name: name || 'New profile', updatedAt: Date.now() });
+      data.profiles[id] = profile;
+      await set(KEYS.PROFILES, data);
+      return profile;
+    },
+    async duplicateProfile(id, newName) {
+      const data = await getProfilesData();
+      const src = data.profiles[id];
+      if (!src) return null;
+      const newId = newProfileId();
+      const copy = JSON.parse(JSON.stringify(src));
+      copy.id = newId;
+      copy.name = newName || `${src.name || 'Profile'} copy`;
+      copy.updatedAt = Date.now();
+      data.profiles[newId] = copy;
+      await set(KEYS.PROFILES, data);
+      return copy;
+    },
+    async deleteProfile(id) {
+      const data = await getProfilesData();
+      const ids = Object.keys(data.profiles);
+      if (ids.length <= 1) return { ok: false, error: 'Cannot delete the last remaining profile' };
+      if (!data.profiles[id]) return { ok: false, error: 'No such profile' };
+      delete data.profiles[id];
+      if (data.activeId === id) data.activeId = Object.keys(data.profiles)[0];
+      await set(KEYS.PROFILES, data);
+      return { ok: true, activeId: data.activeId };
+    },
+    async setActiveProfile(id) {
+      const data = await getProfilesData();
+      if (!data.profiles[id]) return null;
+      data.activeId = id;
+      await set(KEYS.PROFILES, data);
+      return id;
     },
 
     async getSettings() {
@@ -118,21 +187,67 @@
     },
 
     /* Answer bank: every screening question the person has answered once,
-       reused verbatim the next time the same question shows up. */
-    async getAnswers() {
-      return get(KEYS.ANSWERS, {});
+       reused verbatim the next time the same question shows up. Scoped by
+       profile — "why this role" reads differently from a Frontend Engineer
+       profile than a Product Manager one. Shape: { [profileId]: { [q]: {...} } }.
+       getAnswers() with no id returns the whole bank, for the data export. */
+    async getAnswers(profileId) {
+      const bank = await getAnswerBank();
+      return profileId ? (bank[profileId] || {}) : bank;
     },
-    async rememberAnswer(question, answer) {
-      const bank = await Storage.getAnswers();
-      bank[normalizeQuestion(question)] = { answer, at: Date.now() };
+    async rememberAnswer(question, answer, profileId) {
+      const bank = await getAnswerBank();
+      const id = profileId || (await getProfilesData()).activeId;
+      bank[id] = bank[id] || {};
+      bank[id][normalizeQuestion(question)] = { answer, at: Date.now() };
       return set(KEYS.ANSWERS, bank);
     },
-    async recallAnswer(question) {
-      const bank = await Storage.getAnswers();
-      const hit = bank[normalizeQuestion(question)];
+    async recallAnswer(question, profileId) {
+      const bank = await getAnswerBank();
+      const id = profileId || (await getProfilesData()).activeId;
+      const hit = (bank[id] || {})[normalizeQuestion(question)];
       return hit ? hit.answer : null;
     }
   };
+
+  function newProfileId() {
+    return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  /* Migrates the old single-profile slot into the multi-profile shape once,
+     the first time it's read, and never touches it again after that. A fresh
+     install with no legacy profile gets one blank "Default" profile so there
+     is always something to score against and edit. */
+  async function getProfilesData() {
+    const existing = await get(KEYS.PROFILES, null);
+    if (existing && existing.profiles && Object.keys(existing.profiles).length) return existing;
+
+    const legacy = await get(KEYS.PROFILE, null);
+    const id = (legacy && legacy.id) || 'default';
+    const blank = (root.CareerOS.Profile ? root.CareerOS.Profile.blank() : {});
+    const profile = Object.assign({}, blank, legacy || {}, {
+      id,
+      name: (legacy && legacy.name) || 'Default'
+    });
+    const data = { activeId: id, profiles: { [id]: profile } };
+    await set(KEYS.PROFILES, data);
+    return data;
+  }
+
+  /* The answer bank used to be a flat { [question]: {answer, at} } map. The
+     first read after this version installs rewraps it under whichever profile
+     is active, so nobody's saved answers vanish. */
+  async function getAnswerBank() {
+    const raw = await get(KEYS.ANSWERS, {});
+    const keys = Object.keys(raw);
+    const looksFlat = keys.length && raw[keys[0]] && typeof raw[keys[0]] === 'object' && 'answer' in raw[keys[0]];
+    if (!looksFlat) return raw;
+
+    const activeId = (await getProfilesData()).activeId;
+    const migrated = { [activeId]: raw };
+    await set(KEYS.ANSWERS, migrated);
+    return migrated;
+  }
 
   function normalizeQuestion(q) {
     return String(q || '')
