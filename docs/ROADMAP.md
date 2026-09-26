@@ -9,10 +9,24 @@ this branch straight to production, so a schema change here isn't hypothetical.
 
 ## Phase 0 — Foundations
 
-- [ ] Audit repo → `docs/ARCHITECTURE.md`
+- [x] Audit repo → `docs/ARCHITECTURE.md`
 - [ ] DB tables: `job`, `company`, `interview_session`, `toolkit_output`, `bounty`, `referral`, `payout`
+  - `Job`, `Company`, `InterviewSession` already exist and are in real use — see `docs/ARCHITECTURE.md`.
+  - `ToolkitOutput`, `Bounty`, `Referral`, `Payout` don't exist. Proposed Prisma models are written up
+    in `docs/ARCHITECTURE.md` — **awaiting user confirmation before any migration is created or applied**,
+    since `Bounty`/`Referral`/`Payout` sit inside the payments + consent gates, and every schema change
+    on this branch is a live production migration.
 - [ ] LLM gateway: fast/deep model tiers, streaming, per-user usage limits
+  - Fast/deep tiers: not implemented (one fixed model per provider, not per-call).
+  - Streaming: not implemented at all.
+  - Per-user usage limits: real, but enforced per-call-site via billing entitlements + rate-limit,
+    not inside the gateway — duplicated logic, right layer. Smallest-fix proposal in `docs/ARCHITECTURE.md`.
 - [ ] Roles (seeker, referrer, employer, admin), rate limiting, feature flags
+  - Roles: `CANDIDATE`/`EMPLOYER`/`COMPANY_ADMIN`/`PLATFORM_ADMIN` already exist and are enforced by
+    real guards. `REFERRER` does not exist — needs a `UserRole` enum addition (a migration) for Phase 5.
+  - Rate limiting: a real in-memory limiter exists and is used; its own comment already flags it needs
+    Redis backing for multi-instance production (pre-existing known gap, not new).
+  - Feature flags: don't exist at all — nothing to reuse, would be built from scratch (a new table = a migration).
 
 ## Phase 1 — Opportunities (job board)
 
