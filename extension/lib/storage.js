@@ -24,8 +24,8 @@
     tailorCoverLetter: true,
     tailorScreeningAnswers: true,
     autoHarvest: true,           // keep collecting cards from a search page without a click
-    harvestMaxScrolls: 12,       // stop auto-scrolling a search page after this many loads
-    harvestMaxJobsPerVisit: 150, // stop collecting once a single page-visit has found this many
+    harvestMaxScrolls: 40,       // stop auto-scrolling a search page after this many loads
+    harvestMaxJobsPerVisit: 400, // stop collecting once a single page-visit has found this many
     /* LinkedIn's f_TPR window for the "Search this position" URL builder
        (see lib/search-urls.js). '24h' | 'week' | 'month' | 'any'. This is the
        one search preference that can't be derived from the profile. */
@@ -145,7 +145,15 @@
 
     async getSettings() {
       const stored = await get(KEYS.SETTINGS, {});
-      return Object.assign({}, DEFAULT_SETTINGS, stored);
+      const merged = Object.assign({}, DEFAULT_SETTINGS, stored);
+      // No UI control ever sets these two, so a stored value only ever got
+      // there from saveSettings() baking in whatever DEFAULT_SETTINGS said
+      // at install time — meaning a raise to the shipped default here would
+      // never reach an existing install otherwise. Always take the current
+      // default instead of the frozen-in one.
+      merged.harvestMaxScrolls = DEFAULT_SETTINGS.harvestMaxScrolls;
+      merged.harvestMaxJobsPerVisit = DEFAULT_SETTINGS.harvestMaxJobsPerVisit;
+      return merged;
     },
     async saveSettings(patch) {
       const current = await Storage.getSettings();

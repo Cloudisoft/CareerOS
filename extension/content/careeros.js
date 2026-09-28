@@ -508,16 +508,50 @@
     return fresh.length;
   }
 
-  /* Scrolls to the bottom, or presses a "see more" / pagination control if one
-     is there, and reports whether the page actually grew — the signal that
-     there's more to collect. */
+  /* LinkedIn (and some other boards) render the results list inside its own
+     scrollable pane, not the document body — the outer page never grows no
+     matter how far it's scrolled. Driving window.scrollTo alone meant the
+     "did more load" check below almost always came back false on the very
+     first tick, so auto-harvest quietly gave up after whatever the first
+     paint already had (LinkedIn: ~25 cards) even with hundreds more one
+     scroll away. Walk up from an actual card to find its real scrollable
+     ancestor and drive that instead. */
+  function findScrollContainer() {
+    const key = Harvest.reader();
+    if (!key) return null;
+    const cards = Harvest.READERS[key].cards();
+    let el = cards[0] || null;
+    while (el && el !== document.body) {
+      const style = getComputedStyle(el);
+      if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 40) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  /* Scrolls to the bottom of the real results pane (falling back to the
+     window for single-column layouts), or presses a "see more" / pagination
+     control if one is there, and reports whether more actually loaded —
+     judged by card count, not page height, since a virtualized list's
+     scrollHeight can lag behind what just rendered. */
   function scrollForMore() {
     return new Promise((resolve) => {
-      const before = document.body.scrollHeight;
+      const key = Harvest.reader();
+      const before = key ? Harvest.READERS[key].cards().length : 0;
+
       const more = Flows.byText(['see more jobs', 'show more jobs', 'load more', 'load more jobs', 'next']);
       if (more) Flows.press(more);
+
+      const container = findScrollContainer();
+      if (container) container.scrollTop = container.scrollHeight;
       window.scrollTo(0, document.body.scrollHeight);
-      setTimeout(() => resolve(Boolean(more) || document.body.scrollHeight > before), 1200);
+
+      setTimeout(() => {
+        const after = key ? Harvest.READERS[key].cards().length : 0;
+        resolve(Boolean(more) || after > before);
+      }, 1500);
     });
   }
 
