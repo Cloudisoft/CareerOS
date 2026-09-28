@@ -195,21 +195,21 @@
     /* ---------------- running ---------------- */
 
     async start() {
-      const settings = await Storage.getSettings();
-      if (!settings.autoSubmit) {
-        // A run that fills forty forms and submits none just leaves forty
-        // half-finished applications behind. Better to say so than to pretend.
-        return Engine.setState({
-          running: false,
-          lastError: 'Turn on "Submit without asking me first" before starting a run. Without it, use the panel on individual postings instead.'
-        });
-      }
+      // Auto-submit off doesn't mean "don't run" — it means every job in this
+      // run fills and stops instead of sending (handleReady's canAutoSubmit
+      // check already enforces that per job, and restricted platforms like
+      // LinkedIn are held to fill-only regardless of this setting anyway).
+      // This used to refuse to start the loop at all unless auto-submit was
+      // on, which meant the one-click "Auto Apply" button could never do the
+      // one thing it's supposed to do with auto-submit left off (the safer,
+      // recommended default): open the queued jobs and fill them for review.
       const state = await Engine.getState();
       if (!state.queue.length) await Engine.build();
       await Engine.setState({
         running: true,
         startedAt: Date.now(),
         runId: `run_${Date.now().toString(36)}`,
+        lastError: null,
       });
       chrome.alarms.create('careeros:tick', { periodInMinutes: 1 });
       Engine.loop();

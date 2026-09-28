@@ -76,8 +76,16 @@
       return { allowed: true, reason: policy.overridden ? 'Enabled by you for this platform' : policy.note };
     },
 
+    /* 'auto' and 'assist' both belong in the run — 'assist' means fill-only,
+       not "don't touch it" (see the mode legend up top). Only 'discover'
+       (an operator override, never a default) means stay out of the form
+       entirely. Requiring 'auto' here used to silently strand every queued
+       LinkedIn/Indeed/etc. job forever: canAutoSubmit already refuses to
+       submit anything that isn't 'auto', so gating the queue pick on the
+       same condition doubled up and left restricted-platform jobs sitting
+       in the queue with nothing ever opening them. */
     canQueue(atsId, settings) {
-      return Policy.for(atsId, settings).mode === 'auto';
+      return Policy.for(atsId, settings).mode !== 'discover';
     },
 
     /* Seconds between applications on a platform, never below its floor. */

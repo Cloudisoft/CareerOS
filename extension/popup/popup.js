@@ -129,22 +129,18 @@
         return;
       }
 
-      const current = await Storage.getSettings();
-      if (!current.autoSubmit) {
+      if (!build.queued) {
         btn.disabled = false;
         btn.textContent = 'Auto Apply';
-        msg.innerHTML = `Found ${build.queued} job${build.queued === 1 ? '' : 's'}, but auto-submit is off, so CareerOS can only fill forms, not send them. `
-          + `<a href="#" id="turnOnAutoSubmit">Turn on auto-submit</a> and try again.`;
-        $('turnOnAutoSubmit').onclick = async (e) => {
-          e.preventDefault();
-          await Storage.saveSettings({ autoSubmit: true });
-          btn.click();
-        };
-        await openOrFocusDashboard();
+        msg.textContent = 'No matching jobs found right now. Widen your targeting or check back later.';
         return;
       }
 
-      btn.textContent = 'Applying…';
+      // Auto-submit off doesn't block the run — CareerOS still opens every
+      // queued job and fills it, it just stops short of sending. Restricted
+      // boards (LinkedIn, Indeed, etc.) always fill-and-stop either way.
+      const current = await Storage.getSettings();
+      btn.textContent = current.autoSubmit ? 'Applying…' : 'Filling forms…';
       await engineCmd('start');
       await openOrFocusDashboard();
       window.close();
