@@ -102,7 +102,19 @@
     const { Permissions } = window.CareerOS;
     if (!Permissions) return true;
     const origins = [...Permissions.GROUPS.ats.origins, ...Permissions.GROUPS.boards.origins];
-    return chrome.permissions.request({ origins });
+    const granted = await chrome.permissions.request({ origins });
+    if (!granted) return false;
+    // Granting access doesn't inject the content script by itself — that's a
+    // separate registerContentScripts() call the background makes in
+    // response to chrome.permissions.onAdded, fired-and-forgotten. Without
+    // waiting for it here, build()/start() below can open a job tab before
+    // the script list actually includes flows.js/careeros.js for this
+    // origin, and the run crashes with "Flows is undefined" instead of
+    // ever filling anything. Wait for it explicitly before proceeding.
+    await new Promise((resolve) =>
+      chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'reregister' }, resolve)
+    );
+    return true;
   }
 
   function setUpAutoApply() {

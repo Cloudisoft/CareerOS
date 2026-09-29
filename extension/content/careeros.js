@@ -482,7 +482,12 @@
 
     const panelRect = panel.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-    tourEl.style.right = `${Math.max(window.innerWidth - panelRect.left + 12, 12)}px`;
+    // Clamped so a narrow browser window (panel taking up most of the
+    // width) can't push this off the left edge of the screen or squeeze it
+    // down to nothing next to the panel — both read as "the tour is
+    // missing/unreadable" even though the element is technically there.
+    const rightPx = Math.max(window.innerWidth - panelRect.left + 12, 12);
+    tourEl.style.right = `${Math.min(rightPx, window.innerWidth - 232)}px`;
     tourEl.style.top = `${Math.min(Math.max(targetRect.top - 6, 12), window.innerHeight - 140)}px`;
 
     tourEl.querySelector('.careeros-tour__skip').onclick = () => endTour(true);
@@ -677,7 +682,32 @@
     if (panel) renderPanel(); // also reflects a fill triggered from the popup, not just the panel's own button
     try {
       const prior = await Storage.alreadyApplied(location.href);
-      const form = ATS.findForm(state.adapter, document) || document.body;
+
+      // On LinkedIn/Indeed/ZipRecruiter/Dice/Glassdoor the real form only
+      // exists inside a modal/flow that has to be opened first (clicking
+      // "Easy Apply" and waiting for it) — the automated queue-driven run
+      // already does this via runFlow()/flow.open(), but this manual "Fill
+      // this application" path used to skip straight to findForm(). On a
+      // plain posting page, with the modal not open yet, that found
+      // nothing, fell back to document.body, and reported a false
+      // "Autofill complete" having filled zero real fields.
+      let scope = document;
+      const flowId = Policy.flow(state.adapter.id);
+      if (flowId && !ATS.findForm(state.adapter, document)) {
+        const flow = Flows.get(flowId);
+        if (flow) {
+          const opened = await flow.open();
+          if (opened.error === 'external_apply') {
+            return { ok: false, error: "This posting applies on the employer's own site — queue it instead of filling here." };
+          }
+          if (opened.error) {
+            return { ok: false, error: `Could not open the application form (${opened.error}).` };
+          }
+          scope = opened.root || document;
+        }
+      }
+
+      const form = ATS.findForm(state.adapter, scope) || (scope === document ? document.body : scope);
       const report = await Filler.fillForm(form, fillProfile, buildContext(null, null, override));
       state.report = report;
 

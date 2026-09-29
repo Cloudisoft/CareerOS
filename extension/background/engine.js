@@ -133,14 +133,35 @@
       // Best matches first, and among equals the freshest posting.
       scored.sort((a, b) => (b.score - a.score) || (b.postedAt - a.postedAt));
 
-      const queue = scored.slice(0, settings.dailyLimit * 2);
+      // build() used to replace the queue outright, which silently threw away
+      // whatever add() had already collected off a LinkedIn/Indeed/etc. search
+      // page in this same session — someone who'd harvested a real page of
+      // results, then pressed the one-click Auto Apply button, would watch
+      // their whole queue vanish and get told nothing matched, even though it
+      // had just shown 7 queued jobs a moment earlier. Merge instead: keep
+      // every job already queued (harvested or from a prior build), fold in
+      // whatever this search just found, dedupe by id, then re-sort and cap.
+      // Jobs no longer 'queued' (already run — submitted/assisted/skipped/
+      // failed) are left untouched and out of the cap entirely; they're done,
+      // not competing for a slot.
+      const prior = await Engine.getState();
+      const alreadyHandled = prior.queue.filter((j) => j.state !== 'queued');
+      const priorQueued = prior.queue.filter((j) => j.state === 'queued');
+
+      const byId = new Map(priorQueued.map((j) => [j.id, j]));
+      for (const job of scored) byId.set(job.id, job);
+      const merged = Array.from(byId.values());
+      merged.sort((a, b) => (b.score - a.score) || ((b.postedAt || 0) - (a.postedAt || 0)));
+
+      const queued = merged.slice(0, settings.dailyLimit * 2);
+      const queue = alreadyHandled.concat(queued);
       await Engine.setState({
         queue,
         lastError: errors.length ? errors.join(' · ') : null,
-        stats: { queued: queue.length, applied: 0, assisted: 0, skipped: 0, failed: 0 }
+        stats: Object.assign({}, prior.stats, { queued: queued.length })
       });
 
-      return { queued: queue.length, found: jobs.length, errors };
+      return { queued: queued.length, found: jobs.length, errors };
     },
 
     /* Jobs harvested from a results page. They arrive without a description,

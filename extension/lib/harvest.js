@@ -19,7 +19,7 @@
         '.jobs-search-results__list-item, .job-card-container, li[data-occludable-job-id]'
       ),
       read(card) {
-        const link = card.querySelector('a.job-card-list__title, a.job-card-container__link, a[href*="/jobs/view/"]');
+        const link = bestLink(card, 'a.job-card-list__title, a.job-card-container__link, a[href*="/jobs/view/"]');
         if (!link) return null;
         const id = (link.getAttribute('href') || '').match(/\/jobs\/view\/(\d+)/);
         return {
@@ -35,16 +35,16 @@
 
     indeed: {
       test: () => /indeed\.com\/(jobs|q-|m\/jobs)/.test(location.href),
-      cards: () => document.querySelectorAll('.job_seen_beacon, [data-testid="slider_item"], .result'),
+      cards: () => document.querySelectorAll('.job_seen_beacon, [data-testid="slider_item"], .result, [data-jk]'),
       read(card) {
-        const link = card.querySelector('a.jcs-JobTitle, h2 a, a[data-jk]');
+        const link = bestLink(card, 'a.jcs-JobTitle, h2 a, a[data-jk]');
         if (!link) return null;
-        const jk = link.getAttribute('data-jk')
+        const jk = link.getAttribute('data-jk') || card.getAttribute('data-jk')
           || (link.getAttribute('href') || '').match(/[?&]jk=([a-z0-9]+)/i);
         const key = typeof jk === 'string' ? jk : (jk && jk[1]);
         return {
           id: key ? `indeed:${key}` : null,
-          title: text(card.querySelector('h2 span[title], h2')),
+          title: text(card.querySelector('h2 span[title], h2')) || text(link),
           company: text(card.querySelector('[data-testid="company-name"], .companyName')),
           location: text(card.querySelector('[data-testid="text-location"], .companyLocation')),
           url: key ? `https://www.indeed.com/viewjob?jk=${key}` : absolute(link.getAttribute('href')),
@@ -57,7 +57,7 @@
       test: () => /ziprecruiter\.com\/(jobs|candidate|Jobs)/.test(location.href),
       cards: () => document.querySelectorAll('article.job_result, [data-testid="job-card"], .job_content'),
       read(card) {
-        const link = card.querySelector('a.job_link, a[href*="/jobs/"], h2 a');
+        const link = bestLink(card, 'a.job_link, a[href*="/jobs/"], h2 a');
         if (!link) return null;
         return {
           id: `zip:${hash(link.getAttribute('href') || '')}`,
@@ -74,7 +74,7 @@
       test: () => /dice\.com\/(jobs|job-detail)/.test(location.href),
       cards: () => document.querySelectorAll('dhi-search-card, [data-cy="search-card"], .search-card'),
       read(card) {
-        const link = card.querySelector('a[data-cy="card-title-link"], a[href*="/job-detail/"], h5 a');
+        const link = bestLink(card, 'a[data-cy="card-title-link"], a[href*="/job-detail/"], h5 a');
         if (!link) return null;
         return {
           id: `dice:${hash(link.getAttribute('href') || '')}`,
@@ -91,7 +91,7 @@
       test: () => /glassdoor\.[a-z.]+\/(Job|Search)/i.test(location.href),
       cards: () => document.querySelectorAll('li[data-test="jobListing"], .react-job-listing'),
       read(card) {
-        const link = card.querySelector('a[data-test="job-link"], a.jobLink, a[href*="/job-listing/"]');
+        const link = bestLink(card, 'a[data-test="job-link"], a.jobLink, a[href*="/job-listing/"]');
         if (!link) return null;
         return {
           id: `glassdoor:${hash(link.getAttribute('href') || '')}`,
@@ -104,6 +104,24 @@
       }
     }
   };
+
+  /* Every reader above tries a specific selector first, tuned to each site's
+     current markup — but these sites redesign often, and a renamed class
+     used to mean read() returned null and the card was silently dropped
+     with no error anywhere. Falls back to the first real link in the card
+     (real text, a real href) so a class rename degrades to "picked a
+     slightly less precise link" instead of "this job vanished". */
+  function bestLink(card, selector) {
+    const specific = card.querySelector(selector);
+    if (specific && specific.getAttribute('href')) return specific;
+    const anchors = card.querySelectorAll('a[href]');
+    for (const a of anchors) {
+      const href = a.getAttribute('href') || '';
+      if (!href || href === '#' || /^javascript:/i.test(href)) continue;
+      if (text(a)) return a;
+    }
+    return null;
+  }
 
   const Harvest = {
     /* Which reader, if any, matches this page. */

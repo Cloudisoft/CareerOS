@@ -370,9 +370,21 @@
          postings CareerOS has no permission to touch and nothing happens
          on any of them. Ask right here, in the click itself. */
       const { Permissions } = window.CareerOS;
-      const permOk = !Permissions || await chrome.permissions.request({
-        origins: [...Permissions.GROUPS.ats.origins, ...Permissions.GROUPS.boards.origins],
-      });
+      let permOk = true;
+      if (Permissions) {
+        const granted = await chrome.permissions.request({
+          origins: [...Permissions.GROUPS.ats.origins, ...Permissions.GROUPS.boards.origins],
+        });
+        permOk = granted;
+        if (granted) {
+          // Wait for the content scripts to actually be (re)registered for
+          // the newly granted sites before a job tab can open on one — see
+          // the matching comment in popup.js's ensureApplyPermissions().
+          await new Promise((resolve) =>
+            chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'reregister' }, resolve)
+          );
+        }
+      }
       if (!permOk) {
         $('#startAutoApplyMsg').textContent = 'CareerOS needs permission to fill forms on job sites. Click the button again and allow access when Chrome asks.';
         return;

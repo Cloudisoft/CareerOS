@@ -33,9 +33,11 @@
     fastLinkedIn: false,         // opt-in: raise LinkedIn's rate limit and drop its 1-tab cap.
                                   // Real account risk tradeoff, so it stays off until the person
                                   // turns it on for themselves — see lib/policy.js.
-    showApplyTabs: false,        // off: applies happen in fully hidden background tabs (fast,
-                                  // unattended). On: opens a small, unfocused window per apply so
-                                  // the person can actually watch a form get filled if they want to.
+    showApplyTabs: true,         // on: opens a small, unfocused window per apply so the person can
+                                  // actually watch a form get filled — the visible proof that a run
+                                  // is doing something matters more than the small speed cost,
+                                  // especially for someone checking whether Auto Apply works at all.
+                                  // Off switches to fully hidden background tabs for unattended runs.
     /* The Career OS app's API. Set this once per deployment — the pairing
        screen writes the token beside it. */
     apiBase: 'https://careeros.silverspringstaffing.com/api/extension',
