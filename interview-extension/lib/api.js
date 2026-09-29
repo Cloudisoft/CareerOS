@@ -144,6 +144,18 @@
     async completeSession(sessionId) {
       return request(`/interview/sessions/${sessionId}/complete`, { method: 'POST' });
     },
+    async getRecap(sessionId) {
+      return request(`/interview/sessions/${sessionId}/recap`);
+    },
+    async retryAnswer(sessionId, questionId, answer) {
+      return request(`/interview/sessions/${sessionId}/questions/${questionId}/retry`, {
+        method: 'POST',
+        body: JSON.stringify({ answer }),
+      });
+    },
+    async draftThankYou(sessionId) {
+      return request(`/interview/sessions/${sessionId}/thank-you`, { method: 'POST' });
+    },
 
     // ---------------- My Stories ----------------
     async listStories() {

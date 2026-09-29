@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "CareerOS — Interview Prep",
+  "name": "CareerOS \u2014 Interview Prep",
   "short_name": "Interview Prep",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Practice adaptive mock interviews and lock your best answers to the questions every interview asks, from your signed-in CareerOS account.",
   "author": "Career OS",
   "icons": {
@@ -42,15 +42,23 @@
         "https://*.zoom.us/*",
         "https://teams.microsoft.com/*"
       ],
-      "js": ["content/live-copilot.js"],
-      "css": ["content/live-copilot.css"],
+      "js": [
+        "content/live-copilot.js"
+      ],
+      "css": [
+        "content/live-copilot.css"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*.png"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/*.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

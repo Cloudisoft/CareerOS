@@ -121,3 +121,24 @@ select, textarea, input {
 
 .storyCard { margin-bottom: 14px; }
 .storyCard .qHeader { display: flex; justify-content: space-between; align-items: center; }
+
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row .btn { margin-top: 10px; }
+
+.retryForm { margin-top: 10px; }
+.retryForm textarea { margin-top: 0; }
+
+.recap.card { background: rgba(255, 255, 255, 0.04); }
+.recap p { margin: 0 0 6px; font-size: 13px; }
+.recap p:last-child { margin-bottom: 0; }
+
+.thankYouDraft {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font: inherit;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
