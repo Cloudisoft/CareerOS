@@ -484,6 +484,28 @@
   /* ---------- job sources ---------- */
   let sources = await Storage.get('careeros.sources', { boards: [] });
 
+  // A handful of real companies known to run on Greenhouse — a starting
+  // point so this list isn't empty, not a guarantee any of them have a
+  // matching opening right now. Board tokens can go stale (a company
+  // migrates ATS, renames its board) with no warning beyond "zero jobs",
+  // which is exactly what the "Test this board" button next to each one
+  // is for — press it before relying on any of these. Seeded once, only
+  // when the person has never touched this list themselves.
+  const STARTER_BOARDS = [
+    { ats: 'greenhouse', token: 'notion' },
+    { ats: 'greenhouse', token: 'asana' },
+    { ats: 'greenhouse', token: 'robinhood' },
+    { ats: 'greenhouse', token: 'gusto' },
+    { ats: 'greenhouse', token: 'brex' },
+  ];
+  if (!sources.boards || !sources.boards.length) {
+    if (!(await Storage.get('careeros.boardsSeeded', false))) {
+      sources.boards = STARTER_BOARDS.slice();
+      await Storage.set('careeros.sources', sources);
+      await Storage.set('careeros.boardsSeeded', true);
+    }
+  }
+
   $$('[data-source]').forEach((el) => {
     const path = el.dataset.source;
     el.value = readPath(sources, path) || '';
@@ -542,6 +564,10 @@
             </select>
           </label>
           <label>Board token<input data-k="token" value="${attr(b.token)}" placeholder="stripe"></label>
+        </div>
+        <div class="row">
+          <button class="ghost" data-action="testBoard">Test this board</button>
+          <span class="note" data-boardresult></span>
         </div>`;
       entry.querySelector('.remove').onclick = async () => {
         sources.boards.splice(i, 1);
@@ -556,6 +582,19 @@
           flagSaved();
         };
       });
+      entry.querySelector('[data-action="testBoard"]').onclick = async () => {
+        const btn = entry.querySelector('[data-action="testBoard"]');
+        const out = entry.querySelector('[data-boardresult]');
+        btn.disabled = true;
+        out.textContent = 'Testing…';
+        const res = await new Promise((resolve) =>
+          chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'testBoard', ats: b.ats, token: b.token }, resolve)
+        );
+        btn.disabled = false;
+        out.textContent = res.ok
+          ? `✓ Found ${res.count} open role${res.count === 1 ? '' : 's'}`
+          : `✗ ${res.error || 'Could not reach that board.'}`;
+      };
       host.appendChild(entry);
     });
   }

@@ -162,9 +162,27 @@ async function handleEngineCommand(msg) {
   if (msg.command === 'stop')   return { ok: true, state: await Engine.stop('Stopped by you') };
   if (msg.command === 'state')  return { ok: true, state: await Engine.getState() };
   if (msg.command === 'testSource') return testSource(msg.source);
+  if (msg.command === 'testBoard') return testBoard(msg.ats, msg.token);
   if (msg.command === 'add')    return Object.assign({ ok: true }, await Engine.add(msg.jobs));
   if (msg.command === 'clear')  return { ok: true, state: await Engine.setState({ queue: [], done: [], running: false }) };
   return { ok: false, error: `Unknown command ${msg.command}` };
+}
+
+/* Company boards had no way to self-verify — a bad token just returned zero
+   jobs from build(), indistinguishable from "this company has no openings
+   right now" or any other silent failure. Mirrors testSource() above but for
+   one board entry instead of an aggregator. */
+async function testBoard(ats, token) {
+  if (!token || !String(token).trim()) return { ok: false, error: 'Add a board token first.' };
+  const profile = Profile.hydrate(await Storage.getProfile());
+  const settings = await Storage.getSettings();
+  try {
+    const { jobs, errors } = await self.CareerOS.Discovery.search(profile, settings, { boards: [{ ats, token }] });
+    if (errors.length) return { ok: false, error: errors[0] };
+    return { ok: true, count: jobs.length };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
 
 async function testSource(source) {
