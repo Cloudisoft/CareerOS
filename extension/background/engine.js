@@ -352,7 +352,19 @@
       clearTimeout(entry.timer);
       runtime.tabs.delete(tabId);
       runtime.pregen.delete(entry.job.id);
-      closeTab(tabId);
+      // A captcha or login wall is the one outcome that specifically needs
+      // a human looking at this exact tab to do anything about it — closing
+      // it immediately (as every other outcome correctly does, to keep a
+      // run from piling up tabs) meant the one moment someone could have
+      // acted was already gone by the time they saw the dashboard's note.
+      // Leave it open and focused; it's on the person to close it once
+      // they're done with — or have given up on — this one posting.
+      if (result.detail === 'captcha' || result.detail === 'needs_login') {
+        chrome.tabs.update(tabId, { active: true }).catch(() => {});
+        if (entry.windowId != null) chrome.windows.update(entry.windowId, { focused: true }).catch(() => {});
+      } else {
+        closeTab(tabId);
+      }
       await settle(entry.job, result);
       if (entry.resolve) entry.resolve(result);
     },
@@ -483,8 +495,8 @@
       const why = result.detail === 'captcha'
         ? `${job.company} asked for a captcha, which CareerOS won't try to solve for you.`
         : `${job.company}'s site signed you out.`;
-      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} That one job is skipped. Press Start applying to continue with the rest of your queue.`);
-      notify('CareerOS paused', `${why} Press Start applying to skip it and continue.`);
+      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} Its tab is still open if you want to finish that one yourself. That job is skipped either way — press Start applying to continue with the rest of your queue.`);
+      notify('CareerOS paused', `${why} Its tab is still open. Press Start applying to skip it and continue.`);
     }
   }
 
