@@ -40,6 +40,7 @@
     $('tagline').textContent = 'Not signed in';
     $('connectBtn').onclick = async () => {
       $('connectBtn').disabled = true;
+      $('connectBtn').classList.add('is-loading');
       $('connectBtn').textContent = 'Waiting for approval…';
       $('connectMsg').textContent = 'Approve it in the tab that just opened.';
 
@@ -48,6 +49,7 @@
       );
 
       $('connectBtn').disabled = false;
+      $('connectBtn').classList.remove('is-loading');
       $('connectBtn').textContent = 'Sign in';
       if (!res || !res.ok) {
         $('connectMsg').textContent = (res && res.error) || 'Could not sign in.';
@@ -125,9 +127,11 @@
     btn.onclick = async () => {
       const permOk = await ensureApplyPermissions();
       btn.disabled = true;
+      btn.classList.add('is-loading');
       msg.textContent = '';
       if (!permOk) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         msg.textContent = 'CareerOS needs permission to fill forms on job sites. Click Auto Apply again and allow access when Chrome asks.';
         return;
       }
@@ -136,6 +140,7 @@
       const build = await engineCmd('build');
       if (!build || !build.ok) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.textContent = 'Auto Apply';
         msg.textContent = (build && build.error) || 'Could not search for jobs.';
         return;
@@ -143,6 +148,7 @@
 
       if (!build.queued) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.textContent = 'Auto Apply';
         msg.textContent = 'No matching jobs found right now. Widen your targeting or check back later.';
         return;
@@ -249,9 +255,11 @@
     fill.textContent = match.score < settings.minMatchScore ? 'Fill anyway' : 'Fill this application';
     fill.onclick = async () => {
       fill.disabled = true;
+      fill.classList.add('is-loading');
       fill.textContent = 'Filling…';
       const res = await ask({ type: 'careeros:fill', profileId: selectedProfileId });
       fill.disabled = false;
+      fill.classList.remove('is-loading');
       fill.textContent = 'Fill again';
       renderFillResult(res, snap);
       loadStats();
@@ -287,10 +295,12 @@
       submit.hidden = false;
       submit.onclick = async () => {
         submit.disabled = true;
+        submit.classList.add('is-loading');
         submit.textContent = 'Submitting…';
         const sres = await ask({ type: 'careeros:submit' });
         submit.textContent = 'Submit';
         submit.disabled = false;
+        submit.classList.remove('is-loading');
         out.dataset.tone = sres && sres.confirmed ? 'ok' : 'warn';
         out.textContent = sres && sres.ok
           ? (sres.confirmed ? 'Submitted and logged.' : 'Pressed submit — check the page confirmed it.')
@@ -313,10 +323,12 @@
     btn.textContent = `Queue these ${snap.harvest.count}`;
     btn.onclick = async () => {
       btn.disabled = true;
+      btn.classList.add('is-loading');
       btn.textContent = 'Queueing…';
       const collected = await ask({ type: 'careeros:harvest' });
       if (!collected || !collected.ok) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.textContent = 'Try again';
         return;
       }
@@ -324,6 +336,7 @@
         chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'add', jobs: collected.jobs }, resolve)
       );
       btn.disabled = false;
+      btn.classList.remove('is-loading');
       btn.textContent = `Queue these ${collected.jobs.length}`;
       const out = $('queueResult');
       out.hidden = false;

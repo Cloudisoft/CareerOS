@@ -293,6 +293,7 @@
 
   $('#connectBtn').onclick = async () => {
     $('#connectBtn').disabled = true;
+    $('#connectBtn').classList.add('is-loading');
     $('#connectBtn').textContent = 'Waiting for approval…';
     $('#connectMsg').textContent = 'Approve it in the tab that just opened.';
 
@@ -301,6 +302,7 @@
     );
 
     $('#connectBtn').disabled = false;
+    $('#connectBtn').classList.remove('is-loading');
     $('#connectBtn').textContent = 'Sign in';
     if (res && res.ok) {
       $('#connectMsg').textContent = 'Signed in. Pulling your profile…';
@@ -318,6 +320,7 @@
     if (code.length !== 6) { $('#pairMsg').textContent = 'The code is six characters.'; return; }
 
     $('#pairBtn').disabled = true;
+    $('#pairBtn').classList.add('is-loading');
     $('#pairMsg').textContent = 'Connecting…';
 
     const res = await new Promise((resolve) =>
@@ -325,6 +328,7 @@
     );
 
     $('#pairBtn').disabled = false;
+    $('#pairBtn').classList.remove('is-loading');
     if (!res || !res.ok) {
       $('#pairMsg').textContent = (res && res.error) || 'Could not reach CareerOS. Check the server address above.';
       return;
@@ -391,6 +395,7 @@
       }
 
       btn.disabled = true;
+      btn.classList.add('is-loading');
       btn.textContent = 'Finding jobs…';
       $('#startAutoApplyMsg').textContent = '';
 
@@ -399,6 +404,7 @@
       );
       if (!build || !build.ok) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.textContent = 'Start finding & applying to jobs';
         $('#startAutoApplyMsg').textContent = (build && build.error) || 'Could not search for jobs.';
         return;
@@ -406,6 +412,7 @@
 
       if (!build.queued) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.textContent = 'Start finding & applying to jobs';
         $('#startAutoApplyMsg').textContent = 'No matching jobs found right now. Widen your targeting or check back later.';
         return;
@@ -531,11 +538,13 @@
     const out = document.querySelector(`[data-testresult="${source}"]`);
     btn.onclick = async () => {
       btn.disabled = true;
+      btn.classList.add('is-loading');
       out.textContent = 'Checking…';
       const res = await new Promise((resolve) =>
         chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'testSource', source }, resolve)
       );
       btn.disabled = false;
+      btn.classList.remove('is-loading');
       if (!res || !res.ok) {
         out.textContent = (res && res.error) || 'No response from the extension.';
         return;
@@ -586,11 +595,13 @@
         const btn = entry.querySelector('[data-action="testBoard"]');
         const out = entry.querySelector('[data-boardresult]');
         btn.disabled = true;
+        btn.classList.add('is-loading');
         out.textContent = 'Testing…';
         const res = await new Promise((resolve) =>
           chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'testBoard', ats: b.ats, token: b.token }, resolve)
         );
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         out.textContent = res.ok
           ? `✓ Found ${res.count} open role${res.count === 1 ? '' : 's'}`
           : `✗ ${res.error || 'Could not reach that board.'}`;

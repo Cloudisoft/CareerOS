@@ -472,10 +472,19 @@
     }
 
     // A login wall or a captcha will hit every job on that platform, so stop
-    // rather than burn the queue failing the same way forty times.
+    // rather than burn the queue failing the same way forty times. CareerOS
+    // never attempts to solve a captcha itself — that's real account risk
+    // for the person, and it's also the fastest way to lose a Web Store
+    // listing (see lib/policy.js's header comment). This job is already
+    // marked 'failed', not 'queued' (see the state write above), so it
+    // won't be retried — pressing Start applying again picks up right
+    // where this left off, with the rest of the queue, not from scratch.
     if (result.detail === 'needs_login' || result.detail === 'captcha') {
-      await Engine.stop(`${job.ats} needs you: ${result.detail === 'captcha' ? 'a captcha appeared' : 'you are signed out'}`);
-      notify('CareerOS paused', `${job.company} asked for something only you can do. Open the tab, sort it, then start again.`);
+      const why = result.detail === 'captcha'
+        ? `${job.company} asked for a captcha, which CareerOS won't try to solve for you.`
+        : `${job.company}'s site signed you out.`;
+      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} That one job is skipped. Press Start applying to continue with the rest of your queue.`);
+      notify('CareerOS paused', `${why} Press Start applying to skip it and continue.`);
     }
   }
 

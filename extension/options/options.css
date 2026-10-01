@@ -269,7 +269,11 @@ label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
 .btn { color: #FFF; background: linear-gradient(135deg, var(--flame), var(--ember)); }
 .btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(241, 76, 46, 0.32); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(0.98); filter: brightness(0.98); }
-.btn:disabled::after {
+/* Only a button doing real async work gets the spinner — see popup.css's
+   matching comment. A button simply disabled because there's nothing to
+   do (e.g. Start applying with an empty queue after Clear queue) must not
+   get it, or a correctly-idle button reads as permanently frozen. */
+.btn.is-loading::after {
   content: "";
   display: inline-block;
   width: 10px;
@@ -296,7 +300,7 @@ label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
     transition: filter 140ms ease, color 140ms ease, border-color 160ms ease,
       transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
   }
-  .btn:disabled::after { animation: spin 700ms linear infinite; }
+  .btn.is-loading::after { animation: spin 700ms linear infinite; }
 }
 
 .row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }

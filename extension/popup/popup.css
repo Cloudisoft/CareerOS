@@ -177,7 +177,13 @@ body {
 .btn:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(241, 76, 46, 0.34); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(0.98); filter: brightness(0.98); }
 .btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
-.btn:disabled::after {
+/* Only a button doing real async work gets the spinner — .is-loading is
+   added explicitly alongside disabled=true by the click handler that's
+   actually waiting on something. A button that's simply disabled because
+   there's nothing to do right now (an empty queue after Clear queue, say)
+   must not get it: a correctly-idle button spinning forever reads as
+   "frozen," not "nothing to click here." */
+.btn.is-loading::after {
   content: "";
   display: inline-block;
   width: 11px;
@@ -190,7 +196,7 @@ body {
 }
 .btn:focus-visible { outline: 2px solid var(--brand-amber); outline-offset: 2px; }
 @media (prefers-reduced-motion: no-preference) {
-  .btn:disabled::after { animation: spin 700ms linear infinite; }
+  .btn.is-loading::after { animation: spin 700ms linear infinite; }
 }
 
 .stats {
