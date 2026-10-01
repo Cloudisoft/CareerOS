@@ -491,12 +491,22 @@
     // marked 'failed', not 'queued' (see the state write above), so it
     // won't be retried — pressing Start applying again picks up right
     // where this left off, with the rest of the queue, not from scratch.
+    // "Captcha" here covers both an interactive challenge (a checkbox or
+    // puzzle) and invisible bot detection (reCAPTCHA v3, Turnstile in
+    // non-interactive mode) that has no visible UI at all and just scores
+    // the session in the background. The second kind is common on
+    // security-heavy sites and there's genuinely nothing on screen to solve
+    // — telling the person to "solve it" would send them looking for a
+    // button that doesn't exist. The honest next step for either kind is
+    // the same: apply to that one posting by hand in the tab left open.
     if (result.detail === 'needs_login' || result.detail === 'captcha') {
       const why = result.detail === 'captcha'
-        ? `${job.company} asked for a captcha, which CareerOS won't try to solve for you.`
+        ? `${job.company}'s site runs bot protection that blocked the automated fill. There may be nothing visible to click — if so, apply to this one yourself in the tab left open; as a real person you'll get through where the automation can't.`
         : `${job.company}'s site signed you out.`;
-      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} Its tab is still open if you want to finish that one yourself. That job is skipped either way — press Start applying to continue with the rest of your queue.`);
-      notify('CareerOS paused', `${why} Its tab is still open. Press Start applying to skip it and continue.`);
+      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} That job is skipped either way — press Start applying to continue with the rest of your queue.`);
+      notify('CareerOS paused', result.detail === 'captcha'
+        ? `${job.company} blocked the automated fill. Apply to it yourself in the open tab, or press Start applying to skip it.`
+        : `${why} Its tab is still open. Press Start applying to skip it and continue.`);
     }
   }
 
