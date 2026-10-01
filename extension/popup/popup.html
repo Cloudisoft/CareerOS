@@ -10,92 +10,167 @@
     <div class="brandMark"><img src="../icons/icon128.png" alt=""></div>
     <div class="topText">
       <strong class="brandName">CareerOS</strong>
-      <span id="tagline">Your employment OS</span>
+      <span id="tagline">Auto Apply</span>
     </div>
-    <button id="openRun" class="iconBtn" title="Run dashboard">▶</button>
-    <button id="openSettings" class="iconBtn" title="Profile and settings">⚙</button>
+    <span class="statusPill" id="statusPill" data-state="idle"><span class="dot"></span><span id="statusText">Idle</span></span>
+    <button id="openRun" class="iconBtn" title="Open full dashboard" aria-label="Open full dashboard">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+    </button>
+    <button id="openSettings" class="iconBtn" title="Profile and settings" aria-label="Profile and settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </header>
 
-  <section id="signin" class="card" hidden>
-    <h2>Sign in to CareerOS</h2>
+  <!-- Not signed in: nothing else is meaningful until this is done. -->
+  <section id="signin" class="card hero" hidden>
+    <div class="heroIcon">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+    </div>
+    <h2>Sign in to start applying</h2>
     <p class="muted">One click. You'll approve it on the CareerOS site, where you're already signed in.</p>
     <button id="connectBtn" class="btn">Sign in</button>
-    <p class="muted" id="connectMsg" style="margin-top:8px"></p>
+    <p class="muted center" id="connectMsg"></p>
   </section>
 
   <section id="fetched" class="card" hidden>
-    <h2>✓ Details fetched from your account</h2>
-    <ul id="fetchedList" class="muted" style="margin:6px 0 12px; padding-left:18px"></ul>
+    <h2 class="okHead">Details fetched from your account</h2>
+    <ul id="fetchedList" class="checkList"></ul>
   </section>
 
-  <section id="setup" class="card" hidden>
-    <h2>Finish your profile</h2>
-    <p class="muted">CareerOS fills applications from your profile, so it needs these first.</p>
-    <ul id="gaps" class="gapList"></ul>
-    <button id="goSetup" class="btn">Open profile</button>
-  </section>
+  <nav class="tabs" id="tabs" hidden>
+    <button class="tab is-on" data-tab="home">Apply</button>
+    <button class="tab" data-tab="queue">Queue <span class="tabCount" id="queueCount">0</span></button>
+    <button class="tab" data-tab="activity">Activity</button>
+  </nav>
 
-  <section id="autoApplySection" class="card" hidden>
-    <button id="autoApplyBtn" class="btn">Auto Apply</button>
-    <button id="stopApplyBtn" class="btn ghost" hidden>Stop applying</button>
-    <p class="muted" id="autoApplyMsg"></p>
-  </section>
+  <!-- ===================== APPLY ===================== -->
+  <main class="panel" id="panel-home" hidden>
+    <section id="setup" class="card warnCard" hidden>
+      <h2>Finish your profile first</h2>
+      <p class="muted">CareerOS fills applications from your profile, so it needs these:</p>
+      <ul id="gaps" class="gapList"></ul>
+      <button id="goSetup" class="btn ghost">Open profile</button>
+    </section>
 
-  <section id="posting" class="card" hidden>
-    <div class="scoreRow">
-      <div class="score"><span id="scoreNum">0</span><span class="den">/100</span></div>
-      <div class="verdict">
-        <strong id="verdictLabel">Checking</strong>
-        <span id="jobTitle"></span>
+    <section class="card runCard" id="runCard" hidden>
+      <div class="runTop">
+        <div class="ring" id="ring" style="--p:0">
+          <div class="ringInner">
+            <span class="ringNum" id="ringNum">0</span>
+            <span class="ringLabel" id="ringLabel">of 25 today</span>
+          </div>
+        </div>
+        <div class="runText">
+          <strong id="runHeadline">Ready to apply</strong>
+          <span id="runSub" class="muted">Finds matching jobs and fills each application for you.</span>
+        </div>
       </div>
-    </div>
-    <ul id="reasons" class="reasonList"></ul>
-    <p class="policyLine" id="policyLine"></p>
-    <p class="muted" id="bestFit" hidden></p>
-    <select id="profilePicker" hidden></select>
-    <div class="btnRow">
-      <button id="fillNow" class="btn">Fill this application</button>
-      <button id="submitNow" class="btn ghost" hidden>Submit</button>
-    </div>
-    <p class="result" id="fillResult" hidden></p>
-    <ul id="needsYou" class="needsList" hidden></ul>
-  </section>
 
-  <section id="search" class="card" hidden>
-    <div class="scoreRow">
-      <div class="score"><span id="harvestCount">0</span><span class="den">on screen</span></div>
-      <div class="verdict">
-        <strong>Results page</strong>
-        <span id="harvestMeta"></span>
+      <div class="chips">
+        <div class="chip"><span id="cQueued">0</span><label>Queued</label></div>
+        <div class="chip ok"><span id="cSent">0</span><label>Sent</label></div>
+        <div class="chip info"><span id="cFilled">0</span><label>Filled</label></div>
+        <div class="chip bad"><span id="cFailed">0</span><label>Skipped</label></div>
       </div>
+
+      <button id="autoApplyBtn" class="btn big">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <span id="autoApplyLabel">Start Auto Apply</span>
+      </button>
+      <button id="stopApplyBtn" class="btn big stop" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        <span>Stop applying</span>
+      </button>
+      <div class="subActions">
+        <button class="linkBtn" id="findJobsBtn">Find new jobs</button>
+        <span class="sep">·</span>
+        <button class="linkBtn" id="clearQueueBtn">Clear queue</button>
+      </div>
+      <p class="msg" id="autoApplyMsg" hidden></p>
+    </section>
+
+    <section class="card nowCard" id="nowCard" hidden>
+      <div class="nowHead"><span class="liveDot"></span>Applying now</div>
+      <div class="jobRow">
+        <div class="avatar" id="nowAvatar">C</div>
+        <div class="jobText">
+          <strong id="nowTitle"></strong>
+          <span id="nowCompany" class="muted"></span>
+        </div>
+      </div>
+      <div class="bar"><span id="nowBar"></span></div>
+      <span class="muted small" id="nowStep">Opening the application…</span>
+    </section>
+
+    <!-- What's on the current tab -->
+    <section id="posting" class="card" hidden>
+      <div class="sectionHead">On this page</div>
+      <div class="scoreRow">
+        <div class="score"><span id="scoreNum">0</span><span class="den">/100</span></div>
+        <div class="verdict">
+          <strong id="verdictLabel">Checking</strong>
+          <span id="jobTitle"></span>
+        </div>
+      </div>
+      <ul id="reasons" class="reasonList"></ul>
+      <p class="policyLine" id="policyLine"></p>
+      <p class="muted" id="bestFit" hidden></p>
+      <select id="profilePicker" hidden></select>
+      <div class="btnRow">
+        <button id="fillNow" class="btn">Fill this application</button>
+        <button id="submitNow" class="btn ghost" hidden>Submit</button>
+      </div>
+      <p class="result" id="fillResult" hidden></p>
+      <ul id="needsYou" class="needsList" hidden></ul>
+    </section>
+
+    <section id="search" class="card" hidden>
+      <div class="sectionHead">On this page</div>
+      <div class="scoreRow">
+        <div class="score"><span id="harvestCount">0</span></div>
+        <div class="verdict">
+          <strong>Jobs found on this results page</strong>
+          <span id="harvestMeta"></span>
+        </div>
+      </div>
+      <p class="muted">Scroll the page to load more, then add them to your queue.</p>
+      <button id="queueThese" class="btn">Add to queue</button>
+      <p class="result" id="queueResult" hidden></p>
+    </section>
+
+    <section id="idle" class="card" hidden>
+      <div class="sectionHead">Find more jobs</div>
+      <p class="muted">Open a search with your target role, then add the results to your queue.</p>
+      <div class="btnRow">
+        <button id="searchPosition" class="btn ghost" hidden>LinkedIn</button>
+        <button id="searchPositionIndeed" class="btn ghost" hidden>Indeed</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== QUEUE ===================== -->
+  <main class="panel" id="panel-queue" hidden>
+    <ul class="jobList" id="queueList"></ul>
+    <div class="empty" id="queueEmpty">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 21l-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg>
+      <strong>Your queue is empty</strong>
+      <span>Press "Find new jobs" on the Apply tab, or add jobs from a LinkedIn or Indeed results page.</span>
     </div>
-    <p class="muted">Scroll further to load more before collecting.</p>
-    <button id="queueThese" class="btn">Queue these</button>
-    <p class="result" id="queueResult" hidden></p>
-  </section>
+  </main>
 
-  <section id="idle" class="card" hidden>
-    <h2>No posting on this tab</h2>
-    <p class="muted">Open a job on a supported board, or start a batch from the run dashboard.</p>
-    <button id="searchPosition" class="btn ghost" hidden>Search this position on LinkedIn</button>
-    <button id="searchPositionIndeed" class="btn ghost" hidden>Search this position on Indeed</button>
-  </section>
-
-  <section class="stats">
-    <div class="stat"><span id="statToday">0</span><label>Today</label></div>
-    <div class="stat"><span id="statSubmitted">0</span><label>Submitted</label></div>
-    <div class="stat"><span id="statTotal">0</span><label>All time</label></div>
-  </section>
-
-  <section class="card tracker">
-    <h2>Recent</h2>
-    <ul id="recent" class="recentList"></ul>
-    <p id="recentEmpty" class="muted" hidden>Nothing yet. Your first application will show up here.</p>
-  </section>
+  <!-- ===================== ACTIVITY ===================== -->
+  <main class="panel" id="panel-activity" hidden>
+    <ul class="jobList" id="activityList"></ul>
+    <div class="empty" id="activityEmpty">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <strong>Nothing yet</strong>
+      <span>Every application CareerOS sends or fills shows up here.</span>
+    </div>
+  </main>
 
   <footer class="foot">
     <span id="mode">Review before submit</span>
-    <a href="https://careeros.silverspringstaffing.com/" target="_blank" rel="noreferrer">Career OS</a>
+    <a href="https://careeros.silverspringstaffing.com/" target="_blank" rel="noreferrer">Open CareerOS</a>
   </footer>
 
   <script src="../lib/storage.js"></script>

@@ -20,7 +20,7 @@
   const { Storage, Profile, Matcher, Policy, Discovery, Api } = root.CareerOS;
 
   const STATE_KEY = 'careeros.engine';
-  const JOB_TIMEOUT_MS = 120000;
+  const JOB_TIMEOUT_MS = 180000;
 
   const runtime = {
     tabs: new Map(),        // tabId -> { job, resolve, timer }
@@ -71,7 +71,11 @@
       const allProfiles = Object.values(profilesData.profiles).map((p) => Profile.hydrate(p));
       const multi = allProfiles.length > 1;
       const settings = await Storage.getSettings();
-      const sources = await Storage.get('careeros.sources', { boards: [] });
+      const blocked = await getBlockedSites();
+      const storedSources = await Storage.get('careeros.sources', { boards: [] });
+      const sources = Object.assign({}, storedSources, {
+        boards: (storedSources.boards || []).filter((b) => !blocked.includes(normalizeKey(b.token)))
+      });
 
       // Discovery's search terms (title/location keywords) still come from the
       // active profile — searching once per profile would multiply API calls
@@ -106,6 +110,7 @@
           radiusSearched: Boolean(job.radiusSearched)
         };
 
+        if (isBlockedJob(job, blocked)) continue;
         const match = multi ? Matcher.scoreAll(allProfiles, posting)[0] : Matcher.score(activeProfile, posting);
         if (match.blocked) continue;
         if (match.score < settings.minMatchScore) continue;
@@ -146,7 +151,7 @@
       // not competing for a slot.
       const prior = await Engine.getState();
       const alreadyHandled = prior.queue.filter((j) => j.state !== 'queued');
-      const priorQueued = prior.queue.filter((j) => j.state === 'queued');
+      const priorQueued = prior.queue.filter((j) => j.state === 'queued' && !isBlockedJob(j, blocked));
 
       const byId = new Map(priorQueued.map((j) => [j.id, j]));
       for (const job of scored) byId.set(job.id, job);
@@ -174,11 +179,13 @@
       const multi = allProfiles.length > 1;
 
       const known = new Set(state.queue.map((j) => j.id));
+      const blocked = await getBlockedSites();
       const fresh = [];
       let duplicates = 0;
 
       for (const job of jobs || []) {
         if (known.has(job.id)) { duplicates += 1; continue; }
+        if (isBlockedJob(job, blocked)) { duplicates += 1; continue; }
         if (await Storage.alreadyApplied(job.url)) { duplicates += 1; continue; }
 
         // Only the title is available at this point, so this is a cheap first
@@ -226,6 +233,24 @@
       // recommended default): open the queued jobs and fill them for review.
       const state = await Engine.getState();
       if (!state.queue.length) await Engine.build();
+
+      // Anything still queued from a site known to block automation is
+      // skipped up front rather than left sitting in the queue forever.
+      const blocked = await getBlockedSites();
+      const current = await Engine.getState();
+      let newlySkipped = 0;
+      const cleaned = current.queue.map((j) => {
+        if (j.state !== 'queued' || !isBlockedJob(j, blocked)) return j;
+        newlySkipped += 1;
+        return Object.assign({}, j, { state: 'skipped', detail: `${j.company || 'This site'} blocks automated applications` });
+      });
+      if (newlySkipped) {
+        await Engine.setState({
+          queue: cleaned,
+          stats: Object.assign({}, current.stats, { skipped: current.stats.skipped + newlySkipped })
+        });
+      }
+
       await Engine.setState({
         running: true,
         startedAt: Date.now(),
@@ -264,7 +289,7 @@
             break;
           }
 
-          const next = pickNext(state.queue, settings);
+          const next = pickNext(state.queue, settings, await getBlockedSites());
           if (!next) {
             if (!runtime.tabs.size) {
               await Engine.stop('Queue finished');
@@ -352,17 +377,19 @@
       clearTimeout(entry.timer);
       runtime.tabs.delete(tabId);
       runtime.pregen.delete(entry.job.id);
-      // A captcha or login wall is the one outcome that specifically needs
-      // a human looking at this exact tab to do anything about it — closing
-      // it immediately (as every other outcome correctly does, to keep a
-      // run from piling up tabs) meant the one moment someone could have
-      // acted was already gone by the time they saw the dashboard's note.
-      // Leave it open and focused; it's on the person to close it once
-      // they're done with — or have given up on — this one posting.
-      if (result.detail === 'captcha' || result.detail === 'needs_login') {
+      // A login wall needs the person in that exact tab (and stops the run,
+      // see settle()), so it stays open and focused. A filled application
+      // waiting for the person's own Submit press, or one with a required
+      // question only they can answer, also stays open — closing those
+      // threw away the filled form before anyone saw it. Everything else
+      // (submitted, failed, skipped as a poor match, bot-protected) closes so
+      // a run doesn't pile up tabs.
+      const needsPerson = result.outcome === 'assisted'
+        || (result.outcome === 'skipped' && /needs you/i.test(result.detail || ''));
+      if (result.detail === 'needs_login') {
         chrome.tabs.update(tabId, { active: true }).catch(() => {});
         if (entry.windowId != null) chrome.windows.update(entry.windowId, { focused: true }).catch(() => {});
-      } else {
+      } else if (!needsPerson) {
         closeTab(tabId);
       }
       await settle(entry.job, result);
@@ -389,17 +416,26 @@
   /* ---------------- internals ---------------- */
 
   /* LinkedIn Easy Apply runs five or six panes; Workday is deeper still. */
+  /* Pages a long application may run before it's treated as stuck. Long
+     enterprise forms (Workday, iCIMS, Taleo) routinely run 6-10 pages, and a
+     generic company careers form can be several pages too. */
   function stepsFor(ats) {
-    if (ats === 'workday') return 8;
-    if (ats === 'linkedin') return 7;
-    if (ats === 'indeed') return 6;
-    return 4;
+    if (ats === 'workday' || ats === 'icims' || ats === 'taleo') return 14;
+    if (ats === 'linkedin' || ats === 'indeed') return 10;
+    return 10;
   }
 
-  function pickNext(queue, settings) {
+  /* Time a job may take before it's abandoned — long forms get more. */
+  function timeoutFor(ats) {
+    if (ats === 'workday' || ats === 'icims' || ats === 'taleo') return 300000;
+    return JOB_TIMEOUT_MS;
+  }
+
+  function pickNext(queue, settings, blocked) {
     const now = Date.now();
     return queue.find((j) => {
       if (j.state !== 'queued') return false;
+      if (blocked && isBlockedJob(j, blocked)) return false;
       if (!Policy.canQueue(j.ats, settings)) return false;
       const gate = runtime.gateUntil.get(j.ats) || 0;
       return now >= gate;
@@ -428,7 +464,7 @@
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         Engine.handleResult(tab.id, { outcome: 'failed', detail: 'Timed out' });
-      }, JOB_TIMEOUT_MS);
+      }, timeoutFor(job.ats));
 
       runtime.tabs.set(tab.id, { job, resolve, timer, windowId, progress: null });
     });
@@ -483,31 +519,73 @@
       });
     }
 
-    // A login wall or a captcha will hit every job on that platform, so stop
-    // rather than burn the queue failing the same way forty times. CareerOS
-    // never attempts to solve a captcha itself — that's real account risk
-    // for the person, and it's also the fastest way to lose a Web Store
-    // listing (see lib/policy.js's header comment). This job is already
-    // marked 'failed', not 'queued' (see the state write above), so it
-    // won't be retried — pressing Start applying again picks up right
-    // where this left off, with the rest of the queue, not from scratch.
-    // "Captcha" here covers both an interactive challenge (a checkbox or
-    // puzzle) and invisible bot detection (reCAPTCHA v3, Turnstile in
-    // non-interactive mode) that has no visible UI at all and just scores
-    // the session in the background. The second kind is common on
-    // security-heavy sites and there's genuinely nothing on screen to solve
-    // — telling the person to "solve it" would send them looking for a
-    // button that doesn't exist. The honest next step for either kind is
-    // the same: apply to that one posting by hand in the tab left open.
-    if (result.detail === 'needs_login' || result.detail === 'captcha') {
-      const why = result.detail === 'captcha'
-        ? `${job.company}'s site runs bot protection that blocked the automated fill. There may be nothing visible to click — if so, apply to this one yourself in the tab left open; as a real person you'll get through where the automation can't.`
-        : `${job.company}'s site signed you out.`;
-      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} That job is skipped either way — press Start applying to continue with the rest of your queue.`);
-      notify('CareerOS paused', result.detail === 'captcha'
-        ? `${job.company} blocked the automated fill. Apply to it yourself in the open tab, or press Start applying to skip it.`
-        : `${why} Its tab is still open. Press Start applying to skip it and continue.`);
+    // Bot protection (an interactive captcha or invisible detection like
+    // reCAPTCHA v3) is per company, not per platform: Robinhood blocking
+    // automation says nothing about the next Greenhouse board. CareerOS
+    // never tries to get past it. Instead it remembers the company, skips
+    // every other queued job from it, and keeps the run going, so a single
+    // protected employer can't stall a whole batch.
+    if (result.detail === 'captcha') {
+      const key = normalizeKey(job.company);
+      if (key) {
+        await addBlockedSite(key);
+        const s = await Engine.getState();
+        let skippedMore = 0;
+        const queueAfter = s.queue.map((j) => {
+          if (j.state !== 'queued' || normalizeKey(j.company) !== key) return j;
+          skippedMore += 1;
+          return Object.assign({}, j, { state: 'skipped', detail: `${job.company} blocks automated applications` });
+        });
+        const statsAfter = Object.assign({}, s.stats, { skipped: s.stats.skipped + skippedMore });
+        await Engine.setState({ queue: queueAfter, stats: statsAfter });
+      }
+      return;
     }
+
+    // A login wall usually means the whole platform signed the person out,
+    // so stop rather than fail the same way on every remaining job.
+    if (result.detail === 'needs_login') {
+      const why = `${job.company}'s site signed you out.`;
+      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} Sign back in in the tab left open, then press Start to continue with the rest of your queue.`);
+      notify('CareerOS paused', `${why} Its tab is still open. Sign in, then press Start to continue.`);
+    }
+  }
+
+  /* ---------------- sites that block automation ---------------- */
+
+  const BLOCKED_KEY = 'careeros.blockedSites';
+  // Known to run bot protection on its application flow — every automated
+  // attempt fails there, so it never enters the queue in the first place.
+  const DEFAULT_BLOCKED = ['robinhood'];
+
+  function normalizeKey(name) {
+    return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  async function getBlockedSites() {
+    const stored = await Storage.get(BLOCKED_KEY, []);
+    return Array.from(new Set(DEFAULT_BLOCKED.concat(stored || [])));
+  }
+
+  async function addBlockedSite(key) {
+    const stored = await Storage.get(BLOCKED_KEY, []);
+    if ((stored || []).includes(key)) return;
+    await Storage.set(BLOCKED_KEY, (stored || []).concat(key));
+  }
+
+  /* Matches on the company name, or on the key appearing in the apply URL
+     (a Greenhouse board for "robinhood" lives at .../robinhood/jobs/...). */
+  function isBlockedJob(job, blocked) {
+    if (!blocked.length) return false;
+    const company = normalizeKey(job.company);
+    const url = String(job.applyUrl || job.url || '').toLowerCase();
+    let host = '';
+    try { host = new URL(url).hostname; } catch (err) { host = ''; }
+    return blocked.some((key) =>
+      company === key
+      || url.includes(`/${key}/`)
+      || host === `${key}.com` || host.endsWith(`.${key}.com`)
+    );
   }
 
   async function mark(id, state) {

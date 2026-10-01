@@ -134,7 +134,30 @@ async function syncFromServer() {
     await Storage.saveProfile(Object.assign({}, existing, payload.resume.data));
   }
 
+  await syncResumeFile().catch(() => {});
+
   return { ok: true, entitled: true, appliedToday: payload.appliedToday, appliedUrls: payload.appliedUrls || [] };
+}
+
+/* Applications need a resume *file* in their upload field, and CareerOS
+   stores resumes as structured content — so sync pulls a PDF rendered from
+   the person's account. A resume they uploaded themselves in the extension
+   always wins and is never overwritten; only a previous CareerOS copy is
+   refreshed. */
+async function syncResumeFile() {
+  const current = await Storage.getResume();
+  if (current && current.source !== 'careeros') return;
+  const file = await Api.getResumeFile();
+  if (!file || !file.base64) return;
+  if (current && current.updatedAt === file.updatedAt) return;
+  await Storage.saveResume({
+    name: file.name,
+    mime: file.mime || 'application/pdf',
+    dataUrl: `data:${file.mime || 'application/pdf'};base64,${file.base64}`,
+    text: file.text || '',
+    source: 'careeros',
+    updatedAt: file.updatedAt,
+  });
 }
 
 async function handleEngineCommand(msg) {

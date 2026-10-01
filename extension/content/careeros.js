@@ -872,12 +872,17 @@
         return { outcome: 'skipped', detail: `needs you: ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` };
       }
 
-      if (!directive.directive.autoSubmit) {
-        return { outcome: 'assisted', detail: `${filledTotal} fields filled, ${directive.directive.policyNote}` };
+      const c = flow.controls(scope);
+
+      // Easy Apply and the other board flows are several panes long. Without
+      // auto-submit, every pane is still filled (Next / Review are pressed)
+      // and it stops on the pane whose button would send the application,
+      // leaving the modal open for the person. It used to stop on pane one.
+      if (!directive.directive.autoSubmit && (c.submit || (!c.review && !c.next))) {
+        return { outcome: 'assisted', detail: `${filledTotal} fields filled over ${step + 1} step${step ? 's' : ''}, ready for you to submit` };
       }
 
-      const c = flow.controls(scope);
-      const button = c.submit || c.review || c.next;
+      const button = directive.directive.autoSubmit ? (c.submit || c.review || c.next) : (c.review || c.next);
       if (!button) {
         await flow.close();
         return filledTotal
@@ -1018,13 +1023,17 @@
         return { outcome: 'skipped', detail: `needs you: ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` };
       }
 
-      if (!directive.autoSubmit) {
-        return { outcome: 'assisted', detail: `${filledTotal} fields filled, ${directive.policyNote}` };
-      }
-
       const button = ATS.findSubmit(state.adapter, form)
         || ATS.findSubmit(state.adapter, document)
         || Flows.byText(['submit application', 'submit', 'send application', 'next', 'continue', 'save and continue', 'review']);
+
+      // Without auto-submit, a long multi-page form still gets filled all
+      // the way through: Next/Continue/Review pages are advanced, and the run
+      // stops only when the next press would actually send the application.
+      // It used to stop after page one, leaving the rest of the form blank.
+      if (!directive.autoSubmit && (!button || isFinalSubmit(button))) {
+        return { outcome: 'assisted', detail: `${filledTotal} fields filled over ${step + 1} page${step ? 's' : ''}, ready for you to submit` };
+      }
 
       if (!await Flows.press(button)) {
         return filledTotal
@@ -1111,6 +1120,20 @@
   }
 
   /* ================= page signals ================= */
+
+  /* Whether pressing this button would send the application, as opposed to
+     moving to the next page of a long form. Judged by its label: Workday's
+     "next" button and Greenhouse's submit input both match the adapter's
+     submit selector, so the selector alone can't tell them apart. */
+  function isFinalSubmit(el) {
+    const label = String(
+      el.getAttribute('aria-label') || el.value || el.innerText || el.textContent || ''
+    ).trim().toLowerCase();
+    if (/\b(next|continue|review|save and continue|proceed)\b/.test(label)) return false;
+    if (/\b(submit|send|apply|finish|complete)\b/.test(label)) return true;
+    // Unlabelled submit inputs on a single-page form are the final submit.
+    return el.type === 'submit';
+  }
 
   function detectBlocker() {
     if (document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], .h-captcha, .g-recaptcha, [class*="cf-turnstile"]')) {

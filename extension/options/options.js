@@ -501,7 +501,6 @@
   const STARTER_BOARDS = [
     { ats: 'greenhouse', token: 'notion' },
     { ats: 'greenhouse', token: 'asana' },
-    { ats: 'greenhouse', token: 'robinhood' },
     { ats: 'greenhouse', token: 'gusto' },
     { ats: 'greenhouse', token: 'brex' },
   ];
@@ -511,6 +510,12 @@
       await Storage.set('careeros.sources', sources);
       await Storage.set('careeros.boardsSeeded', true);
     }
+  }
+  // Robinhood was in an earlier starter list; its application flow blocks
+  // automation, so drop it from lists that got it that way.
+  if ((sources.boards || []).some((b) => String(b.token).toLowerCase() === 'robinhood')) {
+    sources.boards = sources.boards.filter((b) => String(b.token).toLowerCase() !== 'robinhood');
+    await Storage.set('careeros.sources', sources);
   }
 
   $$('[data-source]').forEach((el) => {

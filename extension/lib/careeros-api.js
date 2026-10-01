@@ -149,6 +149,12 @@
       return request('/sync');
     },
 
+    /* The person's CareerOS resume rendered as a PDF, for attaching to
+       application upload fields. { name, mime, base64, text, updatedAt }. */
+    async getResumeFile() {
+      return request('/resume-file');
+    },
+
     /* The tailored package for a specific posting — a resume summary and
        cover letter written for it, generated server-side the first time this
        posting is seen and cached after that. Returns { tailored: false } on
