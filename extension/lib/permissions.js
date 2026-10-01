@@ -145,6 +145,7 @@
             'lib/flows.js',
             'lib/harvest.js',
             'lib/filler.js',
+            'lib/coach.js',
             'content/careeros.js',
           ],
           css: ['content/fields.css'],

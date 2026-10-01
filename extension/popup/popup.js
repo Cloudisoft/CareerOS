@@ -113,6 +113,52 @@
   pollTimer = setInterval(refresh, 1200);
   if (Profile.isReady(profile)) await loadTab();
 
+  $('openHelp').onclick = () => startTour();
+  if (!settings.popupTutorialSeenAt) setTimeout(startTour, 350);
+
+  /* ---------- walkthrough ---------- */
+  function startTour() {
+    const { Coach } = window.CareerOS;
+    if (!Coach) return;
+    const pageCard = ['posting', 'search', 'idle'].map($).find((el) => el && !el.hidden);
+    Coach.start({
+      steps: [
+        {
+          target: () => ($('autoApplyBtn').hidden ? $('stopApplyBtn') : $('autoApplyBtn')),
+          title: 'One click to apply',
+          text: 'Start Auto Apply finds jobs that match your profile and fills every page of each application, resume attached.',
+          before: () => showTab('home'),
+        },
+        {
+          target: '.runTop',
+          title: 'Your progress today',
+          text: 'The ring counts applications against your daily limit. The tiles below show what is queued, sent, filled for you, and skipped.',
+          before: () => showTab('home'),
+        },
+        {
+          target: '#tabs',
+          title: 'Queue and activity',
+          text: 'Queue lists every job waiting its turn. Activity shows what was sent, what is filled and waiting for your Submit, and why anything was skipped.',
+        },
+        pageCard && {
+          target: pageCard,
+          title: 'Works on the page you are on',
+          text: 'Open a job and fill just that one, or open a LinkedIn or Indeed search and add the whole page of results to your queue.',
+          before: () => showTab('home'),
+        },
+        {
+          target: '#openSettings',
+          title: 'Profile, resume and sites',
+          text: 'Everything CareerOS types comes from your profile. Your resume is attached automatically from your CareerOS account.',
+          placement: 'bottom',
+        },
+      ],
+      onFinish: () => {
+        Storage.saveSettings({ popupTutorialSeenAt: Date.now() });
+      },
+    });
+  }
+
   /* ---------- permissions ---------- */
   async function ensureApplyPermissions() {
     const { Permissions } = window.CareerOS;

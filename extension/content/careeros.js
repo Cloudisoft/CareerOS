@@ -166,22 +166,19 @@
      driven session (scan()) or an automated run (runAutomated()) alike, so
      there's exactly one on-page UI surface, never two overlapping ones. */
   let panel = null;
-  const panelState = { collapsed: false, tab: 'autofill', selectedProfileId: null, filling: false };
+  // Starts as just the floating icon; the full panel opens on click.
+  const panelState = { collapsed: true, tab: 'autofill', selectedProfileId: null, filling: false };
 
   function showPanel() {
     if (!document.body) return;
     const isNew = !panel;
     if (!panel) {
       panel = document.createElement('div');
-      panel.className = 'careeros-panel';
+      panel.className = 'careeros-panel careeros-panel--collapsed';
       document.body.appendChild(panel);
     }
     renderPanel();
-    // First time this tab shows the panel this page-life, and only once ever
-    // per install (gated on settings, not a per-tab flag) — a quick, skippable
-    // tour of the panel's own real elements, not the browser toolbar a
-    // content script can't point at anyway.
-    if (isNew && !panelState.collapsed && !state.settings.panelTutorialSeenAt) startTour();
+    if (isNew && panelState.collapsed) maybeIntroduceLauncher();
   }
 
   function hidePanel() {
@@ -196,34 +193,47 @@
     return state.match;
   }
 
+  function openPanel() {
+    panelState.collapsed = false;
+    renderPanel();
+    if (!state.settings.panelTutorialSeenAt) setTimeout(startPanelTour, 380);
+  }
+
   function renderPanel() {
     if (!panel) return;
 
     if (panelState.collapsed) {
       const match = currentMatch();
       const score = match && !match.blocked ? match.score : null;
-      panel.className = 'careeros-panel careeros-panel--collapsed';
+      const busy = panelState.filling || state.busy || state.autoRunning;
+      const top = Number(state.settings.launcherTop);
+      panel.className = `careeros-panel careeros-panel--collapsed${busy ? ' is-busy' : ''}`;
+      panel.style.top = Number.isFinite(top) && top > 0 ? `${Math.min(top, 92)}%` : '';
+      const label = busy ? 'Filling this application…'
+        : score == null ? 'Open CareerOS' : `${score}% match · Click to autofill`;
       panel.innerHTML = `
-        <button type="button" class="careeros-panel__edge" aria-label="Open CareerOS">
-          <img class="careeros-panel__edge-icon" src="${iconUrl()}" alt="">
-          <span class="careeros-panel__edge-score" data-tone="${scoreTone(score)}">${score == null ? '—' : score}</span>
-        </button>
+        <div class="careeros-launcher">
+          <span class="careeros-launcher__label">${esc(label)}</span>
+          <button type="button" class="careeros-launcher__btn" aria-label="${esc(label)}">
+            <span class="careeros-launcher__ring"></span>
+            <img class="careeros-launcher__icon" src="${iconUrl()}" alt="">
+            ${score == null ? '' : `<span class="careeros-launcher__score" data-tone="${scoreTone(score)}">${score}</span>`}
+          </button>
+        </div>
       `;
-      panel.querySelector('.careeros-panel__edge').onclick = () => {
-        panelState.collapsed = false;
-        renderPanel();
-      };
-      if (tourState.active) endTour(true); // nothing to point at once collapsed
+      wireLauncherDrag(panel.querySelector('.careeros-launcher__btn'));
       return;
     }
 
-    panel.className = 'careeros-panel';
+    panel.className = 'careeros-panel is-open';
+    panel.style.top = '';
     panel.innerHTML = `
       <div class="careeros-panel__header">
         <img class="careeros-panel__logo" src="${iconUrl()}" alt="">
         <span class="careeros-panel__brand">CareerOS</span>
-        <button type="button" class="careeros-panel__icon-btn" data-action="settings" aria-label="Settings">${ICON_GEAR}</button>
-        <button type="button" class="careeros-panel__icon-btn" data-action="collapse" aria-label="Collapse">${ICON_CHEVRON}</button>
+        <button type="button" class="careeros-panel__icon-btn" data-action="help" aria-label="Show me how it works" title="Show me how it works">${ICON_HELP}</button>
+        <button type="button" class="careeros-panel__icon-btn" data-action="settings" aria-label="Settings" title="Settings">${ICON_GEAR}</button>
+        <button type="button" class="careeros-panel__icon-btn" data-action="collapse" aria-label="Minimize to icon" title="Minimize to icon">${ICON_CHEVRON}</button>
       </div>
       <div class="careeros-panel__tabs">
         <button type="button" class="careeros-panel__tabbtn${panelState.tab === 'autofill' ? ' is-active' : ''}" data-tab="autofill">Autofill</button>
@@ -234,10 +244,12 @@
       <div class="careeros-panel__footer">${renderPanelFooter()}</div>
     `;
 
+    panel.querySelector('[data-action="help"]').onclick = () => startPanelTour();
     panel.querySelector('[data-action="settings"]').onclick = () => {
       send({ type: 'careeros:openOptions', tab: 'you' });
     };
     panel.querySelector('[data-action="collapse"]').onclick = () => {
+      if (coach() && coach().isActive()) coach().stop(false);
       panelState.collapsed = true;
       renderPanel();
     };
@@ -261,24 +273,53 @@
     const cta = panel.querySelector('.careeros-panel__cta');
     if (cta && !cta.disabled) {
       cta.onclick = async () => {
-        if (tourState.active) endTour(true); // a real click means they don't need the walk-through
+        if (coach() && coach().isActive()) coach().stop(false);
         panelState.filling = true;
         renderPanel();
         const res = await doFill(panelState.selectedProfileId);
         panelState.filling = false;
         panelState.lastError = res.ok ? null : res.error;
-        // Storage.logApplication (inside doFill) only writes once per URL —
-        // priorApplication is set when this posting was already logged, so a
-        // real, one-time "saved" note only shows the first time, not on
-        // every "Run Autofill Again".
+        // Storage.logApplication (inside doFill) only writes once per URL, so
+        // the "saved" note only shows the first time, not on every refill.
         panelState.justLogged = res.ok && !res.priorApplication;
         renderPanel();
       };
     }
+  }
 
-    // Keep the tour's callout pinned to its target through every re-render
-    // (a tab switch, a live checklist update while the tour is still up).
-    if (tourState.active) renderTour();
+  /* The icon can be dragged up or down the right edge; a press that barely
+     moves is a click and opens the panel. Position is remembered. */
+  function wireLauncherDrag(btn) {
+    if (!btn) return;
+    btn.onpointerdown = (e) => {
+      if (e.button !== 0) return;
+      const startY = e.clientY;
+      const startTop = panel.getBoundingClientRect().top + panel.offsetHeight / 2;
+      let moved = false;
+      btn.setPointerCapture(e.pointerId);
+      btn.onpointermove = (ev) => {
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dy) < 5) return;
+        moved = true;
+        panel.classList.add('is-dragging');
+        const y = Math.min(Math.max(startTop + dy, 40), window.innerHeight - 40);
+        panel.style.top = `${(y / window.innerHeight) * 100}%`;
+      };
+      btn.onpointerup = () => {
+        btn.onpointermove = null;
+        btn.onpointerup = null;
+        panel.classList.remove('is-dragging');
+        if (moved) {
+          const pct = parseFloat(panel.style.top);
+          if (Number.isFinite(pct)) {
+            state.settings.launcherTop = Math.round(pct);
+            Storage.saveSettings({ launcherTop: state.settings.launcherTop });
+          }
+        } else {
+          openPanel();
+        }
+      };
+    };
   }
 
   function renderPanelFooter() {
@@ -412,6 +453,7 @@
   const ICON_ATTENTION = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
   const ICON_SPARKLE = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z"></path></svg>';
   const ICON_GEAR = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>';
+  const ICON_HELP = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.3-2.4 3.8"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
   const ICON_CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
 
   function esc(s) {
@@ -420,108 +462,52 @@
     return d.innerHTML;
   }
 
-  /* ================= first-run tour ================= */
+  /* ================= walkthroughs ================= */
 
-  /* A short, skippable walk-through of the panel's own real elements — shown
-     once per install (gated on settings.panelTutorialSeenAt, same
-     get/saveSettings pattern as every other one-time flag, not a separate
-     storage key), never the ten-step click-through gauntlet a competitor's
-     reference screenshot showed. Points at things that actually exist on
-     this panel; nothing here claims a feature (like a data-collection
-     consent step) CareerOS doesn't really have. */
-  const TOUR_STEPS = [
-    { selector: '.careeros-panel__tabs', text: 'See your match score and switch profiles here.' },
-    { selector: '.careeros-panel__posting', text: 'This is the job CareerOS detected on this page.' },
-    { selector: '.careeros-panel__body', text: 'Every field CareerOS fills shows up here as it happens.' },
-    { selector: '.careeros-panel__cta', text: 'One click fills the whole form.' },
-    { selector: '.careeros-panel__icon-btn[data-action="settings"]', text: 'Manage your profile, resume, and which sites CareerOS can use.' }
-  ];
-  const tourState = { active: false, step: 0 };
-  let tourEl = null;
-  let tourHighlight = null;
+  /* Spotlight walkthroughs (lib/coach.js). Two, each shown once per install
+     and replayable from the ? button: one pointing at the floating icon the
+     first time it appears, one through the panel the first time it opens. */
+  function coach() { return window.CareerOS && window.CareerOS.Coach; }
 
-  function startTour() {
-    if (tourState.active || !panel) return;
-    panelState.tab = 'autofill'; // steps 2-3 point at elements only on this tab
+  function maybeIntroduceLauncher() {
+    if (state.settings.launcherTipSeenAt || !coach() || coach().isActive()) return;
+    setTimeout(() => {
+      const btn = panel && panel.querySelector('.careeros-launcher__btn');
+      if (!btn) return;
+      coach().start({
+        steps: [{
+          target: btn,
+          title: 'CareerOS is ready on this job',
+          text: 'Click this icon to fill the whole application from your profile, resume attached. Drag it up or down to move it out of the way.',
+          placement: 'left',
+          padding: 4,
+          round: true,
+        }],
+        onFinish: () => saveFlag('launcherTipSeenAt'),
+      });
+    }, 900);
+  }
+
+  function startPanelTour() {
+    if (!coach() || !panel || panelState.collapsed) return;
+    panelState.tab = 'autofill';
     renderPanel();
-    tourState.active = true;
-    tourState.step = 0;
-    renderTour();
+    const q = (sel) => () => panel && panel.querySelector(sel);
+    coach().start({
+      steps: [
+        { target: q('.careeros-panel__posting'), title: 'The job on this page', text: 'CareerOS reads the posting so it can score it and answer questions about it.', placement: 'left' },
+        { target: q('.careeros-panel__tabs'), title: 'Match score and profiles', text: 'See how well this job fits you, and pick which of your profiles to apply with.', placement: 'left' },
+        { target: q('.careeros-panel__cta'), title: 'One click fills everything', text: 'Every page of the form gets filled and your resume attached. You review it and press Submit.', placement: 'left' },
+        { target: q('.careeros-panel__body'), title: 'Watch it happen', text: 'Each field appears here as it is filled. Anything only you can answer is flagged in orange.', placement: 'left' },
+        { target: q('[data-action="collapse"]'), title: 'Tuck it away', text: 'Shrink the panel back to the icon anytime. Your settings are behind the gear.', placement: 'left' },
+      ],
+      onFinish: () => saveFlag('panelTutorialSeenAt'),
+    });
   }
 
-  function endTour(markSeen) {
-    tourState.active = false;
-    if (tourEl && tourEl.parentNode) tourEl.parentNode.removeChild(tourEl);
-    tourEl = null;
-    if (tourHighlight && tourHighlight.parentNode) tourHighlight.parentNode.removeChild(tourHighlight);
-    tourHighlight = null;
-    if (markSeen) {
-      state.settings.panelTutorialSeenAt = Date.now();
-      Storage.saveSettings({ panelTutorialSeenAt: state.settings.panelTutorialSeenAt });
-    }
-  }
-
-  function renderTour() {
-    if (!tourState.active || !panel) return;
-    const step = TOUR_STEPS[tourState.step];
-    const target = panel.querySelector(step.selector);
-    if (!target) { endTour(true); return; } // e.g. the panel got collapsed mid-tour
-
-    const advancing = Boolean(tourEl);
-    if (!tourEl) {
-      tourEl = document.createElement('div');
-      tourEl.className = 'careeros-tour';
-      document.body.appendChild(tourEl);
-    }
-    if (!tourHighlight) {
-      tourHighlight = document.createElement('div');
-      tourHighlight.className = 'careeros-tour__highlight';
-      document.body.appendChild(tourHighlight);
-    }
-
-    const isLast = tourState.step === TOUR_STEPS.length - 1;
-    tourEl.innerHTML = `
-      <div class="careeros-tour__count">${tourState.step + 1}/${TOUR_STEPS.length}</div>
-      <p class="careeros-tour__text">${esc(step.text)}</p>
-      <div class="careeros-tour__actions">
-        <button type="button" class="careeros-tour__skip">Skip</button>
-        <button type="button" class="careeros-tour__next">${isLast ? 'Got it' : 'Next'}</button>
-      </div>
-    `;
-
-    const panelRect = panel.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    // Clamped so a narrow browser window (panel taking up most of the
-    // width) can't push this off the left edge of the screen or squeeze it
-    // down to nothing next to the panel — both read as "the tour is
-    // missing/unreadable" even though the element is technically there.
-    const rightPx = Math.max(window.innerWidth - panelRect.left + 12, 12);
-    tourEl.style.right = `${Math.min(rightPx, window.innerWidth - 232)}px`;
-    tourEl.style.top = `${Math.min(Math.max(targetRect.top - 6, 12), window.innerHeight - 140)}px`;
-
-    // A glowing outline around the real element being described, so the
-    // tour reads as pointing at something alive on the page rather than a
-    // static caption box floating nearby — and a brief pop/fade on the box
-    // itself each time the step changes, instead of the text just swapping
-    // instantly in place.
-    tourHighlight.style.top = `${targetRect.top - 4}px`;
-    tourHighlight.style.left = `${targetRect.left - 4}px`;
-    tourHighlight.style.width = `${targetRect.width + 8}px`;
-    tourHighlight.style.height = `${targetRect.height + 8}px`;
-
-    if (advancing) {
-      tourEl.classList.remove('careeros-tour--enter');
-      // eslint-disable-next-line no-void
-      void tourEl.offsetWidth; // restart the animation on a repeated class
-    }
-    tourEl.classList.add('careeros-tour--enter');
-
-    tourEl.querySelector('.careeros-tour__skip').onclick = () => endTour(true);
-    tourEl.querySelector('.careeros-tour__next').onclick = () => {
-      if (isLast) { endTour(true); return; }
-      tourState.step += 1;
-      renderTour();
-    };
+  function saveFlag(key) {
+    state.settings[key] = Date.now();
+    Storage.saveSettings({ [key]: state.settings[key] });
   }
 
   /* ================= auto-harvest ================= */

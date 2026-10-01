@@ -299,4 +299,4 @@
     waitFor,
     visible
   };
-})();
+})(typeof self !== 'undefined' ? self : this);

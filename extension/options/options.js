@@ -787,7 +787,8 @@
   }
 
   function startWelcomeWizard() {
-    let step = 0;
+    // Already connected: start at "Add your resume", not "Connect".
+    let step = settings.deviceToken ? 1 : 0;
     const wizard = $('#welcomeWizard');
     wizard.hidden = false;
 

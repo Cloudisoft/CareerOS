@@ -1,245 +1,348 @@
 /* CareerOS — injected into a host page.
-   Two field outlines (what got filled, and what still needs the person) plus
-   the docked panel content/careeros.js builds (showPanel/renderPanel) —
-   the on-page equivalent of the popup, so applying never requires opening
-   it. Colors match the real CareerOS design system (src/app/globals.css):
-   deep-plum background, near-white foreground, and the amber-to-red-orange
-   brand gradient — not invented tokens. */
+   Field outlines (filled / still needs the person), the floating icon, and
+   the panel it opens. Light surface with the CareerOS orange gradient, same
+   tokens as the popup. Every rule is namespaced so a job site is untouched. */
 
 .careeros-filled {
-  outline: 2px solid rgba(52, 168, 108, 0.7) !important;
+  outline: 2px solid rgba(22, 160, 90, 0.65) !important;
   outline-offset: 1px !important;
+  transition: outline-color 300ms ease !important;
 }
 
 .careeros-attention {
   outline: 2px solid #F46A29 !important;
   outline-offset: 1px !important;
-  background-color: rgba(244, 106, 41, 0.07) !important;
+  background-color: rgba(244, 106, 41, 0.06) !important;
 }
 
-/* ================= the docked panel ================= */
+/* ================= shell ================= */
 
 .careeros-panel {
-  --cos-bg: #0D0711;
-  --cos-fg: #FCFBFC;
-  --cos-primary: #EF862D;
-  --cos-accent: #DF4C2C;
-  --cos-gradient: linear-gradient(135deg, #EF862D 0%, #DF4C2C 100%);
-  --cos-line: rgba(255, 255, 255, 0.09);
-  --cos-muted: rgba(252, 251, 252, 0.62);
-  --cos-tint: rgba(239, 134, 45, 0.14);
+  --cos-bg: #FFFFFF;
+  --cos-soft: #F7F4F1;
+  --cos-fg: #1C1720;
+  --cos-muted: #7A7480;
+  --cos-line: #ECE6E1;
+  --cos-primary: #F46A29;
+  --cos-accent: #EF4232;
+  --cos-ok: #16A05A;
+  --cos-gradient: linear-gradient(135deg, #F78320 0%, #F14C2E 60%, #EF4232 100%);
+  --cos-tint: rgba(244, 106, 41, 0.1);
+  --cos-font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 
+  all: initial;
   position: fixed;
-  top: 16px;
-  right: 16px;
-  bottom: 16px;
-  width: 340px;
+  z-index: 2147483646;
+  font: 400 13px/1.45 var(--cos-font);
+  color: var(--cos-fg);
+  -webkit-font-smoothing: antialiased;
+}
+.careeros-panel *, .careeros-panel *::before, .careeros-panel *::after { box-sizing: border-box; }
+.careeros-panel button { font-family: var(--cos-font); }
+.careeros-panel button:focus-visible { outline: 2px solid #F78320; outline-offset: 2px; }
+
+/* ================= floating icon ================= */
+
+.careeros-panel--collapsed {
+  top: 62%;
+  right: 14px;
+  transform: translateY(-50%);
+  transition: top 160ms ease;
+}
+.careeros-panel--collapsed.is-dragging { transition: none; }
+
+.careeros-launcher { position: relative; display: flex; align-items: center; animation: cosLauncherIn 420ms cubic-bezier(.22,1,.36,1); }
+@keyframes cosLauncherIn {
+  from { opacity: 0; transform: translateX(24px) scale(.8); }
+  to { opacity: 1; transform: none; }
+}
+
+.careeros-launcher__btn {
+  position: relative;
+  width: 54px; height: 54px;
+  padding: 0; border: 0; border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(28, 23, 32, 0.18), 0 0 0 1px rgba(28, 23, 32, 0.06);
+  display: grid; place-items: center;
+  cursor: grab;
+  touch-action: none;
+  transition: transform 180ms cubic-bezier(.34,1.56,.64,1), box-shadow 200ms ease;
+}
+.careeros-launcher__btn:hover { transform: scale(1.07); box-shadow: 0 12px 30px rgba(241, 76, 46, 0.28), 0 0 0 1px rgba(241, 76, 46, 0.2); }
+.careeros-launcher__btn:active { cursor: grabbing; transform: scale(0.96); }
+.careeros-launcher__icon { width: 28px; height: 28px; display: block; pointer-events: none; }
+
+/* A gradient ring that spins only while CareerOS is filling a form. */
+.careeros-launcher__ring {
+  position: absolute; inset: -3px;
+  border-radius: 50%;
+  padding: 3px;
+  background: conic-gradient(from 0deg, #F78320, #F14C2E, rgba(241, 76, 46, 0) 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+}
+.careeros-panel--collapsed.is-busy .careeros-launcher__ring { opacity: 1; animation: cosSpin 1s linear infinite; }
+@keyframes cosSpin { to { transform: rotate(360deg); } }
+
+.careeros-launcher__score {
+  position: absolute; top: -4px; left: -6px;
+  min-width: 24px; height: 20px; padding: 0 6px;
+  border-radius: 10px;
+  border: 2px solid #FFFFFF;
+  display: grid; place-items: center;
+  font: 800 10.5px/1 var(--cos-font);
+  color: #FFFFFF;
+  background: #8A838F;
+  pointer-events: none;
+}
+.careeros-launcher__score[data-tone="strong"] { background: var(--cos-ok); }
+.careeros-launcher__score[data-tone="good"] { background: var(--cos-gradient); }
+.careeros-launcher__score[data-tone="weak"] { background: #8A838F; }
+
+/* Label slides out to the left of the icon on hover. */
+.careeros-launcher__label {
+  position: absolute; right: 64px;
+  white-space: nowrap;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: #1C1720;
+  color: #FFFFFF;
+  font: 600 12px/1 var(--cos-font);
+  box-shadow: 0 6px 18px rgba(28, 23, 32, 0.2);
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 160ms ease, transform 200ms cubic-bezier(.22,1,.36,1);
+  pointer-events: none;
+}
+.careeros-launcher:hover .careeros-launcher__label,
+.careeros-panel--collapsed.is-busy .careeros-launcher__label { opacity: 1; transform: none; }
+.careeros-panel--collapsed.is-dragging .careeros-launcher__label { opacity: 0; }
+
+/* ================= the panel ================= */
+
+.careeros-panel.is-open {
+  top: 16px; right: 16px; bottom: 16px;
+  width: 352px;
   max-width: calc(100vw - 32px);
-  z-index: 2147483647;
   display: flex;
   flex-direction: column;
   background: var(--cos-bg);
-  color: var(--cos-fg);
-  border: 1px solid var(--cos-line);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.2);
-  font: 400 13px/1.45 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(28, 23, 32, 0.22), 0 0 0 1px rgba(28, 23, 32, 0.06);
   overflow: hidden;
+  animation: cosPanelIn 340ms cubic-bezier(.22,1,.36,1);
 }
-
-.careeros-panel * { box-sizing: border-box; }
+@keyframes cosPanelIn {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: none; }
+}
+.careeros-panel.is-open::before {
+  content: "";
+  position: absolute; inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--cos-gradient);
+}
 
 .careeros-panel__header {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 10px 12px 14px;
-  border-bottom: 1px solid var(--cos-line);
+  gap: 6px;
+  padding: 14px 10px 10px 14px;
 }
-.careeros-panel__logo { width: 22px; height: 22px; border-radius: 6px; flex: none; }
-.careeros-panel__brand { flex: 1; font-size: 13.5px; font-weight: 700; letter-spacing: 0.01em; }
+.careeros-panel__logo { width: 26px; height: 26px; border-radius: 8px; flex: none; }
+.careeros-panel__brand {
+  flex: 1;
+  margin-left: 2px;
+  font: 800 15px/1 var(--cos-font);
+  letter-spacing: -0.02em;
+  background: var(--cos-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 .careeros-panel__icon-btn {
   flex: none;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border: 1px solid var(--cos-line);
+  border-radius: 9px;
+  background: #FFFFFF;
   color: var(--cos-muted);
   cursor: pointer;
+  transition: color 140ms, border-color 140ms, transform 140ms, background 140ms;
 }
-.careeros-panel__icon-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--cos-fg); }
+.careeros-panel__icon-btn:hover { color: var(--cos-primary); border-color: rgba(244, 106, 41, 0.3); transform: translateY(-1px); }
+.careeros-panel__icon-btn:active { transform: scale(0.94); }
 
+/* Segmented tabs */
 .careeros-panel__tabs {
   flex: none;
   display: flex;
-  border-bottom: 1px solid var(--cos-line);
+  gap: 3px;
+  margin: 2px 14px 4px;
+  padding: 3px;
+  border-radius: 11px;
+  background: #EFEAE6;
 }
 .careeros-panel__tabbtn {
   flex: 1;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--cos-muted);
-  font: 600 11.5px/1 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  padding: 10px 4px;
+  font: 650 12px/1 var(--cos-font);
+  padding: 8px 4px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  transition: background 160ms, color 160ms, box-shadow 160ms;
 }
-.careeros-panel__tabbtn.is-active { color: var(--cos-fg); border-bottom-color: var(--cos-primary); }
 .careeros-panel__tabbtn:hover { color: var(--cos-fg); }
+.careeros-panel__tabbtn.is-active { background: #FFFFFF; color: var(--cos-fg); box-shadow: 0 1px 3px rgba(28, 23, 32, 0.1); }
 
 .careeros-panel__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px;
+  padding: 12px 14px 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  animation: cosFade 220ms ease;
 }
+.careeros-panel__body::-webkit-scrollbar { width: 6px; }
+.careeros-panel__body::-webkit-scrollbar-thumb { background: #DDD6D0; border-radius: 3px; }
+@keyframes cosFade { from { opacity: 0; } to { opacity: 1; } }
 
 .careeros-panel__posting {
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--cos-line);
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: var(--cos-soft);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
-.careeros-panel__posting strong { font-size: 13px; }
-.careeros-panel__posting span { font-size: 11.5px; color: var(--cos-muted); }
+.careeros-panel__posting strong { font: 700 13.5px/1.3 var(--cos-font); color: var(--cos-fg); }
+.careeros-panel__posting span { font-size: 12px; color: var(--cos-muted); }
 .careeros-panel__posting--empty { color: var(--cos-muted); font-size: 12px; }
 
 .careeros-panel__status {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font: 700 12.5px/1.3 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--cos-soft);
+  font: 650 12.5px/1.3 var(--cos-font);
   color: var(--cos-fg);
 }
-.careeros-panel__status[data-tone="warn"] { color: var(--cos-primary); }
-.careeros-panel__status[data-tone="ok"] { color: #4FB980; }
+.careeros-panel__status[data-tone="warn"] { background: #FDF2E6; color: #A0560F; }
+.careeros-panel__status[data-tone="ok"] { background: #E6F6EC; color: #0F7A44; }
 .careeros-panel__status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px; height: 8px;
   border-radius: 50%;
   background: var(--cos-primary);
   flex: none;
-  animation: careeros-panel-pulse 1.1s ease-in-out infinite;
+  animation: cosPulse 1.2s ease-in-out infinite;
 }
-@keyframes careeros-panel-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+@keyframes cosPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 106, 41, 0.5); }
+  60% { box-shadow: 0 0 0 6px rgba(244, 106, 41, 0); }
 }
 
-.careeros-panel__checklist {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
+.careeros-panel__checklist { list-style: none; margin: 0; padding: 0; }
 .careeros-panel__item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 7px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 9px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--cos-line);
   font-size: 12.5px;
+  color: var(--cos-fg);
+  animation: cosRise 240ms ease both;
 }
 .careeros-panel__item:last-child { border-bottom: 0; }
+@keyframes cosRise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .careeros-panel__item-icon {
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
-  display: flex;
-  color: #4FB980;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: #E6F6EC;
+  color: var(--cos-ok);
 }
-.careeros-panel__item[data-kind="attention"] .careeros-panel__item-icon { color: var(--cos-accent); }
+.careeros-panel__item-icon svg { width: 11px; height: 11px; }
+.careeros-panel__item[data-kind="attention"] .careeros-panel__item-icon { background: #FDF2E6; color: var(--cos-primary); }
 .careeros-panel__item-label { flex: 1; min-width: 0; }
-.careeros-panel__item-label small {
-  display: block;
-  color: var(--cos-muted);
-  font-size: 11px;
-  margin-top: 1px;
-}
+.careeros-panel__item-label small { display: block; color: var(--cos-muted); font-size: 11px; margin-top: 1px; }
 .careeros-panel__badge {
   flex: none;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 2px 6px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: var(--cos-tint);
   color: var(--cos-primary);
-  font: 700 9.5px/1 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font: 750 9.5px/1 var(--cos-font);
 }
 
-.careeros-panel__toast {
-  font-size: 11.5px;
-  color: var(--cos-muted);
-  padding-top: 2px;
-}
+.careeros-panel__toast { font-size: 11.5px; color: var(--cos-muted); }
 
 .careeros-panel__link {
   align-self: flex-start;
   border: 0;
   background: transparent;
   color: var(--cos-primary);
-  font: 600 12px/1.3 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  text-decoration: underline;
+  font: 650 12px/1.3 var(--cos-font);
   cursor: pointer;
-  padding: 0;
+  padding: 4px 0;
 }
+.careeros-panel__link:hover { text-decoration: underline; }
 
 .careeros-panel__footer {
   flex: none;
-  padding: 12px 16px 14px;
+  padding: 12px 14px 14px;
   border-top: 1px solid var(--cos-line);
+  background: #FFFFFF;
 }
 .careeros-panel__cta {
   width: 100%;
   border: 0;
-  border-radius: 10px;
-  padding: 12px;
-  font: 700 13px/1 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #fff;
+  border-radius: 13px;
+  padding: 13px;
+  font: 750 13.5px/1 var(--cos-font);
+  color: #FFFFFF;
   background: var(--cos-gradient);
+  box-shadow: 0 6px 18px rgba(241, 76, 46, 0.3);
   cursor: pointer;
+  transition: transform 140ms, box-shadow 200ms, filter 140ms;
 }
-.careeros-panel__cta:disabled { opacity: 0.5; cursor: default; }
+.careeros-panel__cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(241, 76, 46, 0.36); }
+.careeros-panel__cta:active:not(:disabled) { transform: scale(0.98); }
+.careeros-panel__cta:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
 
 /* ---- Match Score tab ---- */
-.careeros-panel__score-row { display: flex; align-items: center; gap: 12px; }
+.careeros-panel__score-row { display: flex; align-items: center; gap: 14px; padding: 4px 2px; }
 .careeros-panel__score-circle {
   flex: none;
-  width: 56px;
-  height: 56px;
+  width: 62px; height: 62px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font: 800 18px/1 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #fff;
-  background: #6b6470;
+  display: grid; place-items: center;
+  font: 800 20px/1 var(--cos-font);
+  color: #FFFFFF;
+  background: #8A838F;
+  box-shadow: 0 6px 16px rgba(28, 23, 32, 0.12);
 }
-.careeros-panel__score-circle[data-tone="strong"] { background: #2fa864; }
+.careeros-panel__score-circle[data-tone="strong"] { background: var(--cos-ok); }
 .careeros-panel__score-circle[data-tone="good"] { background: var(--cos-gradient); }
-.careeros-panel__score-circle[data-tone="weak"] { background: var(--cos-accent); }
+.careeros-panel__score-circle[data-tone="weak"] { background: #8A838F; }
 .careeros-panel__verdict { display: flex; flex-direction: column; gap: 2px; }
-.careeros-panel__verdict strong { font-size: 14px; }
-.careeros-panel__verdict span { font-size: 11.5px; color: var(--cos-muted); }
-.careeros-panel__reasons {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: rgba(252, 251, 252, 0.85);
-}
+.careeros-panel__verdict strong { font: 750 14.5px/1.3 var(--cos-font); color: var(--cos-fg); }
+.careeros-panel__verdict span { font-size: 12px; color: var(--cos-muted); }
+.careeros-panel__reasons { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.65; color: #55505C; }
 
 /* ---- Profile tab ---- */
 .careeros-panel__profile-list { display: flex; flex-direction: column; gap: 6px; }
@@ -248,148 +351,25 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 9px 10px;
-  border-radius: 9px;
+  padding: 11px 12px;
+  border-radius: 12px;
   border: 1px solid var(--cos-line);
-  background: rgba(255, 255, 255, 0.03);
+  background: #FFFFFF;
   color: var(--cos-fg);
-  font-size: 12.5px;
+  font: 600 12.5px/1.3 var(--cos-font);
   cursor: pointer;
   text-align: left;
+  transition: border-color 140ms, background 140ms;
 }
+.careeros-panel__profile-option:hover { border-color: rgba(244, 106, 41, 0.3); }
 .careeros-panel__profile-option.is-active { border-color: var(--cos-primary); background: var(--cos-tint); }
-.careeros-panel__profile-score { font-weight: 700; color: var(--cos-muted); }
+.careeros-panel__profile-score { font-weight: 800; color: var(--cos-muted); }
 .careeros-panel__profile-option.is-active .careeros-panel__profile-score { color: var(--cos-primary); }
 
-/* ---- collapsed edge tab ---- */
-.careeros-panel--collapsed {
-  top: 50%;
-  bottom: auto;
-  transform: translateY(-50%);
-  width: auto;
-  border-radius: 14px 0 0 14px;
-  right: 0;
-}
-.careeros-panel__edge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  background: transparent;
-  color: var(--cos-fg);
-  padding: 12px 10px;
-  cursor: pointer;
-}
-.careeros-panel__edge-icon { width: 20px; height: 20px; border-radius: 5px; }
-.careeros-panel__edge-score {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font: 700 11px/1 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #fff;
-  background: #6b6470;
-}
-.careeros-panel__edge-score[data-tone="strong"] { background: #2fa864; }
-.careeros-panel__edge-score[data-tone="good"] { background: var(--cos-gradient); }
-.careeros-panel__edge-score[data-tone="weak"] { background: var(--cos-accent); }
-
 @media (max-width: 480px) {
-  .careeros-panel { width: calc(100vw - 24px); right: 12px; top: 12px; bottom: 12px; }
+  .careeros-panel.is-open { width: calc(100vw - 24px); right: 12px; top: 12px; bottom: 12px; }
 }
 
-/* ================= first-run tour ================= */
-
-.careeros-tour {
-  position: fixed;
-  z-index: 2147483647;
-  width: 220px;
-  padding: 12px 14px 12px;
-  border-radius: 12px;
-  background: #0D0711;
-  color: #FCFBFC;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
-  font: 400 12.5px/1.4 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-}
-.careeros-tour::after {
-  content: '';
-  position: absolute;
-  top: 18px;
-  right: -6px;
-  width: 12px;
-  height: 12px;
-  background: #0D0711;
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  transform: rotate(45deg);
-}
-.careeros-tour__count {
-  font-weight: 700;
-  font-size: 11px;
-  color: #EF862D;
-  margin-bottom: 4px;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .careeros-tour {
-    transition: top 280ms cubic-bezier(0.22, 1, 0.36, 1), right 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .careeros-tour--enter {
-    animation: careerosTourPop 320ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  @keyframes careerosTourPop {
-    0%   { opacity: 0; transform: scale(0.92) translateY(4px); }
-    100% { opacity: 1; transform: scale(1) translateY(0); }
-  }
-}
-
-/* The glowing outline pointing at whatever the current step describes —
-   a separate fixed-position box rather than an outline on the real
-   element, so it can't disturb that element's own layout or styles. */
-.careeros-tour__highlight {
-  position: fixed;
-  z-index: 2147483646;
-  pointer-events: none;
-  border-radius: 10px;
-  border: 2px solid #EF862D;
-  box-shadow: 0 0 0 3px rgba(239, 134, 45, 0.25);
-  transition: top 280ms cubic-bezier(0.22, 1, 0.36, 1), left 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    width 280ms cubic-bezier(0.22, 1, 0.36, 1), height 280ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .careeros-tour__highlight {
-    animation: careerosHighlightPulse 1.6s ease-in-out infinite;
-  }
-}
-@keyframes careerosHighlightPulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(239, 134, 45, 0.25); }
-  50%      { box-shadow: 0 0 0 6px rgba(239, 134, 45, 0.08); }
-}
-.careeros-tour__text { margin: 0 0 10px; }
-.careeros-tour__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.careeros-tour__skip {
-  border: 0;
-  background: transparent;
-  color: rgba(252, 251, 252, 0.6);
-  font: 600 11.5px/1 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  cursor: pointer;
-  padding: 6px 2px;
-}
-.careeros-tour__skip:hover { color: #FCFBFC; }
-.careeros-tour__next {
-  border: 0;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font: 700 11.5px/1 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #fff;
-  background: linear-gradient(135deg, #EF862D 0%, #DF4C2C 100%);
-  cursor: pointer;
+@media (prefers-reduced-motion: reduce) {
+  .careeros-panel, .careeros-panel * { animation: none !important; transition: none !important; }
 }
