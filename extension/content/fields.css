@@ -333,6 +333,41 @@
   color: #EF862D;
   margin-bottom: 4px;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .careeros-tour {
+    transition: top 280ms cubic-bezier(0.22, 1, 0.36, 1), right 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .careeros-tour--enter {
+    animation: careerosTourPop 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes careerosTourPop {
+    0%   { opacity: 0; transform: scale(0.92) translateY(4px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+}
+
+/* The glowing outline pointing at whatever the current step describes —
+   a separate fixed-position box rather than an outline on the real
+   element, so it can't disturb that element's own layout or styles. */
+.careeros-tour__highlight {
+  position: fixed;
+  z-index: 2147483646;
+  pointer-events: none;
+  border-radius: 10px;
+  border: 2px solid #EF862D;
+  box-shadow: 0 0 0 3px rgba(239, 134, 45, 0.25);
+  transition: top 280ms cubic-bezier(0.22, 1, 0.36, 1), left 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 280ms cubic-bezier(0.22, 1, 0.36, 1), height 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .careeros-tour__highlight {
+    animation: careerosHighlightPulse 1.6s ease-in-out infinite;
+  }
+}
+@keyframes careerosHighlightPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(239, 134, 45, 0.25); }
+  50%      { box-shadow: 0 0 0 6px rgba(239, 134, 45, 0.08); }
+}
 .careeros-tour__text { margin: 0 0 10px; }
 .careeros-tour__actions {
   display: flex;

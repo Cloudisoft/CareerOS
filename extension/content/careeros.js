@@ -438,6 +438,7 @@
   ];
   const tourState = { active: false, step: 0 };
   let tourEl = null;
+  let tourHighlight = null;
 
   function startTour() {
     if (tourState.active || !panel) return;
@@ -452,6 +453,8 @@
     tourState.active = false;
     if (tourEl && tourEl.parentNode) tourEl.parentNode.removeChild(tourEl);
     tourEl = null;
+    if (tourHighlight && tourHighlight.parentNode) tourHighlight.parentNode.removeChild(tourHighlight);
+    tourHighlight = null;
     if (markSeen) {
       state.settings.panelTutorialSeenAt = Date.now();
       Storage.saveSettings({ panelTutorialSeenAt: state.settings.panelTutorialSeenAt });
@@ -464,10 +467,16 @@
     const target = panel.querySelector(step.selector);
     if (!target) { endTour(true); return; } // e.g. the panel got collapsed mid-tour
 
+    const advancing = Boolean(tourEl);
     if (!tourEl) {
       tourEl = document.createElement('div');
       tourEl.className = 'careeros-tour';
       document.body.appendChild(tourEl);
+    }
+    if (!tourHighlight) {
+      tourHighlight = document.createElement('div');
+      tourHighlight.className = 'careeros-tour__highlight';
+      document.body.appendChild(tourHighlight);
     }
 
     const isLast = tourState.step === TOUR_STEPS.length - 1;
@@ -489,6 +498,23 @@
     const rightPx = Math.max(window.innerWidth - panelRect.left + 12, 12);
     tourEl.style.right = `${Math.min(rightPx, window.innerWidth - 232)}px`;
     tourEl.style.top = `${Math.min(Math.max(targetRect.top - 6, 12), window.innerHeight - 140)}px`;
+
+    // A glowing outline around the real element being described, so the
+    // tour reads as pointing at something alive on the page rather than a
+    // static caption box floating nearby — and a brief pop/fade on the box
+    // itself each time the step changes, instead of the text just swapping
+    // instantly in place.
+    tourHighlight.style.top = `${targetRect.top - 4}px`;
+    tourHighlight.style.left = `${targetRect.left - 4}px`;
+    tourHighlight.style.width = `${targetRect.width + 8}px`;
+    tourHighlight.style.height = `${targetRect.height + 8}px`;
+
+    if (advancing) {
+      tourEl.classList.remove('careeros-tour--enter');
+      // eslint-disable-next-line no-void
+      void tourEl.offsetWidth; // restart the animation on a repeated class
+    }
+    tourEl.classList.add('careeros-tour--enter');
 
     tourEl.querySelector('.careeros-tour__skip').onclick = () => endTour(true);
     tourEl.querySelector('.careeros-tour__next').onclick = () => {

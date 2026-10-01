@@ -122,7 +122,37 @@
   function setUpAutoApply() {
     $('autoApplySection').hidden = false;
     const btn = $('autoApplyBtn');
+    const stopBtn = $('stopApplyBtn');
     const msg = $('autoApplyMsg');
+
+    /* The popup closes itself right after starting a run (see the end of
+       btn.onclick below), so there was never a moment it could show a Stop
+       control for that run — the only way to stop one was to go find the
+       dashboard. Checking state on every popup open means reopening the
+       popup while a run is active shows Stop instead of Auto Apply, right
+       where the person already is. */
+    async function refreshRunState() {
+      const res = await engineCmd('state');
+      const running = Boolean(res && res.ok && res.state && res.state.running);
+      btn.hidden = running;
+      stopBtn.hidden = !running;
+      if (running) {
+        const s = res.state;
+        const queued = s.queue.filter((j) => j.state === 'queued').length;
+        msg.textContent = `Running — ${s.stats.applied} submitted, ${s.stats.assisted} filled, ${queued} left in queue.`;
+      }
+      return running;
+    }
+
+    stopBtn.onclick = async () => {
+      stopBtn.disabled = true;
+      stopBtn.classList.add('is-loading');
+      await engineCmd('stop');
+      stopBtn.disabled = false;
+      stopBtn.classList.remove('is-loading');
+      msg.textContent = 'Stopped.';
+      await refreshRunState();
+    };
 
     btn.onclick = async () => {
       const permOk = await ensureApplyPermissions();
@@ -163,6 +193,8 @@
       await openOrFocusDashboard();
       window.close();
     };
+
+    refreshRunState();
   }
 
   async function loadTab() {
