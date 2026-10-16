@@ -1,0 +1,66 @@
+#careeros-live-copilot-root {
+  all: initial;
+}
+
+#careeros-live-copilot-root .cos-lc-panel {
+  position: fixed;
+  z-index: 2147483647;
+  right: 20px;
+  bottom: 20px;
+  display: none;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(24, 24, 27, 0.94);
+  color: #f4f4f5;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+#careeros-live-copilot-root.cos-lc-visible .cos-lc-panel {
+  display: block;
+}
+
+#careeros-live-copilot-root .cos-lc-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+#careeros-live-copilot-root .cos-lc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+#careeros-live-copilot-root .cos-lc-stop {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  color: #f4f4f5;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#careeros-live-copilot-root .cos-lc-stop:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+#careeros-live-copilot-root .cos-lc-hint {
+  font-size: 13px;
+  color: #f4f4f5;
+  opacity: 0.95;
+}
+
+#careeros-live-copilot-root .cos-lc-status {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #f87171;
+}

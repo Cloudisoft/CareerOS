@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { safeNext } from "@/lib/safe-next";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,10 +12,8 @@ import { cn } from "@/lib/utils";
 
 type AccountType = "CANDIDATE" | "EMPLOYER";
 
-function SignupForm() {
+export default function SignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next");
   const [accountType, setAccountType] = useState<AccountType>("CANDIDATE");
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "" });
   const [error, setError] = useState<string | null>(null);
@@ -41,9 +38,7 @@ function SignupForm() {
         return;
       }
 
-      // Connecting the browser extension shouldn't be lost behind sign-up; onboarding can follow.
-      if (next && safeNext(next, "").startsWith("/extension-connect")) router.push(safeNext(next));
-      else router.push(json.data.needsOnboarding ? "/onboarding" : safeNext(next));
+      router.push(json.data.needsOnboarding ? "/onboarding" : "/dashboard");
       router.refresh();
     } catch {
       setError("Something went wrong. Your data is safe — please try again.");
@@ -146,13 +141,5 @@ function SignupForm() {
         </p>
       </CardContent>
     </Card>
-  );
-}
-
-export default function SignupPage() {
-  return (
-    <Suspense>
-      <SignupForm />
-    </Suspense>
   );
 }

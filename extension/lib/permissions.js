@@ -112,18 +112,10 @@
     /* Content scripts cannot be declared in the manifest for optional hosts, so
        they are registered at runtime against whatever the person has granted.
        Called on install, on startup, and after every grant or revoke. */
-    /* Install, startup, a grant and the options page can all ask at once; unregister-then-register
-       must run one at a time or Chrome reports a duplicate script id. */
-    registerScripts() {
-      const run = registering.then(() => Permissions.doRegisterScripts());
-      registering = run.catch(() => {});
-      return run;
-    },
-
-    async doRegisterScripts() {
+    async registerScripts() {
       const granted = await chrome.permissions.getAll();
       const origins = (granted.origins || []).filter(
-        (o) => !o.includes('careeros.example') && !o.includes('localhost')
+        (o) => !o.includes('careeros.silverspringstaffing.com') && !o.includes('localhost')
       );
 
       try {
@@ -152,8 +144,8 @@
             'lib/careeros-api.js',
             'lib/flows.js',
             'lib/harvest.js',
-            'lib/answers.js',
             'lib/filler.js',
+            'lib/coach.js',
             'content/careeros.js',
           ],
           css: ['content/fields.css'],
@@ -166,8 +158,6 @@
       return { registered: origins.length };
     },
   };
-
-  let registering = Promise.resolve();
 
   root.CareerOS = root.CareerOS || {};
   root.CareerOS.Permissions = Permissions;

@@ -1,20 +1,18 @@
 /* CareerOS — apply engine
  *
- * Owns the run: pulls postings from discovery, scores them, queues the ones worth applying to, and works
- * the queue through a pool of background tabs.
+ * Owns the run: pulls postings from discovery, scores them, queues the ones
+ * worth applying to, and works the queue through a pool of background tabs.
  *
  * Speed comes from four places, none of which is hammering a server:
  *   1. Discovery is one API call per source, not one page load per posting.
- *   2. A pool of tabs applies concurrently, so a slow Workday form doesn't block a fast Lever one.
- *   3. Cover letters for the next few jobs are written while the current one is being filled.
- *   4. Saved answers mean a repeated screening question costs nothing.
+ *   2. A pool of tabs applies concurrently, so a slow Workday form doesn't
+ *      block a fast Lever one.
+ *   3. Cover letters for the next few jobs are written while the current one
+ *      is being filled, so generation never sits on the critical path.
+ *   4. The answer bank means a repeated screening question costs nothing.
  *
- * When an application needs the person (a visible CAPTCHA, a sign-in, a question only they can answer) it
- * waits in its own tab and they're notified; the rest of the queue keeps going. Tabs in progress are kept in
- * session storage, so Chrome suspending the service worker mid-run loses nothing.
- *
- * Pacing is per platform and comes from lib/policy.js, which is also the only thing that can authorise an
- * automated submit.
+ * Pacing is per platform and comes from lib/policy.js, which is also the only
+ * thing that can authorise an automated submit.
  */
 (function (root) {
   'use strict';
@@ -22,146 +20,185 @@
   const { Storage, Profile, Matcher, Policy, Discovery, Api } = root.CareerOS;
 
   const STATE_KEY = 'careeros.engine';
-  const ACTIVE_KEY = 'careeros.active';
-  const FILL_TIMEOUT_MS = 8 * 60 * 1000;    // filling one application (background tabs are throttled)
-  const SUBMIT_TIMEOUT_MS = 3 * 60 * 1000;  // waiting for the page after submit was pressed
-  const HEARTBEAT_EVERY_MS = 15000;
+  const JOB_TIMEOUT_MS = 180000;
 
   const runtime = {
+    tabs: new Map(),        // tabId -> { job, resolve, timer }
     gateUntil: new Map(),   // ats -> earliest timestamp for the next job
-    pregen: new Map(),      // job id -> generated cover letter
-    loopRunning: false,
-    lastHeartbeat: 0
+    pregen: new Map(),      // externalId -> generated text
+    loopRunning: false
   };
-
-  /* ---------------- persistence ---------------- */
-
-  const EMPTY_STATE = {
-    running: false,
-    queue: [],
-    done: [],
-    startedAt: null,
-    runId: null,
-    lastError: null,
-    stats: { queued: 0, applied: 0, assisted: 0, skipped: 0, failed: 0 }
-  };
-
-  /* Tabs being worked on. Session storage survives the service worker being suspended (not a browser restart). */
-  let activeLock = Promise.resolve();
-  function getActive() {
-    return new Promise((resolve) => chrome.storage.session.get([ACTIVE_KEY], (r) => resolve(r[ACTIVE_KEY] || {})));
-  }
-  function updateActive(fn) {
-    const run = activeLock.then(async () => {
-      const next = await fn(await getActive());
-      await new Promise((resolve) => chrome.storage.session.set({ [ACTIVE_KEY]: next }, resolve));
-      return next;
-    });
-    activeLock = run.catch(() => {});
-    return run;
-  }
 
   const Engine = {
     async getState() {
-      return Object.assign({}, EMPTY_STATE, await Storage.get(STATE_KEY, {}));
-    },
-
-    /* All state writes go through here, one at a time, so results arriving from several tabs at once can't
-       overwrite each other (which used to flip a finished job back to queued and apply to it twice). */
-    async mutate(fn) {
-      const next = await Storage.update(STATE_KEY, {}, async (stored) => {
-        const current = Object.assign({}, EMPTY_STATE, stored);
-        return Object.assign(current, await fn(current));
+      return Storage.get(STATE_KEY, {
+        running: false,
+        queue: [],
+        done: [],
+        startedAt: null,
+        lastError: null,
+        stats: { queued: 0, applied: 0, assisted: 0, skipped: 0, failed: 0 }
       });
-      heartbeat(next);
-      return next;
     },
 
     async setState(patch) {
-      return Engine.mutate(() => patch);
+      const state = await Engine.getState();
+      const next = Object.assign(state, patch);
+      await Storage.set(STATE_KEY, next);
+
+      /* Heartbeat, so the Auto Apply page shows a live run rather than a
+         static mock. Fire and forget: a dropped heartbeat is cosmetic. */
+      if (next.runId) {
+        Api.heartbeat({
+          runId: next.runId,
+          status: next.running ? 'running' : 'finished',
+          queued: next.queue.filter((j) => j.state === 'queued').length,
+          submitted: next.stats.applied,
+          assisted: next.stats.assisted,
+          skipped: next.stats.skipped,
+          failed: next.stats.failed,
+          lastError: next.lastError || undefined,
+        }).catch(() => {});
+      }
+      return next;
     },
 
     /* ---------------- building the queue ---------------- */
 
     async build() {
-      const profile = Profile.hydrate(await Storage.getProfile());
+      const profilesData = await Storage.getProfiles();
+      const activeProfile = Profile.hydrate(profilesData.profiles[profilesData.activeId]);
+      const allProfiles = Object.values(profilesData.profiles).map((p) => Profile.hydrate(p));
+      const multi = allProfiles.length > 1;
       const settings = await Storage.getSettings();
-      const sources = await Storage.get('careeros.sources', { boards: [] });
+      const blocked = await getBlockedSites();
+      const storedSources = await Storage.get('careeros.sources', { boards: [] });
+      const sources = Object.assign({}, storedSources, {
+        boards: (storedSources.boards || []).filter((b) => !blocked.includes(normalizeKey(b.token)))
+      });
 
-      const { jobs, errors } = await Discovery.search(profile, settings, sources);
+      // Discovery's search terms (title/location keywords) still come from the
+      // active profile — searching once per profile would multiply API calls
+      // for a benefit that scoring against every profile already captures.
+      // Company boards + any bring-your-own-key aggregators run from here in
+      // the browser; broad market search also runs server-side against
+      // CareerOS's own keys (Api.getJobs) so results show up with nothing to
+      // configure — see careeros-api.js and discovery.js's header comment.
+      const [discovered, serverResult] = await Promise.all([
+        Discovery.search(activeProfile, settings, sources),
+        Api.getJobs(activeProfile).catch((err) => ({ jobs: [], message: err.message }))
+      ]);
+
+      const serverJobs = (serverResult.jobs || []).map((j) => Object.assign({ source: 'careeros', radiusSearched: true }, j));
+      // Board fetches and the server's own Adzuna/JSearch pull are two
+      // independent sources that can easily surface the same real posting
+      // under two different URLs (an aggregator redirect vs. the employer's
+      // direct apply link) — Discovery.search() only dedupes within its own
+      // results, so the combined list needs a second pass or the same job
+      // can be queued (and counted) twice.
+      const jobs = Discovery.dedupe(discovered.jobs.concat(serverJobs));
+      const errors = discovered.errors.slice();
+      if (serverResult.message) errors.push(serverResult.message);
 
       const scored = [];
-      let wontRun = 0;
       for (const job of jobs) {
         const posting = {
           title: job.title,
           company: job.company,
           description: `${job.description} ${job.location}`,
-          url: job.applyUrl || job.url
+          url: job.applyUrl || job.url,
+          radiusSearched: Boolean(job.radiusSearched)
         };
-        const match = Matcher.score(profile, posting);
+
+        if (isBlockedJob(job, blocked)) continue;
+        const match = multi ? Matcher.scoreAll(allProfiles, posting)[0] : Matcher.score(activeProfile, posting);
         if (match.blocked) continue;
         if (match.score < settings.minMatchScore) continue;
         if (await Storage.alreadyApplied(posting.url)) continue;
 
         const target = Discovery.resolveApplyUrl(job);
-        const ats = job.ats || target.ats;
-        // Sites CareerOS only fills (or can't fill) would sit in the queue forever.
-        if (!Policy.canQueue(ats, settings)) { wontRun += 1; continue; }
         scored.push({
           id: job.externalId,
           title: job.title,
           company: job.company,
           location: job.location,
           url: target.url,
-          ats,
+          ats: job.ats || target.ats,
           score: match.score,
           reasons: match.reasons.slice(0, 3),
           matchedSkills: match.matchedSkills,
           description: (job.description || '').slice(0, 6000),
           postedAt: job.postedAt,
-          state: 'queued'
+          state: 'queued',
+          profileId: match.profileId || profilesData.activeId,
+          profileScore: match.score
         });
       }
 
       // Best matches first, and among equals the freshest posting.
       scored.sort((a, b) => (b.score - a.score) || (b.postedAt - a.postedAt));
 
-      const queue = scored.slice(0, Math.max(10, settings.dailyLimit * 2));
+      // build() used to replace the queue outright, which silently threw away
+      // whatever add() had already collected off a LinkedIn/Indeed/etc. search
+      // page in this same session — someone who'd harvested a real page of
+      // results, then pressed the one-click Auto Apply button, would watch
+      // their whole queue vanish and get told nothing matched, even though it
+      // had just shown 7 queued jobs a moment earlier. Merge instead: keep
+      // every job already queued (harvested or from a prior build), fold in
+      // whatever this search just found, dedupe by id, then re-sort and cap.
+      // Jobs no longer 'queued' (already run — submitted/assisted/skipped/
+      // failed) are left untouched and out of the cap entirely; they're done,
+      // not competing for a slot.
+      const prior = await Engine.getState();
+      const alreadyHandled = prior.queue.filter((j) => j.state !== 'queued');
+      const priorQueued = prior.queue.filter((j) => j.state === 'queued' && !isBlockedJob(j, blocked));
+
+      const byId = new Map(priorQueued.map((j) => [j.id, j]));
+      for (const job of scored) byId.set(job.id, job);
+      const merged = Array.from(byId.values());
+      merged.sort((a, b) => (b.score - a.score) || ((b.postedAt || 0) - (a.postedAt || 0)));
+
+      const queued = merged.slice(0, settings.dailyLimit * 2);
+      const queue = alreadyHandled.concat(queued);
       await Engine.setState({
         queue,
         lastError: errors.length ? errors.join(' · ') : null,
-        stats: { queued: queue.length, applied: 0, assisted: 0, skipped: 0, failed: 0 }
+        stats: Object.assign({}, prior.stats, { queued: queued.length })
       });
 
-      return { queued: queue.length, found: jobs.length, wontRun, errors };
+      return { queued: queued.length, found: jobs.length, errors };
     },
 
     /* Jobs harvested from a results page. They arrive without a description,
        so they get scored again in the tab once the posting has loaded. */
     async add(jobs) {
+      const state = await Engine.getState();
       const settings = await Storage.getSettings();
-      const profile = Profile.hydrate(await Storage.getProfile());
+      const profilesData = await Storage.getProfiles();
+      const allProfiles = Object.values(profilesData.profiles).map((p) => Profile.hydrate(p));
+      const multi = allProfiles.length > 1;
+
+      const known = new Set(state.queue.map((j) => j.id));
+      const blocked = await getBlockedSites();
       const fresh = [];
       let duplicates = 0;
-      let wontRun = 0;
 
-      const state = await Engine.getState();
-      const known = new Set(state.queue.map((j) => j.id));
       for (const job of jobs || []) {
         if (known.has(job.id)) { duplicates += 1; continue; }
+        if (isBlockedJob(job, blocked)) { duplicates += 1; continue; }
         if (await Storage.alreadyApplied(job.url)) { duplicates += 1; continue; }
 
         // Only the title is available at this point, so this is a cheap first
         // pass. The real score happens in the tab against the full description.
-        const rough = Matcher.score(profile, {
+        const posting = {
           title: job.title,
           company: job.company,
           description: `${job.title} ${job.location}`,
-          url: job.url
-        });
+          url: job.url,
+          radiusSearched: Boolean(job.radiusSearched)
+        };
+        const rough = multi ? Matcher.scoreAll(allProfiles, posting)[0] : Matcher.score(allProfiles[0], posting);
         if (rough.blocked) { duplicates += 1; continue; }
-        if (!Policy.canQueue(job.ats, settings)) wontRun += 1;
 
         known.add(job.id);
         fresh.push(Object.assign({}, job, {
@@ -169,77 +206,68 @@
           reasons: rough.reasons.slice(0, 2),
           matchedSkills: rough.matchedSkills,
           provisional: true,
-          state: 'queued'
+          state: 'queued',
+          profileId: rough.profileId || profilesData.activeId,
+          profileScore: rough.score
         }));
       }
 
-      const next = await Engine.mutate((s) => {
-        const queue = s.queue.concat(fresh.filter((j) => !s.queue.some((q) => q.id === j.id)));
-        return { queue, stats: Object.assign({}, s.stats, { queued: queue.filter((j) => j.state === 'queued').length }) };
+      const queue = state.queue.concat(fresh);
+      await Engine.setState({
+        queue,
+        stats: Object.assign({}, state.stats, { queued: queue.filter((j) => j.state === 'queued').length })
       });
-      return { added: fresh.length, duplicates, wontRun, total: next.queue.length };
+      return { added: fresh.length, duplicates, total: queue.length };
     },
 
     /* ---------------- running ---------------- */
 
     async start() {
-      const settings = await Storage.getSettings();
-      if (!settings.autoSubmit) {
-        // A run that fills forty forms and submits none just leaves forty
-        // half-finished applications behind. Better to say so than to pretend.
-        return Engine.setState({
-          running: false,
-          lastError: 'Turn on "Submit without asking me first" before starting a run. Without it, use the panel on individual postings instead.'
+      // Auto-submit off doesn't mean "don't run" — it means every job in this
+      // run fills and stops instead of sending (handleReady's canAutoSubmit
+      // check already enforces that per job, and restricted platforms like
+      // LinkedIn are held to fill-only regardless of this setting anyway).
+      // This used to refuse to start the loop at all unless auto-submit was
+      // on, which meant the one-click "Auto Apply" button could never do the
+      // one thing it's supposed to do with auto-submit left off (the safer,
+      // recommended default): open the queued jobs and fill them for review.
+      const state = await Engine.getState();
+      if (!state.queue.length) await Engine.build();
+
+      // Anything still queued from a site known to block automation is
+      // skipped up front rather than left sitting in the queue forever.
+      const blocked = await getBlockedSites();
+      const current = await Engine.getState();
+      let newlySkipped = 0;
+      const cleaned = current.queue.map((j) => {
+        if (j.state !== 'queued' || !isBlockedJob(j, blocked)) return j;
+        newlySkipped += 1;
+        return Object.assign({}, j, { state: 'skipped', detail: `${j.company || 'This site'} blocks automated applications` });
+      });
+      if (newlySkipped) {
+        await Engine.setState({
+          queue: cleaned,
+          stats: Object.assign({}, current.stats, { skipped: current.stats.skipped + newlySkipped })
         });
       }
-      let state = await Engine.getState();
-      if (!state.queue.some((j) => j.state === 'queued')) {
-        await Engine.build();
-        state = await Engine.getState();
-      }
-      if (!state.queue.some((j) => j.state === 'queued')) {
-        return Engine.setState({ running: false, lastError: 'No matching jobs to apply to right now. Add job sites or lower the minimum match in settings.' });
-      }
+
       await Engine.setState({
         running: true,
         startedAt: Date.now(),
+        runId: `run_${Date.now().toString(36)}`,
         lastError: null,
-        // One run per queue: stopping and starting again (or Chrome restarting) continues the same run
-        // instead of counting as a new campaign.
-        runId: state.runId || `run_${Date.now().toString(36)}`,
       });
       chrome.alarms.create('careeros:tick', { periodInMinutes: 1 });
       Engine.loop();
       return Engine.getState();
     },
 
-    async stop(reason, opts) {
-      const next = await Engine.setState({ running: false, lastError: reason || null });
+    async stop(reason) {
+      await Engine.setState({ running: false, lastError: reason || null });
       chrome.alarms.clear('careeros:tick');
-      // Leave tabs that are waiting for the person open: closing them would throw their answers away.
-      const active = await getActive();
-      for (const [tabId, entry] of Object.entries(active)) {
-        if (entry.phase === 'waiting' && !(opts && opts.closeWaiting)) continue;
-        closeTab(Number(tabId));
-      }
-      await updateActive((a) => {
-        const keep = {};
-        for (const [tabId, entry] of Object.entries(a)) if (entry.phase === 'waiting' && !(opts && opts.closeWaiting)) keep[tabId] = entry;
-        return keep;
-      });
-      await Engine.mutate((s) => ({ queue: s.queue.map((j) => (j.state === 'running' ? Object.assign({}, j, { state: 'queued' }) : j)) }));
-      await updateBadge();
-      return next;
-    },
-
-    /* After a browser restart nothing is in flight any more: put interrupted jobs back in the queue
-       (unless submit had already been pressed, which must never be repeated). */
-    async recover() {
-      const active = await getActive();
-      const live = new Set(Object.values(active).map((e) => e.job.id));
-      await Engine.mutate((s) => ({
-        queue: s.queue.map((j) => ((j.state === 'running' || j.state === 'waiting') && !live.has(j.id) ? Object.assign({}, j, { state: j.submitPressed ? 'assisted' : 'queued' }) : j)),
-      }));
+      for (const [tabId] of runtime.tabs) closeTab(tabId);
+      runtime.tabs.clear();
+      return Engine.getState();
     },
 
     /* The loop is re-entrant on purpose: an alarm can restart it after the
@@ -252,50 +280,42 @@
         while (true) {
           const state = await Engine.getState();
           if (!state.running) break;
-          await expireStale();
 
           const settings = await Storage.getSettings();
-          const limit = await limitReached(settings);
-          if (limit) {
-            await Engine.stop(limit);
-            notify('CareerOS has stopped for now', limit);
+          const usedToday = await Storage.appliedToday();
+          if (usedToday >= settings.dailyLimit) {
+            await Engine.stop(`Daily cap of ${settings.dailyLimit} reached`);
+            notify('CareerOS is done for today', `${usedToday} applications went out.`);
             break;
           }
 
-          const active = Object.values(await getActive());
-          const working = active.filter((e) => e.phase !== 'waiting');
-          const next = pickNext(state.queue, settings);
+          const next = pickNext(state.queue, settings, await getBlockedSites());
           if (!next) {
-            if (!working.length && !state.queue.some((j) => j.state === 'queued')) {
-              const waiting = active.length;
-              // Report the finished run before forgetting its id (a run with applications still waiting keeps it).
-              await Engine.setState({ running: false, lastError: waiting ? `${waiting} application${waiting === 1 ? '' : 's'} waiting for you` : 'Queue finished' });
-              if (!waiting) await Engine.setState({ runId: null });
-              chrome.alarms.clear('careeros:tick');
-              notify('Run finished', summarize(await Engine.getState()) + (waiting ? ` ${waiting} still need${waiting === 1 ? 's' : ''} you.` : ''));
+            if (!runtime.tabs.size) {
+              await Engine.stop('Queue finished');
+              notify('Run finished', summarize(await Engine.getState()));
               break;
             }
             await sleep(2000);
             continue;
           }
 
-          // One tab at a time on a restricted platform: parallel sessions on
-          // the same account are both slower in practice and the thing most
-          // likely to get one flagged. Applications waiting for the person don't count.
-          const restricted = Policy.isRestricted(next.ats);
-          const total = Math.max(1, Number(settings.concurrency) || 3);
-          const cap = restricted ? 1 : total;
-          const openOnPlatform = working.filter((e) => e.job.ats === next.ats).length;
-          if (openOnPlatform >= cap || working.length >= total) {
+          const cap = Policy.concurrencyCap(next.ats, settings);
+          const openOnPlatform = [...runtime.tabs.values()].filter((t) => t.job.ats === next.ats).length;
+          if (openOnPlatform >= cap || runtime.tabs.size >= Math.max(cap, Number(settings.concurrency) || 3)) {
             await sleep(1500);
             continue;
           }
 
-          // Jitter the gap so a run doesn't tick like a metronome.
+          // Jitter the gap so a run doesn't tick like a metronome. Restricted
+          // platforms watch session shape, and a perfectly regular cadence is
+          // the most obvious signal there is.
           runtime.gateUntil.set(next.ats, Date.now() + Policy.jitter(next.ats, settings));
-          await mark(next.id, { state: 'running' });
+          await mark(next.id, 'running');
           pregenerateAhead(state.queue, settings);
-          await openTab(next);
+
+          // Fire and forget: the pool size is what limits concurrency.
+          applyTo(next).catch(() => {});
           await sleep(600);
         }
       } finally {
@@ -303,33 +323,37 @@
       }
     },
 
-    /* ---------------- messages from the page ---------------- */
+    /* ---------------- one application ---------------- */
 
-    /* Called by the worker when a content script announces itself (also after every page navigation). */
-    async handleReady(tabId, url) {
-      let entry = (await getActive())[tabId];
-      if (!entry) return null;
-      // Handed off to (or opened) the employer's own form: from here it's an application on that site.
-      if (url && (entry.handoff || entry.adopted)) entry = await retarget(tabId, url);
+    async applyTo(job) {
+      return applyTo(job);
+    },
+
+    /* Called by the worker when a content script announces itself. */
+    async handleReady(tabId) {
+      const entry = runtime.tabs.get(tabId);
       if (!entry) return null;
       const settings = await Storage.getSettings();
       const permission = Policy.canAutoSubmit(entry.job.ats, settings);
 
-      if (!entry.submitPressed && await Storage.alreadyApplied(entry.job.url)) {
-        await Engine.handleResult(tabId, { outcome: 'skipped', detail: 'Already applied (on this or another device)' });
-        return null;
+      /* A tailored package means this posting has its own resume, cover letter
+         and screening answers, written and approved for it. Without one the
+         content script falls back to the base profile. */
+      const pkg = await Api.getPackage(entry.job).catch(() => ({ tailored: false }));
+      if (pkg && pkg.tailored) {
+        entry.job.applicationId = pkg.applicationId;
       }
 
-      /* A tailored package means this posting has its own resume summary and cover letter. Without one
-         the content script falls back to the base profile. */
-      const pkg = entry.pkg || await Api.getPackage(entry.job).catch(() => ({ tailored: false }));
-      if (pkg && pkg.code === 'UNAUTHENTICATED') {
-        await Engine.stop('Sign in again: this browser is no longer connected to your Career OS account.');
-        notify('CareerOS needs you to sign in', 'Open CareerOS and press Sign in, then start the run again.');
-        return null;
-      }
-      if (!entry.pkg) {
-        await updateActive((a) => (a[tabId] ? Object.assign(a, { [tabId]: Object.assign({}, a[tabId], { pkg, job: Object.assign({}, a[tabId].job, { applicationId: pkg && pkg.applicationId }) }) }) : a));
+      // The job was scored and queued against a specific profile (see build()/
+      // add()), which may not be whichever profile is globally active — hand
+      // the content script that exact profile so it fills from it, without
+      // ever flipping which one is active.
+      let profileOverride = null;
+      if (entry.job.profileId) {
+        const profilesData = await Storage.getProfiles();
+        if (entry.job.profileId !== profilesData.activeId && profilesData.profiles[entry.job.profileId]) {
+          profileOverride = Profile.hydrate(profilesData.profiles[entry.job.profileId]);
+        }
       }
 
       return {
@@ -338,300 +362,236 @@
           autoSubmit: permission.allowed,
           policyNote: permission.reason,
           maxSteps: stepsFor(entry.job.ats),
-          submitPressed: !!entry.submitPressed,
           pregenerated: (pkg && pkg.tailored ? pkg.coverLetter : null) || runtime.pregen.get(entry.job.id) || null,
           tailoredResume: pkg && pkg.tailored ? pkg.resume : null,
-          screeningAnswers: (pkg && pkg.tailored ? pkg.screeningAnswers : null) || []
+          screeningAnswers: (pkg && pkg.tailored ? pkg.screeningAnswers : null) || [],
+          profileId: entry.job.profileId || null,
+          profileOverride
         }
       };
     },
 
     async handleResult(tabId, result) {
-      let entry = null;
-      await updateActive((a) => {
-        entry = a[tabId] || null;
-        delete a[tabId];
-        return a;
-      });
+      const entry = runtime.tabs.get(tabId);
       if (!entry) return;
+      clearTimeout(entry.timer);
+      runtime.tabs.delete(tabId);
       runtime.pregen.delete(entry.job.id);
-      // "Assisted" means filled and waiting for the person to press submit: leave that tab open.
-      if (result.outcome !== 'assisted') closeTab(tabId);
-      await settle(Object.assign({}, entry.job, { submitPressed: entry.submitPressed }), result);
-      await updateBadge();
-    },
-
-    /* The application needs the person: keep its tab, tell them, and let the rest of the queue run. */
-    async handleNeedsYou(tabId, info) {
-      let entry = null;
-      await updateActive((a) => {
-        if (a[tabId]) a[tabId] = Object.assign({}, a[tabId], { phase: 'waiting', reason: info.reason, message: info.message, since: Date.now() });
-        entry = a[tabId] || null;
-        return a;
-      });
-      if (!entry) return;
-      await mark(entry.job.id, { state: 'waiting', detail: info.message || 'Needs you' });
-      const what = info.reason === 'captcha' ? 'a verification check' : info.reason === 'login' ? 'you to sign in' : 'your answer';
-      heartbeat(await Engine.getState(), true);
-      notify(`${entry.job.company || 'An application'} needs ${what}`, `${entry.job.title || ''}. Click to open the tab. CareerOS continues by itself afterwards.`, `careeros:tab:${tabId}`, true);
-      await updateBadge();
-    },
-
-    async handleResumed(tabId) {
-      let entry = null;
-      await updateActive((a) => {
-        if (a[tabId]) a[tabId] = Object.assign({}, a[tabId], { phase: a[tabId].submitPressed ? 'submitting' : 'running', startedAt: Date.now(), reason: null, message: null });
-        entry = a[tabId] || null;
-        return a;
-      });
-      if (!entry) return;
-      chrome.notifications.clear(`careeros:tab:${tabId}`);
-      await mark(entry.job.id, { state: 'running', detail: null });
-      heartbeat(await Engine.getState(), true);
-      await updateBadge();
-      const state = await Engine.getState();
-      if (state.running) Engine.loop();
-    },
-
-    /* Submit is being pressed: from now on this job is never retried, only verified. */
-    async handleSubmitting(tabId) {
-      let entry = null;
-      await updateActive((a) => {
-        if (a[tabId]) a[tabId] = Object.assign({}, a[tabId], { phase: 'submitting', submitPressed: true, submittedAt: Date.now() });
-        entry = a[tabId] || null;
-        return a;
-      });
-      if (entry) await mark(entry.job.id, { submitPressed: true });
-    },
-
-    /* The page is about to go to the employer's own form ("Apply on company site"). */
-    async handleHandoff(tabId, url) {
-      await updateActive((a) => {
-        if (a[tabId]) a[tabId] = Object.assign({}, a[tabId], { handoff: true, startedAt: Date.now() });
-        return a;
-      });
-      if (url) await retarget(tabId, url);
-    },
-
-    /* The page is about to press something that may open the application in a new tab. */
-    async handleExpectTab(tabId) {
-      await updateActive((a) => {
-        if (a[tabId]) a[tabId] = Object.assign({}, a[tabId], { expectTabAt: Date.now() });
-        return a;
-      });
-    },
-
-    /* A job's tab opened another tab (Indeed Apply, an employer's "Apply" link): the application continues
-       there, so the job moves to the new tab and the old one is closed. */
-    async adoptTab(openerTabId, tab) {
-      let moved = null;
-      await updateActive((a) => {
-        // Chrome doesn't always record which tab opened a new one; a tab that just announced a handoff owns it.
-        if (openerTabId === undefined || !a[openerTabId]) {
-          const recent = Object.entries(a).find(([, e]) => (e.handoff && Date.now() - e.startedAt < 15000) || (e.expectTabAt && Date.now() - e.expectTabAt < 15000));
-          if (recent) openerTabId = Number(recent[0]);
-        }
-        const entry = a[openerTabId];
-        if (!entry || a[tab.id] || Number(openerTabId) === tab.id) return a;
-        moved = Object.assign({}, entry, { adopted: true, startedAt: Date.now() });
-        a[tab.id] = moved;
-        delete a[openerTabId];
-        return a;
-      });
-      if (!moved) return;
-      const url = tab.pendingUrl || tab.url;
-      if (url && /^https?:/.test(url)) await retarget(tab.id, url);
-      setTimeout(() => closeTab(openerTabId), 1500);
-    },
-
-    /* A handed-off tab reached a page: if CareerOS can't run on that site, say so instead of timing out. */
-    async handleNavigated(tabId, url) {
-      const entry = (await getActive())[tabId];
-      if (!entry || !(entry.handoff || entry.adopted) || !/^https?:/.test(url || '')) return;
-      if (!(await canRunOn(url))) {
-        await Engine.handleResult(tabId, { outcome: 'skipped', detail: `Applies on ${new URL(url).hostname}. Turn that site on in CareerOS settings to apply there automatically.` });
+      // A login wall needs the person in that exact tab (and stops the run,
+      // see settle()), so it stays open and focused. A filled application
+      // waiting for the person's own Submit press, or one with a required
+      // question only they can answer, also stays open — closing those
+      // threw away the filled form before anyone saw it. Everything else
+      // (submitted, failed, skipped as a poor match, bot-protected) closes so
+      // a run doesn't pile up tabs.
+      const needsPerson = result.outcome === 'assisted'
+        || (result.outcome === 'skipped' && /needs you/i.test(result.detail || ''));
+      if (result.detail === 'needs_login') {
+        chrome.tabs.update(tabId, { active: true }).catch(() => {});
+        if (entry.windowId != null) chrome.windows.update(entry.windowId, { focused: true }).catch(() => {});
+      } else if (!needsPerson) {
+        closeTab(tabId);
       }
+      await settle(entry.job, result);
+      if (entry.resolve) entry.resolve(result);
     },
 
-    /* The person closed a tab we were working in. */
-    async handleTabClosed(tabId) {
-      const entry = (await getActive())[tabId];
+    /* Step-level progress from a content script mid-run, so the dashboard can
+       show "step 3 of 7" instead of a flat "Applying" pill. Fire-and-forget on
+       both ends — losing one to a suspended worker is cosmetic. */
+    async handleProgress(tabId, progress) {
+      const entry = runtime.tabs.get(tabId);
       if (!entry) return;
-      await Engine.handleResult(tabId, entry.submitPressed
-        ? { outcome: 'submitted', detail: 'Tab closed after submit; no confirmation seen' }
-        : { outcome: 'skipped', detail: 'You closed the tab' });
+      entry.progress = progress;
+      const state = await Engine.getState();
+      const queue = state.queue.map((j) =>
+        j.id === entry.job.id ? Object.assign({}, j, { progress }) : j
+      );
+      await Engine.setState({ queue });
     },
 
-    focusTab,
-    getActive,
     runtime
   };
 
   /* ---------------- internals ---------------- */
 
   /* LinkedIn Easy Apply runs five or six panes; Workday is deeper still. */
+  /* Pages a long application may run before it's treated as stuck. Long
+     enterprise forms (Workday, iCIMS, Taleo) routinely run 6-10 pages, and a
+     generic company careers form can be several pages too. */
   function stepsFor(ats) {
-    if (ats === 'workday') return 10;
-    if (ats === 'linkedin') return 8;
-    if (ats === 'indeed') return 7;
-    return 6;
+    if (ats === 'workday' || ats === 'icims' || ats === 'taleo') return 14;
+    if (ats === 'linkedin' || ats === 'indeed') return 10;
+    return 10;
   }
 
-  /* Point the job at the page it actually ended up on (an employer's form after a job-board handoff). */
-  async function retarget(tabId, url) {
-    let updated = null;
-    const ats = Discovery.classifyUrl(url);
-    await updateActive((a) => {
-      if (!a[tabId]) return a;
-      const prev = a[tabId].job;
-      const job = Object.assign({}, prev, { url, ats, via: prev.via || prev.ats, viaUrl: prev.viaUrl || prev.url });
-      a[tabId] = Object.assign({}, a[tabId], { job, pkg: null });
-      updated = a[tabId];
-      return a;
-    });
-    return updated;
+  /* Time a job may take before it's abandoned — long forms get more. */
+  function timeoutFor(ats) {
+    if (ats === 'workday' || ats === 'icims' || ats === 'taleo') return 300000;
+    return JOB_TIMEOUT_MS;
   }
 
-  function canRunOn(url) {
-    try {
-      return chrome.permissions.contains({ origins: [`${new URL(url).origin}/*`] });
-    } catch (err) {
-      return Promise.resolve(false);
-    }
-  }
-
-  function pickNext(queue, settings) {
+  function pickNext(queue, settings, blocked) {
     const now = Date.now();
     return queue.find((j) => {
       if (j.state !== 'queued') return false;
+      if (blocked && isBlockedJob(j, blocked)) return false;
       if (!Policy.canQueue(j.ats, settings)) return false;
       const gate = runtime.gateUntil.get(j.ats) || 0;
       return now >= gate;
     });
   }
 
-  /* Daily cap (this browser) and the plan's monthly cap (all devices, from the last sync). Only real
-     submissions count. */
-  async function limitReached(settings) {
-    const today = await Storage.appliedToday();
-    if (today >= settings.dailyLimit) return `Daily limit of ${settings.dailyLimit} applications reached. It resets at midnight.`;
-    if (settings.monthlyLimit != null) {
-      const list = await Storage.getApplications();
-      const since = settings.syncedAt || 0;
-      const sinceSync = list.filter((a) => a.status === 'submitted' && a.at >= since).length;
-      if ((settings.appliedThisMonth || 0) + sinceSync >= settings.monthlyLimit) {
-        return `Your plan's ${settings.monthlyLimit} applications for this month are used up.`;
-      }
-    }
-    return null;
-  }
+  async function applyTo(job) {
+    const settings = await Storage.getSettings();
 
-  async function openTab(job) {
-    const tab = await chrome.tabs.create({ url: job.url, active: false });
-    await updateActive((a) => Object.assign(a, { [tab.id]: { job, phase: 'running', startedAt: Date.now() } }));
-  }
-
-  /* Applications stuck filling (or stuck after submit) for too long. Ones waiting for the person never expire. */
-  async function expireStale() {
-    const now = Date.now();
-    const active = await getActive();
-    for (const [tabId, e] of Object.entries(active)) {
-      if (e.phase === 'running' && now - e.startedAt > FILL_TIMEOUT_MS) {
-        await Engine.handleResult(Number(tabId), { outcome: 'failed', detail: 'Timed out filling the form' });
-      } else if (e.phase === 'submitting' && now - (e.submittedAt || e.startedAt) > SUBMIT_TIMEOUT_MS) {
-        await Engine.handleResult(Number(tabId), { outcome: 'submitted', detail: 'Submitted; no confirmation page seen' });
-      }
+    /* Hidden background tabs are the sane default for an unattended run — fast,
+       and out of the way. showApplyTabs is opt-in for someone who wants to
+       actually watch a form get filled: a small, unfocused window off to the
+       side rather than a fully hidden tab. */
+    let tab;
+    let windowId = null;
+    if (settings.showApplyTabs) {
+      const win = await chrome.windows.create({
+        url: job.url, type: 'popup', focused: false, width: 420, height: 640, left: 20, top: 20
+      });
+      tab = (win.tabs || [])[0];
+      windowId = win.id;
+    } else {
+      tab = await chrome.tabs.create({ url: job.url, active: false });
     }
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        Engine.handleResult(tab.id, { outcome: 'failed', detail: 'Timed out' });
+      }, timeoutFor(job.ats));
+
+      runtime.tabs.set(tab.id, { job, resolve, timer, windowId, progress: null });
+    });
   }
 
   async function settle(job, result) {
-    const outcome = result.outcome;
-    await Engine.mutate((s) => {
-      const stats = Object.assign({}, s.stats);
-      if (outcome === 'submitted') stats.applied += 1;
-      else if (outcome === 'assisted') stats.assisted += 1;
-      else if (outcome === 'skipped') stats.skipped += 1;
-      else stats.failed += 1;
-      const queue = s.queue.map((j) =>
-        j.id === job.id ? Object.assign({}, j, { state: outcome, detail: result.detail || null }) : j
-      );
-      stats.queued = queue.filter((j) => j.state === 'queued').length;
-      const done = [
-        Object.assign({}, job, { state: outcome, detail: result.detail || null, at: Date.now() }),
-        ...s.done
-      ].slice(0, 300);
-      return { queue, done, stats };
-    });
+    const state = await Engine.getState();
+    const stats = state.stats;
 
-    /* Report to CareerOS so the tracker on the web app is the same list the extension is working from. The
-       local log is written either way; a failed report is shown, not swallowed. */
+    const outcome = result.outcome;
+    if (outcome === 'submitted') stats.applied += 1;
+    else if (outcome === 'assisted') stats.assisted += 1;
+    else if (outcome === 'skipped') stats.skipped += 1;
+    else stats.failed += 1;
+
+    const queue = state.queue.map((j) =>
+      j.id === job.id ? Object.assign({}, j, { state: outcome, detail: result.detail || null }) : j
+    );
+
+    const done = [
+      Object.assign({}, job, { state: outcome, detail: result.detail || null, at: Date.now() }),
+      ...state.done
+    ].slice(0, 300);
+
+    await Engine.setState({ queue, done, stats });
+
+    /* Report to CareerOS so the tracker on the web app is the same list the
+       extension is working from. Failing to reach the server must not break
+       the run — the local log is still written either way. */
     if (outcome === 'submitted' || outcome === 'assisted') {
+      Api.logApplication({
+        url: job.url,
+        title: job.title,
+        company: job.company,
+        ats: job.ats,
+        matchScore: job.score,
+        outcome,
+        detail: result.detail || undefined,
+      }).catch(() => {});
+
+      if (job.applicationId && outcome === 'submitted') {
+        Api.markPackageSubmitted(job.applicationId).catch(() => {});
+      }
+
       await Storage.logApplication({
         url: job.url,
-        viaUrl: job.viaUrl || undefined, // the LinkedIn / Indeed listing it came from, so it isn't queued again
         title: job.title,
         company: job.company,
         ats: job.ats,
         score: job.score,
         status: outcome === 'submitted' ? 'submitted' : 'filled'
       });
-      try {
-        await Api.logApplication({
-          url: job.url,
-          title: job.title || '',
-          company: job.company || '',
-          ats: job.ats || '',
-          matchScore: job.score || 0,
-          outcome,
-          detail: result.detail ? String(result.detail).slice(0, 500) : undefined,
+    }
+
+    // Bot protection (an interactive captcha or invisible detection like
+    // reCAPTCHA v3) is per company, not per platform: Robinhood blocking
+    // automation says nothing about the next Greenhouse board. CareerOS
+    // never tries to get past it. Instead it remembers the company, skips
+    // every other queued job from it, and keeps the run going, so a single
+    // protected employer can't stall a whole batch.
+    if (result.detail === 'captcha') {
+      const key = normalizeKey(job.company);
+      if (key) {
+        await addBlockedSite(key);
+        const s = await Engine.getState();
+        let skippedMore = 0;
+        const queueAfter = s.queue.map((j) => {
+          if (j.state !== 'queued' || normalizeKey(j.company) !== key) return j;
+          skippedMore += 1;
+          return Object.assign({}, j, { state: 'skipped', detail: `${job.company} blocks automated applications` });
         });
-        if (job.applicationId && outcome === 'submitted') await Api.markPackageSubmitted(job.applicationId);
-      } catch (err) {
-        await Engine.setState({ lastError: `Couldn't record "${job.title}" in Career OS: ${err.message}` });
+        const statsAfter = Object.assign({}, s.stats, { skipped: s.stats.skipped + skippedMore });
+        await Engine.setState({ queue: queueAfter, stats: statsAfter });
       }
+      return;
+    }
+
+    // A login wall usually means the whole platform signed the person out,
+    // so stop rather than fail the same way on every remaining job.
+    if (result.detail === 'needs_login') {
+      const why = `${job.company}'s site signed you out.`;
+      await Engine.stop(`Paused on ${job.title} @ ${job.company}: ${why} Sign back in in the tab left open, then press Start to continue with the rest of your queue.`);
+      notify('CareerOS paused', `${why} Its tab is still open. Sign in, then press Start to continue.`);
     }
   }
 
-  async function mark(id, patch) {
-    await Engine.mutate((s) => ({
-      queue: s.queue.map((j) => (j.id === id ? Object.assign({}, j, patch) : j))
-    }));
+  /* ---------------- sites that block automation ---------------- */
+
+  const BLOCKED_KEY = 'careeros.blockedSites';
+  // Known to run bot protection on its application flow — every automated
+  // attempt fails there, so it never enters the queue in the first place.
+  const DEFAULT_BLOCKED = ['robinhood'];
+
+  function normalizeKey(name) {
+    return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  /* Live run status for the Auto Apply page, including applications waiting for the person. Throttled
-     (unless what's waiting changed); errors that mean the run can't continue stop it. */
-  async function heartbeat(state, force) {
-    if (!state || !state.runId) return;
-    const now = Date.now();
-    if (!force && state.running && now - runtime.lastHeartbeat < HEARTBEAT_EVERY_MS) return;
-    runtime.lastHeartbeat = now;
-    const waiting = Object.values(await getActive()).filter((e) => e.phase === 'waiting').map((e) => ({
-      title: String(e.job.title || '').slice(0, 200),
-      company: String(e.job.company || '').slice(0, 200),
-      url: String(e.job.url || '').slice(0, 2000),
-      reason: String(e.reason || '').slice(0, 40),
-      message: String(e.message || '').slice(0, 500),
-      since: e.since || undefined,
-    }));
-    Api.heartbeat({
-      waiting,
-      runId: state.runId,
-      status: state.running ? 'running' : 'finished',
-      queued: state.queue.filter((j) => j.state === 'queued').length,
-      submitted: state.stats.applied,
-      assisted: state.stats.assisted,
-      skipped: state.stats.skipped,
-      failed: state.stats.failed,
-      lastError: state.lastError ? String(state.lastError).slice(0, 500) : undefined,
-    }).catch(async (err) => {
-      if (!state.running) return;
-      if (err.code === 'UNAUTHENTICATED') {
-        await Engine.stop('Sign in again: this browser is no longer connected to your Career OS account.');
-        notify('CareerOS needs you to sign in', 'Open CareerOS and press Sign in, then start the run again.');
-      } else if (err.status === 429 && /campaign/i.test(err.message)) {
-        await Engine.stop(err.message);
-        notify('CareerOS has stopped', err.message);
-      }
+  async function getBlockedSites() {
+    const stored = await Storage.get(BLOCKED_KEY, []);
+    return Array.from(new Set(DEFAULT_BLOCKED.concat(stored || [])));
+  }
+
+  async function addBlockedSite(key) {
+    const stored = await Storage.get(BLOCKED_KEY, []);
+    if ((stored || []).includes(key)) return;
+    await Storage.set(BLOCKED_KEY, (stored || []).concat(key));
+  }
+
+  /* Matches on the company name, or on the key appearing in the apply URL
+     (a Greenhouse board for "robinhood" lives at .../robinhood/jobs/...). */
+  function isBlockedJob(job, blocked) {
+    if (!blocked.length) return false;
+    const company = normalizeKey(job.company);
+    const url = String(job.applyUrl || job.url || '').toLowerCase();
+    let host = '';
+    try { host = new URL(url).hostname; } catch (err) { host = ''; }
+    return blocked.some((key) =>
+      company === key
+      || url.includes(`/${key}/`)
+      || host === `${key}.com` || host.endsWith(`.${key}.com`)
+    );
+  }
+
+  async function mark(id, state) {
+    const s = await Engine.getState();
+    await Engine.setState({
+      queue: s.queue.map((j) => (j.id === id ? Object.assign({}, j, { state }) : j))
     });
   }
 
@@ -648,39 +608,16 @@
     }
   }
 
-  async function updateBadge() {
-    const waiting = Object.values(await getActive()).filter((e) => e.phase === 'waiting').length;
-    if (waiting) {
-      chrome.action.setBadgeText({ text: String(waiting) });
-      chrome.action.setBadgeBackgroundColor({ color: '#DC2626' });
-      chrome.action.setTitle({ title: `CareerOS: ${waiting} application${waiting === 1 ? '' : 's'} need${waiting === 1 ? 's' : ''} you` });
-      return;
-    }
-    const count = await Storage.appliedToday();
-    chrome.action.setBadgeText({ text: count ? String(count) : '' });
-    chrome.action.setBadgeBackgroundColor({ color: '#F14632' });
-    chrome.action.setTitle({ title: 'CareerOS' });
-  }
-  Engine.updateBadge = updateBadge;
-
-  async function focusTab(tabId) {
-    const tab = await chrome.tabs.update(Number(tabId), { active: true }).catch(() => null);
-    if (tab && tab.windowId !== undefined) await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
-    return !!tab;
-  }
-
   function closeTab(tabId) {
     chrome.tabs.remove(tabId).catch(() => {});
   }
 
-  function notify(title, message, id, requireInteraction) {
-    chrome.notifications.create(id || '', {
+  function notify(title, message) {
+    chrome.notifications.create({
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title: String(title || '').slice(0, 100),
-      message: String(message || '').slice(0, 200),
-      priority: requireInteraction ? 2 : 0,
-      requireInteraction: !!requireInteraction
+      title,
+      message: String(message || '').slice(0, 200)
     });
   }
 

@@ -22,19 +22,14 @@ export function extCatch(error: unknown) {
   }
   if (error && typeof error === "object" && "code" in error && "message" in error) {
     const err = error as { code: string; message: string };
-    // Database errors (Prisma P2002, P2025, …) also carry code+message; never show those to users.
-    if (/^P\d{4}$/.test(String(err.code))) {
-      console.error(error);
-      return extError("Something went wrong. Please try again.", 500);
-    }
     const statusByCode: Record<string, number> = {
       RATE_LIMITED: 429,
       UNAUTHENTICATED: 401,
       UPGRADE_REQUIRED: 402,
-      MONTHLY_LIMIT_REACHED: 429,
-      CAMPAIGN_LIMIT_REACHED: 429,
-      AI_NOT_CONFIGURED: 503,
+      NO_PROFILE: 409,
       NOT_FOUND: 404,
+      SESSION_COMPLETED: 409,
+      VALIDATION_ERROR: 422,
     };
     return extError(err.message, statusByCode[err.code] ?? 400);
   }

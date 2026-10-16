@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
       return extError("This application could not be found.", 404);
     }
 
-    if (application.status === "SAVED") {
-      await prisma.application.update({ where: { id: applicationId }, data: { status: "APPLIED", appliedAt: new Date() } });
+    if (application.status !== "APPLIED") {
+      await prisma.application.update({ where: { id: applicationId }, data: { status: "APPLIED" } });
       await prisma.applicationEvent.create({
         data: {
           applicationId,

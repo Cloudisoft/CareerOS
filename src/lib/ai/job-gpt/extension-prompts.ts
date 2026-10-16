@@ -28,8 +28,6 @@ export interface ExtensionJobGptPayload {
   kind: ExtensionJobGptKind;
   posting?: { title?: string; company?: string; description?: string };
   question?: string;
-  /** The choices offered when the question is a dropdown, radio group or Yes/No buttons. */
-  options?: string[];
   text?: string;
   matchedSkills?: string[];
 }
@@ -72,11 +70,7 @@ ${text.slice(0, 12000)}`;
   }
   if (kind === "answerQuestion") {
     if (!question) return null;
-    const options = (input.options ?? []).filter((o) => o.trim()).slice(0, 30);
-    if (options.length) {
-      return `${careerContext}\n\n${job}\n\nApplication question: "${question}"\nThe form offers these options:\n${options.map((o) => `- ${o}`).join("\n")}\n\nReply with exactly one option, copied as written, that is true for the candidate according to the CareerContext. If the CareerContext does not settle it, reply with exactly NEEDS_HUMAN.`;
-    }
-    return `${careerContext}\n\n${job}\n\nApplication question: "${question}"\n\nAnswer it as the candidate. If it asks for a short fact (a number, a yes/no, a name, a date, a link), reply with just that fact. Otherwise write 40 to 120 words. If the CareerContext does not contain what the question needs, reply with exactly NEEDS_HUMAN.`;
+    return `${careerContext}\n\n${job}\n\nApplication question: "${question}"\n\nAnswer it as the candidate, in 40 to 120 words. If the CareerContext does not contain what the question needs, reply with exactly NEEDS_HUMAN.`;
   }
   return null;
 }

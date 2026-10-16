@@ -1,6 +1,5 @@
 /* CareerOS — service worker
- * Handles anything the page shouldn't: AI calls (through the Career OS server), syncing, the run engine,
- * notifications and the badge.
+ * Handles anything the page shouldn't: JobGPT calls, install flow, the badge.
  */
 importScripts(
   '/lib/storage.js',
@@ -9,22 +8,32 @@ importScripts(
   '/lib/matcher.js',
   '/lib/policy.js',
   '/lib/careeros-api.js',
-  '/lib/sync.js',
   '/lib/permissions.js',
   '/lib/harvest.js',
   '/lib/discovery.js',
   '/background/engine.js'
 );
 
-const { Storage, Profile, Engine, Policy, Api, Permissions, Sync } = self.CareerOS;
+const { Storage, Profile, Engine, Policy, Api, Permissions } = self.CareerOS;
+
+const SYSTEM_PROMPT = `You are JobGPT, the writing engine inside CareerOS.
+You write application material on behalf of one candidate, using only the facts in their profile.
+
+Rules you never break:
+- Never invent employers, dates, degrees, certifications, or numbers. If the profile doesn't support a claim, leave it out.
+- Write in first person, plain language, no filler openings ("I am writing to express my interest").
+- Mirror the vocabulary of the job description where it is honestly true of the candidate.
+- Lead with the single most relevant thing this candidate has actually done.
+- No em dashes, no bullet lists unless asked, no headings.
+- If a question asks for something the profile can't answer, reply with exactly: NEEDS_HUMAN`;
 
 /* Content scripts are registered at runtime rather than declared, because the
    sites they run on are optional permissions the person grants as they go.
    This has to run on install, on browser start, and after every grant. */
-chrome.runtime.onInstalled.addListener(() => { Permissions.registerScripts().catch(logError('register scripts')); });
-chrome.runtime.onStartup.addListener(() => { Permissions.registerScripts().catch(logError('register scripts')); });
-chrome.permissions.onAdded.addListener(() => { Permissions.registerScripts().catch(logError('register scripts')); });
-chrome.permissions.onRemoved.addListener(() => { Permissions.registerScripts().catch(logError('register scripts')); });
+chrome.runtime.onInstalled.addListener(() => { void Permissions.registerScripts(); });
+chrome.runtime.onStartup.addListener(() => { void Permissions.registerScripts(); });
+chrome.permissions.onAdded.addListener(() => { void Permissions.registerScripts(); });
+chrome.permissions.onRemoved.addListener(() => { void Permissions.registerScripts(); });
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
@@ -33,81 +42,76 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-/* After a browser restart: put interrupted jobs back in the queue and carry on if a run was going. */
-chrome.runtime.onStartup.addListener(async () => {
-  await Engine.recover();
-  const state = await Engine.getState();
-  if (state.running) Engine.start();
-});
-
-chrome.tabs.onRemoved.addListener((tabId) => { Engine.handleTabClosed(tabId).catch(logError('tab closed')); });
-// Indeed Apply and employers' "Apply" links open a new tab: the application continues there.
-chrome.tabs.onCreated.addListener((tab) => { Engine.adoptTab(tab.openerTabId, tab).catch(logError('adopt tab')); });
-chrome.tabs.onUpdated.addListener((tabId, info) => { if (info.url) Engine.handleNavigated(tabId, info.url).catch(logError('navigated')); });
-
-/* Clicking "X needs you" brings that application's tab to the front. */
-chrome.notifications.onClicked.addListener((id) => {
-  const m = /^careeros:tab:(\d+)$/.exec(id);
-  if (m) Engine.focusTab(Number(m[1]));
-  chrome.notifications.clear(id);
-});
-
+/* manifest.json declares the "open-dashboard" shortcut (Alt+Shift+J) — this
+   is what actually makes it do something. */
 chrome.commands.onCommand.addListener((command) => {
-  if (command === 'open-dashboard') chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+  if (command === 'open-dashboard') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+  }
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   const tabId = sender.tab && sender.tab.id;
-  const reply = (promise) => {
-    promise.then(respond, (err) => respond({ ok: false, error: err.message }));
+
+  /* --- engine protocol --- */
+  if (msg.type === 'careeros:ready') {
+    Engine.handleReady(tabId).then((directive) => respond(directive || { job: null }));
     return true;
-  };
-
-  /* --- engine protocol (from the page agent) --- */
-  if (msg.type === 'careeros:ready') return reply(Engine.handleReady(tabId, sender.tab && sender.tab.url).then((directive) => directive || { job: null }));
-  if (msg.type === 'careeros:expectTab') return reply(Engine.handleExpectTab(tabId).then(() => ({ ok: true })));
-  if (msg.type === 'careeros:handoff') return reply(Engine.handleHandoff(tabId, msg.url).then(() => ({ ok: true })));
-  if (msg.type === 'careeros:result') return reply(Engine.handleResult(tabId, msg.result).then(() => ({ ok: true })));
-  if (msg.type === 'careeros:needsYou') return reply(Engine.handleNeedsYou(tabId, msg).then(() => ({ ok: true })));
-  if (msg.type === 'careeros:resumed') return reply(Engine.handleResumed(tabId).then(() => ({ ok: true })));
-  if (msg.type === 'careeros:submitting') return reply(Engine.handleSubmitting(tabId).then(() => ({ ok: true })));
-  if (msg.type === 'careeros:learn') return reply(learnAnswers(msg.answers));
-
-  if (msg.type === 'careeros:engine') return reply(handleEngineCommand(msg));
-  if (msg.type === 'careeros:policy') {
-    return reply(Storage.getSettings().then((settings) => ({ ok: true, policy: Policy.for(msg.ats), submit: Policy.canAutoSubmit(msg.ats, settings) })));
   }
-  if (msg.type === 'careeros:generate') return reply(generate(msg));
-  if (msg.type === 'careeros:stats') return reply(stats());
+  if (msg.type === 'careeros:result') {
+    Engine.handleResult(tabId, msg.result).then(() => respond({ ok: true }));
+    return true;
+  }
+  if (msg.type === 'careeros:progress') {
+    // Fire-and-forget: a dropped progress tick just means the dashboard's
+    // step counter lags one step behind for a moment.
+    Engine.handleProgress(tabId, { step: msg.step, maxSteps: msg.maxSteps, filled: msg.filled });
+    return false;
+  }
+  if (msg.type === 'careeros:engine') {
+    handleEngineCommand(msg).then(respond).catch((err) => respond({ ok: false, error: err.message }));
+    return true;
+  }
+  if (msg.type === 'careeros:policy') {
+    Storage.getSettings().then((settings) => {
+      respond({ ok: true, policy: Policy.for(msg.ats), submit: Policy.canAutoSubmit(msg.ats, settings) });
+    });
+    return true;
+  }
+
+  if (msg.type === 'careeros:generate') {
+    generate(msg).then(respond).catch((err) => respond({ ok: false, error: err.message }));
+    return true; // async
+  }
+  if (msg.type === 'careeros:stats') {
+    stats().then(respond);
+    return true;
+  }
+  if (msg.type === 'careeros:openOptions') {
+    // A content-script panel can't call chrome.tabs itself, and
+    // chrome.runtime.openOptionsPage() can't target a specific tab within
+    // options.html, so this opens (or focuses) it with a ?tab= param
+    // instead — same deep-link options.js already reads for ?welcome=1.
+    (async () => {
+      const url = chrome.runtime.getURL(`options/options.html${msg.tab ? `?tab=${encodeURIComponent(msg.tab)}` : ''}`);
+      const existing = await chrome.tabs.query({ url: chrome.runtime.getURL('options/options.html*') });
+      if (existing.length) {
+        await chrome.tabs.update(existing[0].id, { active: true, url });
+        if (existing[0].windowId != null) chrome.windows.update(existing[0].windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url });
+      }
+      respond({ ok: true });
+    })();
+    return true;
+  }
   return false;
 });
 
-/* Answers the person gave in a form: remembered on this device right away, and on the server so every
-   device (and the next form, however it words the question) reuses them. */
-async function learnAnswers(answers) {
-  const list = (answers || []).filter((a) => a && a.question && a.answer);
-  for (const a of list) {
-    await Storage.rememberAnswer(a.key || a.question, a.answer, 'user');
-  }
-  try {
-    await Api.saveAnswers(list.map((a) => ({ question: a.question, answer: a.answer, key: a.key, source: 'user' })));
-    return { ok: true, saved: list.length };
-  } catch (err) {
-    return { ok: true, saved: list.length, serverError: err.message };
-  }
-}
-
-/* Two-way sync with the website, before every run and whenever the options page changes something.
-   A field changed on the website comes down; a field changed here is kept and sent up (lib/sync.js). */
-let syncing = null;
-function syncFromServer() {
-  // One at a time: an options-page edit and a run starting together must not interleave.
-  const run = (syncing || Promise.resolve()).then(syncOnce, syncOnce);
-  syncing = run.catch(() => {});
-  return run;
-}
-
-async function syncOnce() {
+/* Pull the current profile and targeting from CareerOS before a run, so the
+   extension is never applying from a profile the person edited last week on
+   another device. */
+async function syncFromServer() {
   const payload = await Api.sync();
 
   if (payload.entitled === false) {
@@ -115,92 +119,54 @@ async function syncOnce() {
   }
 
   if (payload.settings) {
-    const s = payload.settings;
-    const server = {
-      minMatchScore: s.minMatchScore,
-      pacingSeconds: s.pacingSeconds,
-      concurrency: s.concurrency,
-      autoSubmit: s.autoSubmit,
-      platformModes: s.platformModes || {},
-    };
-    const local = await Storage.getSettings();
-    const base = await Storage.get(Storage.KEYS.SERVER_SETTINGS, null);
-    await Storage.saveSettings(Object.assign(Sync.mergeSettings(local, server, base), {
-      // 2.5.0+: the plan's cap is monthly; the per-day cap stays this browser's own setting.
-      monthlyLimit: s.monthlyLimit === undefined ? null : s.monthlyLimit,
-      appliedThisMonth: payload.appliedThisMonth || 0,
-      syncedAt: Date.now(),
-    }));
-    await Storage.set(Storage.KEYS.SERVER_SETTINGS, server);
+    await Storage.saveSettings({
+      minMatchScore: payload.settings.minMatchScore,
+      dailyLimit: payload.settings.dailyLimit,
+      pacingSeconds: payload.settings.pacingSeconds,
+      concurrency: payload.settings.concurrency,
+      autoSubmit: payload.settings.autoSubmit,
+      platformModes: payload.settings.platformModes || {},
+    });
   }
 
-  if (payload.resume && payload.resume.data) {
-    const server = payload.resume.data;
+  if (payload.resume?.data) {
     const existing = (await Storage.getProfile()) || {};
-    const base = await Storage.get(Storage.KEYS.SERVER_PROFILE, null);
-    await Storage.saveProfile(Sync.mergeProfile(existing, server, base));
-    await Storage.set(Storage.KEYS.SERVER_PROFILE, server);
+    await Storage.saveProfile(Object.assign({}, existing, payload.resume.data));
   }
-  await Storage.saveServerApplied(payload.appliedUrls || []);
-  await Storage.mergeServerAnswers(payload.answers || []);
 
-  const pushed = await pushChanges();
+  await syncResumeFile().catch(() => {});
 
-  return { ok: true, entitled: true, appliedThisMonth: payload.appliedThisMonth, appliedUrls: payload.appliedUrls || [], pushError: pushed.error };
+  return { ok: true, entitled: true, appliedToday: payload.appliedToday, appliedUrls: payload.appliedUrls || [] };
 }
 
-/* Send what changed here since the last sync. Values the server can't take are clamped to its ranges. */
-async function pushChanges() {
-  const errors = [];
-
-  const settingsBase = await Storage.get(Storage.KEYS.SERVER_SETTINGS, null);
-  const settingsPatch = Sync.settingsChanges(await Storage.getSettings(), settingsBase);
-  if (settingsPatch) {
-    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
-    if ('minMatchScore' in settingsPatch) settingsPatch.minMatchScore = clamp(settingsPatch.minMatchScore, 0, 100);
-    if ('pacingSeconds' in settingsPatch) settingsPatch.pacingSeconds = clamp(settingsPatch.pacingSeconds, 10, 600);
-    if ('concurrency' in settingsPatch) settingsPatch.concurrency = clamp(settingsPatch.concurrency, 1, 6);
-    if ('autoSubmit' in settingsPatch) settingsPatch.autoSubmit = Boolean(settingsPatch.autoSubmit);
-    try {
-      const res = await Api.saveSettings(settingsPatch);
-      const saved = (res && res.settings) || settingsPatch;
-      await Storage.set(Storage.KEYS.SERVER_SETTINGS, Sync.applyToBase(settingsBase, saved));
-    } catch (err) {
-      errors.push(`Settings: ${err.message}`);
-    }
-  }
-
-  const profileBase = await Storage.get(Storage.KEYS.SERVER_PROFILE, null);
-  const profilePatch = Sync.profileChanges(await Storage.getProfile(), profileBase);
-  if (profilePatch) {
-    try {
-      await Api.saveProfile(profilePatch);
-      await Storage.set(Storage.KEYS.SERVER_PROFILE, Sync.applyToBase(profileBase, profilePatch));
-    } catch (err) {
-      errors.push(`Profile: ${err.message}`);
-    }
-  }
-  return { error: errors.length ? errors.join(' ') : undefined };
+/* Applications need a resume *file* in their upload field, and CareerOS
+   stores resumes as structured content — so sync pulls a PDF rendered from
+   the person's account. A resume they uploaded themselves in the extension
+   always wins and is never overwritten; only a previous CareerOS copy is
+   refreshed. */
+async function syncResumeFile() {
+  const current = await Storage.getResume();
+  if (current && current.source !== 'careeros') return;
+  const file = await Api.getResumeFile();
+  if (!file || !file.base64) return;
+  if (current && current.updatedAt === file.updatedAt) return;
+  await Storage.saveResume({
+    name: file.name,
+    mime: file.mime || 'application/pdf',
+    dataUrl: `data:${file.mime || 'application/pdf'};base64,${file.base64}`,
+    text: file.text || '',
+    source: 'careeros',
+    updatedAt: file.updatedAt,
+  });
 }
 
 async function handleEngineCommand(msg) {
   if (msg.command === 'pair')    return pairDevice(msg.code);
-  if (msg.command === 'connect') {
-    // Signed in: bring the profile and settings down now, so the popup isn't empty until the first run.
-    const res = await Api.connect();
-    if (res.ok) await syncFromServer().catch(logError('sync after sign in'));
-    return res;
-  }
+  if (msg.command === 'connect') return Api.connect();
   if (msg.command === 'permissions') return { ok: true, granted: await Permissions.status() };
   if (msg.command === 'reregister')  return { ok: true, ...(await Permissions.registerScripts()) };
-  if (msg.command === 'sync')   return syncFromServer().catch((err) => ({ ok: false, error: err.message }));
-  // The options page changed something: send it to the website now rather than at the next run.
-  if (msg.command === 'push') {
-    if (!(await Api.isPaired())) return { ok: true, paired: false };
-    return syncFromServer().catch((err) => ({ ok: false, error: err.message }));
-  }
+  if (msg.command === 'sync')   return syncFromServer();
   if (msg.command === 'paired') return { ok: true, paired: await Api.isPaired() };
-  if (msg.command === 'unpair') { await Engine.stop('Disconnected'); await Api.unpair(); return { ok: true }; }
   if (msg.command === 'build') {
     const perms = await Permissions.status();
     if (!perms.ats && !perms.boards) {
@@ -211,32 +177,35 @@ async function handleEngineCommand(msg) {
     }
     // Refuse to build a queue for an account that is not entitled, rather than
     // tailoring twenty applications the person cannot send.
-    const synced = await syncFromServer().catch((err) => ({ ok: false, error: err.message }));
+    const synced = await syncFromServer().catch(() => ({ ok: false, error: 'Not paired' }));
     if (synced.entitled === false) return { ok: false, error: synced.message };
-    if (!synced.ok) return { ok: false, error: synced.error || 'Could not reach Career OS' };
     return Object.assign({ ok: true }, await Engine.build());
   }
-  if (msg.command === 'start') {
-    // CareerOS can only fill forms on sites it has access to. Jobs already queued need their own site;
-    // an empty queue is filled from employer boards, which need the employer sites turned on.
-    const queued = (await Engine.getState()).queue.filter((j) => j.state === 'queued');
-    const reachable = await Promise.all(queued.map((j) => canRunOn(j.url)));
-    const noAccess = queued.length ? !reachable.some(Boolean) : !(await Permissions.status()).ats;
-    if (noAccess) {
-      return { ok: false, error: 'Turn on "Employer application systems" in CareerOS settings first, so CareerOS can fill applications on Greenhouse, Lever, Ashby and others.' };
-    }
-    const synced = await syncFromServer().catch((err) => ({ ok: false, error: err.message }));
-    if (synced.entitled === false) return { ok: false, error: synced.message };
-    if (!synced.ok) return { ok: false, error: synced.error || 'Could not reach Career OS' };
-    return { ok: true, state: await Engine.start() };
-  }
+  if (msg.command === 'start')  return { ok: true, state: await Engine.start() };
   if (msg.command === 'stop')   return { ok: true, state: await Engine.stop('Stopped by you') };
-  if (msg.command === 'state')  return { ok: true, state: await Engine.getState(), active: Object.entries(await Engine.getActive()).map(([tabId, e]) => ({ tabId: Number(tabId), phase: e.phase, message: e.message, job: { title: e.job.title, company: e.job.company } })) };
-  if (msg.command === 'focus')  return { ok: await Engine.focusTab(msg.tabId) };
+  if (msg.command === 'state')  return { ok: true, state: await Engine.getState() };
   if (msg.command === 'testSource') return testSource(msg.source);
+  if (msg.command === 'testBoard') return testBoard(msg.ats, msg.token);
   if (msg.command === 'add')    return Object.assign({ ok: true }, await Engine.add(msg.jobs));
-  if (msg.command === 'clear')  return { ok: true, state: await Engine.setState({ queue: [], done: [], running: false, runId: null }) };
+  if (msg.command === 'clear')  return { ok: true, state: await Engine.setState({ queue: [], done: [], running: false }) };
   return { ok: false, error: `Unknown command ${msg.command}` };
+}
+
+/* Company boards had no way to self-verify — a bad token just returned zero
+   jobs from build(), indistinguishable from "this company has no openings
+   right now" or any other silent failure. Mirrors testSource() above but for
+   one board entry instead of an aggregator. */
+async function testBoard(ats, token) {
+  if (!token || !String(token).trim()) return { ok: false, error: 'Add a board token first.' };
+  const profile = Profile.hydrate(await Storage.getProfile());
+  const settings = await Storage.getSettings();
+  try {
+    const { jobs, errors } = await self.CareerOS.Discovery.search(profile, settings, { boards: [{ ats, token }] });
+    if (errors.length) return { ok: false, error: errors[0] };
+    return { ok: true, count: jobs.length };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
 
 async function testSource(source) {
@@ -285,85 +254,180 @@ self.CareerOS.generateFor = async function (job) {
 /* Refresh the badge, and nudge the engine loop back to life after the service
    worker has been suspended mid-run. */
 chrome.alarms.create('careeros:badge', { periodInMinutes: 5 });
-// Start / Stop pressed on the Auto Apply page in Career OS reaches this browser within a minute.
-chrome.alarms.create('careeros:control', { periodInMinutes: 1 });
-// Edits made on the website reach this browser between runs too, not only when a run starts.
-chrome.alarms.create('careeros:sync', { periodInMinutes: 15 });
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'careeros:badge') return Engine.updateBadge();
-  if (alarm.name === 'careeros:control') return checkRemoteControl().catch(logError('control'));
-  if (alarm.name === 'careeros:sync') {
-    if (await Api.isPaired()) return syncFromServer().catch(logError('sync'));
-    return;
-  }
+  if (alarm.name === 'careeros:badge') return updateBadge();
   if (alarm.name === 'careeros:tick') {
     const state = await Engine.getState();
     if (state.running) Engine.loop();
   }
 });
-Engine.updateBadge();
+chrome.runtime.onStartup.addListener(async () => {
+  const state = await Engine.getState();
+  if (state.running) Engine.start();
+});
+updateBadge();
+
+async function updateBadge() {
+  const count = await Storage.appliedToday();
+  chrome.action.setBadgeText({ text: count ? String(count) : '' });
+  chrome.action.setBadgeBackgroundColor({ color: '#F14632' });
+}
 
 async function stats() {
   const engine = await Engine.getState();
   const apps = await Storage.getApplications();
   const today = await Storage.appliedToday();
   const submitted = apps.filter((a) => a.status === 'submitted').length;
-  const waiting = Object.values(await Engine.getActive()).filter((e) => e.phase === 'waiting').length;
-  return { ok: true, total: apps.length, today, submitted, waiting, recent: apps.slice(0, 8), engine };
+  return { ok: true, total: apps.length, today, submitted, recent: apps.slice(0, 8), engine };
 }
 
 /* ---------------- JobGPT ---------------- */
 
-/* All AI writing goes through the Career OS server, which holds the model key and builds the prompt from the
-   person's verified career profile. A key never ships in the extension. */
 async function generate({ kind, payload, posting, match }) {
   payload = payload || {};
-  try {
-    const res = await Api.generate({
+  const settings = await Storage.getSettings();
+  const profile = Profile.hydrate(await Storage.getProfile());
+
+  const prompt = buildPrompt(kind, payload, posting, match, profile);
+  if (!prompt) return { ok: false, error: 'Nothing to write' };
+
+  // Resume parsing wants raw JSON back, so it gets its own instruction set.
+  const system = kind === 'parseResume'
+    ? 'You extract structured data from resumes. You return one JSON object and nothing else. You never invent a fact that is not in the source text.'
+    : SYSTEM_PROMPT;
+
+  /* Production path: the backend holds the model key. The direct path exists
+     only for local development and is a deliberate dead end in a shipped build,
+     because anything in an extension bundle is readable by anyone who installs
+     it — a key shipped this way is a key given away. */
+  let text;
+  if (/^sk-ant-/.test(settings.apiToken || '')) {
+    if (!settings.allowDirectKey) {
+      return {
+        ok: false,
+        error: 'That looks like a provider key. Use a CareerOS token from your backend instead. The direct path needs both developer mode and the dev manifest (./build.sh dev), and is not permitted in a shipped build.'
+      };
+    }
+    text = await callAnthropic(settings, prompt, system);
+  } else {
+    text = await callCareerOS(settings, {
       kind,
-      posting: posting ? { title: posting.title, company: posting.company, description: (posting.description || '').slice(0, 8000) } : undefined,
-      question: payload.question || undefined,
-      options: Array.isArray(payload.options) && payload.options.length ? payload.options.slice(0, 30) : undefined,
-      text: payload.text || undefined,
+      posting,
+      question: (payload && payload.question) || undefined,
+      text: (payload && payload.text) || undefined,
       matchedSkills: (match && match.matchedSkills) || []
     });
-    const text = (res && (res.text || res.output)) || '';
-    if (!text || /^NEEDS_HUMAN$/i.test(text.trim())) return { ok: false, error: 'Needs you' };
-    return { ok: true, text: text.trim() };
-  } catch (err) {
-    if (err.status === 422) return { ok: false, error: 'Needs you' };
-    if (err.code === 'UNAUTHENTICATED') return { ok: false, error: 'Sign in again: this browser is no longer connected to Career OS.' };
-    if (err.status === 402) return { ok: false, error: 'Your plan does not include AI answers, or this month\'s allowance is used up.' };
-    if (err.status === 429) return { ok: false, error: 'Too many AI requests in a minute; CareerOS will retry.' };
-    return { ok: false, error: err.message };
   }
+
+  if (!text || /^NEEDS_HUMAN$/i.test(text.trim())) return { ok: false, error: 'Needs you' };
+  return { ok: true, text: text.trim() };
 }
 
-function canRunOn(url) {
-  try {
-    return chrome.permissions.contains({ origins: [`${new URL(url).origin}/*`] });
-  } catch (err) {
-    return Promise.resolve(false);
+function buildPrompt(kind, payload, posting, match, profile) {
+  const candidate = summarizeProfile(profile);
+  const job = [
+    `Role: ${posting.title || 'unknown'}`,
+    `Company: ${posting.company || 'unknown'}`,
+    `Description:\n${(posting.description || '').slice(0, 4000)}`
+  ].join('\n');
+
+  const overlap = match && match.matchedSkills && match.matchedSkills.length
+    ? `Skills the posting and the candidate share: ${match.matchedSkills.join(', ')}.`
+    : '';
+
+  if (kind === 'coverLetter') {
+    return `${candidate}\n\n${job}\n\n${overlap}\n\nWrite a cover letter of 140 to 200 words for this role. Open with the most relevant thing this candidate has done, not a greeting about the posting.`;
   }
-}
-
-async function checkRemoteControl() {
-  if (!(await Api.isPaired())) return;
-  const { command } = await Api.control();
-  if (command === 'start') {
-    const res = await handleEngineCommand({ command: 'start' });
-    const state = res.state || {};
-    notifyRemote(state.running ? 'CareerOS started applying' : 'CareerOS could not start', state.running ? 'Started from the Auto Apply page.' : (res.error || state.lastError || ''));
-  } else if (command === 'stop') {
-    await Engine.stop('Stopped from the Auto Apply page');
-    notifyRemote('CareerOS stopped', 'Stopped from the Auto Apply page.');
+  if (kind === 'whyCompany') {
+    return `${candidate}\n\n${job}\n\nAnswer in 60 to 90 words: why this candidate wants this role at this company. Ground it in what the posting actually says the team does.`;
   }
+  if (kind === 'parseResume') {
+    return `Read this resume and return the candidate's details as JSON. Return only the JSON object, no prose and no code fences.
+
+Shape:
+{"identity":{"firstName":"","lastName":"","email":"","phone":"","city":"","state":"","country":"","linkedin":"","github":"","portfolio":""},
+ "experience":{"currentTitle":"","currentCompany":"","totalYears":0,"history":[{"title":"","company":"","start":"","end":"","location":"","bullets":[""]}]},
+ "skills":{"core":[""],"familiar":[""],"tools":[""],"languages":[""]},
+ "education":[{"degree":"","field":"","school":"","year":""}],
+ "certifications":[""],
+ "strengths":[""],
+ "narrative":{"summary":""},
+ "targeting":{"titles":[""],"seniority":""}}
+
+Leave a field as an empty string or empty array when the resume doesn't say. Never invent anything. Infer totalYears from the dates. Write summary in the candidate's first person, two sentences.
+
+Resume:
+${payload.text.slice(0, 12000)}`;
+  }
+  if (kind === 'answerQuestion') {
+    return `${candidate}\n\n${job}\n\nApplication question: "${payload.question}"\n\nAnswer it as the candidate, in 40 to 120 words. If the profile does not contain what the question needs, reply with exactly NEEDS_HUMAN.`;
+  }
+  return null;
 }
 
-function notifyRemote(title, message) {
-  chrome.notifications.create('', { type: 'basic', iconUrl: chrome.runtime.getURL('icons/icon128.png'), title, message: String(message || '').slice(0, 200) });
+function summarizeProfile(p) {
+  const lines = [
+    `Candidate: ${Profile.fullName(p)}, based in ${Profile.locationLine(p) || 'unspecified'}.`,
+    `Current: ${p.experience.currentTitle || 'unspecified'} at ${p.experience.currentCompany || 'unspecified'}, ${p.experience.totalYears || 0} years total experience.`,
+    `Target roles: ${(p.targeting.titles || []).join(', ') || 'unspecified'}.`,
+    `Core skills: ${(p.skills.core || []).join(', ') || 'unspecified'}.`,
+    `Tools: ${(p.skills.tools || []).join(', ') || 'none listed'}.`,
+    p.strengths.length ? `Strengths in their own words: ${p.strengths.join('; ')}.` : '',
+    p.narrative.summary ? `Summary: ${p.narrative.summary}` : ''
+  ];
+
+  if ((p.experience.history || []).length) {
+    lines.push('Work history:');
+    p.experience.history.slice(0, 5).forEach((h) => {
+      lines.push(`- ${h.title} at ${h.company} (${h.start || '?'}–${h.end || 'present'}): ${(h.bullets || []).join(' ')}`);
+    });
+  }
+  if ((p.education || []).length) {
+    lines.push(`Education: ${p.education.map((e) => `${e.degree} in ${e.field}, ${e.school} ${e.year || ''}`).join('; ')}`);
+  }
+  return lines.filter(Boolean).join('\n');
 }
 
-function logError(what) {
-  return (err) => console.warn(`CareerOS: ${what} failed:`, err && err.message);
+async function callCareerOS(settings, body) {
+  const res = await fetch(`${settings.apiBase.replace(/\/$/, '')}/jobgpt/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(settings.apiToken ? { Authorization: `Bearer ${settings.apiToken}` } : {})
+    },
+    body: JSON.stringify(body)
+  });
+  if (res.status === 401) throw new Error('Your CareerOS token was rejected. Check it under How it runs.');
+  if (res.status === 402) throw new Error('This account has used its generation quota for the month.');
+  if (res.status === 409) throw new Error('Save your profile to the server before generating.');
+  if (res.status === 422) throw new Error('Needs you');
+  if (res.status === 429) throw new Error('Too many requests in a minute — the run will retry.');
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.json()).error || ''; } catch (err) { detail = ''; }
+    throw new Error(detail || `CareerOS API returned ${res.status}`);
+  }
+  const data = await res.json();
+  return data.text || data.output || '';
+}
+
+async function callAnthropic(settings, prompt, system) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': settings.apiToken,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      system: system || SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!res.ok) throw new Error(`Anthropic API returned ${res.status}`);
+  const data = await res.json();
+  return (data.content || []).map((c) => c.text || '').join('\n');
 }

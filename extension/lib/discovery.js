@@ -25,9 +25,6 @@
       if (sources.jsearch && sources.jsearch.key) runs.push(jsearch(profile, settings, sources.jsearch));
       if (sources.usajobs && sources.usajobs.email) runs.push(usajobs(profile, settings, sources.usajobs));
       (sources.boards || []).forEach((b) => runs.push(board(b)));
-      // Always: Career OS scans a catalog of employer boards for roles that fit the person, so a run has
-      // jobs without anyone configuring a source.
-      if (sources.careeros !== false && root.CareerOS.Api) runs.push(careerOsJobs());
 
       const settled = await Promise.allSettled(runs);
       settled.forEach((r) => {
@@ -46,29 +43,9 @@
       return { url, ats, direct: ats !== 'generic' };
     },
 
-    classifyUrl
+    classifyUrl,
+    dedupe
   };
-
-  async function careerOsJobs() {
-    if (!(await root.CareerOS.Api.isPaired())) return [];
-    const res = await root.CareerOS.Api.jobs();
-    if (!res.jobs || !res.jobs.length) {
-      if (res.reason) throw new Error(res.reason);
-      return [];
-    }
-    return res.jobs.map((j) => ({
-      source: 'careeros',
-      externalId: j.externalId,
-      title: j.title,
-      company: j.company,
-      location: j.location || '',
-      description: j.description || '',
-      url: j.url,
-      applyUrl: j.applyUrl || j.url,
-      ats: j.ats,
-      postedAt: j.postedAt || Date.now()
-    }));
-  }
 
   /* ---------------- aggregators ---------------- */
 
@@ -86,6 +63,11 @@
       content_type: 'application/json'
     });
     if (where) params.set('where', where);
+    // Radius in miles from the `where` center. Only meaningful once there's a
+    // center to measure from — a bare keyword search has nothing to widen.
+    if (where && profile.targeting.radiusMiles) {
+      params.set('distance', String(profile.targeting.radiusMiles));
+    }
 
     // Adzuna's salary filter drops every posting that doesn't publish a range,
     // which in some markets is most of them. The matcher applies the floor
@@ -116,7 +98,8 @@
       postedAt: Date.parse(j.created) || Date.now(),
       salaryMin: j.salary_min,
       salaryMax: j.salary_max,
-      remote: /remote/i.test(`${j.title} ${j.description}`)
+      remote: /remote/i.test(`${j.title} ${j.description}`),
+      radiusSearched: Boolean(where && profile.targeting.radiusMiles)
     }));
   }
 
@@ -134,6 +117,8 @@
     });
     if (cfg.country) params.set('country', String(cfg.country).toLowerCase());
     if ((profile.targeting.workModes || []).includes('remote')) params.set('remote_jobs_only', 'true');
+    // JSearch has no distance/radius parameter — it resolves location as a free-text
+    // term inside `query`, so radiusMiles is left out here rather than faked.
 
     const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}`, {
       headers: {
@@ -169,11 +154,15 @@
   }
 
   async function usajobs(profile, settings, cfg) {
+    const locationName = (profile.targeting.locations || [])[0] || profile.identity.city || '';
     const params = new URLSearchParams({
       Keyword: (profile.targeting.titles || [])[0] || '',
-      LocationName: (profile.targeting.locations || [])[0] || profile.identity.city || '',
+      LocationName: locationName,
       ResultsPerPage: '50'
     });
+    if (locationName && profile.targeting.radiusMiles) {
+      params.set('Radius', String(profile.targeting.radiusMiles));
+    }
     const res = await fetch(`https://data.usajobs.gov/api/search?${params}`, {
       headers: {
         Host: 'data.usajobs.gov',
@@ -195,7 +184,8 @@
         description: ((d.UserArea || {}).Details || {}).JobSummary || d.QualificationSummary || '',
         url: d.PositionURI,
         applyUrl: (d.ApplyURI || [])[0] || d.PositionURI,
-        postedAt: Date.parse(d.PublicationStartDate) || Date.now()
+        postedAt: Date.parse(d.PublicationStartDate) || Date.now(),
+        radiusSearched: Boolean(locationName && profile.targeting.radiusMiles)
       };
     });
   }
@@ -215,11 +205,7 @@
         location: (j.location || {}).name || '',
         description: stripTags(decodeEntities(j.content || '')),
         url: j.absolute_url,
-        // Many companies show Greenhouse jobs on their own careers site with the form in an iframe the
-        // extension can't reach; Greenhouse's own job page for the same posting always works.
-        applyUrl: /greenhouse\.io/.test(j.absolute_url || '')
-          ? j.absolute_url
-          : `https://job-boards.greenhouse.io/embed/job_app?for=${encodeURIComponent(token)}&token=${j.id}`,
+        applyUrl: j.absolute_url,
         ats: 'greenhouse',
         postedAt: Date.parse(j.updated_at) || Date.now()
       }));

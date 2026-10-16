@@ -1,0 +1,33 @@
+<!-- Simplified Lever-style form: a select, a radio group (fieldset+legend,
+     the way Lever's own screening questions render) and a checkbox. -->
+<form class="application-form" action="/apply">
+  <div class="application-field">
+    <label for="current_title">Current Title</label>
+    <input type="text" id="current_title" name="current_title">
+  </div>
+
+  <div class="application-field">
+    <label for="location">Location</label>
+    <select id="location" name="location">
+      <option value="">Select one</option>
+      <option value="blr">Bengaluru</option>
+      <option value="remote">Remote</option>
+      <option value="nyc">New York</option>
+    </select>
+  </div>
+
+  <fieldset class="application-field">
+    <legend>Are you authorized to work in this country without sponsorship?</legend>
+    <label><input type="radio" name="work_auth" value="yes"> Yes</label>
+    <label><input type="radio" name="work_auth" value="no"> No</label>
+  </fieldset>
+
+  <div class="application-field">
+    <label>
+      <input type="checkbox" id="relocate" name="relocate">
+      Willing to relocate for this role
+    </label>
+  </div>
+
+  <button type="submit">Submit application</button>
+</form>

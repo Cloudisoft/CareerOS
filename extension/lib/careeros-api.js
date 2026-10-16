@@ -12,7 +12,7 @@
 
   const { Storage } = root.CareerOS;
 
-  const DEFAULT_BASE = Storage.PROD_API;
+  const DEFAULT_BASE = 'https://careeros.silverspringstaffing.com/api/extension';
 
   async function base() {
     const settings = await Storage.getSettings();
@@ -39,18 +39,14 @@
     });
 
     if (res.status === 401) {
-      const err = new Error('This browser is not connected to your Career OS account. Open CareerOS and press Sign in.');
-      err.code = 'UNAUTHENTICATED';
-      throw err;
+      throw new Error('This browser is not paired. Open CareerOS and generate a pairing code.');
     }
 
     let body = null;
     try { body = await res.json(); } catch (err) { body = null; }
 
     if (!res.ok) {
-      const err = new Error((body && body.error) || `CareerOS returned ${res.status}`);
-      err.status = res.status;
-      throw err;
+      throw new Error((body && body.error) || `CareerOS returned ${res.status}`);
     }
     return body;
   }
@@ -76,7 +72,6 @@
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error((body && body.error) || `Pairing failed (${res.status})`);
 
-      await Storage.forgetServerCopy();
       await Storage.saveSettings({
         deviceToken: body.token,
         pairedAs: body.email || body.name || '',
@@ -94,7 +89,7 @@
     async connect(onStatus) {
       const state = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
 
-      const started = await fetch(`${await base()}/connect/start`, {
+      await fetch(`${await base()}/connect/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,26 +97,11 @@
           label: deviceLabel(),
           version: chrome.runtime.getManifest().version,
         }),
-      }).catch(() => null);
-      if (!started || !started.ok) {
-        const body = started ? await started.json().catch(() => null) : null;
-        return { ok: false, error: (body && body.error) || 'Could not reach Career OS. Check your connection and try again.' };
-      }
-
-      // The approval page shows the same code; the person approves only if they match.
-      const code = await connectCode(state);
-      chrome.notifications.create('careeros:connect', {
-        type: 'basic',
-        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-        title: `Approve only if the page shows ${code}`,
-        message: 'Career OS opened a tab to connect this browser. Check the code matches, then press Approve.',
-        priority: 2
       });
-      if (onStatus) onStatus('code', code);
 
       const settings = await Storage.getSettings();
       const tab = await chrome.tabs.create({
-        url: `${(settings.webAppUrl || Storage.PROD_WEB).replace(/\/$/, '')}/extension-connect?state=${state}`,
+        url: `${(settings.webAppUrl || 'https://careeros.silverspringstaffing.com').replace(/\/$/, '')}/extension-connect?state=${state}`,
       });
 
       /* Poll rather than wait for a redirect, because the person may complete
@@ -139,8 +119,6 @@
         if (!body) continue;
 
         if (body.status === 'approved' && body.token) {
-          chrome.notifications.clear('careeros:connect');
-          await Storage.forgetServerCopy();
           await Storage.saveSettings({
             deviceToken: body.token,
             pairedAs: body.email || body.name || '',
@@ -156,32 +134,8 @@
       return { ok: false, error: 'Timed out waiting for approval.' };
     },
 
-    /* Disconnect: end this browser's session on the server too, then forget it locally. */
     async unpair() {
-      await request('/disconnect', { method: 'POST' }).catch(() => {});
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
-      await Storage.forgetServerCopy();
-    },
-
-    /* Answers the person typed into forms: saved on the server so every device reuses them. */
-    async saveAnswers(answers) {
-      if (!answers || !answers.length) return null;
-      return request('/answers', { method: 'POST', body: JSON.stringify({ answers: answers.slice(0, 60) }) });
-    },
-
-    /* AI writing (cover letters, screening answers, resume parsing) with the paired device token. */
-    async generate(body) {
-      return request('/jobgpt/generate', { method: 'POST', body: JSON.stringify(body) });
-    },
-
-    /* Run settings changed in the options page, so the Auto Apply page and other browsers show them. */
-    async saveSettings(patch) {
-      return request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
-    },
-
-    /* Profile fields changed in the options page, written to the Career Profile. */
-    async saveProfile(patch) {
-      return request('/profile', { method: 'PATCH', body: JSON.stringify(patch) });
     },
 
     async isPaired() {
@@ -193,6 +147,12 @@
        round trip rather than four. */
     async sync() {
       return request('/sync');
+    },
+
+    /* The person's CareerOS resume rendered as a PDF, for attaching to
+       application upload fields. { name, mime, base64, text, updatedAt }. */
+    async getResumeFile() {
+      return request('/resume-file');
     },
 
     /* The tailored package for a specific posting — a resume summary and
@@ -215,8 +175,22 @@
           }),
         });
       } catch (err) {
-        // Still fill from the base profile; keep the reason so a lost connection is visible.
-        return { tailored: false, error: err.message, code: err.code };
+        return { tailored: false };
+      }
+    },
+
+    /* Broad keyword/location search, run server-side against CareerOS's own
+       Adzuna/JSearch keys rather than the browser's — see discovery.js's
+       header comment. radiusMiles is the one search preference that still
+       lives client-side only (no server column for it yet), so it rides
+       along as a query param; the server defaults it when it's missing. */
+    async getJobs(profile) {
+      const radius = profile && profile.targeting && profile.targeting.radiusMiles;
+      const qs = radius ? `?radius=${encodeURIComponent(radius)}` : '';
+      try {
+        return await request(`/jobs${qs}`);
+      } catch (err) {
+        return { jobs: [], message: err.message };
       }
     },
 
@@ -231,30 +205,21 @@
       return request('/application', { method: 'POST', body: JSON.stringify(entry) });
     },
 
-    /* Fresh postings from public employer boards that fit this person, found by the Career OS server. */
-    async jobs() {
-      return request('/jobs');
-    },
-
-    /* Start / Stop pressed on the Auto Apply page in Career OS. */
-    async control() {
-      return request('/control');
-    },
-
     async heartbeat(run) {
       return request('/run', { method: 'POST', body: JSON.stringify(run) });
     },
-  };
 
-  /* Same derivation as connectCode() on the server: six characters from the SHA-256 of the state. */
-  async function connectCode(state) {
-    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(state)));
-    let out = '';
-    for (let i = 0; i < 6; i++) out += alphabet[bytes[i] % alphabet.length];
-    return `${out.slice(0, 3)}-${out.slice(3)}`;
-  }
-  Api.connectCode = connectCode;
+    /* Remote selector overrides — see ATS.applyOverrides(). Never throws:
+       a fetch failure just means the extension keeps running on whatever it
+       already had cached (or the hardcoded defaults if nothing is cached). */
+    async getSelectorOverrides() {
+      try {
+        return await request('/selectors');
+      } catch (err) {
+        return { overrides: null, message: err.message };
+      }
+    },
+  };
 
   function deviceLabel() {
     const ua = navigator.userAgent;

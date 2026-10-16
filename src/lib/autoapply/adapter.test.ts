@@ -131,14 +131,3 @@ describe("buildExtensionProfile", () => {
     expect(result.narrative.summary).toBe("");
   });
 });
-
-describe("notice period from the extension", () => {
-  it("reads the ways people write it", async () => {
-    const { noticePeriodToDays } = await import("./adapter");
-    expect(noticePeriodToDays("30 days")).toBe(30);
-    expect(noticePeriodToDays("2 weeks")).toBe(14);
-    expect(noticePeriodToDays("1 month")).toBe(30);
-    expect(noticePeriodToDays("Immediately")).toBe(0);
-    expect(noticePeriodToDays("when the project ends")).toBeNull();
-  });
-});

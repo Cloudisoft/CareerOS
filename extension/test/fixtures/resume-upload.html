@@ -1,0 +1,24 @@
+<!-- A dedicated resume-upload step, the shape several ATS forms use before
+     ever showing the rest of the application (Workday's "Autofill with
+     Resume" panel, Greenhouse's "Attach your resume" step, etc). Exercises
+     Filler.collectFields()/classify() recognizing a file input as the resume
+     field, plus a couple of ordinary fields that a real resume-parse step
+     would auto-populate alongside it. -->
+<form id="resume-step" action="/apply/resume">
+  <div class="field">
+    <label for="first_name">First Name</label>
+    <input type="text" id="first_name" name="first_name">
+  </div>
+  <div class="field">
+    <label for="email">Email Address</label>
+    <input type="email" id="email" name="email">
+  </div>
+  <!-- Deliberately last in the DOM — the case item 2 (resume-upload-first
+       ordering) exists for: a resume auto-parse firing after the fields
+       above were already filled must not be allowed to clobber them. -->
+  <div class="field">
+    <label for="resume_file">Resume/CV</label>
+    <input type="file" id="resume_file" name="resume" accept=".pdf,.doc,.docx">
+  </div>
+  <button type="submit">Continue</button>
+</form>

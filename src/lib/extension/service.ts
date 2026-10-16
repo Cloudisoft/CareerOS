@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomBytes } from "crypto";
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { generateToken, hashToken } from "@/lib/auth/crypto";
 import type { User } from "@prisma/client";
@@ -24,19 +24,6 @@ function generateCode(length = 6) {
     out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
   }
   return out;
-}
-
-/**
- * A short code derived from a connect request's state. The extension shows it in a notification when it
- * opens the approval page, and the page shows it too: approving only when they match means a link someone
- * else started (to collect a token for your account) can't be approved by mistake. Mirrors
- * connectCode() in extension/lib/careeros-api.js.
- */
-export function connectCode(state: string) {
-  const bytes = createHash("sha256").update(state, "utf8").digest();
-  let out = "";
-  for (let i = 0; i < 6; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return `${out.slice(0, 3)}-${out.slice(3)}`;
 }
 
 async function issueExtensionSession(userId: string, label?: string) {
@@ -80,11 +67,6 @@ export async function consumePairingCode(code: string, label?: string) {
 }
 
 export async function startConnectRequest(state: string, label?: string, version?: string) {
-  // Housekeeping: requests and pairing codes are short-lived; drop ones that ended over a day ago.
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  await prisma.extensionConnectRequest.deleteMany({ where: { expiresAt: { lt: dayAgo } } });
-  await prisma.extensionPairingCode.deleteMany({ where: { expiresAt: { lt: dayAgo } } });
-  await prisma.extensionSession.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await prisma.extensionConnectRequest.create({
     data: { state, label, version, expiresAt: new Date(Date.now() + CONNECT_REQUEST_TTL_MS) },
   });
@@ -92,19 +74,6 @@ export async function startConnectRequest(state: string, label?: string, version
 
 export async function getConnectRequest(state: string) {
   return prisma.extensionConnectRequest.findUnique({ where: { state } });
-}
-
-/** What the approval page shows about the browser asking to connect. */
-export async function describeConnectRequest(state: string) {
-  const record = await prisma.extensionConnectRequest.findUnique({ where: { state } });
-  if (!record) return null;
-  return {
-    label: record.label ?? "A browser",
-    version: record.version ?? null,
-    createdAt: record.createdAt.toISOString(),
-    code: connectCode(state),
-    valid: record.status === "PENDING" && record.expiresAt > new Date(),
-  };
 }
 
 export async function approveConnectRequest(state: string, user: User) {
@@ -140,14 +109,13 @@ export async function pollConnectRequest(state: string) {
   if (record.status === "DENIED") return { status: "denied" as const };
   if (record.status === "PENDING") return { status: "pending" as const };
 
-  // APPROVED: hand back the raw token exactly once, then clear it. The conditional update makes this
-  // atomic: of two polls racing, only the one that actually cleared the token receives it.
+  // APPROVED: hand back the raw token exactly once, then clear it.
   if (record.pendingToken) {
-    const taken = await prisma.extensionConnectRequest.updateMany({
-      where: { id: record.id, pendingToken: record.pendingToken },
+    await prisma.extensionConnectRequest.update({
+      where: { id: record.id },
       data: { pendingToken: null },
     });
-    if (taken.count === 1) return { status: "approved" as const, token: record.pendingToken, email: record.user?.email };
+    return { status: "approved" as const, token: record.pendingToken, email: record.user?.email };
   }
   return { status: "approved" as const, email: record.user?.email };
 }
@@ -160,10 +128,5 @@ export async function listExtensionSessions(userId: string) {
 }
 
 export async function revokeExtensionSession(userId: string, sessionId: string) {
-  await prisma.extensionSession.deleteMany({ where: { id: sessionId, userId } });
-}
-
-/** The extension disconnecting itself: end the session its token belongs to. */
-export async function revokeExtensionToken(token: string) {
-  await prisma.extensionSession.deleteMany({ where: { tokenHash: hashToken(token) } });
+  await prisma.extensionSession.delete({ where: { id: sessionId, userId } });
 }

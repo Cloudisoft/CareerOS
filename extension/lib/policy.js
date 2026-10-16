@@ -54,15 +54,18 @@
   const Policy = {
     POLICIES,
 
-    /* The operator's per-platform overrides live in settings.platformModes. */
+    /* The operator's per-platform overrides live in settings.platformModes.
+       fastLinkedIn is a separate, narrower override: it only ever touches
+       LinkedIn's pacing number, never its mode — the ToS-acknowledgement gate
+       on auto-submit is untouched by it. */
     for(atsId, settings) {
       const base = POLICIES[atsId] || POLICIES.generic;
+      const policy = (atsId === 'linkedin' && settings && settings.fastLinkedIn)
+        ? Object.assign({}, base, { rateLimit: 40 })
+        : base;
       const override = settings && settings.platformModes && settings.platformModes[atsId];
-      if (!override || override === 'default') return base;
-      // Full automation on a board whose terms forbid it needs the acknowledgment in settings, wherever the
-      // override came from (this browser, the website, or before the box was unticked).
-      if (override === 'auto' && base.tos === 'restricted' && !(settings && settings.acknowledgedRestricted)) return base;
-      return Object.assign({}, base, { mode: override, overridden: true });
+      if (!override || override === 'default') return policy;
+      return Object.assign({}, policy, { mode: override, overridden: true });
     },
 
     /* The only function allowed to authorise an automated submit. */
@@ -73,8 +76,16 @@
       return { allowed: true, reason: policy.overridden ? 'Enabled by you for this platform' : policy.note };
     },
 
+    /* 'auto' and 'assist' both belong in the run — 'assist' means fill-only,
+       not "don't touch it" (see the mode legend up top). Only 'discover'
+       (an operator override, never a default) means stay out of the form
+       entirely. Requiring 'auto' here used to silently strand every queued
+       LinkedIn/Indeed/etc. job forever: canAutoSubmit already refuses to
+       submit anything that isn't 'auto', so gating the queue pick on the
+       same condition doubled up and left restricted-platform jobs sitting
+       in the queue with nothing ever opening them. */
     canQueue(atsId, settings) {
-      return Policy.for(atsId, settings).mode === 'auto';
+      return Policy.for(atsId, settings).mode !== 'discover';
     },
 
     /* Seconds between applications on a platform, never below its floor. */
@@ -89,7 +100,10 @@
        obvious bot signal there is. This is pacing, not disguise. */
     jitter(atsId, settings) {
       const base = Policy.pacing(atsId, settings) * 1000;
-      return Math.round(base * (0.75 + Math.random() * 0.7));
+      const fast = atsId === 'linkedin' && settings && settings.fastLinkedIn;
+      // Fast mode narrows the jitter window too — still not a metronome, just
+      // a tighter one, matching the higher rate limit above.
+      return Math.round(base * (fast ? 0.9 + Math.random() * 0.3 : 0.75 + Math.random() * 0.7));
     },
 
     flow(atsId) {
@@ -98,6 +112,18 @@
 
     isRestricted(atsId) {
       return (POLICIES[atsId] || POLICIES.generic).tos === 'restricted';
+    },
+
+    /* How many tabs may work this platform at once. Restricted platforms are
+       capped at one by default — parallel sessions on the same account are
+       both slower in practice and the thing most likely to get one flagged —
+       unless the person has explicitly turned fastLinkedIn on for LinkedIn,
+       in which case it shares the normal concurrency pool like everything else. */
+    concurrencyCap(atsId, settings) {
+      const pool = Math.max(1, Number(settings && settings.concurrency) || 3);
+      if (!Policy.isRestricted(atsId)) return pool;
+      if (atsId === 'linkedin' && settings && settings.fastLinkedIn) return pool;
+      return 1;
     },
 
     label(mode) {

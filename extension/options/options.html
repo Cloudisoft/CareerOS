@@ -16,6 +16,30 @@
     <div class="saveState" id="saveState">Saved</div>
   </header>
 
+  <div class="welcomeWizard" id="welcomeWizard" hidden>
+    <div class="welcomeWizard__step" id="welcomeStepLabel">Step 1 of 3</div>
+    <div class="welcomeWizard__body">
+      <strong id="welcomeTitle">Connect your CareerOS account</strong>
+      <p id="welcomeCopy">Sign in below so Auto Apply can pull your profile and resume.</p>
+    </div>
+    <div class="row">
+      <button class="ghost" id="welcomeSkip">Skip for now</button>
+      <button class="btn" id="welcomeNext">Next</button>
+    </div>
+  </div>
+
+  <div class="profileBar" id="profileBar">
+    <label class="profileSelectWrap">Editing profile
+      <select id="profileSelect"></select>
+    </label>
+    <div class="row">
+      <button class="ghost" id="newProfile">New</button>
+      <button class="ghost" id="duplicateProfile">Duplicate</button>
+      <button class="ghost" id="renameProfile">Rename</button>
+      <button class="ghost danger" id="deleteProfile">Delete</button>
+    </div>
+  </div>
+
   <nav class="tabs">
     <button class="tab is-on" data-panel="account">Account</button>
     <button class="tab" data-panel="you">You</button>
@@ -33,17 +57,22 @@
     <section class="panel is-on" id="panel-account">
       <div id="pairState" class="pairBox">
         <h2>Connect this browser</h2>
-        <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
+        <p class="note">One click. You'll approve it on the CareerOS site, where you're already signed in.</p>
+        <button class="btn" id="connectBtn">Sign in</button>
+        <p class="note" id="connectMsg" style="margin-top:8px"></p>
 
-        <div class="grid">
-          <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://app.careeros.example/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension.</small></label>
-        </div>
-
-        <div class="pairRow">
-          <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
-          <button class="btn" id="pairBtn">Connect</button>
-        </div>
-        <p class="note" id="pairMsg"></p>
+        <details style="margin-top:16px">
+          <summary class="note">Have a pairing code instead?</summary>
+          <div class="grid" style="margin-top:8px">
+            <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://app.careeros.example/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension.</small></label>
+          </div>
+          <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
+          <div class="pairRow">
+            <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
+            <button class="btn ghost" id="pairBtn">Connect</button>
+          </div>
+          <p class="note" id="pairMsg"></p>
+        </details>
       </div>
 
       <div id="pairedBox" class="pairBox" hidden>
@@ -54,6 +83,13 @@
           <button class="ghost danger" id="unpairBtn">Disconnect</button>
           <span class="note" id="syncMsg"></span>
         </div>
+      </div>
+
+      <div id="fetchedBox" class="pairBox" hidden>
+        <h2>✓ Details fetched from your CareerOS account</h2>
+        <ul class="note" id="fetchedList" style="margin:6px 0 12px; padding-left:18px"></ul>
+        <button class="btn" id="startAutoApplyBtn">Start finding &amp; applying to jobs</button>
+        <p class="note" id="startAutoApplyMsg" style="margin-top:8px"></p>
       </div>
 
       <p class="note">Your profile, target roles and resume come from CareerOS, so changing them anywhere reaches every browser you have connected.</p>
@@ -117,6 +153,17 @@
         </label>
         <label>Work modes<input data-bind="targeting.workModes" data-list placeholder="remote, hybrid"></label>
         <label>Locations you'd take<input data-bind="targeting.locations" data-list placeholder="Ahmedabad, Bengaluru, Remote"></label>
+        <label>Country<input data-bind="targeting.country" placeholder="IN, US, GB…"><small>Used to pick which of your profiles best fits a posting when you keep more than one (Profile bar, top), and which Indeed domain "Search this position" opens.</small></label>
+        <label>Search radius
+          <select data-bind="targeting.radiusMiles" data-number>
+            <option value="0">No radius limit</option>
+            <option value="10">10 miles</option>
+            <option value="25">25 miles</option>
+            <option value="50">50 miles</option>
+            <option value="100">100 miles</option>
+          </select>
+          <small>Passed to Adzuna and USAJobs as a distance filter, and to LinkedIn's own search URL when you use "Search this position" in the extension popup.</small>
+        </label>
         <label>Salary floor<input data-bind="targeting.minSalary" type="number" placeholder="0"></label>
         <label>Currency<input data-bind="targeting.salaryCurrency"></label>
       </div>
@@ -257,6 +304,12 @@
         I understand that automating LinkedIn, Indeed, ZipRecruiter, Dice or Glassdoor is against their terms and can get a candidate's account restricted or closed.
       </label>
 
+      <label class="check danger">
+        <input type="checkbox" data-setting="fastLinkedIn">
+        Loosen LinkedIn pacing for speed
+        <small>Raises LinkedIn's rate limit and lets it use your normal tab concurrency instead of one tab at a time. Higher volume on LinkedIn is more likely to draw account review. This only changes fill/queue speed — auto-submit is still gated by the acknowledgement above.</small>
+      </label>
+
       <h2>Employer ATS</h2>
       <p class="note">These apply on their own. Turn one down to fill-and-stop if you'd rather review that platform yourself.</p>
       <div id="openPlatforms" class="platformList"></div>
@@ -271,6 +324,8 @@
         <label class="check"><input type="checkbox" data-setting="highlightFields"> Outline fields as they are filled</label>
         <label class="check"><input type="checkbox" data-setting="tailorCoverLetter"> Write a cover letter for each application</label>
         <label class="check"><input type="checkbox" data-setting="tailorScreeningAnswers"> Answer screening questions</label>
+        <label class="check"><input type="checkbox" data-setting="autoHarvest"> Automatically collect job cards while browsing search results<small>Scrolls and collects for you on LinkedIn, Indeed, ZipRecruiter, Dice and Glassdoor, without needing the Queue button. Turn off to only collect when you press it yourself.</small></label>
+        <label class="check"><input type="checkbox" data-setting="showApplyTabs"> Show applications happening<small>Opens each apply in a small visible window instead of a fully hidden background tab, so you can watch a form get filled. Slightly slower and more visible; off by default.</small></label>
         <label class="check danger"><input type="checkbox" data-setting="autoSubmit"> Submit without asking me first</label>
       </div>
       <p class="note">Auto submit only ever applies to employer ATS platforms. On LinkedIn, Indeed, ZipRecruiter, Dice and Monster, whose terms prohibit automated interaction, CareerOS fills the form and stops regardless of this setting. With auto submit off everywhere, CareerOS fills the form and stops. You read it and press the site's own submit. Leaving it off is the safer habit, and some job boards restrict automated submissions in their terms.</p>
@@ -281,13 +336,22 @@
         <label>Applications per day<input data-setting="dailyLimit" type="number" min="1" max="200"></label>
         <label>Seconds between applications<input data-setting="pacingSeconds" type="number" min="10"></label>
         <label>Tabs applying at once<input data-setting="concurrency" type="number" min="1" max="6"><small>Three is a good balance. Higher gets loud.</small></label>
+        <label>LinkedIn search: date posted
+          <select data-setting="searchDatePosted">
+            <option value="24h">Past 24 hours</option>
+            <option value="week">Past week</option>
+            <option value="month">Past month</option>
+            <option value="any">Any time</option>
+          </select>
+          <small>Used by "Search this position on LinkedIn" in the popup. Work type and experience level there come from your targeting above.</small>
+        </label>
       </div>
 
       <h2>JobGPT</h2>
       <p class="note">Generation runs through the CareerOS backend, which holds the model key server-side. A provider key placed in a browser extension is readable by anyone who installs it, so the direct path is developer-only and refuses to run unless you turn it on below.</p>
       <div class="grid">
         <label class="wide">API base<input data-setting="apiBase"></label>
-        <label class="wide">Token<input data-setting="deviceToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
+        <label class="wide">Token<input data-setting="apiToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
         <label class="check danger wide"><input type="checkbox" data-setting="allowDirectKey"> Developer mode: allow a provider key to be used directly from this browser<small>Also needs the dev manifest — run <code>./build.sh dev</code>. The shipped build does not permit it.</small></label>
       </div>
 
@@ -303,7 +367,6 @@
   <script src="../lib/profile.js"></script>
   <script src="../lib/policy.js"></script>
   <script src="../lib/careeros-api.js"></script>
-  <script src="../lib/sync.js"></script>
   <script src="../lib/permissions.js"></script>
   <script src="options.js"></script>
 </body>

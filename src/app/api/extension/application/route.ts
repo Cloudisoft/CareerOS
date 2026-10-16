@@ -17,14 +17,15 @@ export async function POST(req: NextRequest) {
     const candidateProfile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
     if (!candidateProfile) return extError("Career Profile not found.", 404);
 
-    const input = extensionApplicationSchema.parse(await req.json());
-    // A submission that already happened is always recorded (refusing it would only hide it from the
-    // tracker and from dedupe). The extension checks the limit before it applies, using /sync.
     const appliedThisMonth = await countAppliedThisMonth(candidateProfile.id);
-    const overLimit = appliedThisMonth >= entitlements.monthlyApplicationLimit;
+    if (appliedThisMonth >= entitlements.monthlyApplicationLimit) {
+      return extError("This month's Auto Apply limit has been reached.", 429);
+    }
+
+    const input = extensionApplicationSchema.parse(await req.json());
     const application = await logExtensionApplication(candidateProfile.id, input);
 
-    return extOk({ ok: true, applicationId: application.id, limitReached: overLimit || appliedThisMonth + 1 >= entitlements.monthlyApplicationLimit });
+    return extOk({ ok: true, applicationId: application.id });
   } catch (error) {
     return extCatch(error);
   }

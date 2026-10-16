@@ -52,8 +52,7 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.application.findUnique({
       where: { profileId_jobId: { profileId: candidateProfile.id, jobId: job.id } },
     });
-    // Never reuse placeholder text cached while AI wasn't configured.
-    if (existing?.coverLetter && !existing.coverLetter.startsWith("[DEV MODE")) {
+    if (existing?.coverLetter) {
       const answers = (existing.answers as { tailoredSummary?: string } | null) ?? {};
       return extOk({
         tailored: true,
@@ -64,8 +63,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // If AI is unavailable the extension still fills from the base profile; nothing is cached.
-    const generated = await Promise.all([
+    const [coverLetterResult, summaryResult] = await Promise.all([
       generateCoverLetter({
         userId: user.id,
         jobTitle,
@@ -82,12 +80,7 @@ export async function POST(req: NextRequest) {
         jobDescription,
         executiveMode: entitlements.executiveMode,
       }),
-    ]).catch((e) => {
-      console.error("extension package generation failed", e);
-      return null;
-    });
-    if (!generated || generated.some((g) => g.text.startsWith("[DEV MODE"))) return extOk({ tailored: false });
-    const [coverLetterResult, summaryResult] = generated;
+    ]);
 
     const application = await prisma.application.upsert({
       where: { profileId_jobId: { profileId: candidateProfile.id, jobId: job.id } },
