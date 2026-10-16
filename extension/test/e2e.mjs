@@ -19,7 +19,7 @@ const ext = path.resolve(here, '..');
 
 /* ---------------- stand-in Career OS API + application forms ---------------- */
 
-const seen = { submissions: [], applications: [], answers: [] };
+const seen = { submissions: [], applications: [], answers: [], heartbeats: [], disconnects: 0, command: null };
 
 function formPage(id, veteranOptions) {
   return `<!doctype html><html><head><title>Apply: Support Engineer ${id}</title></head><body>
@@ -77,12 +77,16 @@ const server = http.createServer(async (req, res) => {
     });
   }
   if (p === '/api/extension/package') return json(200, { tailored: false });
-  if (p === '/api/extension/run') return json(200, { ok: true });
+  if (p === '/api/extension/run') { seen.heartbeats.push(JSON.parse(body)); return json(200, { ok: true }); }
+  if (p === '/api/extension/jobs') return json(200, { jobs: [], scanned: 0, failed: 0, reason: null });
+  if (p === '/api/extension/control') { const command = seen.command; seen.command = null; return json(200, { command }); }
+  if (p === '/api/extension/disconnect') { seen.disconnects += 1; return json(200, { ok: true }); }
   if (p === '/api/extension/application') { seen.applications.push(JSON.parse(body)); return json(200, { ok: true }); }
   if (p === '/api/extension/answers') { seen.answers.push(...JSON.parse(body).answers); return json(200, { ok: true }); }
   if (p === '/api/extension/jobgpt/generate') return json(422, { error: 'Needs you' }); // the AI can't know this person's tools
   if (p.startsWith('/recaptcha/')) { res.writeHead(200, { 'content-type': 'text/html' }); return res.end('<html></html>'); }
   if (p === '/apply/1') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(formPage(1, ['I identify as one or more of the classifications of protected veteran', 'I am not a protected veteran', "I don't wish to answer"])); }
+  if (p === '/apply/4') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(formPage(4, ['Yes', 'No', 'Decline to self-identify'])); }
   if (p === '/apply/2') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(formPage(2, ['Yes, I am a protected veteran', 'No, I am not a protected veteran', 'I prefer not to answer'])); }
   if (p === '/apply/3') {
     res.writeHead(200, { 'content-type': 'text/html' });
@@ -178,6 +182,7 @@ try {
   });
   check(seen.submissions.length === 1 && seen.submissions[0].fields.tools === 'Zendesk for four years.', 'submitted by itself once answered, exactly once');
   check(seen.applications.some((a) => a.outcome === 'submitted'), 'recorded the submission in Career OS');
+  check(seen.heartbeats.some((h) => (h.waiting || []).some((w) => w.title === 'Support Engineer' && w.reason === 'questions')), 'reported the waiting application to Career OS for the "Needs you" list');
   check(seen.answers.some((a) => a.answer === 'Zendesk for four years.') && seen.answers.some((a) => a.key === 'eeo:veteran' && a.answer === 'No'), 'saved the answers to Career OS (veteran status by meaning)');
 
   /* 2. Next application asks the same questions with different wording: no stopping. */
@@ -207,6 +212,20 @@ try {
   await p3.evaluate(() => { document.querySelector('[name=g-recaptcha-response]').value = 'x'.repeat(40); }); // the person solves it
   await waitFor(async () => (await jobState('job-3')).state === 'submitted', 30000, 'job-3 submitted');
   check(seen.submissions.filter((x) => x.id === '3').length === 1, 'submitted by itself once the CAPTCHA was solved');
+
+  /* 4. Start pressed on the Auto Apply page in Career OS: the browser picks it up and runs. */
+  await sw.evaluate(async (o) => {
+    self.CareerOS.Engine.runtime.gateUntil.clear();
+    await handleEngineCommand({ command: 'add', jobs: [{ id: 'job-4', url: `${o}/apply/4`, title: 'Support Analyst', company: 'Fabrikam', ats: 'generic', location: 'Remote' }] });
+  }, origin);
+  seen.command = 'start';
+  await sw.evaluate(() => checkRemoteControl()); // the minute alarm, run now
+  await waitFor(async () => (await jobState('job-4')).state === 'submitted', 60000, 'job-4 submitted after remote start');
+  check(seen.submissions.find((x) => x.id === '4')?.fields.veteran === 'No', 'started from the web page and submitted with the saved answers');
+
+  /* 5. Disconnect ends the session on the server too. */
+  await sw.evaluate(() => handleEngineCommand({ command: 'unpair' }));
+  check(seen.disconnects === 1 && !(await sw.evaluate(() => self.CareerOS.Api.isPaired())), 'disconnect ends the session on the server and here');
 } catch (err) {
   failures.push(err.message);
   console.log(`✗ ${err.message}`);

@@ -107,6 +107,17 @@
         return { ok: false, error: (body && body.error) || 'Could not reach Career OS. Check your connection and try again.' };
       }
 
+      // The approval page shows the same code; the person approves only if they match.
+      const code = await connectCode(state);
+      chrome.notifications.create('careeros:connect', {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: `Approve only if the page shows ${code}`,
+        message: 'Career OS opened a tab to connect this browser. Check the code matches, then press Approve.',
+        priority: 2
+      });
+      if (onStatus) onStatus('code', code);
+
       const settings = await Storage.getSettings();
       const tab = await chrome.tabs.create({
         url: `${(settings.webAppUrl || Storage.PROD_WEB).replace(/\/$/, '')}/extension-connect?state=${state}`,
@@ -127,6 +138,7 @@
         if (!body) continue;
 
         if (body.status === 'approved' && body.token) {
+          chrome.notifications.clear('careeros:connect');
           await Storage.saveSettings({
             deviceToken: body.token,
             pairedAs: body.email || body.name || '',
@@ -142,7 +154,9 @@
       return { ok: false, error: 'Timed out waiting for approval.' };
     },
 
+    /* Disconnect: end this browser's session on the server too, then forget it locally. */
     async unpair() {
+      await request('/disconnect', { method: 'POST' }).catch(() => {});
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
     },
 
@@ -204,10 +218,30 @@
       return request('/application', { method: 'POST', body: JSON.stringify(entry) });
     },
 
+    /* Fresh postings from public employer boards that fit this person, found by the Career OS server. */
+    async jobs() {
+      return request('/jobs');
+    },
+
+    /* Start / Stop pressed on the Auto Apply page in Career OS. */
+    async control() {
+      return request('/control');
+    },
+
     async heartbeat(run) {
       return request('/run', { method: 'POST', body: JSON.stringify(run) });
     },
   };
+
+  /* Same derivation as connectCode() on the server: six characters from the SHA-256 of the state. */
+  async function connectCode(state) {
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(state)));
+    let out = '';
+    for (let i = 0; i < 6; i++) out += alphabet[bytes[i] % alphabet.length];
+    return `${out.slice(0, 3)}-${out.slice(3)}`;
+  }
+  Api.connectCode = connectCode;
 
   function deviceLabel() {
     const ua = navigator.userAgent;

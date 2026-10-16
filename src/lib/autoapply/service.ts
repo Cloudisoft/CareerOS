@@ -192,6 +192,7 @@ export interface RunHeartbeatInput {
   skipped: number;
   failed: number;
   lastError?: string;
+  waiting?: { title: string; company: string; url: string; reason: string; message: string; since?: number }[];
 }
 
 export async function recordRunHeartbeat(
@@ -220,6 +221,7 @@ export async function recordRunHeartbeat(
       skipped: input.skipped,
       failed: input.failed,
       lastError: input.lastError ?? null,
+      ...(input.waiting ? { waiting: input.waiting } : {}),
     },
     create: {
       runId: input.runId,
@@ -231,8 +233,31 @@ export async function recordRunHeartbeat(
       skipped: input.skipped,
       failed: input.failed,
       lastError: input.lastError ?? null,
+      waiting: input.waiting ?? [],
     },
   });
+}
+
+/** Commands older than this are dropped: the browser was closed, and starting a run hours later would surprise. */
+const RUN_COMMAND_TTL_MS = 15 * 60 * 1000;
+
+/** Start or Stop pressed on the Auto Apply page; the extension picks it up within a minute. */
+export async function requestRunCommand(profileId: string, action: "start" | "stop") {
+  await getOrCreateSettings(profileId);
+  return prisma.autoApplySettings.update({ where: { profileId }, data: { runCommand: action, runCommandAt: new Date() } });
+}
+
+/** The extension collecting a pending command, exactly once (two browsers can't both take it). */
+export async function takeRunCommand(profileId: string): Promise<"start" | "stop" | null> {
+  const settings = await prisma.autoApplySettings.findUnique({ where: { profileId } });
+  if (!settings?.runCommand || !settings.runCommandAt) return null;
+  const taken = await prisma.autoApplySettings.updateMany({
+    where: { profileId, runCommand: settings.runCommand, runCommandAt: settings.runCommandAt },
+    data: { runCommand: null, runCommandAt: null },
+  });
+  if (taken.count !== 1) return null;
+  if (Date.now() - settings.runCommandAt.getTime() > RUN_COMMAND_TTL_MS) return null;
+  return settings.runCommand === "stop" ? "stop" : "start";
 }
 
 export async function listRecentRuns(profileId: string) {

@@ -439,7 +439,7 @@
 
     const labels = missing.map((f) => f.label).filter(Boolean).slice(0, 4).join('; ');
     const what = missing.length
-      ? `${missing.length} question${missing.length === 1 ? '' : 's'} need your answer${labels ? `: ${labels}` : ''}.`
+      ? `${missing.length} question${missing.length === 1 ? ' needs' : 's need'} your answer${labels ? `: ${labels}` : ''}.`
       : 'The form needs a correction (see the highlighted message).';
     await send({ type: 'careeros:needsYou', reason: 'questions', message: what });
     showBanner(`${what} Answer in this tab; when you stop typing, CareerOS saves your answers and continues.`);

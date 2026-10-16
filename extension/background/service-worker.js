@@ -153,6 +153,7 @@ async function handleEngineCommand(msg) {
   if (msg.command === 'reregister')  return { ok: true, ...(await Permissions.registerScripts()) };
   if (msg.command === 'sync')   return syncFromServer().catch((err) => ({ ok: false, error: err.message }));
   if (msg.command === 'paired') return { ok: true, paired: await Api.isPaired() };
+  if (msg.command === 'unpair') { await Engine.stop('Disconnected'); await Api.unpair(); return { ok: true }; }
   if (msg.command === 'build') {
     const perms = await Permissions.status();
     if (!perms.ats && !perms.boards) {
@@ -169,6 +170,14 @@ async function handleEngineCommand(msg) {
     return Object.assign({ ok: true }, await Engine.build());
   }
   if (msg.command === 'start') {
+    // CareerOS can only fill forms on sites it has access to. Jobs already queued need their own site;
+    // an empty queue is filled from employer boards, which need the employer sites turned on.
+    const queued = (await Engine.getState()).queue.filter((j) => j.state === 'queued');
+    const reachable = await Promise.all(queued.map((j) => canRunOn(j.url)));
+    const noAccess = queued.length ? !reachable.some(Boolean) : !(await Permissions.status()).ats;
+    if (noAccess) {
+      return { ok: false, error: 'Turn on "Employer application systems" in CareerOS settings first, so CareerOS can fill applications on Greenhouse, Lever, Ashby and others.' };
+    }
     const synced = await syncFromServer().catch((err) => ({ ok: false, error: err.message }));
     if (synced.entitled === false) return { ok: false, error: synced.message };
     if (!synced.ok) return { ok: false, error: synced.error || 'Could not reach Career OS' };
@@ -229,8 +238,11 @@ self.CareerOS.generateFor = async function (job) {
 /* Refresh the badge, and nudge the engine loop back to life after the service
    worker has been suspended mid-run. */
 chrome.alarms.create('careeros:badge', { periodInMinutes: 5 });
+// Start / Stop pressed on the Auto Apply page in Career OS reaches this browser within a minute.
+chrome.alarms.create('careeros:control', { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'careeros:badge') return Engine.updateBadge();
+  if (alarm.name === 'careeros:control') return checkRemoteControl().catch(logError('control'));
   if (alarm.name === 'careeros:tick') {
     const state = await Engine.getState();
     if (state.running) Engine.loop();
@@ -272,6 +284,31 @@ async function generate({ kind, payload, posting, match }) {
     if (err.status === 429) return { ok: false, error: 'Too many AI requests in a minute; CareerOS will retry.' };
     return { ok: false, error: err.message };
   }
+}
+
+function canRunOn(url) {
+  try {
+    return chrome.permissions.contains({ origins: [`${new URL(url).origin}/*`] });
+  } catch (err) {
+    return Promise.resolve(false);
+  }
+}
+
+async function checkRemoteControl() {
+  if (!(await Api.isPaired())) return;
+  const { command } = await Api.control();
+  if (command === 'start') {
+    const res = await handleEngineCommand({ command: 'start' });
+    const state = res.state || {};
+    notifyRemote(state.running ? 'CareerOS started applying' : 'CareerOS could not start', state.running ? 'Started from the Auto Apply page.' : (res.error || state.lastError || ''));
+  } else if (command === 'stop') {
+    await Engine.stop('Stopped from the Auto Apply page');
+    notifyRemote('CareerOS stopped', 'Stopped from the Auto Apply page.');
+  }
+}
+
+function notifyRemote(title, message) {
+  chrome.notifications.create('', { type: 'basic', iconUrl: chrome.runtime.getURL('icons/icon128.png'), title, message: String(message || '').slice(0, 200) });
 }
 
 function logError(what) {

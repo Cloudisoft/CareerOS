@@ -1023,6 +1023,10 @@ model AutoApplySettings {
   autoSubmit    Boolean @default(false)
   platformModes Json    @default("{}")
 
+  /// "start" or "stop" pressed on the Auto Apply page, waiting for the extension to pick it up.
+  runCommand   String?
+  runCommandAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1060,6 +1064,8 @@ model AutoApplyRun {
   skipped   Int     @default(0)
   failed    Int     @default(0)
   lastError String?
+  /// Applications waiting in a browser tab for the person (CAPTCHA, sign-in, a question): [{title, company, url, reason, message, since}]
+  waiting   Json    @default("[]")
 
   startedAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -25,6 +25,9 @@
       if (sources.jsearch && sources.jsearch.key) runs.push(jsearch(profile, settings, sources.jsearch));
       if (sources.usajobs && sources.usajobs.email) runs.push(usajobs(profile, settings, sources.usajobs));
       (sources.boards || []).forEach((b) => runs.push(board(b)));
+      // Always: Career OS scans a catalog of employer boards for roles that fit the person, so a run has
+      // jobs without anyone configuring a source.
+      if (sources.careeros !== false && root.CareerOS.Api) runs.push(careerOsJobs());
 
       const settled = await Promise.allSettled(runs);
       settled.forEach((r) => {
@@ -45,6 +48,27 @@
 
     classifyUrl
   };
+
+  async function careerOsJobs() {
+    if (!(await root.CareerOS.Api.isPaired())) return [];
+    const res = await root.CareerOS.Api.jobs();
+    if (!res.jobs || !res.jobs.length) {
+      if (res.reason) throw new Error(res.reason);
+      return [];
+    }
+    return res.jobs.map((j) => ({
+      source: 'careeros',
+      externalId: j.externalId,
+      title: j.title,
+      company: j.company,
+      location: j.location || '',
+      description: j.description || '',
+      url: j.url,
+      applyUrl: j.applyUrl || j.url,
+      ats: j.ats,
+      postedAt: j.postedAt || Date.now()
+    }));
+  }
 
   /* ---------------- aggregators ---------------- */
 

@@ -260,7 +260,8 @@
   };
 
   $('#unpairBtn').onclick = async () => {
-    await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+    // Ends this browser's session on the server too, not just here.
+    await new Promise((resolve) => chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'unpair' }, resolve));
     location.reload();
   };
 

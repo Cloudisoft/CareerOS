@@ -268,7 +268,9 @@
           if (!next) {
             if (!working.length && !state.queue.some((j) => j.state === 'queued')) {
               const waiting = active.length;
-              await Engine.setState({ running: false, lastError: waiting ? `${waiting} application${waiting === 1 ? '' : 's'} waiting for you` : 'Queue finished', runId: waiting ? state.runId : null });
+              // Report the finished run before forgetting its id (a run with applications still waiting keeps it).
+              await Engine.setState({ running: false, lastError: waiting ? `${waiting} application${waiting === 1 ? '' : 's'} waiting for you` : 'Queue finished' });
+              if (!waiting) await Engine.setState({ runId: null });
               chrome.alarms.clear('careeros:tick');
               notify('Run finished', summarize(await Engine.getState()) + (waiting ? ` ${waiting} still need${waiting === 1 ? 's' : ''} you.` : ''));
               break;
@@ -367,6 +369,7 @@
       if (!entry) return;
       await mark(entry.job.id, { state: 'waiting', detail: info.message || 'Needs you' });
       const what = info.reason === 'captcha' ? 'a verification check' : info.reason === 'login' ? 'you to sign in' : 'your answer';
+      heartbeat(await Engine.getState(), true);
       notify(`${entry.job.company || 'An application'} needs ${what}`, `${entry.job.title || ''}. Click to open the tab. CareerOS continues by itself afterwards.`, `careeros:tab:${tabId}`, true);
       await updateBadge();
     },
@@ -381,6 +384,7 @@
       if (!entry) return;
       chrome.notifications.clear(`careeros:tab:${tabId}`);
       await mark(entry.job.id, { state: 'running', detail: null });
+      heartbeat(await Engine.getState(), true);
       await updateBadge();
       const state = await Engine.getState();
       if (state.running) Engine.loop();
@@ -518,13 +522,23 @@
     }));
   }
 
-  /* Live run status for the Auto Apply page. Throttled; errors that mean the run can't continue stop it. */
-  function heartbeat(state) {
-    if (!state.runId) return;
+  /* Live run status for the Auto Apply page, including applications waiting for the person. Throttled
+     (unless what's waiting changed); errors that mean the run can't continue stop it. */
+  async function heartbeat(state, force) {
+    if (!state || !state.runId) return;
     const now = Date.now();
-    if (state.running && now - runtime.lastHeartbeat < HEARTBEAT_EVERY_MS) return;
+    if (!force && state.running && now - runtime.lastHeartbeat < HEARTBEAT_EVERY_MS) return;
     runtime.lastHeartbeat = now;
+    const waiting = Object.values(await getActive()).filter((e) => e.phase === 'waiting').map((e) => ({
+      title: String(e.job.title || '').slice(0, 200),
+      company: String(e.job.company || '').slice(0, 200),
+      url: String(e.job.url || '').slice(0, 2000),
+      reason: String(e.reason || '').slice(0, 40),
+      message: String(e.message || '').slice(0, 500),
+      since: e.since || undefined,
+    }));
     Api.heartbeat({
+      waiting,
       runId: state.runId,
       status: state.running ? 'running' : 'finished',
       queued: state.queue.filter((j) => j.state === 'queued').length,

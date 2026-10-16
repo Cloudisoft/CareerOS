@@ -58,6 +58,39 @@ describe.skipIf(!url)("auto apply records (database)", async () => {
     ]);
   });
 
+  it("hands a Start/Stop command to exactly one browser, and drops stale ones", async () => {
+    await service.requestRunCommand(profileId, "start");
+    const [a, b] = await Promise.all([service.takeRunCommand(profileId), service.takeRunCommand(profileId)]);
+    expect([a, b].filter(Boolean)).toEqual(["start"]);
+    expect(await service.takeRunCommand(profileId)).toBeNull();
+    await service.requestRunCommand(profileId, "stop");
+    await prisma.autoApplySettings.update({ where: { profileId }, data: { runCommandAt: new Date(Date.now() - 60 * 60 * 1000) } });
+    expect(await service.takeRunCommand(profileId)).toBeNull();
+  });
+
+  it("stores what's waiting for the person with the run", async () => {
+    const ents = { campaignMonthlyLimit: 100 } as Parameters<typeof service.recordRunHeartbeat>[2];
+    const waiting = [{ title: "QA Analyst", company: "Acme", url: "https://x.test/1", reason: "captcha", message: "Tick the box" }];
+    const run = await service.recordRunHeartbeat(profileId, { runId: `run_w_${Date.now()}`, status: "running", queued: 0, submitted: 0, assisted: 0, skipped: 0, failed: 0, waiting }, ents);
+    expect(run.waiting).toEqual(waiting);
+  });
+
+  it("gives a connect token to only one poll, and shows the matching code", async () => {
+    const ext = await import("@/lib/extension/service");
+    const state = `state-${Date.now()}-abcdefghijklmnop`;
+    await ext.startConnectRequest(state, "Chrome on Windows", "2.5.0");
+    const info = await ext.describeConnectRequest(state);
+    expect(info).toMatchObject({ label: "Chrome on Windows", version: "2.5.0", valid: true, code: ext.connectCode(state) });
+    expect(info!.code).toMatch(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    await ext.approveConnectRequest(state, user);
+    const polls = await Promise.all([ext.pollConnectRequest(state), ext.pollConnectRequest(state)]);
+    const tokens = polls.map((p) => ("token" in p ? p.token : undefined)).filter(Boolean) as string[];
+    expect(tokens.length).toBe(1);
+    await ext.revokeExtensionToken(tokens[0]);
+    expect(await prisma.extensionSession.count({ where: { userId: user.id } })).toBe(0);
+  });
+
   it("never lets one account update another account's run", async () => {
     const ents = { campaignMonthlyLimit: 100 } as Parameters<typeof service.recordRunHeartbeat>[2];
     const hb = { runId: `run_${Date.now()}`, status: "running" as const, queued: 1, submitted: 0, assisted: 0, skipped: 0, failed: 0 };

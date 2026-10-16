@@ -41,4 +41,19 @@ export const extensionRunSchema = z.object({
   skipped: z.coerce.number().int().min(0),
   failed: z.coerce.number().int().min(0),
   lastError: z.string().trim().max(500).optional(),
+  waiting: z
+    .array(
+      z.object({
+        title: z.string().max(200).default(""),
+        company: z.string().max(200).default(""),
+        url: z.string().max(2000).default(""),
+        reason: z.string().max(40).default(""),
+        message: z.string().max(500).default(""),
+        since: z.coerce.number().optional(),
+      })
+    )
+    .max(50)
+    .optional(),
 });
+
+export const autoApplyControlSchema = z.object({ action: z.enum(["start", "stop"]) });
