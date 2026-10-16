@@ -16,7 +16,7 @@
     const ids = Object.keys(profilesData.profiles);
     $('#profileSelect').innerHTML = ids.map((id) => {
       const p = profilesData.profiles[id];
-      return `<option value="${attr(id)}"${id === profilesData.activeId ? ' selected' : ''}>${esc(p.name || 'Untitled')}</option>`;
+      return `<option value="${attr(id)}"${id === profilesData.activeId ? ' selected' : ''}>${esc(p.name || [p.identity && p.identity.firstName, p.identity && p.identity.lastName].filter(Boolean).join(' ') || 'My profile')}</option>`;
     }).join('');
     $('#deleteProfile').disabled = ids.length <= 1;
   }
@@ -520,8 +520,11 @@
 
   $$('[data-source]').forEach((el) => {
     const path = el.dataset.source;
-    el.value = readPath(sources, path) || '';
-    el.addEventListener('input', async () => {
+    const saved = readPath(sources, path);
+    // A select keeps its default option when nothing is saved, instead of showing blank.
+    if (saved != null && saved !== '') el.value = saved;
+    else if (el.tagName !== 'SELECT') el.value = '';
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', async () => {
       writePath(sources, path, el.type === 'number' ? Number(el.value) : el.value);
       await Storage.set('careeros.sources', sources);
       flagSaved();

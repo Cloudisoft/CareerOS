@@ -113,7 +113,12 @@
 
   function scan() {
     const posting = ATS.readPosting(state.adapter, document);
-    if (!posting.title || posting.description.length < 200) return;
+    if (!posting.title || posting.description.length < 200) {
+      // An application form on its own page (Lever's /apply, Workday, an embedded Greenhouse form) has no
+      // long description, but it still needs the icon: that's where the filling happens.
+      if (!panel && window.top === window.self && hasFillableForm()) showPanel();
+      return;
+    }
     if (state.posting && state.posting.title === posting.title && state.posting.url === posting.url) return;
 
     state.posting = posting;
@@ -338,7 +343,9 @@
 
   function renderPostingCard() {
     if (!state.posting) {
-      return `<div class="careeros-panel__posting careeros-panel__posting--empty">Looking for a job posting on this page…</div>`;
+      return hasFillableForm()
+        ? `<div class="careeros-panel__posting"><strong>${esc(document.title || 'Application form')}</strong><span>Application form on this page</span></div>`
+        : `<div class="careeros-panel__posting careeros-panel__posting--empty">Looking for a job posting on this page…</div>`;
     }
     return `
       <div class="careeros-panel__posting">
@@ -391,7 +398,7 @@
     return `
       <li class="careeros-panel__item" data-kind="${kind}">
         <span class="careeros-panel__item-icon">${icon}</span>
-        <span class="careeros-panel__item-label">${esc(label)}${reason ? `<small>${esc(reason)}</small>` : ''}</span>
+        <span class="careeros-panel__item-label">${esc(String(label || '').replace(/\s*\*+\s*$/, ''))}${reason ? `<small>${esc(reason)}</small>` : ''}</span>
         ${badge}
       </li>
     `;
@@ -1147,6 +1154,11 @@
       .map((n) => (n.getAttribute('aria-label') || n.textContent || '').trim())
       .filter((t) => t && t.length < 160);
     return msgs.length ? `form rejected it: ${msgs.slice(0, 2).join('; ')}` : null;
+  }
+
+  function hasFillableForm() {
+    const form = ATS.findForm(state.adapter, document);
+    return Boolean(form && hasAnswerableFields(form));
   }
 
   function hasAnswerableFields(form) {
