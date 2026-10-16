@@ -1,7 +1,7 @@
-/* CareerOS — page agent
+/* CareerOS — page agent (headless)
  *
- * Nothing is drawn on the host page except an outline on fields it filled or that still need the person,
- * and, only while it is waiting for the person, a small banner saying what's needed.
+ * Nothing is drawn on the host page. The only visible trace is an outline on fields that were filled and on
+ * required fields that still need the person. Everything else is driven from the popup and the run dashboard.
  *
  * Two modes on the same code path:
  *   driven   The popup or the engine asks it to read, fill or submit.
@@ -133,6 +133,21 @@
     state.busy = true;
     try {
       const prior = await Storage.alreadyApplied(location.href);
+      // LinkedIn Easy Apply and Indeed Apply keep the form in their own window: open it first, then fill
+      // each step as the person moves through it. CareerOS never presses submit here.
+      const flowId = Policy.flow(state.adapter.id);
+      if (flowId) {
+        const flow = Flows.get(flowId);
+        const opened = await flow.open();
+        if (opened.error === 'external_apply') {
+          return { ok: false, error: 'This job applies on the employer\'s own site. Press Apply, then use Fill on that page.' };
+        }
+        if (opened.error) return { ok: false, error: 'Couldn\'t open the application form on this page.' };
+        const report = await Filler.fillForm(opened.root, state.profile, buildContext(null, null, { skipOptionalUploads: true }));
+        state.report = report;
+        followSteps(flow, opened.root);
+        return { ok: true, report: summarize(report), priorApplication: prior ? prior.at : null };
+      }
       const form = ATS.findForm(state.adapter, document) || document.body;
       const report = await Filler.fillForm(form, state.profile, buildContext(null));
       state.report = report;
@@ -143,6 +158,37 @@
     } finally {
       state.busy = false;
     }
+  }
+
+  /* After a Fill on LinkedIn / Indeed: when the person presses Next, fill the new step too (only empty fields,
+     never a button). Stops when the application is sent or its window is closed. */
+  let following = null;
+  function followSteps(flow, root) {
+    if (following) following.disconnect();
+    let last = formSignature(root);
+    let timer = null;
+    const started = Date.now();
+    following = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const scope = flow.isOpen && flow.isOpen() ? (document.contains(root) ? root : document.body) : null;
+        if (!scope || flow.isDone() || Date.now() - started > 30 * 60 * 1000) {
+          following.disconnect();
+          following = null;
+          return;
+        }
+        const sig = formSignature(scope);
+        if (sig === last || state.busy) return;
+        last = sig;
+        state.busy = true;
+        try {
+          state.report = await Filler.fillForm(scope, state.profile, buildContext(null, null, { skipOptionalUploads: true }));
+        } finally {
+          state.busy = false;
+        }
+      }, 700);
+    });
+    following.observe(document.body, { childList: true, subtree: true });
   }
 
   async function doSubmit() {
@@ -180,7 +226,11 @@
       }
 
       const flowId = Policy.flow(state.adapter.id);
-      if (flowId) return report(await runFlow(Flows.get(flowId), directive));
+      if (flowId) {
+        const result = await runFlow(Flows.get(flowId), directive);
+        if (result !== HANDED_OFF) report(result);
+        return;
+      }
 
       const gate = await waitForForm();
       if (gate.closed) return report({ outcome: 'skipped', detail: 'This job is no longer accepting applications' });
@@ -212,14 +262,21 @@
     }
 
     await clearBlockers();
+    // Indeed Apply (and some employers' links) continue in a new tab: let the run follow it there.
+    await send({ type: 'careeros:expectTab' });
     const opened = await flow.open();
     if (opened.error === 'external_apply') {
-      return { outcome: 'skipped', detail: 'applies on the employer site — queue that instead' };
+      // "Apply on company site": follow it to the employer's own form and apply there. The run moves to
+      // the page that opens (same tab or a new one) and fills it like any other application.
+      await send({ type: 'careeros:handoff', url: opened.href ? new URL(opened.href, location.href).href : null });
+      if (opened.href && !/^javascript:/i.test(opened.href)) location.href = new URL(opened.href, location.href).href;
+      else await Flows.press(opened.button);
+      return HANDED_OFF;
     }
     if (opened.error) return { outcome: 'failed', detail: opened.error };
 
     const scope = opened.root || document;
-    const context = buildContext(directive.directive.pregenerated, directive.directive);
+    const context = buildContext(directive.directive.pregenerated, directive.directive, { skipOptionalUploads: true });
     let filledTotal = 0;
 
     for (let step = 0; step < directive.directive.maxSteps; step++) {
@@ -369,6 +426,9 @@
     return { outcome: 'failed', detail: 'ran out of steps before a confirmation' };
   }
 
+  /* runFlow handed the application to the employer's site: the page that opens reports the outcome. */
+  const HANDED_OFF = { handedOff: true };
+
   function report(result) {
     hideBanner();
     return send({ type: 'careeros:result', result });
@@ -485,32 +545,10 @@
     if (answers.length) send({ type: 'careeros:learn', answers });
   }
 
-  /* A small banner at the top of the tab, only while CareerOS is waiting for the person. */
-  let banner = null;
-  function showBanner(text) {
-    hideBanner();
-    if (document.documentElement.dataset.careerosBannerHidden === text) return;
-    banner = document.createElement('div');
-    banner.setAttribute('data-careeros-banner', '');
-    const root = banner.attachShadow({ mode: 'closed' });
-    root.innerHTML = `<style>
-      .bar{position:fixed;z-index:2147483647;top:12px;left:50%;transform:translateX(-50%);max-width:min(560px,calc(100vw - 24px));
-        display:flex;gap:10px;align-items:flex-start;background:#111827;color:#f9fafb;border-radius:12px;padding:10px 12px;
-        font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.3)}
-      b{color:#fca5a5}button{all:unset;cursor:pointer;color:#9ca3af;padding:0 4px}button:hover{color:#fff}</style>
-      <div class="bar" role="status"><div><b>CareerOS needs you.</b> <span></span></div><button type="button" aria-label="Hide">Hide</button></div>`;
-    root.querySelector('span').textContent = text;
-    root.querySelector('button').addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.documentElement.dataset.careerosBannerHidden = text;
-      hideBanner();
-    });
-    document.documentElement.appendChild(banner);
-  }
-  function hideBanner() {
-    document.querySelectorAll('[data-careeros-banner]').forEach((n) => n.remove());
-    banner = null;
-  }
+  /* The extension's look is unchanged: nothing is drawn on the host page except field outlines. The person
+     is told what's needed through the notification and the extension badge. */
+  function showBanner() {}
+  function hideBanner() {}
 
   /* ================= page signals ================= */
 
@@ -599,7 +637,7 @@
 
   /* ================= shared ================= */
 
-  function buildContext(pregenerated, tailored) {
+  function buildContext(pregenerated, tailored, opts) {
     /* When a tailored package exists, the form is filled from the resume written for this posting rather
        than the base profile. Only narrative.summary is overridden, merged one level into narrative. */
     const profileForFill = tailored && tailored.tailoredResume
@@ -613,6 +651,8 @@
     return {
       profileOverride: profileForFill,
       resume: state.resume,
+      // LinkedIn / Indeed keep the resume you used last; don't upload a new copy every time.
+      skipOptionalUploads: !!(opts && opts.skipOptionalUploads),
 
       /* The person's earlier answer to this (or a near-identical) question. */
       recall(question) {

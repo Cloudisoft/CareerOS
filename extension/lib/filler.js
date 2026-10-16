@@ -106,6 +106,7 @@
       const pattern = Filler.classify(field);
       if (field.kind === 'file') {
         if (pattern && pattern.key === 'coverLetterFile') return skip('Attach a cover letter file');
+        if (!field.required && context.skipOptionalUploads) return { label, status: 'filled', value: 'kept the saved resume', kept: true };
         const ok = await attachFile(field.node, context.resume);
         return ok ? { label, status: 'filled', value: context.resume.name } : skip('No resume saved in the extension');
       }

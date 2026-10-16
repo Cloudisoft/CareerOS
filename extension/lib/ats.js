@@ -151,8 +151,8 @@
     { key: 'coverLetter',    re: /\b(cover letter|why (do you want|are you interested)|motivation)\b/, generated: 'coverLetter' },
     { key: 'whyCompany',     re: /\bwhy (this )?(company|us|role|position)\b/,                       generated: 'whyCompany' },
 
-    { key: 'workAuth',    re: /\b(authoriz|authoris|eligible to work|legally (able|entitled) to work|right to work)\b/, resolve: (p) => p.workAuth.needsSponsorship ? 'No' : 'Yes' },
-    { key: 'sponsorship', re: /\b(sponsor|visa (support|sponsorship)|h-?1b)\b/,                      resolve: (p) => p.workAuth.needsSponsorship ? 'Yes' : 'No' },
+    { key: 'workAuth',    re: /\b(authori[sz]\w*|eligible to work|legally (able|entitled) to work|right to work)/, resolve: (p) => p.workAuth.needsSponsorship ? 'No' : 'Yes' },
+    { key: 'sponsorship', re: /\b(sponsor\w*|visa (support|sponsorship)|h-?1b)/,                      resolve: (p) => p.workAuth.needsSponsorship ? 'Yes' : 'No' },
     { key: 'relocate',    re: /\b(relocat|willing to move)\w*\b/,                                    resolve: (p) => p.workAuth.willingToRelocate ? 'Yes' : 'No' },
     { key: 'remote',      re: /\b(remote|hybrid|on-?site|work from)\b/,                              resolve: (p) => (p.targeting.workModes || [])[0] || '' },
 

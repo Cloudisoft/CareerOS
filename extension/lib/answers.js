@@ -113,6 +113,10 @@
       const re = new RegExp('(^|[^a-z0-9])' + escapeRe(v) + '($|[^a-z0-9])');
       const hits = opts.filter((o) => re.test(letters(o)));
       if (hits.length === 1) return hits[0];
+      // Places typed into a search box ("Austin" -> "Austin, Texas, United States"): the first suggestion
+      // that starts with it, as a person would pick.
+      const starts = opts.find((o) => letters(o).indexOf(v + ' ') === 0 || letters(o) === v);
+      if (starts) return starts;
     }
     return null;
   }

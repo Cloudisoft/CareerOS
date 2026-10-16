@@ -35,6 +35,9 @@
         <h2>Connect this browser</h2>
         <p class="note">Open CareerOS, go to Auto Apply, and press "Pair this browser". Type the six characters it shows you.</p>
 
+        <div class="grid">
+          <label class="wide">CareerOS server<input data-setting="apiBase" placeholder="https://app.careeros.example/api/extension"><small>Your Career OS deployment's API address. Ends in /api/extension.</small></label>
+        </div>
 
         <div class="pairRow">
           <input id="pairCode" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC123" class="pairInput">
@@ -270,10 +273,10 @@
         <label class="check"><input type="checkbox" data-setting="tailorScreeningAnswers"> Answer screening questions</label>
         <label class="check danger"><input type="checkbox" data-setting="autoSubmit"> Submit without asking me first</label>
       </div>
-      <p class="note">Auto submit only ever applies to employer ATS platforms. On LinkedIn, Indeed, ZipRecruiter, Dice and Monster, whose terms prohibit automated interaction, CareerOS fills the form and stops regardless of this setting. With auto submit off everywhere, CareerOS fills the form and stops. You read it and press the site's own submit.</p>
-      <p class="note">When an application needs you (a verification check, a sign-in, or a question CareerOS can't answer from your profile), it waits in its tab and you get a notification. Answer it there: CareerOS remembers your answer for every later form and submits by itself, while the rest of the run keeps going.</p>
+      <p class="note">Auto submit only ever applies to employer ATS platforms. On LinkedIn, Indeed, ZipRecruiter, Dice and Monster, whose terms prohibit automated interaction, CareerOS fills the form and stops regardless of this setting. With auto submit off everywhere, CareerOS fills the form and stops. You read it and press the site's own submit. Leaving it off is the safer habit, and some job boards restrict automated submissions in their terms.</p>
 
       <div class="grid">
+        <label>Seconds to cancel before an auto submit<input data-setting="reviewCountdown" type="number" min="3" max="60"></label>
         <label>Minimum match score to suggest applying<input data-setting="minMatchScore" type="number" min="0" max="100"></label>
         <label>Applications per day<input data-setting="dailyLimit" type="number" min="1" max="200"></label>
         <label>Seconds between applications<input data-setting="pacingSeconds" type="number" min="10"></label>
@@ -281,13 +284,12 @@
       </div>
 
       <h2>JobGPT</h2>
-      <p class="note">Cover letters and answers are written by the Career OS server from your Career Profile, using this browser's sign-in. No AI key is ever stored in the extension.</p>
-      <details>
-        <summary>Advanced</summary>
-        <div class="grid">
-          <label class="wide">Career OS server<input data-setting="apiBase" placeholder="https://careeros.silverspringstaffing.com/api/extension"><small>Only change this for a self-hosted or test deployment. Leave empty for the default.</small></label>
-        </div>
-      </details>
+      <p class="note">Generation runs through the CareerOS backend, which holds the model key server-side. A provider key placed in a browser extension is readable by anyone who installs it, so the direct path is developer-only and refuses to run unless you turn it on below.</p>
+      <div class="grid">
+        <label class="wide">API base<input data-setting="apiBase"></label>
+        <label class="wide">Token<input data-setting="apiToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
+        <label class="check danger wide"><input type="checkbox" data-setting="allowDirectKey"> Developer mode: allow a provider key to be used directly from this browser<small>Also needs the dev manifest — run <code>./build.sh dev</code>. The shipped build does not permit it.</small></label>
+      </div>
 
       <h2>Your data</h2>
       <div class="row">

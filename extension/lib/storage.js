@@ -166,7 +166,7 @@
     async alreadyApplied(url) {
       const key = normalizeUrl(url);
       const list = await Storage.getApplications();
-      const local = list.find((a) => a.status === 'submitted' && normalizeUrl(a.url) === key);
+      const local = list.find((a) => a.status === 'submitted' && (normalizeUrl(a.url) === key || (a.viaUrl && normalizeUrl(a.viaUrl) === key)));
       if (local) return local;
       const server = await get(KEYS.SERVER_APPLIED, []);
       return server.indexOf(key) !== -1 ? { url, status: 'submitted', source: 'server' } : null;

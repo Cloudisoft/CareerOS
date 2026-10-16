@@ -160,8 +160,9 @@ try {
   check(/question/i.test(waiting.detail || ''), `waits for the person's answer, not a CAPTCHA (the invisible badge is ignored): "${waiting.detail}"`);
   const page = await pageFor('/apply/1');
   check((await page.inputValue('#first_name')) === 'Ada' && (await page.inputValue('#phone')) === '+1 555 0100', 'filled everything it knows from the profile');
-  const banner = await page.evaluate(() => !!document.querySelector('[data-careeros-banner]'));
-  check(banner, 'shows the "needs you" banner in the tab');
+  const outlined = await page.evaluate(() => document.getElementById('tools').classList.contains('careeros-attention'));
+  const drawn = await page.evaluate(() => !!document.querySelector('[data-careeros-banner]'));
+  check(outlined && !drawn, 'outlines the question that needs the person (nothing else drawn on the page)');
 
   // The person answers slowly; focus and text stay theirs.
   await page.bringToFront();

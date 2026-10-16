@@ -216,3 +216,14 @@ describe("storage", () => {
     expect((await CareerOS.Storage.getAnswers())["eeo:veteran"].answer).toBe("No");
   });
 });
+
+describe("field patterns", () => {
+  it("recognise work authorization and sponsorship questions however they're phrased", () => {
+    const { CareerOS } = page("", ["lib/profile.js", "lib/ats.js"]);
+    const key = (label: string) => CareerOS.ATS.FIELD_PATTERNS.find((p: { re: RegExp }) => p.re.test(label.toLowerCase()))?.key;
+    expect(key("Are you legally authorized to work in the United States?")).toBe("workAuth");
+    expect(key("Are you authorised to work in the UK?")).toBe("workAuth");
+    expect(key("Will you now or in the future require sponsorship for employment visa status?")).toBe("sponsorship");
+    expect(key("Do you require visa sponsorship?")).toBe("sponsorship");
+  });
+});

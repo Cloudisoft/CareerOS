@@ -306,8 +306,11 @@
     /* ---------------- messages from the page ---------------- */
 
     /* Called by the worker when a content script announces itself (also after every page navigation). */
-    async handleReady(tabId) {
-      const entry = (await getActive())[tabId];
+    async handleReady(tabId, url) {
+      let entry = (await getActive())[tabId];
+      if (!entry) return null;
+      // Handed off to (or opened) the employer's own form: from here it's an application on that site.
+      if (url && (entry.handoff || entry.adopted)) entry = await retarget(tabId, url);
       if (!entry) return null;
       const settings = await Storage.getSettings();
       const permission = Policy.canAutoSubmit(entry.job.ats, settings);
@@ -401,6 +404,55 @@
       if (entry) await mark(entry.job.id, { submitPressed: true });
     },
 
+    /* The page is about to go to the employer's own form ("Apply on company site"). */
+    async handleHandoff(tabId, url) {
+      await updateActive((a) => {
+        if (a[tabId]) a[tabId] = Object.assign({}, a[tabId], { handoff: true, startedAt: Date.now() });
+        return a;
+      });
+      if (url) await retarget(tabId, url);
+    },
+
+    /* The page is about to press something that may open the application in a new tab. */
+    async handleExpectTab(tabId) {
+      await updateActive((a) => {
+        if (a[tabId]) a[tabId] = Object.assign({}, a[tabId], { expectTabAt: Date.now() });
+        return a;
+      });
+    },
+
+    /* A job's tab opened another tab (Indeed Apply, an employer's "Apply" link): the application continues
+       there, so the job moves to the new tab and the old one is closed. */
+    async adoptTab(openerTabId, tab) {
+      let moved = null;
+      await updateActive((a) => {
+        // Chrome doesn't always record which tab opened a new one; a tab that just announced a handoff owns it.
+        if (openerTabId === undefined || !a[openerTabId]) {
+          const recent = Object.entries(a).find(([, e]) => (e.handoff && Date.now() - e.startedAt < 15000) || (e.expectTabAt && Date.now() - e.expectTabAt < 15000));
+          if (recent) openerTabId = Number(recent[0]);
+        }
+        const entry = a[openerTabId];
+        if (!entry || a[tab.id] || Number(openerTabId) === tab.id) return a;
+        moved = Object.assign({}, entry, { adopted: true, startedAt: Date.now() });
+        a[tab.id] = moved;
+        delete a[openerTabId];
+        return a;
+      });
+      if (!moved) return;
+      const url = tab.pendingUrl || tab.url;
+      if (url && /^https?:/.test(url)) await retarget(tab.id, url);
+      setTimeout(() => closeTab(openerTabId), 1500);
+    },
+
+    /* A handed-off tab reached a page: if CareerOS can't run on that site, say so instead of timing out. */
+    async handleNavigated(tabId, url) {
+      const entry = (await getActive())[tabId];
+      if (!entry || !(entry.handoff || entry.adopted) || !/^https?:/.test(url || '')) return;
+      if (!(await canRunOn(url))) {
+        await Engine.handleResult(tabId, { outcome: 'skipped', detail: `Applies on ${new URL(url).hostname}. Turn that site on in CareerOS settings to apply there automatically.` });
+      }
+    },
+
     /* The person closed a tab we were working in. */
     async handleTabClosed(tabId) {
       const entry = (await getActive())[tabId];
@@ -423,6 +475,29 @@
     if (ats === 'linkedin') return 8;
     if (ats === 'indeed') return 7;
     return 6;
+  }
+
+  /* Point the job at the page it actually ended up on (an employer's form after a job-board handoff). */
+  async function retarget(tabId, url) {
+    let updated = null;
+    const ats = Discovery.classifyUrl(url);
+    await updateActive((a) => {
+      if (!a[tabId]) return a;
+      const prev = a[tabId].job;
+      const job = Object.assign({}, prev, { url, ats, via: prev.via || prev.ats, viaUrl: prev.viaUrl || prev.url });
+      a[tabId] = Object.assign({}, a[tabId], { job, pkg: null });
+      updated = a[tabId];
+      return a;
+    });
+    return updated;
+  }
+
+  function canRunOn(url) {
+    try {
+      return chrome.permissions.contains({ origins: [`${new URL(url).origin}/*`] });
+    } catch (err) {
+      return Promise.resolve(false);
+    }
   }
 
   function pickNext(queue, settings) {
@@ -493,6 +568,7 @@
     if (outcome === 'submitted' || outcome === 'assisted') {
       await Storage.logApplication({
         url: job.url,
+        viaUrl: job.viaUrl || undefined, // the LinkedIn / Indeed listing it came from, so it isn't queued again
         title: job.title,
         company: job.company,
         ats: job.ats,

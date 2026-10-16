@@ -40,6 +40,9 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => { Engine.handleTabClosed(tabId).catch(logError('tab closed')); });
+// Indeed Apply and employers' "Apply" links open a new tab: the application continues there.
+chrome.tabs.onCreated.addListener((tab) => { Engine.adoptTab(tab.openerTabId, tab).catch(logError('adopt tab')); });
+chrome.tabs.onUpdated.addListener((tabId, info) => { if (info.url) Engine.handleNavigated(tabId, info.url).catch(logError('navigated')); });
 
 /* Clicking "X needs you" brings that application's tab to the front. */
 chrome.notifications.onClicked.addListener((id) => {
@@ -60,7 +63,9 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   };
 
   /* --- engine protocol (from the page agent) --- */
-  if (msg.type === 'careeros:ready') return reply(Engine.handleReady(tabId).then((directive) => directive || { job: null }));
+  if (msg.type === 'careeros:ready') return reply(Engine.handleReady(tabId, sender.tab && sender.tab.url).then((directive) => directive || { job: null }));
+  if (msg.type === 'careeros:expectTab') return reply(Engine.handleExpectTab(tabId).then(() => ({ ok: true })));
+  if (msg.type === 'careeros:handoff') return reply(Engine.handleHandoff(tabId, msg.url).then(() => ({ ok: true })));
   if (msg.type === 'careeros:result') return reply(Engine.handleResult(tabId, msg.result).then(() => ({ ok: true })));
   if (msg.type === 'careeros:needsYou') return reply(Engine.handleNeedsYou(tabId, msg).then(() => ({ ok: true })));
   if (msg.type === 'careeros:resumed') return reply(Engine.handleResumed(tabId).then(() => ({ ok: true })));
