@@ -10,7 +10,9 @@
     APPLICATIONS: 'careeros.applications',
     ANSWERS: 'careeros.answerBank',
     RESUME: 'careeros.resume',
-    SERVER_APPLIED: 'careeros.serverApplied'
+    SERVER_APPLIED: 'careeros.serverApplied',
+    SERVER_PROFILE: 'careeros.serverProfile',     // the profile as the website last sent it (see lib/sync.js)
+    SERVER_SETTINGS: 'careeros.serverSettings'    // the run settings as the website last sent them
   };
 
   /* The production Career OS deployment. A development build can still point Settings → API base elsewhere. */
@@ -103,6 +105,11 @@
     set,
     update,
     normalizeUrl,
+
+    /* A new account (or none) must not inherit the previous account's copy of the website's data. */
+    async forgetServerCopy() {
+      await new Promise((resolve) => chrome.storage.local.remove([KEYS.SERVER_PROFILE, KEYS.SERVER_SETTINGS], resolve));
+    },
 
     async getProfile() {
       return get(KEYS.PROFILE, null);

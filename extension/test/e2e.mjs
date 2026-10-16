@@ -87,6 +87,7 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/recaptcha/')) { res.writeHead(200, { 'content-type': 'text/html' }); return res.end('<html></html>'); }
   if (p === '/apply/1') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(formPage(1, ['I identify as one or more of the classifications of protected veteran', 'I am not a protected veteran', "I don't wish to answer"])); }
   if (p === '/apply/4') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(formPage(4, ['Yes', 'No', 'Decline to self-identify'])); }
+  if (p === '/apply/5') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(formPage(5, ['Yes', 'No', 'Decline to self-identify'])); }
   if (p === '/apply/2') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(formPage(2, ['Yes, I am a protected veteran', 'No, I am not a protected veteran', 'I prefer not to answer'])); }
   if (p === '/apply/3') {
     res.writeHead(200, { 'content-type': 'text/html' });
@@ -224,7 +225,22 @@ try {
   await waitFor(async () => (await jobState('job-4')).state === 'submitted', 60000, 'job-4 submitted after remote start');
   check(seen.submissions.find((x) => x.id === '4')?.fields.veteran === 'No', 'started from the web page and submitted with the saved answers');
 
-  /* 5. Disconnect ends the session on the server too. */
+  /* 5. "Seconds to cancel before an auto submit": Escape during the countdown leaves it to the person. */
+  await sw.evaluate(async (o) => {
+    self.CareerOS.Engine.runtime.gateUntil.clear();
+    await self.CareerOS.Storage.saveSettings({ reviewCountdown: 20 });
+    await handleEngineCommand({ command: 'add', jobs: [{ id: 'job-5', url: `${o}/apply/5`, title: 'Support Lead', company: 'Fabrikam', ats: 'generic', location: 'Remote' }] });
+    return handleEngineCommand({ command: 'start' });
+  }, origin);
+  const p5 = await pageFor('/apply/5');
+  await waitFor(async () => (await p5.inputValue('#tools').catch(() => '')) && (await p5.inputValue('#phone').catch(() => '')), 30000, 'job-5 filled');
+  await sleep(1500);
+  check(!seen.submissions.some((x) => x.id === '5'), 'waits out the countdown before submitting');
+  await p5.keyboard.press('Escape');
+  const j5 = await waitFor(async () => { const j = await jobState('job-5'); return j && j.state !== 'queued' && j.state !== 'running' ? j : null; }, 20000, 'job-5 settled');
+  check(j5.state === 'assisted' && /cancelled/.test(j5.detail || '') && !seen.submissions.some((x) => x.id === '5'), `Escape cancels the automatic submit and leaves the form open (${j5.state}: ${j5.detail})`);
+
+  /* 6. Disconnect ends the session on the server too. */
   await sw.evaluate(() => handleEngineCommand({ command: 'unpair' }));
   check(seen.disconnects === 1 && !(await sw.evaluate(() => self.CareerOS.Api.isPaired())), 'disconnect ends the session on the server and here');
 } catch (err) {

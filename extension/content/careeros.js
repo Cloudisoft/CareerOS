@@ -304,7 +304,15 @@
           : { outcome: 'failed', detail: 'no control on this step' };
       }
 
-      if (c.submit) await announceSubmit();
+      if (c.submit) {
+        const hold = await holdBeforeSubmit(c.submit);
+        if (hold === 'cancelled') return { outcome: 'assisted', detail: 'you cancelled the automatic submit' };
+        if (hold === 'person') {
+          const done = await Flows.waitFor(() => flow.isDone() || null, 14000);
+          return done ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
+        await announceSubmit();
+      }
       if (!await Flows.press(button)) {
         return { outcome: 'assisted', detail: 'the next button was disabled, so something is unanswered' };
       }
@@ -397,7 +405,15 @@
       if (challenge() === 'checkbox') await park('captcha', 'Tick the "I\'m not a robot" check, then CareerOS submits for you.', () => !challenge());
 
       const isSubmit = /submit|send|apply/i.test(button.textContent || button.value || '') || button === submit;
-      if (isSubmit) await announceSubmit();
+      if (isSubmit) {
+        const hold = await holdBeforeSubmit(button);
+        if (hold === 'cancelled') return { outcome: 'assisted', detail: 'you cancelled the automatic submit' };
+        if (hold === 'person') {
+          const ok = await Flows.waitFor(() => isConfirmation() || null, 15000);
+          return ok ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
+        await announceSubmit();
+      }
       if (!await Flows.press(button)) {
         const waited = await waitForPersonAnswers(form);
         if (waited.submittedByPerson) return { outcome: 'submitted', detail: 'you submitted it' };
@@ -432,6 +448,39 @@
   function report(result) {
     hideBanner();
     return send({ type: 'careeros:result', result });
+  }
+
+  /* "Seconds to cancel before an auto submit" (settings): CareerOS waits that long before pressing submit.
+     Working on the page restarts the wait, Escape cancels it (the application stays in this tab for the
+     person), and if the person presses submit themselves CareerOS never presses it a second time. */
+  async function holdBeforeSubmit(button) {
+    const seconds = Math.max(0, Math.min(60, Number(state.settings.reviewCountdown) || 0));
+    if (!seconds) return 'go';
+    let last = Date.now();
+    let result = null;
+    const touch = () => { last = Date.now(); };
+    const onKey = (e) => { if (e.key === 'Escape') result = 'cancelled'; else touch(); };
+    const onPress = (e) => {
+      if (e.isTrusted && button && (e.type === 'submit' || button.contains(e.target))) {
+        result = 'person';
+        state.pressedSubmit = true;
+        send({ type: 'careeros:submitting' });
+      }
+    };
+    const events = ['input', 'change', 'mousedown', 'pointerdown', 'wheel', 'touchstart'];
+    events.forEach((ev) => document.addEventListener(ev, touch, { capture: true, passive: true }));
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('click', onPress, true);
+    document.addEventListener('submit', onPress, true);
+    try {
+      while (!result && Date.now() - last < seconds * 1000) await sleep(250);
+    } finally {
+      events.forEach((ev) => document.removeEventListener(ev, touch, { capture: true }));
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('click', onPress, true);
+      document.removeEventListener('submit', onPress, true);
+    }
+    return result || 'go';
   }
 
   /* Tell the worker a submit is being pressed, so a reload onto the confirmation page is recognised

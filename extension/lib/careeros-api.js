@@ -76,6 +76,7 @@
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error((body && body.error) || `Pairing failed (${res.status})`);
 
+      await Storage.forgetServerCopy();
       await Storage.saveSettings({
         deviceToken: body.token,
         pairedAs: body.email || body.name || '',
@@ -139,6 +140,7 @@
 
         if (body.status === 'approved' && body.token) {
           chrome.notifications.clear('careeros:connect');
+          await Storage.forgetServerCopy();
           await Storage.saveSettings({
             deviceToken: body.token,
             pairedAs: body.email || body.name || '',
@@ -158,6 +160,7 @@
     async unpair() {
       await request('/disconnect', { method: 'POST' }).catch(() => {});
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+      await Storage.forgetServerCopy();
     },
 
     /* Answers the person typed into forms: saved on the server so every device reuses them. */
@@ -169,6 +172,16 @@
     /* AI writing (cover letters, screening answers, resume parsing) with the paired device token. */
     async generate(body) {
       return request('/jobgpt/generate', { method: 'POST', body: JSON.stringify(body) });
+    },
+
+    /* Run settings changed in the options page, so the Auto Apply page and other browsers show them. */
+    async saveSettings(patch) {
+      return request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+    },
+
+    /* Profile fields changed in the options page, written to the Career Profile. */
+    async saveProfile(patch) {
+      return request('/profile', { method: 'PATCH', body: JSON.stringify(patch) });
     },
 
     async isPaired() {

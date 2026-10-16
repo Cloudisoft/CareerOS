@@ -287,7 +287,7 @@
       <p class="note">Generation runs through the CareerOS backend, which holds the model key server-side. A provider key placed in a browser extension is readable by anyone who installs it, so the direct path is developer-only and refuses to run unless you turn it on below.</p>
       <div class="grid">
         <label class="wide">API base<input data-setting="apiBase"></label>
-        <label class="wide">Token<input data-setting="apiToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
+        <label class="wide">Token<input data-setting="deviceToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
         <label class="check danger wide"><input type="checkbox" data-setting="allowDirectKey"> Developer mode: allow a provider key to be used directly from this browser<small>Also needs the dev manifest — run <code>./build.sh dev</code>. The shipped build does not permit it.</small></label>
       </div>
 
@@ -303,6 +303,7 @@
   <script src="../lib/profile.js"></script>
   <script src="../lib/policy.js"></script>
   <script src="../lib/careeros-api.js"></script>
+  <script src="../lib/sync.js"></script>
   <script src="../lib/permissions.js"></script>
   <script src="options.js"></script>
 </body>

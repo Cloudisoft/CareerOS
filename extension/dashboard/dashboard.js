@@ -21,7 +21,8 @@
 
   $('startRun').onclick = async () => {
     const res = await cmd('start');
-    if (res && res.state && res.state.lastError && !res.state.running) note(res.state.lastError);
+    if (!res || !res.ok) note((res && res.error) || 'Could not start.');
+    else if (res.state && res.state.lastError && !res.state.running) note(res.state.lastError);
     refresh();
   };
 
@@ -48,7 +49,6 @@
     $('runState').dataset.on = s.running ? 'running' : '';
     $('runState').textContent = s.running ? 'Running' : 'Idle';
     $('startRun').hidden = s.running;
-    $('startRun').disabled = !s.queue.length;
     $('stopRun').hidden = !s.running;
 
     $('cQueued').textContent = s.queue.filter((j) => j.state === 'queued').length;

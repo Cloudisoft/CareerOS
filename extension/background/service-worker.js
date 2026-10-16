@@ -9,13 +9,14 @@ importScripts(
   '/lib/matcher.js',
   '/lib/policy.js',
   '/lib/careeros-api.js',
+  '/lib/sync.js',
   '/lib/permissions.js',
   '/lib/harvest.js',
   '/lib/discovery.js',
   '/background/engine.js'
 );
 
-const { Storage, Profile, Engine, Policy, Api, Permissions } = self.CareerOS;
+const { Storage, Profile, Engine, Policy, Api, Permissions, Sync } = self.CareerOS;
 
 /* Content scripts are registered at runtime rather than declared, because the
    sites they run on are optional permissions the person grants as they go.
@@ -96,10 +97,17 @@ async function learnAnswers(answers) {
   }
 }
 
-/* Pull the current profile and targeting from CareerOS before a run, so the
-   extension is never applying from a profile the person edited last week on
-   another device. */
-async function syncFromServer() {
+/* Two-way sync with the website, before every run and whenever the options page changes something.
+   A field changed on the website comes down; a field changed here is kept and sent up (lib/sync.js). */
+let syncing = null;
+function syncFromServer() {
+  // One at a time: an options-page edit and a run starting together must not interleave.
+  const run = (syncing || Promise.resolve()).then(syncOnce, syncOnce);
+  syncing = run.catch(() => {});
+  return run;
+}
+
+async function syncOnce() {
   const payload = await Api.sync();
 
   if (payload.entitled === false) {
@@ -108,55 +116,89 @@ async function syncFromServer() {
 
   if (payload.settings) {
     const s = payload.settings;
-    await Storage.saveSettings({
+    const server = {
       minMatchScore: s.minMatchScore,
       pacingSeconds: s.pacingSeconds,
       concurrency: s.concurrency,
       autoSubmit: s.autoSubmit,
       platformModes: s.platformModes || {},
+    };
+    const local = await Storage.getSettings();
+    const base = await Storage.get(Storage.KEYS.SERVER_SETTINGS, null);
+    await Storage.saveSettings(Object.assign(Sync.mergeSettings(local, server, base), {
       // 2.5.0+: the plan's cap is monthly; the per-day cap stays this browser's own setting.
       monthlyLimit: s.monthlyLimit === undefined ? null : s.monthlyLimit,
       appliedThisMonth: payload.appliedThisMonth || 0,
       syncedAt: Date.now(),
-    });
+    }));
+    await Storage.set(Storage.KEYS.SERVER_SETTINGS, server);
   }
 
   if (payload.resume && payload.resume.data) {
+    const server = payload.resume.data;
     const existing = (await Storage.getProfile()) || {};
-    await Storage.saveProfile(mergeProfile(existing, payload.resume.data));
+    const base = await Storage.get(Storage.KEYS.SERVER_PROFILE, null);
+    await Storage.saveProfile(Sync.mergeProfile(existing, server, base));
+    await Storage.set(Storage.KEYS.SERVER_PROFILE, server);
   }
   await Storage.saveServerApplied(payload.appliedUrls || []);
   await Storage.mergeServerAnswers(payload.answers || []);
 
-  return { ok: true, entitled: true, appliedThisMonth: payload.appliedThisMonth, appliedUrls: payload.appliedUrls || [] };
+  const pushed = await pushChanges();
+
+  return { ok: true, entitled: true, appliedThisMonth: payload.appliedThisMonth, appliedUrls: payload.appliedUrls || [], pushError: pushed.error };
 }
 
-/* Field-by-field merge: the server's values win, but an empty server value never wipes something the person
-   entered in the extension (their address, self-identification answers, exclusions). */
-function mergeProfile(local, server) {
-  const out = Array.isArray(local) ? local.slice() : Object.assign({}, local);
-  Object.keys(server || {}).forEach((k) => {
-    const v = server[k];
-    const empty = v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
-    if (empty) return;
-    if (v && typeof v === 'object' && !Array.isArray(v) && local && typeof local[k] === 'object' && !Array.isArray(local[k]) && local[k]) {
-      out[k] = mergeProfile(local[k], v);
-    } else if (k === 'voluntary' || /^(gender|race|veteran|disability)$/.test(k)) {
-      // Server sends generic defaults for self-identification; keep anything the person chose locally.
-      out[k] = local && local[k] ? local[k] : v;
-    } else {
-      out[k] = v;
+/* Send what changed here since the last sync. Values the server can't take are clamped to its ranges. */
+async function pushChanges() {
+  const errors = [];
+
+  const settingsBase = await Storage.get(Storage.KEYS.SERVER_SETTINGS, null);
+  const settingsPatch = Sync.settingsChanges(await Storage.getSettings(), settingsBase);
+  if (settingsPatch) {
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
+    if ('minMatchScore' in settingsPatch) settingsPatch.minMatchScore = clamp(settingsPatch.minMatchScore, 0, 100);
+    if ('pacingSeconds' in settingsPatch) settingsPatch.pacingSeconds = clamp(settingsPatch.pacingSeconds, 10, 600);
+    if ('concurrency' in settingsPatch) settingsPatch.concurrency = clamp(settingsPatch.concurrency, 1, 6);
+    if ('autoSubmit' in settingsPatch) settingsPatch.autoSubmit = Boolean(settingsPatch.autoSubmit);
+    try {
+      const res = await Api.saveSettings(settingsPatch);
+      const saved = (res && res.settings) || settingsPatch;
+      await Storage.set(Storage.KEYS.SERVER_SETTINGS, Sync.applyToBase(settingsBase, saved));
+    } catch (err) {
+      errors.push(`Settings: ${err.message}`);
     }
-  });
-  return out;
+  }
+
+  const profileBase = await Storage.get(Storage.KEYS.SERVER_PROFILE, null);
+  const profilePatch = Sync.profileChanges(await Storage.getProfile(), profileBase);
+  if (profilePatch) {
+    try {
+      await Api.saveProfile(profilePatch);
+      await Storage.set(Storage.KEYS.SERVER_PROFILE, Sync.applyToBase(profileBase, profilePatch));
+    } catch (err) {
+      errors.push(`Profile: ${err.message}`);
+    }
+  }
+  return { error: errors.length ? errors.join(' ') : undefined };
 }
 
 async function handleEngineCommand(msg) {
   if (msg.command === 'pair')    return pairDevice(msg.code);
-  if (msg.command === 'connect') return Api.connect();
+  if (msg.command === 'connect') {
+    // Signed in: bring the profile and settings down now, so the popup isn't empty until the first run.
+    const res = await Api.connect();
+    if (res.ok) await syncFromServer().catch(logError('sync after sign in'));
+    return res;
+  }
   if (msg.command === 'permissions') return { ok: true, granted: await Permissions.status() };
   if (msg.command === 'reregister')  return { ok: true, ...(await Permissions.registerScripts()) };
   if (msg.command === 'sync')   return syncFromServer().catch((err) => ({ ok: false, error: err.message }));
+  // The options page changed something: send it to the website now rather than at the next run.
+  if (msg.command === 'push') {
+    if (!(await Api.isPaired())) return { ok: true, paired: false };
+    return syncFromServer().catch((err) => ({ ok: false, error: err.message }));
+  }
   if (msg.command === 'paired') return { ok: true, paired: await Api.isPaired() };
   if (msg.command === 'unpair') { await Engine.stop('Disconnected'); await Api.unpair(); return { ok: true }; }
   if (msg.command === 'build') {
@@ -245,9 +287,15 @@ self.CareerOS.generateFor = async function (job) {
 chrome.alarms.create('careeros:badge', { periodInMinutes: 5 });
 // Start / Stop pressed on the Auto Apply page in Career OS reaches this browser within a minute.
 chrome.alarms.create('careeros:control', { periodInMinutes: 1 });
+// Edits made on the website reach this browser between runs too, not only when a run starts.
+chrome.alarms.create('careeros:sync', { periodInMinutes: 15 });
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'careeros:badge') return Engine.updateBadge();
   if (alarm.name === 'careeros:control') return checkRemoteControl().catch(logError('control'));
+  if (alarm.name === 'careeros:sync') {
+    if (await Api.isPaired()) return syncFromServer().catch(logError('sync'));
+    return;
+  }
   if (alarm.name === 'careeros:tick') {
     const state = await Engine.getState();
     if (state.running) Engine.loop();

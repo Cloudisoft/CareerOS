@@ -362,7 +362,7 @@ export default function AutoApplyPage() {
                   id="concurrency"
                   type="number"
                   min={1}
-                  max={3}
+                  max={6}
                   value={settings.concurrency}
                   onChange={(e) => setSettings({ ...settings, concurrency: Number(e.target.value) })}
                 />

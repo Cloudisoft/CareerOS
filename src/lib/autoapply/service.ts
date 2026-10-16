@@ -47,6 +47,25 @@ export async function updateSettings(
   });
 }
 
+/** Settings the person changed in the extension's options page; only the fields sent are written. */
+export async function updateExtensionSettings(
+  profileId: string,
+  input: {
+    minMatchScore?: number;
+    pacingSeconds?: number;
+    concurrency?: number;
+    autoSubmit?: boolean;
+    platformModes?: Record<string, string>;
+  }
+) {
+  const data = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+  return prisma.autoApplySettings.upsert({
+    where: { profileId },
+    update: data,
+    create: { profileId, ...data },
+  });
+}
+
 /** Statuses that mean the application really reached the employer (SAVED = filled or prepared only). */
 export const SUBMITTED_STATUSES = ["APPLIED", "VIEWED", "SCREENING", "INTERVIEW", "OFFER", "REJECTED"] as const;
 

@@ -59,6 +59,9 @@
       const base = POLICIES[atsId] || POLICIES.generic;
       const override = settings && settings.platformModes && settings.platformModes[atsId];
       if (!override || override === 'default') return base;
+      // Full automation on a board whose terms forbid it needs the acknowledgment in settings, wherever the
+      // override came from (this browser, the website, or before the box was unticked).
+      if (override === 'auto' && base.tos === 'restricted' && !(settings && settings.acknowledgedRestricted)) return base;
       return Object.assign({}, base, { mode: override, overridden: true });
     },
 
