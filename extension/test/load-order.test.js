@@ -29,6 +29,7 @@ const EXPECTED = {
   'lib/careeros-api.js': 'Api',
   'lib/flows.js': 'Flows',
   'lib/harvest.js': 'Harvest',
+  'lib/answers.js': 'Answers',
   'lib/filler.js': 'Filler',
   'lib/coach.js': 'Coach',
 };

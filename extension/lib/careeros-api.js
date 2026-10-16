@@ -134,8 +134,16 @@
       return { ok: false, error: 'Timed out waiting for approval.' };
     },
 
+    /* Disconnect: end this browser's session on the server too (where the server supports it), then forget it here. */
     async unpair() {
+      await request('/disconnect', { method: 'POST' }).catch(() => {});
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+    },
+
+    /* Answers the person typed into forms: saved to their CareerOS account so every browser reuses them. */
+    async saveAnswers(answers) {
+      if (!answers || !answers.length) return null;
+      return request('/answers', { method: 'POST', body: JSON.stringify({ answers: answers.slice(0, 60) }) });
     },
 
     async isPaired() {

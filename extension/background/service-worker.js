@@ -55,9 +55,16 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
 
   /* --- engine protocol --- */
   if (msg.type === 'careeros:ready') {
-    Engine.handleReady(tabId).then((directive) => respond(directive || { job: null }));
+    Engine.handleReady(tabId, sender.tab && sender.tab.url).then((directive) => respond(directive || { job: null }));
     return true;
   }
+  /* An application waiting for the person, and continuing once they're done. */
+  if (msg.type === 'careeros:needsYou')   { Engine.handleNeedsYou(tabId, msg).then(() => respond({ ok: true })); return true; }
+  if (msg.type === 'careeros:resumed')    { Engine.handleResumed(tabId).then(() => respond({ ok: true })); return true; }
+  if (msg.type === 'careeros:submitting') { Engine.handleSubmitting(tabId).then(() => respond({ ok: true })); return true; }
+  if (msg.type === 'careeros:handoff')    { Engine.handleHandoff(tabId).then(() => respond({ ok: true })); return true; }
+  if (msg.type === 'careeros:expectTab')  { Engine.handleExpectTab(tabId).then(() => respond({ ok: true })); return true; }
+  if (msg.type === 'careeros:learn')      { learnAnswers(msg.answers, msg.profileId).then(respond); return true; }
   if (msg.type === 'careeros:result') {
     Engine.handleResult(tabId, msg.result).then(() => respond({ ok: true }));
     return true;
@@ -108,6 +115,48 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   return false;
 });
 
+/* The application continues in a new tab (Indeed Apply, an employer's "Apply" link). */
+chrome.tabs.onCreated.addListener((tab) => { Engine.adoptTab(tab.openerTabId, tab).catch(() => {}); });
+chrome.tabs.onRemoved.addListener((tabId) => { Engine.handleTabClosed(tabId).catch(() => {}); });
+/* Clicking "… needs you" brings that application's tab to the front. */
+chrome.notifications.onClicked.addListener((id) => {
+  const m = /^careeros:tab:(\d+)$/.exec(id);
+  if (m) Engine.focusTab(Number(m[1]));
+  chrome.notifications.clear(id);
+});
+
+/* Answers the person gave on a form: remembered in this browser right away, and on their CareerOS account so
+   every browser (and the next form, however it words the question) reuses them. */
+async function learnAnswers(answers, profileId) {
+  const list = (answers || []).filter((a) => a && a.question && a.answer);
+  for (const a of list) await Storage.rememberAnswer(a.key || a.question, a.answer, profileId);
+  try {
+    await Api.saveAnswers(list.map((a) => ({ question: a.question, answer: a.answer, key: a.key, source: 'user' })));
+    return { ok: true, saved: list.length };
+  } catch (err) {
+    return { ok: true, saved: list.length, serverError: err.message };
+  }
+}
+
+/* Field-by-field merge: the server's values win, but an empty server value never wipes something entered in
+   the extension, and the server's "decline" defaults never replace the person's self-identification answers. */
+function mergeProfile(local, server) {
+  const out = Array.isArray(local) ? local.slice() : Object.assign({}, local);
+  Object.keys(server || {}).forEach((k) => {
+    const v = server[k];
+    const empty = v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+    if (empty) return;
+    if (k === 'voluntary') {
+      out[k] = Object.assign({}, v, local && local[k] ? Object.fromEntries(Object.entries(local[k]).filter(([, x]) => x)) : {});
+    } else if (v && typeof v === 'object' && !Array.isArray(v) && local && local[k] && typeof local[k] === 'object' && !Array.isArray(local[k])) {
+      out[k] = mergeProfile(local[k], v);
+    } else {
+      out[k] = v;
+    }
+  });
+  return out;
+}
+
 /* Pull the current profile and targeting from CareerOS before a run, so the
    extension is never applying from a profile the person edited last week on
    another device. */
@@ -121,7 +170,10 @@ async function syncFromServer() {
   if (payload.settings) {
     await Storage.saveSettings({
       minMatchScore: payload.settings.minMatchScore,
-      dailyLimit: payload.settings.dailyLimit,
+      // The server's limit is the plan's monthly cap; the per-day limit stays this browser's own setting.
+      monthlyLimit: payload.settings.monthlyLimit != null ? payload.settings.monthlyLimit : payload.settings.dailyLimit,
+      appliedThisMonth: payload.appliedThisMonth != null ? payload.appliedThisMonth : (payload.appliedToday || 0),
+      syncedAt: Date.now(),
       pacingSeconds: payload.settings.pacingSeconds,
       concurrency: payload.settings.concurrency,
       autoSubmit: payload.settings.autoSubmit,
@@ -131,8 +183,10 @@ async function syncFromServer() {
 
   if (payload.resume?.data) {
     const existing = (await Storage.getProfile()) || {};
-    await Storage.saveProfile(Object.assign({}, existing, payload.resume.data));
+    await Storage.saveProfile(mergeProfile(existing, payload.resume.data));
   }
+  if (payload.answers) await Storage.mergeServerAnswers(payload.answers);
+  await Storage.saveServerApplied(payload.appliedUrls || []);
 
   await syncResumeFile().catch(() => {});
 
@@ -314,6 +368,7 @@ async function generate({ kind, payload, posting, match }) {
       kind,
       posting,
       question: (payload && payload.question) || undefined,
+      options: Array.isArray(payload && payload.options) && payload.options.length ? payload.options.slice(0, 30) : undefined,
       text: (payload && payload.text) || undefined,
       matchedSkills: (match && match.matchedSkills) || []
     });
@@ -393,7 +448,8 @@ async function callCareerOS(settings, body) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(settings.apiToken ? { Authorization: `Bearer ${settings.apiToken}` } : {})
+      // The token from signing in; a token pasted under How it runs still works.
+      ...((settings.deviceToken || settings.apiToken) ? { Authorization: `Bearer ${settings.deviceToken || settings.apiToken}` } : {})
     },
     body: JSON.stringify(body)
   });

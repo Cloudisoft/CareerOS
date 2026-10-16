@@ -15,7 +15,10 @@
   window.__careerosLoaded = true;
   if (window.top !== window.self && document.body && document.body.innerText.length < 200) return;
 
-  const { Storage, Profile, ATS, Matcher, Filler, Policy, Flows, Harvest, Api } = window.CareerOS;
+  const { Storage, Profile, ATS, Matcher, Filler, Policy, Flows, Harvest, Api, Answers } = window.CareerOS;
+
+  /* Stop typing/clicking for this long and CareerOS continues: it never submits mid-answer. */
+  const IDLE_MS = 4000;
 
   const state = {
     adapter: null,
@@ -31,6 +34,7 @@
     ready: false,
     busy: false,
     autoRunning: false, // an automated run (runAutomated) is actively working this tab
+    pressedSubmit: false,
     report: null
   };
 
@@ -172,7 +176,7 @@
      there's exactly one on-page UI surface, never two overlapping ones. */
   let panel = null;
   // Starts as just the floating icon; the full panel opens on click.
-  const panelState = { collapsed: true, tab: 'autofill', selectedProfileId: null, filling: false };
+  const panelState = { collapsed: true, tab: 'autofill', selectedProfileId: null, filling: false, waiting: null };
 
   function showPanel() {
     if (!document.body) return;
@@ -210,11 +214,12 @@
     if (panelState.collapsed) {
       const match = currentMatch();
       const score = match && !match.blocked ? match.score : null;
-      const busy = panelState.filling || state.busy || state.autoRunning;
+      const busy = !panelState.waiting && (panelState.filling || state.busy || state.autoRunning);
       const top = Number(state.settings.launcherTop);
       panel.className = `careeros-panel careeros-panel--collapsed${busy ? ' is-busy' : ''}`;
       panel.style.top = Number.isFinite(top) && top > 0 ? `${Math.min(top, 92)}%` : '';
-      const label = busy ? 'Filling this application…'
+      const label = panelState.waiting ? 'Needs your answer · Click for details'
+        : busy ? 'Filling this application…'
         : score == null ? 'Open CareerOS' : `${score}% match · Click to autofill`;
       panel.innerHTML = `
         <div class="careeros-launcher">
@@ -358,7 +363,10 @@
   function renderAutofillTab() {
     const parts = [renderPostingCard()];
 
-    if (panelState.filling || state.busy || state.autoRunning) {
+    if (panelState.waiting) {
+      parts.push(`<div class="careeros-panel__status" data-tone="warn">${esc(panelState.waiting)}</div>`);
+      if (state.report) parts.push(renderChecklist(state.report));
+    } else if (panelState.filling || state.busy || state.autoRunning) {
       parts.push(`
         <div class="careeros-panel__status">
           <span class="careeros-panel__status-dot"></span>
@@ -686,7 +694,7 @@
 
     const cap = await Storage.appliedToday();
     if (cap >= state.settings.dailyLimit) {
-      return { ok: false, error: `Daily cap of ${state.settings.dailyLimit} reached` };
+      return { ok: false, error: `Daily limit of ${state.settings.dailyLimit} applications reached. It resets at midnight.` };
     }
 
     // A profileId lets the popup fill from whichever profile fits this
@@ -700,7 +708,7 @@
     state.busy = true;
     if (panel) renderPanel(); // also reflects a fill triggered from the popup, not just the panel's own button
     try {
-      const prior = await Storage.alreadyApplied(location.href);
+      const prior = await Storage.findApplication(location.href);
 
       // On LinkedIn/Indeed/ZipRecruiter/Dice/Glassdoor the real form only
       // exists inside a modal/flow that has to be opened first (clicking
@@ -717,7 +725,7 @@
         if (flow) {
           const opened = await flow.open();
           if (opened.error === 'external_apply') {
-            return { ok: false, error: "This posting applies on the employer's own site — queue it instead of filling here." };
+            return { ok: false, error: "This job applies on the employer's own site. Open its Apply button, then press Fill on that page." };
           }
           if (opened.error) {
             return { ok: false, error: `Could not open the application form (${opened.error}).` };
@@ -727,8 +735,12 @@
       }
 
       const form = ATS.findForm(state.adapter, scope) || (scope === document ? document.body : scope);
-      const report = await Filler.fillForm(form, fillProfile, buildContext(null, null, override));
+      const report = await Filler.fillForm(form, fillProfile, buildContext(null, null, override, { skipOptionalUploads: scope !== document }));
       state.report = report;
+      // Whatever the person answers themselves is learned when they submit, for the next form.
+      learnOnSubmit(form);
+      // LinkedIn / Indeed: fill each further step as the person presses Next. CareerOS never presses submit here.
+      if (flowId && scope !== document) followSteps(Flows.get(flowId), scope, fillProfile, override);
 
       if (!prior) {
         await Storage.logApplication({
@@ -751,6 +763,32 @@
     }
   }
 
+  /* Fill each new step of a LinkedIn / Indeed form as the person moves through it, until it closes or is sent. */
+  function followSteps(flow, root, fillProfile, override) {
+    if (!flow || !root) return;
+    let sig = formSignature(root);
+    let busy = false;
+    let timer = null;
+    const obs = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (busy) return;
+        if (!document.contains(root) || (flow.isDone && flow.isDone())) { obs.disconnect(); return; }
+        const next = formSignature(root);
+        if (next === sig) return;
+        sig = next;
+        busy = true;
+        try {
+          state.report = await Filler.fillForm(root, fillProfile, buildContext(null, null, override, { skipOptionalUploads: true }));
+          learnOnSubmit(root);
+          if (panel) renderPanel();
+        } finally { busy = false; }
+      }, 700);
+    });
+    obs.observe(root, { childList: true, subtree: true });
+    setTimeout(() => obs.disconnect(), 20 * 60 * 1000);
+  }
+
   async function doSubmit() {
     const permission = Policy.canAutoSubmit(state.adapter.id, state.settings);
     if (!permission.allowed) return { ok: false, error: permission.reason };
@@ -764,7 +802,7 @@
     const confirmed = await Flows.waitFor(() => isConfirmation(), 8000);
 
     if (confirmed) {
-      const applied = await Storage.alreadyApplied(location.href);
+      const applied = await Storage.findApplication(location.href);
       if (applied) await Storage.updateApplication(applied.id, { status: 'submitted', submittedAt: Date.now() });
     }
     return { ok: true, confirmed: Boolean(confirmed) };
@@ -775,10 +813,22 @@
   async function runAutomated(directive) {
     showAutofillBanner();
     try {
+      // The page we land on after a submit (or after the person submitted it themselves while we waited).
+      if (directive.directive.submitPressed) {
+        await sleep(1500);
+        if (isConfirmation()) return report({ outcome: 'submitted', detail: 'confirmation page' });
+        state.pressedSubmit = true;
+      }
+
       const flowId = Policy.flow(state.adapter.id);
-      if (flowId) return report(await runFlow(Flows.get(flowId), directive));
+      if (flowId) {
+        const result = await runFlow(Flows.get(flowId), directive);
+        if (result !== HANDED_OFF) report(result);
+        return;
+      }
 
       const gate = await waitForForm();
+      if (gate.closed) return report({ outcome: 'skipped', detail: 'This job is no longer accepting applications' });
       if (gate.blocked) return report({ outcome: 'failed', detail: gate.blocked });
 
       state.posting = ATS.readPosting(state.adapter, document);
@@ -838,20 +888,28 @@
       state.match = match;
     }
 
+    await clearBlockers();
+    // Indeed Apply (and some employers' links) continue in a new tab: let the run follow it there.
+    await send({ type: 'careeros:expectTab' });
     const opened = await flow.open();
     if (opened.error === 'external_apply') {
-      return { outcome: 'skipped', detail: 'applies on the employer site — queue that instead' };
+      // "Apply on company website": follow it to the employer's own form and apply there. The run moves to
+      // the page that opens (same tab or a new one) and fills it like any other application.
+      await send({ type: 'careeros:handoff' });
+      if (opened.href && !/^javascript:/i.test(opened.href)) location.href = new URL(opened.href, location.href).href;
+      else if (opened.button) await Flows.press(opened.button);
+      return HANDED_OFF;
     }
     if (opened.error) return { outcome: 'failed', detail: opened.error };
 
     const scope = opened.root || document;
     const directiveProfile = directive.directive.profileOverride ? Profile.hydrate(directive.directive.profileOverride) : null;
-    const context = buildContext(directive.directive.pregenerated, directive.directive, directiveProfile);
+    // LinkedIn / Indeed keep the resume used last time; don't upload a new copy into an optional field.
+    const context = buildContext(directive.directive.pregenerated, directive.directive, directiveProfile, { skipOptionalUploads: true });
     let filledTotal = 0;
 
     for (let step = 0; step < directive.directive.maxSteps; step++) {
-      const blocked = detectBlocker();
-      if (blocked) { await flow.close(); return { outcome: 'failed', detail: blocked }; }
+      await clearBlockers();
       if (flow.isDone()) return { outcome: 'submitted', detail: `${filledTotal} fields over ${step} step${step === 1 ? '' : 's'}` };
 
       const before = { sig: formSignature(scope), progress: flow.progress(scope) };
@@ -859,10 +917,10 @@
       filledTotal += filled.filled.length + filled.generated.length;
       reportProgress(step + 1, directive.directive.maxSteps, filledTotal);
 
-      const unanswered = filled.skipped.filter((f) => f.required);
-      if (unanswered.length) {
-        await flow.close();
-        return { outcome: 'skipped', detail: `needs you: ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` };
+      // Questions only the person can answer: wait for them in this tab, learn the answers, carry on.
+      if (Filler.missingRequired(scope).length) {
+        const waited = await waitForPersonAnswers(scope);
+        if (waited.submittedByPerson) return { outcome: 'submitted', detail: 'you submitted it' };
       }
 
       const c = flow.controls(scope);
@@ -881,6 +939,15 @@
         return filledTotal
           ? { outcome: 'assisted', detail: 'filled but found nothing to press' }
           : { outcome: 'failed', detail: 'no control on this step' };
+      }
+      if (button === c.submit) {
+        const hold = await holdBeforeSubmit(c.submit);
+        if (hold === 'cancelled') return { outcome: 'assisted', detail: 'you cancelled the automatic submit' };
+        if (hold === 'person') {
+          const done = await Flows.waitFor(() => flow.isDone() || null, 14000);
+          return done ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
+        await announceSubmit();
       }
 
       if (!await Flows.press(button)) {
@@ -971,8 +1038,8 @@
     let pressedApply = false;
 
     while (Date.now() < deadline) {
-      const blocked = detectBlocker();
-      if (blocked) return { blocked };
+      await clearBlockers();
+      if (isClosed()) return { closed: true };
 
       const form = ATS.findForm(state.adapter, document);
       if (form && hasAnswerableFields(form)) return { form };
@@ -988,7 +1055,7 @@
       }
       await sleep(500);
     }
-    return { blocked: 'no_form' };
+    return { blocked: 'no application form found on this page' };
   }
 
   /* Generic multi-step ATS form. */
@@ -998,9 +1065,9 @@
     let filledTotal = 0;
 
     for (let step = 0; step < directive.maxSteps; step++) {
-      const blocked = detectBlocker();
-      if (blocked) return { outcome: 'failed', detail: blocked };
-      if (isConfirmation()) {
+      await clearBlockers();
+      // A confirmation only counts after a submit was pressed: descriptions often say "thank you for applying".
+      if (state.pressedSubmit && isConfirmation()) {
         return { outcome: 'submitted', detail: `confirmed after ${step} step${step === 1 ? '' : 's'}` };
       }
 
@@ -1011,9 +1078,13 @@
       filledTotal += filled.filled.length + filled.generated.length;
       reportProgress(step + 1, directive.maxSteps, filledTotal);
 
-      const unanswered = filled.skipped.filter((s) => s.required);
-      if (unanswered.length) {
-        return { outcome: 'skipped', detail: `needs you: ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` };
+      // Questions only the person can answer: wait for them in this tab, learn the answers, carry on.
+      if (Filler.missingRequired(form).length) {
+        const waited = await waitForPersonAnswers(form);
+        if (waited.submittedByPerson) {
+          const ok = await Flows.waitFor(() => isConfirmation(), 15000);
+          return ok ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
       }
 
       const button = ATS.findSubmit(state.adapter, form)
@@ -1028,14 +1099,32 @@
         return { outcome: 'assisted', detail: `${filledTotal} fields filled over ${step + 1} page${step ? 's' : ''}, ready for you to submit` };
       }
 
+      // A "tick the box" CAPTCHA sits next to the submit button: the person ticks it, then CareerOS submits.
+      if (button && challenge() === 'checkbox') await park('captcha', 'Tick the "I\'m not a robot" check, then CareerOS submits for you.', () => !challenge());
+
+      if (button && isFinalSubmit(button)) {
+        const hold = await holdBeforeSubmit(button);
+        if (hold === 'cancelled') return { outcome: 'assisted', detail: 'you cancelled the automatic submit' };
+        if (hold === 'person') {
+          const ok = await Flows.waitFor(() => isConfirmation() || null, 15000);
+          return ok ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
+        await announceSubmit();
+      }
+
       if (!await Flows.press(button)) {
         return filledTotal
           ? { outcome: 'assisted', detail: 'filled but found no submit or next button' }
           : { outcome: 'failed', detail: 'nothing to fill and nothing to press' };
       }
 
-      const changed = await waitForChange(before);
-      if (isConfirmation()) {
+      let changed = await waitForChange(before);
+      // An invisible CAPTCHA can escalate to a puzzle once submit is pressed: the person solves it, then on.
+      if (!changed && challenge()) {
+        await clearBlockers();
+        changed = await waitForChange(before);
+      }
+      if (state.pressedSubmit && isConfirmation()) {
         return { outcome: 'submitted', detail: `${filledTotal} fields over ${step + 1} step${step ? 's' : ''}` };
       }
       if (!changed) {
@@ -1043,6 +1132,12 @@
         if (errors) {
           const retry = await retryFormValidationOnce(form, context, before);
           filledTotal += retry.filledDelta;
+          if (retry.outcome && /needs you|rejected/i.test(retry.outcome.detail || '') && retry.outcome.outcome !== 'submitted') {
+            // Still rejected: show the person, wait for them to fix it, then go round again.
+            const waited = await waitForPersonAnswers(form, { force: true });
+            if (waited.submittedByPerson) return { outcome: 'submitted', detail: 'you submitted it' };
+            continue;
+          }
           if (retry.outcome) return retry.outcome;
           reportProgress(step + 1, directive.maxSteps, filledTotal);
           continue; // the retry's press actually moved the form on
@@ -1099,8 +1194,192 @@
     return labels.slice(0, 4).join(', ') + (labels.length > 4 ? ` +${labels.length - 4} more` : '');
   }
 
+  /* runFlow handed the application to the employer's site: the page that opens reports the outcome. */
+  const HANDED_OFF = { handedOff: true };
+
   function report(result) {
+    hideBanner();
     return send({ type: 'careeros:result', result });
+  }
+
+  /* "Seconds to cancel before an auto submit" (settings): CareerOS waits that long before pressing submit.
+     Working on the page restarts the wait, Escape cancels it (the application stays in this tab for the
+     person), and if the person presses submit themselves CareerOS never presses it a second time. */
+  async function holdBeforeSubmit(button) {
+    const seconds = Math.max(0, Math.min(60, Number(state.settings.reviewCountdown) || 0));
+    if (!seconds) return 'go';
+    let last = Date.now();
+    let result = null;
+    const touch = () => { last = Date.now(); };
+    const onKey = (e) => { if (e.key === 'Escape') result = 'cancelled'; else touch(); };
+    const onPress = (e) => {
+      if (e.isTrusted && button && (e.type === 'submit' || button.contains(e.target))) {
+        result = 'person';
+        state.pressedSubmit = true;
+        send({ type: 'careeros:submitting' });
+      }
+    };
+    const events = ['input', 'change', 'mousedown', 'pointerdown', 'wheel', 'touchstart'];
+    events.forEach((ev) => document.addEventListener(ev, touch, { capture: true, passive: true }));
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('click', onPress, true);
+    document.addEventListener('submit', onPress, true);
+    try {
+      while (!result && Date.now() - last < seconds * 1000) await sleep(250);
+    } finally {
+      events.forEach((ev) => document.removeEventListener(ev, touch, { capture: true }));
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('click', onPress, true);
+      document.removeEventListener('submit', onPress, true);
+    }
+    return result || 'go';
+  }
+
+  /* Tell the worker a submit is being pressed, so a reload onto the confirmation page is recognised
+     and a lost tab is never retried into a duplicate application. */
+  async function announceSubmit() {
+    state.pressedSubmit = true;
+    await send({ type: 'careeros:submitting' });
+  }
+
+  /* ================= waiting for the person ================= */
+
+  /* Something only the person can do. The application waits in this tab (the rest of the run carries on),
+     the person is notified, and this continues by itself once `resolved()` is true. */
+  async function park(reason, message, resolved) {
+    await send({ type: 'careeros:needsYou', reason, message });
+    showBanner(message);
+    while (!resolved()) await sleep(1000);
+    hideBanner();
+    await send({ type: 'careeros:resumed' });
+  }
+
+  async function clearBlockers() {
+    const ch = challenge();
+    if (ch === 'puzzle' || ch === 'interstitial') {
+      await park('captcha', 'Complete the verification on this page. CareerOS carries on by itself afterwards.', () => {
+        const c = challenge();
+        return c !== 'puzzle' && c !== 'interstitial';
+      });
+      await sleep(800);
+    }
+    if (needsLogin()) {
+      await park('login', 'Sign in or create an account on this page. CareerOS fills the application once the form appears.', () => !needsLogin());
+      await sleep(800);
+    }
+  }
+
+  /* Required questions CareerOS couldn't answer: highlight them, then only watch the page (never type,
+     focus or scroll while the person works). Once every required answer is in and they've paused, their
+     answers are saved for next time and the run continues. If they press submit themselves, that counts. */
+  async function waitForPersonAnswers(scope, opts) {
+    let missing = Filler.missingRequired(scope);
+    if (!missing.length && !(opts && opts.force)) return {};
+    const asked = missing.slice();
+    // What the form says now: anything the person changes while we wait is learned too.
+    const before = new Map(Filler.collectFields(scope).map((f) => [f.node, Filler.valueOf(f)]));
+    let lastTouch = Date.now();
+    let submittedByPerson = false;
+    const touch = () => { lastTouch = Date.now(); };
+    const events = ['keydown', 'input', 'change', 'mousedown', 'pointerdown', 'wheel', 'touchstart'];
+    const onSubmit = (e) => {
+      if (submittedByPerson || !e.isTrusted) return;
+      if (e.type === 'click') {
+        const btn = ATS.findSubmit(state.adapter, document);
+        if (!btn || !btn.contains(e.target) || Filler.missingRequired(scope).length) return;
+      }
+      submittedByPerson = true;
+      state.pressedSubmit = true;
+      learn(asked, scope, before);
+      send({ type: 'careeros:submitting' });
+    };
+    events.forEach((e) => document.addEventListener(e, touch, { capture: true, passive: true }));
+    document.addEventListener('submit', onSubmit, true);
+    document.addEventListener('click', onSubmit, true);
+
+    const labels = missing.map((f) => cleanLabel(f.label)).filter(Boolean).slice(0, 4).join('; ');
+    const what = missing.length
+      ? `${missing.length} question${missing.length === 1 ? ' needs' : 's need'} your answer${labels ? `: ${labels}` : ''}.`
+      : 'The form needs a correction (see the highlighted message).';
+    await send({ type: 'careeros:needsYou', reason: 'questions', message: what });
+    showBanner(`${what} Answer in this tab; when you stop typing, CareerOS saves your answers and continues.`);
+    missing.forEach((f) => Filler.markAttention(f.kind === 'radio' || f.kind === 'choice' ? (f.node.closest('fieldset') || f.node.parentElement) : f.node));
+    const first = missing[0] && missing[0].node;
+    if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+    try {
+      for (;;) {
+        await sleep(1000);
+        if (submittedByPerson) return { submittedByPerson: true };
+        missing = Filler.missingRequired(scope);
+        if (missing.length || Date.now() - lastTouch < IDLE_MS) continue;
+        if (opts && opts.force && readFormErrors() && Date.now() - lastTouch < IDLE_MS * 2) continue;
+        learn(asked, scope, before);
+        return {};
+      }
+    } finally {
+      events.forEach((e) => document.removeEventListener(e, touch, { capture: true }));
+      document.removeEventListener('submit', onSubmit, true);
+      document.removeEventListener('click', onSubmit, true);
+      Filler.clearAttention(document);
+      hideBanner();
+      send({ type: 'careeros:resumed' });
+    }
+  }
+
+  /* Save what the person entered for the questions CareerOS asked them (and anything of ours they corrected),
+     in this browser and on their CareerOS account. Self-identification answers are also saved by meaning. */
+  function learn(asked, scope, before) {
+    const answers = [];
+    const changed = before
+      ? Filler.collectFields(scope || document).filter((f) => before.has(f.node) && before.get(f.node) !== Filler.valueOf(f) && !asked.some((a) => a.node === f.node))
+      : [];
+    asked.concat(changed).forEach((f) => {
+      const fresh = Filler.collectFields(document).find((x) => x.node === f.node || (x.label === f.label && x.kind === f.kind)) || f;
+      const answer = Filler.valueOf(fresh);
+      const question = cleanLabel(f.label);
+      if (!question || !answer || answer.length > 5000 || f.kind === 'file') return;
+      answers.push({ question, answer });
+      const meaning = Answers && Answers.meaningOf(question, answer);
+      if (meaning) answers.push({ question, answer: meaning.value, key: meaning.key });
+    });
+    if (answers.length) send({ type: 'careeros:learn', answers, profileId: state.activeProfileId });
+  }
+
+  /* After a fill from the panel or popup, answers the person types in themselves are learned when they submit. */
+  function learnOnSubmit(scope) {
+    const asked = Filler.missingRequired(scope);
+    const before = new Map(Filler.collectFields(scope).map((f) => [f.node, Filler.valueOf(f)]));
+    let done = false;
+    const onSubmit = (e) => {
+      if (done || !e.isTrusted) return;
+      if (e.type === 'click') {
+        const btn = ATS.findSubmit(state.adapter, document) || Flows.byText(['submit application', 'submit', 'send application']);
+        if (!btn || !btn.contains(e.target)) return;
+      }
+      done = true;
+      learn(asked, scope, before);
+      document.removeEventListener('submit', onSubmit, true);
+      document.removeEventListener('click', onSubmit, true);
+    };
+    document.addEventListener('submit', onSubmit, true);
+    document.addEventListener('click', onSubmit, true);
+  }
+
+  /* While CareerOS waits for the person, the docked panel says what it needs (no extra UI on the page). */
+  function showBanner(message) {
+    panelState.waiting = message;
+    if (!panel) showPanel();
+    else renderPanel();
+  }
+  function hideBanner() {
+    if (!panelState.waiting) return;
+    panelState.waiting = null;
+    if (panel) renderPanel();
+  }
+
+  function cleanLabel(label) {
+    return String(label || '').replace(/\s*\*+\s*$/, '').replace(/\s+/g, ' ').trim();
   }
 
   /* Fire-and-forget: lets the dashboard show "step 3 of 7" instead of a flat
@@ -1128,20 +1407,51 @@
     return el.type === 'submit';
   }
 
-  function detectBlocker() {
-    if (document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], .h-captcha, .g-recaptcha, [class*="cf-turnstile"]')) {
-      return 'captcha';
-    }
-    const pw = document.querySelector('input[type="password"]');
-    if (pw && Flows.visible(pw)) return 'needs_login';
-    const text = bodyText();
-    if (/sign in to (continue|apply)|log ?in to apply|please sign in/i.test(text)) return 'needs_login';
-    if (/no longer accepting applications|this (job|position) (is|has) (closed|expired|been filled)/i.test(text)) return 'closed';
+  /* A verification the person must deal with. Invisible reCAPTCHA (the corner badge) and score-based checks
+     are on most application pages and never need anyone, so they don't count.
+       'puzzle'        a challenge window is open
+       'interstitial'  the whole page is a "verify you are human" check
+       'checkbox'      an "I'm not a robot" box that hasn't been ticked yet */
+  function challenge() {
+    const big = (el) => {
+      if (!el || !Flows.visible(el)) return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 30 && r.height > 30;
+    };
+    const popup = Array.from(document.querySelectorAll('iframe[src*="recaptcha"][src*="bframe"], iframe[src*="hcaptcha"][src*="challenge"], iframe[title*="challenge" i]')).find(big);
+    if (popup) return 'puzzle';
+    const text = `${document.title} ${bodyText().slice(0, 1500)}`;
+    const formPresent = !!ATS.findForm(state.adapter, document);
+    if (!formPresent && /verify (that )?you are (a )?human|checking (if the site connection is secure|your browser)|are you a robot|security check/i.test(text)) return 'interstitial';
+    const widgets = Array.from(document.querySelectorAll(
+      '.g-recaptcha:not([data-size="invisible"]), .h-captcha:not([data-size="invisible"]), .cf-turnstile, iframe[src*="recaptcha"][src*="anchor"], iframe[src*="hcaptcha.com"][src*="checkbox"], iframe[src*="challenges.cloudflare.com"]'
+    )).filter((w) => !w.closest('.grecaptcha-badge') && !/size=invisible/.test(w.getAttribute('src') || '') && big(w));
+    if (widgets.length && !captchaTokenPresent()) return 'checkbox';
     return null;
   }
 
+  function captchaTokenPresent() {
+    return Array.from(document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name="h-captcha-response"], input[name="cf-turnstile-response"]'))
+      .some((t) => (t.value || '').length > 20);
+  }
+
+  /* A sign-in wall: a password box and no application form, or an explicit "sign in to apply". */
+  function needsLogin() {
+    const pw = Array.from(document.querySelectorAll('input[type="password"]')).find((n) => Flows.visible(n));
+    const form = ATS.findForm(state.adapter, document);
+    const appFields = form ? form.querySelectorAll('input:not([type="hidden"]):not([type="password"]), select, textarea').length : 0;
+    if (pw && appFields < 4) return true;
+    return !form && /sign in to (continue|apply)|log ?in to apply|create an account to apply/i.test(bodyText().slice(0, 3000));
+  }
+
+  function isClosed() {
+    return /no longer accepting applications|this (job|position|posting) (is|has) (closed|expired|been filled)|job not found/i.test(bodyText().slice(0, 4000));
+  }
+
+
+
   function isConfirmation() {
-    return /thank you for (applying|your application)|application (was |has been )?(received|submitted|sent)|we(?:'ve| have) received your application|successfully applied|your application is (in|complete)/i
+    return /thank you for (applying|your application|your interest)|application (was |has been )?(received|submitted|sent)|we(?:'ve| have) received your application|successfully (applied|submitted)|your application is (in|complete)/i
       .test(bodyText());
   }
 
@@ -1184,12 +1494,12 @@
   }
 
   function bodyText() {
-    return (document.body.innerText || '').slice(0, 8000);
+    return ((document.body && document.body.innerText) || '').slice(0, 8000);
   }
 
   /* ================= shared ================= */
 
-  function buildContext(pregenerated, tailored, directiveProfile) {
+  function buildContext(pregenerated, tailored, directiveProfile, opts) {
     /* directiveProfile is the profile this specific job was queued and scored
        against (see Engine.build/add + handleReady) — it may not be whichever
        profile is globally active. Falls back to the active profile, same as
@@ -1220,21 +1530,29 @@
     return {
       profileOverride: profileForFill,
       resume: state.resume,
+      // LinkedIn / Indeed keep the resume used last time; an optional upload there is left alone.
+      skipOptionalUploads: !!(opts && opts.skipOptionalUploads),
 
-      async answerQuestion(question) {
-        /* An answer approved for this specific role wins over the bank, because
-           the person reviewed it against this posting. */
+      /* The person's earlier answer to this (or a near-identical) question. An answer approved for this
+         specific role wins, because the person reviewed it against this posting. */
+      async recall(question) {
         const approved = (tailored?.screeningAnswers || []).find(
           (a) => normalizeQuestion(a.question) === normalizeQuestion(question)
         );
-        if (approved && approved.confidence === 'high') return approved.answer;
+        if (approved && approved.answer && approved.confidence !== 'low') return approved.answer;
+        return Storage.recallAnswer(question, profileId);
+      },
 
-        const remembered = await Storage.recallAnswer(question, profileId);
-        if (remembered) return remembered;
+      /* A self-identification answer the person gave on an earlier form ("eeo:veteran" -> "No"). */
+      recallKey(key) {
+        return Storage.recallKey(key, profileId);
+      },
+
+      /* AI, grounded in the profile; with the form's options when it's a choice. Never saved as the
+         person's own answer: only what they type or keep is learned. */
+      async answerQuestion(question, options) {
         if (!state.settings.tailorScreeningAnswers) return null;
-        const answer = await ask('answerQuestion', { question });
-        if (answer) await Storage.rememberAnswer(question, answer, profileId);
-        return answer;
+        return ask('answerQuestion', { question, options: options || undefined });
       },
 
       async generate(kind) {

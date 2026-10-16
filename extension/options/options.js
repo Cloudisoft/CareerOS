@@ -110,7 +110,8 @@
     el.addEventListener('input', async () => {
       const value = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? Number(el.value) : el.value);
       settings[key] = value;
-      await Storage.saveSettings({ [key]: value });
+      // A daily limit the person typed is theirs to keep, even if it equals an old default.
+      await Storage.saveSettings(key === 'dailyLimit' ? { dailyLimit: value, dailyLimitChosen: true } : { [key]: value });
       if (key === 'acknowledgedRestricted') renderPlatforms();
       flagSaved();
     });
