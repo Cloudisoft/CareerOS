@@ -18,7 +18,7 @@ export interface GenerateCoverLetterInput {
 }
 
 export async function generateCoverLetter(input: GenerateCoverLetterInput) {
-  const careerContext = await buildCareerContext(input.userId);
+  const careerContext = await buildCareerContext(input.userId, { forApplication: true });
   const tone = input.tone ?? "professional";
 
   const system = `You write real, specific cover letters grounded in one candidate's actual background. ${GROUNDING_RULE}${

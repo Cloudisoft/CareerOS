@@ -30,8 +30,9 @@
       id: 'ashby',
       label: 'Ashby',
       match: (h) => /ashbyhq\.com/.test(h),
-      form: 'form',
-      submit: 'button[type="submit"]',
+      // Ashby renders the application without a <form> element.
+      form: '.ashby-application-form-container, [class*="ApplicationForm"], form',
+      submit: '.ashby-application-form-submit-button, button[type="submit"]',
       title: 'h1, [class*="jobTitle"]',
       company: '[class*="companyName"], header img[alt]',
       description: '[class*="jobDescription"], main'
@@ -144,7 +145,7 @@
     { key: 'years',          re: /\b(years|yrs)\b.*\bexperience\b|\bexperience\b.*\b(years|yrs)\b/,  resolve: (p) => String(p.experience.totalYears || '') },
     { key: 'notice',         re: /\bnotice period\b|\bhow soon can you (start|join)\b/,              path: 'experience.noticePeriod' },
     { key: 'availableFrom',  re: /\b(available|start date|earliest start)\b/,                        path: 'narrative.availableFrom' },
-    { key: 'salary',         re: /\b(salary|compensation|expected pay|rate)\b/,                      resolve: (p) => p.targeting.minSalary ? String(p.targeting.minSalary) : '' },
+    { key: 'salary',         re: /\b(salary|compensation|expected pay|pay rate|hourly rate|rate of pay|desired pay)\b/,                      resolve: (p) => p.targeting.minSalary ? String(p.targeting.minSalary) : '' },
     { key: 'skills',         re: /\b(skills|technolog|tech stack|proficienc)\w*\b/,                  resolve: (p, P) => P.allSkills(p).join(', ') },
     { key: 'summary',        re: /\b(summary|about you|tell us about|profile|bio)\b/,                path: 'narrative.summary' },
     { key: 'coverLetter',    re: /\b(cover letter|why (do you want|are you interested)|motivation)\b/, generated: 'coverLetter' },
@@ -208,9 +209,18 @@
       const d = doc || document;
       for (const s of (adapter.form || 'form').split(',')) {
         const el = d.querySelector(s.trim());
-        if (el) return el;
+        if (el && el.querySelectorAll('input:not([type="hidden"]), select, textarea').length) return el;
       }
-      return d.querySelector('form');
+      const form = d.querySelector('form');
+      if (form) return form;
+      // Single-page apps often have no <form>: start from the submit button and widen to the
+      // smallest container that holds the application's fields.
+      const button = Array.from(d.querySelectorAll('button, input[type="submit"]'))
+        .find((b) => /submit( application)?|send application|apply/i.test(b.textContent || b.value || ''));
+      for (let el = button && button.parentElement; el && el !== d.body; el = el.parentElement) {
+        if (el.querySelectorAll('input:not([type="hidden"]), select, textarea').length >= 3) return el;
+      }
+      return null;
     },
 
     findSubmit(adapter, scope) {

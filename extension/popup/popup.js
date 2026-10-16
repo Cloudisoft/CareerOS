@@ -21,7 +21,7 @@
     $('connectBtn').onclick = async () => {
       $('connectBtn').disabled = true;
       $('connectBtn').textContent = 'Waiting for approval…';
-      $('connectMsg').textContent = 'Approve it in the tab that just opened.';
+      $('connectMsg').textContent = 'Approve it in the tab that just opened. CareerOS finishes signing in by itself, even if this popup closes.';
 
       const res = await new Promise((resolve) =>
         chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'connect' }, resolve)

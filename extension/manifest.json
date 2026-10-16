@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "CareerOS \u2014 Auto Apply",
+  "name": "CareerOS — Auto Apply",
   "short_name": "CareerOS",
-  "version": "2.4.0",
-  "description": "Finds roles that match you, tailors your resume for each one, and fills the application. You approve before anything is sent.",
+  "version": "2.5.0",
+  "description": "Finds roles that match you and applies on employer sites, filling every form from your Career OS profile. Anything it can’t answer waits for you.",
   "author": "Career OS",
   "icons": {
     "16": "icons/icon16.png",
@@ -28,25 +28,12 @@
   "permissions": [
     "storage",
     "unlimitedStorage",
-    "activeTab",
     "scripting",
     "alarms",
     "notifications"
   ],
   "host_permissions": [
-    "https://*.careeros.example/*",
-    "http://localhost:3000/*"
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "icons/*.png",
-        "content/fields.css"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
+    "https://careeros.silverspringstaffing.com/*"
   ],
   "commands": {
     "open-dashboard": {
@@ -64,6 +51,8 @@
     "https://*.ashbyhq.com/*",
     "https://api.ashbyhq.com/*",
     "https://*.myworkdayjobs.com/*",
+    "https://*.myworkday.com/*",
+    "https://*.myworkdaysite.com/*",
     "https://*.workable.com/*",
     "https://apply.workable.com/*",
     "https://*.smartrecruiters.com/*",
@@ -88,5 +77,7 @@
     "https://api.adzuna.com/*",
     "https://jsearch.p.rapidapi.com/*",
     "https://data.usajobs.gov/*"
-  ]
+  ],
+  "homepage_url": "https://careeros.silverspringstaffing.com/",
+  "minimum_chrome_version": "102"
 }

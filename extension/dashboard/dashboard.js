@@ -20,10 +20,20 @@
   };
 
   $('startRun').onclick = async () => {
+    setBusy($('startRun'), 'Starting…');
     const res = await cmd('start');
-    if (res && res.state && res.state.lastError && !res.state.running) note(res.state.lastError);
+    setBusy($('startRun'), 'Start applying', false);
+    if (!res || !res.ok) note((res && res.error) || 'Could not start the run.');
+    else if (res.state && res.state.lastError && !res.state.running) note(res.state.lastError);
+    else hideNote();
     refresh();
   };
+
+  /* "Open" on an application waiting for you brings its tab to the front. */
+  $('queueBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-focus]');
+    if (btn) chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'focus', tabId: Number(btn.dataset.focus) });
+  });
 
   $('stopRun').onclick = async () => { await cmd('stop'); refresh(); };
   $('clearQueue').onclick = async () => { await cmd('clear'); hideNote(); refresh(); };
@@ -48,7 +58,7 @@
     $('runState').dataset.on = s.running ? 'running' : '';
     $('runState').textContent = s.running ? 'Running' : 'Idle';
     $('startRun').hidden = s.running;
-    $('startRun').disabled = !s.queue.length;
+    $('startRun').disabled = false; // with an empty queue, starting finds jobs first
     $('stopRun').hidden = !s.running;
 
     $('cQueued').textContent = s.queue.filter((j) => j.state === 'queued').length;
@@ -59,12 +69,13 @@
 
     if (s.lastError && !s.running) note(s.lastError);
 
+    const waitingTabs = new Map((res.active || []).filter((a) => a.phase === 'waiting').map((a) => [`${a.job.title}|${a.job.company}`, a.tabId]));
     const rows = s.queue;
     $('queueEmpty').hidden = rows.length > 0;
-    $('queueBody').innerHTML = rows.map(row).join('');
+    $('queueBody').innerHTML = rows.map((j) => row(j, waitingTabs.get(`${j.title}|${j.company}`))).join('');
   }
 
-  function row(j) {
+  function row(j, waitingTab) {
     const policy = Policy.for(j.ats, settings);
     return `<tr>
       <td class="num"><span class="scoreChip" data-high="${j.score >= 85 ? 1 : 0}">${j.score}</span></td>
@@ -72,7 +83,7 @@
       <td class="dim">${esc(j.company)}</td>
       <td class="dim">${esc(j.location || '—')}</td>
       <td class="dim">${esc(j.ats)}<br><span class="pill">${esc(Policy.label(policy.mode))}</span></td>
-      <td><span class="pill" data-s="${esc(j.state)}">${esc(stateLabel(j.state))}</span></td>
+      <td><span class="pill" data-s="${esc(j.state)}">${esc(stateLabel(j.state))}</span>${waitingTab ? ` <button class="ghost" data-focus="${waitingTab}">Open tab</button>` : ''}</td>
     </tr>`;
   }
 
@@ -80,9 +91,10 @@
     return {
       queued: 'Queued',
       running: 'Applying',
+      waiting: 'Needs you',
       submitted: 'Submitted',
-      assisted: 'Filled',
-      skipped: 'Needs you',
+      assisted: 'Filled, not sent',
+      skipped: 'Skipped',
       failed: 'Failed'
     }[s] || s;
   }

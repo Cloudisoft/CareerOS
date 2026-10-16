@@ -12,7 +12,7 @@
 
   const { Storage } = root.CareerOS;
 
-  const DEFAULT_BASE = 'http://localhost:3000/api/extension';
+  const DEFAULT_BASE = Storage.PROD_API;
 
   async function base() {
     const settings = await Storage.getSettings();
@@ -39,14 +39,18 @@
     });
 
     if (res.status === 401) {
-      throw new Error('This browser is not paired. Open CareerOS and generate a pairing code.');
+      const err = new Error('This browser is not connected to your Career OS account. Open CareerOS and press Sign in.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
     }
 
     let body = null;
     try { body = await res.json(); } catch (err) { body = null; }
 
     if (!res.ok) {
-      throw new Error((body && body.error) || `CareerOS returned ${res.status}`);
+      const err = new Error((body && body.error) || `CareerOS returned ${res.status}`);
+      err.status = res.status;
+      throw err;
     }
     return body;
   }
@@ -89,7 +93,7 @@
     async connect(onStatus) {
       const state = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
 
-      await fetch(`${await base()}/connect/start`, {
+      const started = await fetch(`${await base()}/connect/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -97,11 +101,15 @@
           label: deviceLabel(),
           version: chrome.runtime.getManifest().version,
         }),
-      });
+      }).catch(() => null);
+      if (!started || !started.ok) {
+        const body = started ? await started.json().catch(() => null) : null;
+        return { ok: false, error: (body && body.error) || 'Could not reach Career OS. Check your connection and try again.' };
+      }
 
       const settings = await Storage.getSettings();
       const tab = await chrome.tabs.create({
-        url: `${(settings.webAppUrl || 'http://localhost:3000').replace(/\/$/, '')}/extension-connect?state=${state}`,
+        url: `${(settings.webAppUrl || Storage.PROD_WEB).replace(/\/$/, '')}/extension-connect?state=${state}`,
       });
 
       /* Poll rather than wait for a redirect, because the person may complete
@@ -138,6 +146,17 @@
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
     },
 
+    /* Answers the person typed into forms: saved on the server so every device reuses them. */
+    async saveAnswers(answers) {
+      if (!answers || !answers.length) return null;
+      return request('/answers', { method: 'POST', body: JSON.stringify({ answers: answers.slice(0, 60) }) });
+    },
+
+    /* AI writing (cover letters, screening answers, resume parsing) with the paired device token. */
+    async generate(body) {
+      return request('/jobgpt/generate', { method: 'POST', body: JSON.stringify(body) });
+    },
+
     async isPaired() {
       return Boolean(await token());
     },
@@ -169,7 +188,8 @@
           }),
         });
       } catch (err) {
-        return { tailored: false };
+        // Still fill from the base profile; keep the reason so a lost connection is visible.
+        return { tailored: false, error: err.message, code: err.code };
       }
     },
 

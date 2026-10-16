@@ -191,7 +191,11 @@
         location: (j.location || {}).name || '',
         description: stripTags(decodeEntities(j.content || '')),
         url: j.absolute_url,
-        applyUrl: j.absolute_url,
+        // Many companies show Greenhouse jobs on their own careers site with the form in an iframe the
+        // extension can't reach; Greenhouse's own job page for the same posting always works.
+        applyUrl: /greenhouse\.io/.test(j.absolute_url || '')
+          ? j.absolute_url
+          : `https://job-boards.greenhouse.io/embed/job_app?for=${encodeURIComponent(token)}&token=${j.id}`,
         ats: 'greenhouse',
         postedAt: Date.parse(j.updated_at) || Date.now()
       }));

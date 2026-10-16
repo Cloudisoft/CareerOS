@@ -9,30 +9,37 @@
     SETTINGS: 'careeros.settings',
     APPLICATIONS: 'careeros.applications',
     ANSWERS: 'careeros.answerBank',
-    RESUME: 'careeros.resume'
+    RESUME: 'careeros.resume',
+    SERVER_APPLIED: 'careeros.serverApplied'
   };
+
+  /* The production Career OS deployment. A development build can still point Settings → API base elsewhere. */
+  const PROD_WEB = 'https://careeros.silverspringstaffing.com';
+  const PROD_API = PROD_WEB + '/api/extension';
+  /* Values shipped by 2.4.0 and earlier that never pointed at a real server. */
+  const STALE_HOST = /^https?:\/\/(localhost(:\d+)?|[^/]*\.careeros\.example)(\/|$)/i;
 
   const DEFAULT_SETTINGS = {
     autoSubmit: false,           // off by default: fill, then let the person press Submit
     reviewCountdown: 8,          // seconds shown before an auto-submit fires
     minMatchScore: 65,           // below this, CareerOS won't offer to apply
-    dailyLimit: 25,              // applications per day
+    dailyLimit: 25,              // applications per day (also capped by the plan's monthly limit from /sync)
+    monthlyLimit: null,          // the plan's monthly cap, from /sync (null = no cap)
+    appliedThisMonth: 0,         // submitted this month, from /sync
     pacingSeconds: 45,           // minimum gap between applications
     concurrency: 3,              // background tabs applying at once
     tailorCoverLetter: true,
     tailorScreeningAnswers: true,
     /* The Career OS app's API. Set this once per deployment — the pairing
        screen writes the token beside it. */
-    apiBase: 'http://localhost:3000/api/extension',
+    apiBase: PROD_API,
     /* Where the sign-in/approval pages live. Same host as apiBase for Career
        OS's own Next.js deployment; kept separate in settings in case a
        self-hosted install ever splits them. */
-    webAppUrl: 'http://localhost:3000',
+    webAppUrl: PROD_WEB,
     deviceToken: '',
     pairedAs: '',
     pairedAt: null,
-    apiToken: '',
-    allowDirectKey: false,   // developer only: call the model provider from the browser
     highlightFields: true,   // outline filled fields and ones still needing you
     /* Per-platform overrides. 'default' keeps the policy in lib/policy.js;
        'auto' turns on full automation for that platform. */
@@ -54,11 +61,48 @@
     });
   }
 
+  /* Read-modify-write on one key, one at a time. Several tabs report results at once; without this two
+     writers read the same old list and the second write silently undoes the first (a finished job flips
+     back to queued and is applied to twice). */
+  const locks = {};
+  function update(key, fallback, fn) {
+    const run = (locks[key] || Promise.resolve()).then(async () => {
+      const next = await fn(await get(key, fallback));
+      await set(key, next);
+      return next;
+    });
+    locks[key] = run.catch(() => {});
+    return run;
+  }
+
+  /* One form of a job URL (no tracking parameters, fragment or trailing slash): the same posting reached
+     through different links counts as one job. Mirrors normalizeJobUrl on the server. */
+  function normalizeUrl(raw) {
+    try {
+      const u = new URL(String(raw || '').trim());
+      u.hash = '';
+      u.hostname = u.hostname.toLowerCase();
+      for (const key of Array.from(u.searchParams.keys())) {
+        if (/^(utm_|gh_src$|source$|src$|ref$|referrer$|lever-source|lever-origin$|trk|refId$|trackingId$)/i.test(key)) u.searchParams.delete(key);
+      }
+      u.searchParams.sort();
+      let out = u.toString();
+      if (out.endsWith('/') && u.pathname !== '/') out = out.slice(0, -1);
+      return out;
+    } catch (err) {
+      return String(raw || '').trim();
+    }
+  }
+
   const Storage = {
     KEYS,
     DEFAULT_SETTINGS,
+    PROD_WEB,
+    PROD_API,
     get,
     set,
+    update,
+    normalizeUrl,
 
     async getProfile() {
       return get(KEYS.PROFILE, null);
@@ -70,11 +114,14 @@
 
     async getSettings() {
       const stored = await get(KEYS.SETTINGS, {});
-      return Object.assign({}, DEFAULT_SETTINGS, stored);
+      const settings = Object.assign({}, DEFAULT_SETTINGS, stored);
+      // Installs from 2.4.0 saved localhost / careeros.example, which never reach the real server.
+      if (!settings.apiBase || STALE_HOST.test(settings.apiBase)) settings.apiBase = PROD_API;
+      if (!settings.webAppUrl || STALE_HOST.test(settings.webAppUrl)) settings.webAppUrl = PROD_WEB;
+      return settings;
     },
     async saveSettings(patch) {
-      const current = await Storage.getSettings();
-      return set(KEYS.SETTINGS, Object.assign(current, patch));
+      return update(KEYS.SETTINGS, {}, (stored) => Object.assign({}, stored, patch));
     },
 
     async getResume() {
@@ -88,33 +135,44 @@
       return get(KEYS.APPLICATIONS, []);
     },
     async logApplication(entry) {
-      const list = await Storage.getApplications();
       const record = Object.assign(
         { id: crypto.randomUUID(), at: Date.now(), status: 'filled' },
         entry
       );
-      list.unshift(record);
-      await set(KEYS.APPLICATIONS, list.slice(0, 1000));
+      await update(KEYS.APPLICATIONS, [], (list) => [record].concat(list).slice(0, 1000));
       return record;
     },
     async updateApplication(id, patch) {
-      const list = await Storage.getApplications();
-      const idx = list.findIndex((a) => a.id === id);
-      if (idx === -1) return null;
-      list[idx] = Object.assign(list[idx], patch);
-      await set(KEYS.APPLICATIONS, list);
-      return list[idx];
+      let found = null;
+      await update(KEYS.APPLICATIONS, [], (list) =>
+        list.map((a) => (a.id === id ? (found = Object.assign({}, a, patch)) : a))
+      );
+      return found;
     },
+    /* Only real submissions count toward limits; filling a form (popup "Fill", or waiting for the person) does not. */
     async appliedToday() {
       const list = await Storage.getApplications();
       const start = new Date();
       start.setHours(0, 0, 0, 0);
-      return list.filter((a) => a.at >= start.getTime()).length;
+      return list.filter((a) => a.at >= start.getTime() && a.status === 'submitted').length;
     },
-    async alreadyApplied(url) {
+    async appliedThisMonth() {
       const list = await Storage.getApplications();
-      const key = (url || '').split('?')[0];
-      return list.find((a) => (a.url || '').split('?')[0] === key) || null;
+      const now = new Date();
+      const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+      return list.filter((a) => a.at >= start && a.status === 'submitted').length;
+    },
+    /* Submitted from this browser, or from any device per the server (synced at the start of each run). */
+    async alreadyApplied(url) {
+      const key = normalizeUrl(url);
+      const list = await Storage.getApplications();
+      const local = list.find((a) => a.status === 'submitted' && normalizeUrl(a.url) === key);
+      if (local) return local;
+      const server = await get(KEYS.SERVER_APPLIED, []);
+      return server.indexOf(key) !== -1 ? { url, status: 'submitted', source: 'server' } : null;
+    },
+    async saveServerApplied(urls) {
+      return set(KEYS.SERVER_APPLIED, Array.from(new Set((urls || []).map(normalizeUrl))));
     },
 
     /* Answer bank: every screening question the person has answered once,
@@ -122,17 +180,48 @@
     async getAnswers() {
       return get(KEYS.ANSWERS, {});
     },
-    async rememberAnswer(question, answer) {
-      const bank = await Storage.getAnswers();
-      bank[normalizeQuestion(question)] = { answer, at: Date.now() };
-      return set(KEYS.ANSWERS, bank);
+    async rememberAnswer(question, answer, source) {
+      const key = String(question).indexOf('eeo:') === 0 ? String(question) : normalizeQuestion(question);
+      return update(KEYS.ANSWERS, {}, (bank) =>
+        Object.assign({}, bank, { [key]: { answer, at: Date.now(), question, source: source || 'user' } })
+      );
     },
+    /* Answers saved on the server (from any device) join the local bank; local answers newer than the sync stay. */
+    async mergeServerAnswers(answers) {
+      return update(KEYS.ANSWERS, {}, (bank) => {
+        const next = Object.assign({}, bank);
+        for (const a of answers || []) {
+          const key = a.key && a.key.indexOf('eeo:') === 0 ? a.key : normalizeQuestion(a.question);
+          if (!next[key]) next[key] = { answer: a.answer, at: 0, question: a.question, source: a.source || 'user' };
+        }
+        return next;
+      });
+    },
+    /* The saved answer for this question, or for a question worded almost the same way. */
     async recallAnswer(question) {
       const bank = await Storage.getAnswers();
-      const hit = bank[normalizeQuestion(question)];
-      return hit ? hit.answer : null;
-    }
+      const key = normalizeQuestion(question);
+      if (bank[key]) return bank[key].answer;
+      let best = null;
+      for (const k of Object.keys(bank)) {
+        if (k.indexOf('eeo:') === 0) continue;
+        const score = similarity(key, k);
+        if (score >= 0.8 && (!best || score > best.score)) best = { score, answer: bank[k].answer };
+      }
+      return best ? best.answer : null;
+    },
+    normalizeQuestion
   };
+
+  /* Word-overlap similarity of two normalised questions (0–1). */
+  function similarity(a, b) {
+    const wa = new Set(a.split(' ').filter((w) => w.length > 2));
+    const wb = new Set(b.split(' ').filter((w) => w.length > 2));
+    if (!wa.size || !wb.size) return 0;
+    let both = 0;
+    wa.forEach((w) => { if (wb.has(w)) both++; });
+    return both / (wa.size + wb.size - both);
+  }
 
   function normalizeQuestion(q) {
     return String(q || '')

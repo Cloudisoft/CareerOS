@@ -283,6 +283,7 @@ model CandidateProfile {
   courseLessonProgress CourseLessonProgress[]
   autoApplySettings    AutoApplySettings?
   autoApplyRuns        AutoApplyRun[]
+  extensionAnswers     ExtensionAnswer[]
 
   @@map("candidate_profiles")
 }
@@ -1026,6 +1027,24 @@ model AutoApplySettings {
   updatedAt DateTime @updatedAt
 
   @@map("auto_apply_settings")
+}
+
+/// Answers the candidate gave on application forms (typed by them, or AI drafts they kept), reused by the
+/// extension on later forms that ask the same or a similar question. Keys starting "eeo:" hold the meaning
+/// of a self-identification answer (e.g. eeo:veteran = "No"), so any wording of that question matches.
+model ExtensionAnswer {
+  id          String           @id @default(cuid())
+  profileId   String
+  profile     CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  questionKey String
+  question    String
+  answer      String
+  source      String           @default("user")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([profileId, questionKey])
+  @@map("extension_answers")
 }
 
 model AutoApplyRun {

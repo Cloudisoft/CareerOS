@@ -47,15 +47,40 @@ export async function updateSettings(
   });
 }
 
-/** Applications the extension has submitted or assisted with this calendar month, for monthly-limit enforcement. */
+/** Statuses that mean the application really reached the employer (SAVED = filled or prepared only). */
+export const SUBMITTED_STATUSES = ["APPLIED", "VIEWED", "SCREENING", "INTERVIEW", "OFFER", "REJECTED"] as const;
+
+/** Applications the extension actually submitted this calendar month, for monthly-limit enforcement. */
 export async function countAppliedThisMonth(profileId: string) {
   return prisma.application.count({
     where: {
       profileId,
       source: { in: ["EXTENSION", "AUTO"] },
+      status: { in: [...SUBMITTED_STATUSES] },
       appliedAt: { gte: startOfMonthUtc() },
     },
   });
+}
+
+/**
+ * One canonical form of a job URL, so the same posting reached through different links (tracking
+ * parameters, trailing slash, #fragment) is recognised as one job and never applied to twice.
+ */
+export function normalizeJobUrl(raw: string): string {
+  try {
+    const u = new URL(raw.trim());
+    u.hash = "";
+    u.hostname = u.hostname.toLowerCase();
+    for (const key of Array.from(u.searchParams.keys())) {
+      if (/^(utm_|gh_src$|source$|src$|ref$|referrer$|lever-source|lever-origin$|trk|refId$|trackingId$)/i.test(key)) u.searchParams.delete(key);
+    }
+    u.searchParams.sort();
+    let out = u.toString();
+    if (out.endsWith("/") && u.pathname !== "/") out = out.slice(0, -1);
+    return out;
+  } catch {
+    return raw.trim();
+  }
 }
 
 /** Distinct Auto Apply runs ("campaigns") started this calendar month, for campaign-limit enforcement. */
@@ -65,22 +90,26 @@ export async function countCampaignsThisMonth(profileId: string) {
   });
 }
 
-/** Every external URL this candidate has already applied to, for the extension's cross-device dedupe. */
+/**
+ * Every external URL this candidate has actually applied to, for the extension's cross-device dedupe.
+ * Prepared-but-unsent (SAVED) and withdrawn applications are not included, so they can still be applied to.
+ */
 export async function listAppliedUrls(profileId: string) {
   const applications = await prisma.application.findMany({
-    where: { profileId, job: { externalUrl: { not: null } } },
+    where: { profileId, status: { in: [...SUBMITTED_STATUSES] }, job: { externalUrl: { not: null } } },
     select: { job: { select: { externalUrl: true } } },
     orderBy: { appliedAt: "desc" },
-    take: 500,
+    take: 5000,
   });
-  return applications.map((a) => a.job.externalUrl).filter((u): u is string => Boolean(u));
+  return Array.from(new Set(applications.map((a) => a.job.externalUrl).filter((u): u is string => Boolean(u)).map(normalizeJobUrl)));
 }
 
 export async function findOrCreateExternalJob(
   companyId: string,
   input: { url: string; title: string; ats: string; description?: string }
 ) {
-  const existing = await prisma.job.findFirst({ where: { companyId, externalUrl: input.url } });
+  const url = normalizeJobUrl(input.url);
+  const existing = await prisma.job.findFirst({ where: { companyId, externalUrl: { in: Array.from(new Set([url, input.url])) } } });
   if (existing) {
     // A real description arriving later (e.g. the package endpoint sees the
     // full posting) upgrades the placeholder text from a bare application log.
@@ -99,7 +128,7 @@ export async function findOrCreateExternalJob(
         `Discovered and applied to via the Career OS browser extension (${input.ats || "unknown platform"}).`,
       status: "CLOSED", // not part of the Career OS marketplace — tracking only
       source: "extension",
-      externalUrl: input.url,
+      externalUrl: url,
     },
   });
 }
@@ -117,17 +146,24 @@ export interface LogExtensionApplicationInput {
 export async function logExtensionApplication(profileId: string, input: LogExtensionApplicationInput) {
   const company = await findOrCreateExternalCompany(input.company);
   const job = await findOrCreateExternalJob(company.id, input);
+  // "assisted" = the form was filled but the person hasn't submitted it: that is not an application yet.
+  const submitted = input.outcome === "submitted";
+  const existing = await prisma.application.findUnique({ where: { profileId_jobId: { profileId, jobId: job.id } } });
+  const alreadySubmitted = !!existing && (SUBMITTED_STATUSES as readonly string[]).includes(existing.status);
+  const status = submitted || alreadySubmitted ? (alreadySubmitted ? existing!.status : "APPLIED") : "SAVED";
 
   const application = await prisma.application.upsert({
     where: { profileId_jobId: { profileId, jobId: job.id } },
     update: {
-      status: "APPLIED",
+      status,
       matchScoreAtApply: Math.round(input.matchScore),
+      // The submission date is when it was actually sent, not when a package was first prepared.
+      ...(submitted && !alreadySubmitted ? { appliedAt: new Date() } : {}),
     },
     create: {
       profileId,
       jobId: job.id,
-      status: "APPLIED",
+      status,
       source: "EXTENSION",
       matchScoreAtApply: Math.round(input.matchScore),
     },
@@ -136,8 +172,9 @@ export async function logExtensionApplication(profileId: string, input: LogExten
   await prisma.applicationEvent.create({
     data: {
       applicationId: application.id,
-      toStatus: "APPLIED",
-      note: `Applied via browser extension (${input.ats || "unknown platform"}), outcome: ${input.outcome}${
+      fromStatus: existing?.status ?? null,
+      toStatus: status,
+      note: `${submitted ? "Applied" : "Filled (not yet submitted)"} via browser extension (${input.ats || "unknown platform"}), outcome: ${input.outcome}${
         input.detail ? ` — ${input.detail}` : ""
       }`,
     },
@@ -163,6 +200,8 @@ export async function recordRunHeartbeat(
   entitlements: UserEntitlements
 ) {
   const existing = await prisma.autoApplyRun.findUnique({ where: { runId: input.runId } });
+  // Run ids come from the browser; never let one account update another account's run.
+  if (existing && existing.profileId !== profileId) throw new AutoApplyError("Unknown run.", "NOT_FOUND");
 
   if (!existing) {
     const campaignsThisMonth = await countCampaignsThisMonth(profileId);

@@ -1,7 +1,7 @@
 # Chrome Web Store submission
 
-Upload **`careeros.zip`** from `./build.sh package`. Never zip the folder by
-hand — that includes `manifest.dev.json`, which permits a model-provider host.
+Upload **`careeros.zip`** from `./build.sh package` (run inside `extension/`). Never zip the folder by
+hand: the build checks the manifest only allows the production server and leaves tests and docs out.
 
 ## What changed to make approval straightforward
 
@@ -93,12 +93,14 @@ stating plainly what the extension does not do saves a rejection round.
 
 ## Before you upload
 
-1. Set `DEFAULT_BASE` in `lib/careeros-api.js` to your real Career OS API URL (ends in /api/extension).
-2. `./build.sh package`
-3. Privacy policy live at a public HTTPS URL.
-4. Screenshots at 1280×800: the Account tab showing pairing and site access, the
+1. Bump `version` in `manifest.json` (every upload needs a higher version).
+2. Run the tests from the repo root: `pnpm test` and `pnpm test:extension:e2e`.
+3. `./build.sh package` and upload `careeros.zip`.
+4. Privacy policy live at a public HTTPS URL: https://careeros.silverspringstaffing.com/privacy (enter it in the
+   store dashboard's Privacy tab).
+5. Screenshots at 1280×800: the Account tab showing pairing and site access, the
    popup on a posting with a match score, the run dashboard mid-run.
-5. A demo video: pairing, granting a site group, one fill, one batch.
+6. A demo video: pairing, granting a site group, one fill, one batch.
 
 ## What still gets extensions like this rejected
 
