@@ -10,6 +10,8 @@
  *   - in the default mode (fills, you submit) Fill opens Easy Apply, fills each step as the person presses
  *     Next, and never submits
  *   - harvesting a LinkedIn search page reads clean titles
+ *   - a run searches LinkedIn and Indeed by itself in a background tab and queues what it finds
+ *   - a run moves straight on from one employer's application to the next (the pacing gap is per company)
  *
  *   node extension/test/e2e-boards.mjs     (set CHROMIUM_PATH to use a specific Chromium)
  */
@@ -192,14 +194,14 @@ const boards = https.createServer({ key: readFileSync(path.join(certDir, 'key.pe
   const send = (content, type = 'text/html') => { res.writeHead(200, { 'content-type': type }); res.end(content); };
   if (u.pathname.startsWith('/__submit/')) {
     seen.submissions.push({ id: u.pathname.split('/')[2], body });
-    return u.pathname.endsWith('/gh') ? send('<h1>Thank you for applying!</h1><p>Your application has been submitted.</p>') : send('{}', 'application/json');
+    return u.pathname.startsWith('/__submit/gh') ? send('<h1>Thank you for applying!</h1><p>Your application has been submitted.</p>') : send('{}', 'application/json');
   }
   const host = u.hostname;
   if (host === 'www.linkedin.com' && u.pathname === '/jobs/view/4001/') return send(easyApplyPage('li-4001', 'QA Analyst'));
   if (host === 'www.linkedin.com' && u.pathname === '/jobs/view/4003/') return send(easyApplyPage('li-4003', 'Senior QA Analyst'));
   if (host === 'www.linkedin.com' && u.pathname === '/jobs/view/4002/') return send(externalPage);
   if (host === 'www.linkedin.com' && u.pathname.startsWith('/jobs/search')) return send(linkedinSearch);
-  if (host === 'boards.greenhouse.io') return send(greenhousePage);
+  if (host === 'boards.greenhouse.io') return send(greenhousePage.replace('/__submit/gh', `/__submit/gh${u.pathname.split('/').pop() === '77' ? '' : '-' + u.pathname.split('/').pop()}`));
   if (host === 'www.indeed.com') return send(indeedJob);
   if (host === 'smartapply.indeed.com') return send(indeedApply);
   res.writeHead(404); res.end();
@@ -239,7 +241,7 @@ async function runJob(job) {
 try {
   await sw.evaluate(async ({ apiBase }) => {
     const { Storage, Permissions } = self.CareerOS;
-    await Storage.saveSettings({ apiBase, deviceToken: 't', autoSubmit: true, platformModes: { linkedin: 'auto', indeed: 'auto' }, acknowledgedRestricted: true, dailyLimit: 50 });
+    await Storage.saveSettings({ apiBase, deviceToken: 't', autoSubmit: true, platformModes: { linkedin: 'auto', indeed: 'auto' }, acknowledgedRestricted: true, dailyLimit: 50, searchJobBoards: false });
     await Storage.saveProfile({
       identity: { firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com', phone: '+1 555 0100', city: 'Austin', state: 'Texas', country: 'United States' },
       experience: { currentTitle: 'QA Analyst', totalYears: 6, history: [] },
@@ -293,6 +295,45 @@ try {
   const searchTab = await sw.evaluate(async () => (await chrome.tabs.query({ url: 'https://www.linkedin.com/jobs/search/*' }))[0].id);
   const harvest = await sw.evaluate((id) => chrome.tabs.sendMessage(id, { type: 'careeros:harvest' }), searchTab);
   check(harvest.jobs.length === 3 && harvest.jobs[0].title === 'QA Analyst 1' && harvest.jobs[0].url === 'https://www.linkedin.com/jobs/view/501/', `read the LinkedIn results (${harvest.jobs.map((j) => j.title).join(', ')})`);
+
+  /* 6. Start with nothing queued: the run searches LinkedIn and Indeed itself and queues what they show. */
+  await page.close();
+  await sw.evaluate(async () => {
+    const { Engine, Storage } = self.CareerOS;
+    await Engine.stop('test');
+    await Engine.setState({ queue: [] });
+    await Storage.saveSettings({ searchJobBoards: true });
+    Engine.runtime.boardSearchedAt = 0;
+    await Engine.build(); // what Find jobs and Start run (the test browser allows only some of the boards group)
+  });
+  const opened = await waitFor(async () => {
+    const urls = await sw.evaluate(async () => (await chrome.tabs.query({ url: 'https://www.linkedin.com/jobs/search/*' })).map((t) => t.url || t.pendingUrl));
+    return urls.length ? urls : null;
+  }, 15000, 'LinkedIn search opened');
+  check(opened.some((u) => /keywords=QA\+Analyst/.test(u) && /f_AL=true/.test(u)), `opened the person's LinkedIn search for their target role, Easy Apply only (${opened[0]})`);
+  const queued = await waitFor(async () => {
+    const q = (await sw.evaluate(async () => (await self.CareerOS.Engine.getState()).queue)).filter((j) => j.ats === 'linkedin');
+    return q.length >= 3 ? q : null;
+  }, 30000, 'LinkedIn jobs queued');
+  check(queued.length === 3 && queued.every((j) => j.state === 'queued' && /linkedin\.com\/jobs\/view\/50\d\//.test(j.url)), `queued the LinkedIn results for the run (${queued.map((j) => j.title).join(', ')})`);
+  await waitFor(() => sw.evaluate(async () => !self.CareerOS.Engine.runtime.boardSearch), 70000, 'board search finished');
+  const leftOpen = await sw.evaluate(async () => (await chrome.tabs.query({})).filter((t) => /\/jobs\/search|indeed\.com\/jobs/.test(t.url)).length);
+  check(leftOpen === 0, `closed the search tabs it opened (${leftOpen} left)`);
+
+  /* 7. Three employers in a row: no clearing of the pacing gap, the run goes from one to the next. */
+  await sw.evaluate(async () => {
+    const { Engine, Storage } = self.CareerOS;
+    await Storage.saveSettings({ searchJobBoards: false, concurrency: 1 });
+    await Engine.setState({ queue: [] });
+    Engine.runtime.gateUntil.clear();
+    await handleEngineCommand({ command: 'add', jobs: [1, 2, 3].map((n) => ({ id: `gh-${n}`, url: `https://boards.greenhouse.io/company${n}/jobs/${900 + n}`, title: 'QA Analyst', company: `Company ${n}`, ats: 'greenhouse', location: 'Remote' })) });
+    await handleEngineCommand({ command: 'start' });
+  });
+  const t0 = Date.now();
+  await waitFor(async () => (await Promise.all(['gh-1', 'gh-2', 'gh-3'].map(jobState))).every((j) => j && j.state === 'submitted'), 90000, 'three employers submitted').catch((e) => check(false, e.message));
+  const states = await Promise.all(['gh-1', 'gh-2', 'gh-3'].map(jobState));
+  check(states.every((j) => j.state === 'submitted') && ['gh-901', 'gh-902', 'gh-903'].every((id) => seen.submissions.some((x) => x.id === id)),
+    `went on from one application to the next by itself: ${states.map((j) => `${j.company} ${j.state}${j.detail ? ` (${j.detail})` : ''}`).join(', ')} in ${Math.round((Date.now() - t0) / 1000)}s`);
 } catch (err) {
   failures.push(err.message);
   console.log(`✗ ${err.message}`);

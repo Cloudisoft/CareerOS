@@ -27,6 +27,14 @@ interface JobListItem {
 }
 
 const WORKPLACE_OPTIONS = ["ONSITE", "HYBRID", "REMOTE"];
+const SOURCE_LABELS: Record<string, string> = {
+  greenhouse: "Greenhouse",
+  lever: "Lever",
+  ashby: "Ashby",
+  workday: "Workday",
+  adzuna: "Adzuna",
+  jsearch: "JSearch",
+};
 
 function matchBadgeVariant(score: number) {
   if (score >= 80) return "brand" as const;
@@ -49,6 +57,7 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
   const [workplaceType, setWorkplaceType] = useState<string[]>(
     searchParams.get("workplaceType")?.split(",").filter(Boolean) ?? []
   );
+  const [sources, setSources] = useState<string[]>(searchParams.get("source")?.split(",").filter(Boolean) ?? []);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -59,12 +68,13 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
     if (q) params.set("q", q);
     if (location) params.set("location", location);
     if (workplaceType.length) params.set("workplaceType", workplaceType.join(","));
+    if (sources.length) params.set("source", sources.join(","));
     const res = await fetch(`/api/jobs?${params.toString()}`);
     const json = await res.json();
     setJobs(json.data?.jobs ?? []);
     setTotal(json.data?.total ?? 0);
     setLoading(false);
-  }, [q, location, workplaceType]);
+  }, [q, location, workplaceType, sources]);
 
   useEffect(() => {
     fetchJobs();
@@ -72,6 +82,10 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
 
   function toggleWorkplace(type: string) {
     setWorkplaceType((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]));
+  }
+
+  function toggleSource(source: string) {
+    setSources((prev) => (prev.includes(source) ? prev.filter((s) => s !== source) : [...prev, source]));
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -117,6 +131,22 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
             {type === "ONSITE" ? "On-site" : type === "HYBRID" ? "Hybrid" : "Remote"}
           </button>
         ))}
+        <span className="mx-1 self-center text-xs text-muted-foreground">·</span>
+        {Object.entries(SOURCE_LABELS).map(([source, label]) => (
+          <button
+            key={source}
+            type="button"
+            onClick={() => toggleSource(source)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              sources.includes(source)
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -140,7 +170,7 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
                       {job.title}
                       {job.source !== "careeros" && (
                         <Badge variant="outline" className="ml-2 align-middle text-xs font-normal">
-                          via {job.source === "adzuna" ? "Adzuna" : job.source === "jsearch" ? "JSearch" : job.source}
+                          via {SOURCE_LABELS[job.source] ?? job.source}
                         </Badge>
                       )}
                     </p>

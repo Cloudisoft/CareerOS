@@ -4,10 +4,14 @@ import { getSessionUser } from "@/lib/auth/session";
 import { getEntitlements } from "@/lib/billing/entitlements";
 import { scoreJobsForProfile } from "@/lib/matching/service";
 import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
+import { refreshBoardJobs } from "@/lib/jobs/boards/store";
 import { apiCatch, apiOk } from "@/lib/api-response";
 import type { Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 20;
+/** How long the first page waits for a candidate's employer-board scan before answering with what is stored. */
+const BOARD_SCAN_WAIT_MS = 8000;
+const SOURCES = ["greenhouse", "lever", "ashby", "workday", "adzuna", "jsearch", "careeros"];
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,6 +24,14 @@ export async function GET(req: NextRequest) {
     const careerLevels = params.get("careerLevel")?.split(",").filter(Boolean);
     const minSalary = params.get("minSalary") ? Number(params.get("minSalary")) : undefined;
     const page = Math.max(1, Number(params.get("page")) || 1);
+    const sources = params.get("source")?.split(",").filter((x) => SOURCES.includes(x));
+
+    // Greenhouse, Lever, Ashby and Workday postings that fit the candidate join the Adzuna listings here.
+    // The scan runs at most every few hours per person; a slow one finishes in the background.
+    const user = await getSessionUser();
+    if (user && user.role === "CANDIDATE" && page === 1) {
+      await Promise.race([refreshBoardJobs(user.id), new Promise((r) => setTimeout(r, BOARD_SCAN_WAIT_MS))]);
+    }
 
     const where: Prisma.JobWhereInput = {
       status: "OPEN",
@@ -37,6 +49,7 @@ export async function GET(req: NextRequest) {
       ...(employmentTypes?.length ? { employmentType: { in: employmentTypes as never[] } } : {}),
       ...(careerLevels?.length ? { careerLevel: { in: careerLevels as never[] } } : {}),
       ...(minSalary ? { salaryMax: { gte: minSalary } } : {}),
+      ...(sources?.length ? { source: { in: sources } } : {}),
     };
 
     const [jobs, total] = await Promise.all([
@@ -50,7 +63,6 @@ export async function GET(req: NextRequest) {
       prisma.job.count({ where }),
     ]);
 
-    const user = await getSessionUser();
     let scores = new Map<string, number>();
     if (user && user.role === "CANDIDATE") {
       const entitlements = await getEntitlements(user.id);
