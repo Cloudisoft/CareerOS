@@ -37,6 +37,8 @@ stage() {
     rm -rf "${tmp:?}/build/${name}"
   done
   find "$tmp/build" -name '.DS_Store' -delete
+  # Never ship an earlier package inside this one.
+  find "$tmp/build" -name '*.zip' -delete
   mv "$tmp/build" "$OUT_DIR"
   rm -rf "$tmp"
 }

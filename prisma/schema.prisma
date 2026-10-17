@@ -1117,7 +1117,7 @@ model AutoApplySettings {
   monthlyLimit  Int     @default(20)
   pacingSeconds Int     @default(45)
   concurrency   Int     @default(1)
-  autoSubmit    Boolean @default(false)
+  autoSubmit    Boolean @default(true)
   platformModes Json    @default("{}")
 
   /// "start" or "stop" pressed on the Auto Apply page, waiting for the extension to pick it up.

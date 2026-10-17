@@ -233,7 +233,8 @@ try {
     return handleEngineCommand({ command: 'start' });
   }, origin);
   const p5 = await pageFor('/apply/5');
-  await waitFor(async () => (await p5.inputValue('#tools').catch(() => '')) && (await p5.inputValue('#phone').catch(() => '')), 30000, 'job-5 filled');
+  // Everything filled (the countdown starts then).
+  await waitFor(async () => (await p5.inputValue('#tools').catch(() => '')) && (await p5.inputValue('#phone').catch(() => '')) && (await p5.evaluate(() => !!document.querySelector('.select__single-value'))), 30000, 'job-5 filled');
   await sleep(1500);
   check(!seen.submissions.some((x) => x.id === '5'), 'waits out the countdown before submitting');
   await p5.keyboard.press('Escape');

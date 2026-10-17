@@ -231,3 +231,25 @@ describe("field patterns", () => {
     expect(key("Do you require visa sponsorship?")).toBe("sponsorship");
   });
 });
+
+describe("the same question in different words", () => {
+  it("reuses an answer for a reworded question, but never one written for another company", async () => {
+    const { CareerOS } = page("", ["lib/storage.js"]);
+    const S = CareerOS.Storage;
+    await S.rememberAnswer("What size of support team have you led?", "4-10 people");
+    await S.rememberAnswer("Why do you want to work at Northwind?", "Northwind builds tools I use every day.");
+    await S.rememberAnswer("How many years of experience do you have with React?", "5");
+    expect(await S.recallCandidates("How big a support team have you led?", undefined, { choice: true })).toContain("4-10 people");
+    expect(await S.recallCandidates("Why do you want to work at Acme?")).not.toContain("Northwind builds tools I use every day.");
+    expect(await S.recallCandidates("How many years of experience do you have with Python?", undefined, { choice: true })).not.toContain("5");
+  });
+
+  it("maps an answer onto the option that means it, and never guesses between two", () => {
+    const { CareerOS } = page("", ["lib/answers.js"]);
+    const pick = (o: string[], v: string) => CareerOS.Answers.pickOption(o, v);
+    const opts = ["A job board", "The company careers site", "Someone referred me", "Something else"];
+    expect(pick(opts, "Referral")).toBe("Someone referred me");
+    expect(pick(opts, "Company website")).toBe("The company careers site");
+    expect(pick(["Employee referral", "Friend referral"], "Referral")).toBeNull();
+  });
+});

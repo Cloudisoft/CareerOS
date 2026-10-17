@@ -195,7 +195,7 @@
     { key: 'gradYear',   re: /\b(graduation|grad year|year of passing)\b/,  resolve: (p) => String((p.education[0] || {}).year || '') },
 
     { key: 'resume',     re: /\b(resume|cv|upload your resume)\b/,          file: 'resume' },
-    { key: 'source',     re: /\bhow did you (hear|find)\b|\bsource\b/,      resolve: () => 'Company website' }
+    { key: 'source',     re: /\bhow did you (\w+ ){0,2}(hear|find)\b|\bsource\b/,      resolve: () => 'Company website' }
   ];
 
   /* Remote overrides, patched in from the CareerOS backend (see

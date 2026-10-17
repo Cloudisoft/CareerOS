@@ -21,7 +21,7 @@
   const STALE_HOST = /^https?:\/\/(localhost(:\d+)?|[^/]*\.careeros\.example)(\/|$)/i;
 
   const DEFAULT_SETTINGS = {
-    autoSubmit: false,           // off by default: fill, then let the person press Submit
+    autoSubmit: true,            // submit by itself once every answer is in (job boards like LinkedIn stay fill-only)
     reviewCountdown: 8,          // seconds shown before an auto-submit fires
     minMatchScore: 65,           // below this, CareerOS won't offer to apply
     dailyLimit: 200,             // applications per day, per account (the plan's monthly cap still applies)
@@ -284,6 +284,25 @@
       const id = profileId || (await getProfilesData()).activeId;
       return findAnswer(bank[id], question) || findAnswer(bank[SHARED], question);
     },
+    /* Every saved answer that could answer this question, best first: this profile's, then the account's.
+       A choice question accepts a looser wording match (0.7), because the answer must also be one of its
+       options; a written answer needs 0.75 (so "Why work at Northwind?" never answers "Why work at Acme?"). */
+    async recallCandidates(question, profileId, opts) {
+      const bank = await getAnswerBank();
+      const id = profileId || (await getProfilesData()).activeId;
+      const floor = opts && opts.choice ? 0.7 : 0.75;
+      const key = normalizeQuestion(question);
+      const out = [];
+      [bank[id], bank[SHARED]].forEach((entries) => {
+        Object.keys(entries || {}).forEach((k) => {
+          if (k.indexOf('eeo:') === 0) return;
+          const score = k === key ? 1 : questionSimilarity(key, k);
+          if (score >= floor) out.push({ score, answer: entries[k].answer });
+        });
+      });
+      out.sort((a, b) => b.score - a.score);
+      return Array.from(new Set(out.map((c) => c.answer)));
+    },
     /* A self-identification answer by meaning ("eeo:veteran" -> "No"), whatever the form's wording. */
     async recallKey(key, profileId) {
       const bank = await getAnswerBank();
@@ -306,6 +325,7 @@
       });
     },
     normalizeQuestion,
+    questionSimilarity,
 
     /* ---------------- remote selector overrides ---------------- */
     async getCachedSelectorOverrides() {
@@ -357,16 +377,38 @@
     let best = null;
     for (const k of Object.keys(entries)) {
       if (k.indexOf('eeo:') === 0) continue;
-      const score = similarity(key, k);
-      if (score >= 0.8 && (!best || score > best.score)) best = { score, answer: entries[k].answer };
+      const score = questionSimilarity(key, k);
+      if (score >= 0.75 && (!best || score > best.score)) best = { score, answer: entries[k].answer };
     }
     return best ? best.answer : null;
   }
 
-  /* Word-overlap similarity of two normalised questions (0–1). */
-  function similarity(a, b) {
-    const wa = new Set(a.split(' ').filter((w) => w.length > 2));
-    const wb = new Set(b.split(' ').filter((w) => w.length > 2));
+  /* How alike two normalised questions are (0–1), by their meaningful words with synonyms folded together
+     ("How big a team have you led?" ~ "What size of team have you managed?"). */
+  const STOPWORDS = new Set('a an the of to in on at for with by from about as and or if is are was were be been being do does did have has had you your yours we our us this that these those it its any some what which who whom how when where why will would can could should may might must please currently first ever there their them they i me my am applying apply role position job company'.split(' '));
+  const SYNONYM_GROUPS = [
+    ['size', 'big', 'large', 'many', 'number', 'count'],
+    ['hear', 'find', 'learn', 'discover', 'see', 'come'],
+    ['led', 'lead', 'leading', 'manage', 'managed', 'managing', 'supervise', 'supervised'],
+    ['years', 'year', 'yrs'],
+    ['experience', 'experienced'],
+    ['salary', 'compensation', 'pay'],
+    ['expected', 'expectation', 'expectations', 'desired'],
+    ['start', 'join', 'begin'],
+    ['relocate', 'relocation', 'move'],
+    ['require', 'need', 'needs', 'required'],
+    ['sponsorship', 'sponsor', 'visa'],
+    ['authorized', 'authorised', 'eligible', 'permitted', 'legally']
+  ];
+  const SYNONYM_OF = new Map();
+  SYNONYM_GROUPS.forEach((g) => g.forEach((w) => SYNONYM_OF.set(w, g[0])));
+  function questionWords(q) {
+    return new Set(String(q).split(' ').filter((w) => w.length > 1 && !STOPWORDS.has(w))
+      .map((w) => SYNONYM_OF.get(w) || w.replace(/(ing|ed|es|s)$/, '')));
+  }
+  function questionSimilarity(a, b) {
+    const wa = questionWords(a);
+    const wb = questionWords(b);
     if (!wa.size || !wb.size) return 0;
     let both = 0;
     wa.forEach((w) => { if (wb.has(w)) both++; });

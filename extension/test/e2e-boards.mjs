@@ -281,8 +281,9 @@ try {
   check(fill && fill.ok && (await page.inputValue('#ph')) === '+1 555 0100', 'Fill opened Easy Apply and filled the first step');
   await page.click('button[aria-label="Continue to next step"]');
   await page.click('button[aria-label="Continue to next step"]');
-  await waitFor(async () => (await page.inputValue('#yrs').catch(() => '')) === '6', 10000, 'next step filled');
-  check(await page.isChecked('#au-y') && (await page.inputValue('#sp')) === 'No', 'filled each new step as the person pressed Next');
+  // Filled once the person pauses (nothing is written while they're clicking through).
+  await waitFor(async () => (await page.inputValue('#yrs').catch(() => '')) === '6' && (await page.isChecked('#au-y').catch(() => false)) && (await page.inputValue('#sp').catch(() => '')) === 'No', 20000, 'next step filled').catch(() => {});
+  check(await page.isChecked('#au-y') && (await page.inputValue('#sp')) === 'No' && (await page.inputValue('#yrs')) === '6', 'filled each new step as the person pressed Next');
   await sleep(2000);
   check(!seen.submissions.some((s) => s.id === 'li-4003') && (await page.isVisible('button[aria-label="Review your application"]')), 'never pressed submit (the person does)');
 
