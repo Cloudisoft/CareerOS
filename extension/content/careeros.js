@@ -51,6 +51,8 @@
   init();
 
   async function init() {
+    // Know when the person is working on the page: nothing is written while they are, nor over their answers.
+    Filler.trackPerson();
     state.settings = await Storage.getSettings();
 
     const profilesData = await Storage.getProfiles();
@@ -1537,6 +1539,15 @@
 
       /* The person's earlier answer to this (or a near-identical) question. An answer approved for this
          specific role wins, because the person reviewed it against this posting. */
+      /* Every saved answer that could answer this question (reworded too), best first. */
+      async recallAll(question, opts) {
+        const approved = (tailored?.screeningAnswers || []).find(
+          (a) => normalizeQuestion(a.question) === normalizeQuestion(question)
+        );
+        const list = await Storage.recallCandidates(question, profileId, opts);
+        return approved && approved.answer && approved.confidence !== 'low' ? [approved.answer].concat(list) : list;
+      },
+
       async recall(question) {
         const approved = (tailored?.screeningAnswers || []).find(
           (a) => normalizeQuestion(a.question) === normalizeQuestion(question)

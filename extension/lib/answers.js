@@ -118,6 +118,16 @@
       const starts = opts.find((o) => letters(o).indexOf(v + ' ') === 0 || letters(o) === v);
       if (starts) return starts;
     }
+
+    // 7. The same idea worded differently: the one option sharing the most word stems with the answer, covering
+    //    at least half of them ("Referral" -> "Someone referred me", "Company website" -> "The company careers
+    //    site"). A tie means it can't tell, so nothing is picked.
+    const stems = (s) => letters(s).split(' ').filter((w) => w.length >= 4 && !/^(some|other|have|with|that|this|from|your|been|were|about)$/.test(w)).map((w) => w.slice(0, 5));
+    const want = Array.from(new Set(stems(value)));
+    if (want.length) {
+      const scored = opts.map((o) => ({ o, n: want.filter((w) => stems(o).indexOf(w) !== -1).length })).sort((a, b) => b.n - a.n);
+      if (scored[0].n > 0 && scored[0].n * 2 >= want.length && (!scored[1] || scored[1].n < scored[0].n)) return scored[0].o;
+    }
     return null;
   }
 
@@ -129,7 +139,7 @@
     const v = p.voluntary || {};
     const history = ((p.experience || {}).history || []).map((h) => norm(h.company)).filter((c) => c.length > 2);
 
-    if (/how did you (hear|find|learn|come across)|where did you (hear|find|see)|referr(al|ed) source|^source\b|how were you referred/.test(q)) {
+    if (/how did you (\w+ ){0,2}(hear|find|learn|come across)|where did you (\w+ )?(hear|find|see)|referr(al|ed) source|^source\b|how were you referred/.test(q)) {
       return { value: v.referralSource || 'Google', key: 'referral' };
     }
     // "Have you ever worked for <Company>?" -> No, unless that company is in the work history.

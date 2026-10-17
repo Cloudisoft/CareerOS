@@ -13,6 +13,63 @@
   const CAPTCHA_FIELD = /g-recaptcha-response|h-captcha-response|cf-turnstile-response|captcha/i;
   const OPTION_SELECTOR = '[role="option"], [id*="-option-"], .select__option, [class*="__option"]';
 
+  /* ---------- the person, working on the page ----------
+     Real (trusted) input only: CareerOS's own typing and clicks are synthetic and never count. While the person
+     is active nothing is written, because filling a searchable dropdown focuses it and opens its menu, which
+     would close the one the person has open and throw their choice away. A field they've worked on is theirs. */
+  const IDLE_MS = 4000;
+  const person = { lastTouch: 0, touched: new Set() };
+  let tracking = false;
+  function trackPerson() {
+    if (tracking || typeof document === 'undefined') return;
+    tracking = true;
+    const onEvent = (e) => {
+      if (!e.isTrusted) return;
+      person.lastTouch = Date.now();
+      if (e.type === 'wheel' || e.type === 'touchmove') return; // scrolling makes them busy, claims no field
+      if (!e.target || e.target.nodeType !== 1 || isNavigation(e.target)) return; // Next / Submit claim no field
+      // Escape, Tab and modifier keys aren't answers (and go wherever CareerOS last put the focus).
+      if (e.type === 'keydown' && /^(Escape|Tab|Shift|Control|Alt|Meta|CapsLock)$/.test(e.key)) return;
+      person.touched.add(e.target);
+    };
+    ['keydown', 'input', 'change', 'mousedown', 'pointerdown', 'wheel', 'touchstart', 'touchmove']
+      .forEach((t) => document.addEventListener(t, onEvent, { capture: true, passive: true }));
+  }
+  /* A button that moves through the form (Next, Continue, Submit, Back), as opposed to an answer button. */
+  function isNavigation(el) {
+    const btn = el.closest('button, [role="button"], input[type="submit"], input[type="button"], a');
+    if (!btn) return false;
+    if (btn.type === 'submit') return true;
+    return /^(next|continue|submit|review|back|previous|apply|save|done|close|cancel)\b/i.test(cleanText(btn.textContent || btn.value || btn.getAttribute('aria-label') || ''));
+  }
+  function personBusy() {
+    return Date.now() - person.lastTouch < IDLE_MS;
+  }
+  /* The largest container around a control that holds no other question (a radio group counts as one). */
+  function scopeOf(el) {
+    let node = el;
+    for (let i = 0; i < 6; i++) {
+      const parent = node.parentElement;
+      if (!parent || parent === document.body || parent.tagName === 'FORM') break;
+      const controls = Array.from(parent.querySelectorAll('input:not([type=hidden]), select, textarea'));
+      const questions = new Set(controls.map((c) => ((c.type === 'radio' || c.type === 'checkbox') && c.name ? `group:${c.name}` : c)));
+      if (questions.size > 1) break;
+      node = parent;
+    }
+    return node;
+  }
+  function touchedByPerson(el) {
+    if (!person.touched.size || !el) return false;
+    const scope = scopeOf(el);
+    for (const t of person.touched) if (t.isConnected && scope.contains(t)) return true;
+    return false;
+  }
+  /* Wait until the person has paused; then don't write if they've answered or touched this field meanwhile. */
+  async function clearToWrite(field) {
+    while (personBusy()) await sleep(250);
+    return isEmpty(field) && !touchedByPerson(field.node);
+  }
+
   const Filler = {
     /* Collect every answerable control inside a scope. */
     collectFields(scope) {
@@ -29,7 +86,7 @@
         const isChoice = node.type === 'radio' || node.type === 'checkbox';
         // Upload inputs are usually hidden behind an "Attach" button; styled radios/checkboxes are often
         // transparent with a visible label. Both are still real, answerable fields.
-        if (!isFile && !(isVisible(node) || (isChoice && labelVisible(node)))) return;
+        if (!isFile && !(isVisible(node) || (isChoice && labelVisible(node)) || (isCombobox(node) && comboboxShown(node)))) return;
         if (node.readOnly && !isCombobox(node)) return;
 
         if (node.type === 'radio') {
@@ -102,43 +159,64 @@
 
       // Never overwrite an answer that's already there (the person's, or one from an earlier pass).
       if (!isEmpty(field)) return { label, status: 'filled', value: valueOf(field), kept: true };
+      // A field the person has worked on is theirs, even while it's still empty.
+      if (touchedByPerson(field.node)) return skip('Waiting for your answer');
+      const write = async (value) => {
+        if (!(await clearToWrite(field))) return { ok: false, mine: true };
+        return applyValue(field, value);
+      };
+      const kept = () => (isEmpty(field) ? skip('Waiting for your answer') : { label, status: 'filled', value: valueOf(field), kept: true });
 
       const pattern = Filler.classify(field);
       if (field.kind === 'file') {
         if (pattern && pattern.key === 'coverLetterFile') return skip('Attach a cover letter file');
         if (!field.required && context.skipOptionalUploads) return { label, status: 'filled', value: 'kept the saved resume', kept: true };
+        if (!(await clearToWrite(field))) return kept();
         const ok = await attachFile(field.node, context.resume);
         return ok ? { label, status: 'filled', value: context.resume.name } : skip('No resume saved in the extension');
       }
 
-      // 1. Questions every form asks (referral source, worked here before, 18+, self-identification).
+      // 1. What the person answered on an earlier form: the same question, or the same question worded
+      //    differently (a choice only takes it if it's one of this form's options). Their own answer always
+      //    beats a general default.
+      const choiceKind = ['select', 'radio', 'choice', 'combobox'].includes(field.kind);
+      const candidates = context.recallAll ? await context.recallAll(label, { choice: choiceKind })
+        : (context.recall ? [await context.recall(label)].filter(Boolean) : []);
+      for (const remembered of candidates) {
+        let out = await write(remembered);
+        if (out.mine) return kept();
+        // The person's words may not be this form's options ("I am not a protected veteran" vs Yes / No):
+        // try what the answer means.
+        const meaning = !out.ok && Answers().meaningOf(label, remembered);
+        if (meaning && meaning.value !== remembered) out = await write(meaning.value);
+        if (out.mine) return kept();
+        if (out.ok) return { label, status: 'filled', value: out.value, source: 'saved' };
+      }
+
+      // 2. Questions every form asks (referral source, worked here before, 18+, self-identification).
       const std = Answers().standardAnswer(label, profile);
       if (std) {
         const remembered = std.key.indexOf('eeo:') === 0 && context.recallKey ? await context.recallKey(std.key) : null;
-        const out = await applyValue(field, remembered || std.value);
+        const out = await write(remembered || std.value);
+        if (out.mine) return kept();
         if (out.ok) return { label, status: 'filled', value: out.value };
       }
 
-      // 2. A required "I agree / I acknowledge" checkbox.
+      // 3. A required "I agree / I acknowledge" checkbox.
       if (field.kind === 'checkbox' && Answers().isConsent(label)) {
+        if (!(await clearToWrite(field))) return kept();
         if (!field.node.checked) clickLike(labelClickTarget(field.node));
         return { label, status: 'filled', value: 'checked' };
       }
 
-      // 3. Profile fields.
+      // 4. Profile fields.
       if (pattern && !pattern.file) {
         const value = pattern.generated ? await context.generate(pattern.generated, label) : resolveValue(pattern, profile);
         if (value !== undefined && value !== null && value !== '') {
-          const out = await applyValue(field, String(value));
+          const out = await write(String(value));
+          if (out.mine) return kept();
           if (out.ok) return { label, status: pattern.generated ? 'generated' : 'filled', value: out.value };
         }
-      }
-
-      // 4. What the person answered on an earlier form (same or similar wording).
-      const remembered = context.recall ? await context.recall(label) : null;
-      if (remembered) {
-        const out = await applyValue(field, remembered);
-        if (out.ok) return { label, status: 'filled', value: out.value, source: 'saved' };
       }
 
       // 5. AI, grounded in the profile; it replies NEEDS_HUMAN when the profile can't support an answer.
@@ -146,7 +224,8 @@
         const options = optionsOf(field);
         const answer = await context.answerQuestion(label, options.length ? options : null);
         if (answer) {
-          const out = await applyValue(field, answer);
+          const out = await write(answer);
+          if (out.mine) return kept();
           if (out.ok) return { label, status: 'generated', value: out.value };
         }
       }
@@ -213,6 +292,9 @@
       return Filler.collectFields(scope).filter((f) => f.required && isEmpty(f));
     },
 
+    trackPerson,
+    personBusy,
+    touchedByPerson,
     valueOf,
     isEmpty,
     comboboxValue,
@@ -279,6 +361,9 @@
      when the form words it differently), pick the one that means the answer, and read the choice back. */
   async function fillCombobox(input, value) {
     const labelsOf = (opts) => opts.map((o) => cleanText(o.textContent));
+    // Already answered (by the person, a moment ago): never reopen it or type over their choice.
+    const existing = comboboxValue(input);
+    if (existing && !/^(select|choose|please select|--)/i.test(existing)) return { ok: true, value: existing };
     openMenu(input);
     let options = await waitFor(() => menuOptions(input), 1500);
     let pick = options ? Answers().pickOption(labelsOf(options), value) : null;
@@ -501,6 +586,16 @@
   function isVisible(node) {
     if (!node.getClientRects().length) return false;
     const style = getComputedStyle(node);
+    return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
+  }
+
+  /* A searchable dropdown that has a value: react-select makes its search box transparent and shows the choice
+     beside it, so judge it by its box, not the input. */
+  function comboboxShown(input) {
+    if (!input.getClientRects().length) return false;
+    const box = input.closest('[class*="control" i], [class*="container" i]') || input.parentElement;
+    if (!box || !box.getClientRects().length) return false;
+    const style = getComputedStyle(box);
     return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
   }
 
