@@ -72,6 +72,7 @@
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error((body && body.error) || `Pairing failed (${res.status})`);
 
+      await Storage.set('careeros.serverCopy', null);
       await Storage.saveSettings({
         deviceToken: body.token,
         pairedAs: body.email || body.name || '',
@@ -119,6 +120,7 @@
         if (!body) continue;
 
         if (body.status === 'approved' && body.token) {
+          await Storage.set('careeros.serverCopy', null);
           await Storage.saveSettings({
             deviceToken: body.token,
             pairedAs: body.email || body.name || '',
@@ -138,6 +140,16 @@
     async unpair() {
       await request('/disconnect', { method: 'POST' }).catch(() => {});
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+    },
+
+    /* Run settings changed in the options page, so the Auto Apply page and other browsers show them. */
+    async saveSettings(patch) {
+      return request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+    },
+
+    /* Profile fields changed in the options page, written to the Career Profile. */
+    async saveProfile(patch) {
+      return request('/profile', { method: 'PATCH', body: JSON.stringify(patch) });
     },
 
     /* Answers the person typed into forms: saved to their CareerOS account so every browser reuses them. */
@@ -211,6 +223,11 @@
 
     async logApplication(entry) {
       return request('/application', { method: 'POST', body: JSON.stringify(entry) });
+    },
+
+    /* Start / Stop pressed on the Auto Apply page in CareerOS. */
+    async control() {
+      return request('/control');
     },
 
     async heartbeat(run) {

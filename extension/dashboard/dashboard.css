@@ -117,7 +117,8 @@ main { max-width: 1040px; }
 .pill[data-s="running"]   { border-color: rgba(241, 127, 38, 0.5); color: var(--flame); }
 .pill[data-s="submitted"] { border-color: rgba(143, 224, 182, 0.4); color: var(--ok); }
 .pill[data-s="assisted"]  { border-color: rgba(47, 111, 235, 0.25); color: #2F6FEB; }
-.pill[data-s="skipped"]   { border-color: rgba(241, 169, 38, 0.4); color: #A0560F; }
+.pill[data-s="skipped"],
+.pill[data-s="waiting"]   { border-color: rgba(241, 169, 38, 0.4); color: #A0560F; }
 .pill[data-s="failed"]    { border-color: rgba(241, 70, 50, 0.4); color: #D9452F; }
 
 .saveState[data-on="running"] { color: var(--flame); border-color: rgba(241, 127, 38, 0.45); }

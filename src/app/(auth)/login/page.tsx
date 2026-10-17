@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { safeNext } from "@/lib/safe-next";
 
 function LoginForm() {
   const router = useRouter();
@@ -35,7 +36,7 @@ function LoginForm() {
         return;
       }
 
-      router.push(searchParams.get("next") ?? "/dashboard");
+      router.push(safeNext(searchParams.get("next")));
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
@@ -87,7 +88,7 @@ function LoginForm() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           New to Career OS?{" "}
-          <Link href="/signup" className="font-medium text-primary hover:underline">
+          <Link href={searchParams.get("next") ? `/signup?next=${encodeURIComponent(safeNext(searchParams.get("next")))}` : "/signup"} className="font-medium text-primary hover:underline">
             Create an account
           </Link>
         </p>

@@ -5,6 +5,7 @@ import { getEntitlements } from "@/lib/billing/entitlements";
 import { syncExternalJobs } from "@/lib/jobs/external/sync";
 import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
 import { withinRadius } from "@/lib/geo/cities";
+import { discoverJobsForUser } from "@/lib/jobs/boards/discover";
 import { extOk, extCatch } from "@/lib/extension/response";
 import type { Prisma } from "@prisma/client";
 
@@ -23,6 +24,10 @@ import type { Prisma } from "@prisma/client";
  * best-effort live sync for their top title before answering, so the first
  * person to search something isn't stuck with an empty result waiting on an
  * admin to run the batch job.
+ *
+ * Alongside that, fresh postings from public employer boards (Greenhouse, Lever, Ashby; the company list is
+ * seeded from career-ops, see src/lib/jobs/boards/catalog.ts) that fit the person's titles and locations.
+ * These apply straight on the employer's own form, which is where CareerOS can finish an application.
  */
 
 const MIN_RESULTS_BEFORE_LIVE_SYNC = 5;
@@ -71,7 +76,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return extOk({ jobs: jobs.slice(0, RESULT_LIMIT) });
+    // Employer boards: a failure here (a board down, a timeout) never loses the cached results above.
+    const boards = await discoverJobsForUser(user.id, { limit: RESULT_LIMIT }).catch(() => null);
+    const seen = new Set<string>();
+    const merged = [...(boards?.jobs ?? []).map((j) => ({ ...j, source: j.ats, remote: j.workplaceType === "remote" })), ...jobs]
+      .filter((j) => {
+        const key = (j.applyUrl || j.url || "").split("?")[0].toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    return extOk({ jobs: merged.slice(0, RESULT_LIMIT * 2), boardsScanned: boards?.scanned ?? 0 });
   } catch (error) {
     return extCatch(error);
   }

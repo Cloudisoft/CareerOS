@@ -294,6 +294,7 @@ model CandidateProfile {
   autoApplySettings    AutoApplySettings?
   autoApplyRuns        AutoApplyRun[]
   toolkitOutputs       ToolkitOutput[]
+  extensionAnswers     ExtensionAnswer[]
 
   @@map("candidate_profiles")
 }
@@ -1119,10 +1120,32 @@ model AutoApplySettings {
   autoSubmit    Boolean @default(false)
   platformModes Json    @default("{}")
 
+  /// "start" or "stop" pressed on the Auto Apply page, waiting for the extension to pick it up.
+  runCommand   String?
+  runCommandAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("auto_apply_settings")
+}
+
+/// Answers the candidate gave on application forms (typed by them, or AI drafts they kept), reused by the
+/// extension on later forms that ask the same or a similar question. Keys starting "eeo:" hold the meaning
+/// of a self-identification answer (e.g. eeo:veteran = "No"), so any wording of that question matches.
+model ExtensionAnswer {
+  id          String           @id @default(cuid())
+  profileId   String
+  profile     CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  questionKey String
+  question    String
+  answer      String
+  source      String           @default("user")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([profileId, questionKey])
+  @@map("extension_answers")
 }
 
 model AutoApplyRun {
@@ -1138,6 +1161,8 @@ model AutoApplyRun {
   skipped   Int     @default(0)
   failed    Int     @default(0)
   lastError String?
+  /// Applications waiting in a browser tab for the person (CAPTCHA, sign-in, a question): [{title, company, url, reason, message, since}]
+  waiting   Json    @default("[]")
 
   startedAt DateTime @default(now())
   updatedAt DateTime @updatedAt

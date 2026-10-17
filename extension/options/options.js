@@ -8,6 +8,21 @@
   let profile = Profile.hydrate(await Storage.getProfile());
   let settings = await Storage.getSettings();
   let saveTimer = null;
+  let pushTimer = null;
+  let lastSavedAt = 0;
+  const SYNCED_SETTINGS = window.CareerOS.Sync.SYNCED_SETTINGS;
+
+  /* Changes made here go to the CareerOS website too (and the website's come back), shortly after typing stops. */
+  function queuePush() {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'push' }, (res) => {
+        void chrome.runtime.lastError;
+        if (res && res.ok === false && (res.error || res.message)) setState('saving', 'Saved here, not synced');
+        else if (res && res.pushError) setState('saving', 'Saved here, not synced');
+      });
+    }, 1200);
+  }
 
   /* ---------- profiles ---------- */
   let profilesData = await Storage.getProfiles();
@@ -83,14 +98,17 @@
     target[last] = value;
   }
 
-  $$('[data-bind]').forEach((el) => {
-    const path = el.dataset.bind;
-    const value = read(path);
-
+  function showBound(el) {
+    const value = read(el.dataset.bind);
     if (el.type === 'checkbox') el.checked = Boolean(value);
     else if (el.dataset.list !== undefined) el.value = (value || []).join(', ');
     else if (el.dataset.lines !== undefined) el.value = (value || []).join('\n');
     else el.value = value == null ? '' : value;
+  }
+
+  $$('[data-bind]').forEach((el) => {
+    const path = el.dataset.bind;
+    showBound(el);
 
     el.addEventListener('input', () => {
       if (el.type === 'checkbox') write(path, el.checked);
@@ -113,6 +131,7 @@
       // A daily limit the person typed is theirs to keep, even if it equals an old default.
       await Storage.saveSettings(key === 'dailyLimit' ? { dailyLimit: value, dailyLimitChosen: true } : { [key]: value });
       if (key === 'acknowledgedRestricted') renderPlatforms();
+      if (SYNCED_SETTINGS.includes(key)) queuePush();
       flagSaved();
     });
   });
@@ -128,8 +147,11 @@
     setState('saving', 'Saving');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
-      await Storage.saveProfile(profile);
+      saveTimer = null;
+      const saved = await Storage.saveProfile(profile);
+      lastSavedAt = saved && saved.updatedAt;
       flagSaved();
+      queuePush();
     }, 450);
   }
   function flagSaved() { setState('saved', 'Saved'); }
@@ -432,7 +454,8 @@
   }
 
   $('#unpairBtn').onclick = async () => {
-    await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+    // Ends this browser's session on the server too, not just here.
+    await new Promise((resolve) => chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'unpair' }, resolve));
     location.reload();
   };
 
@@ -442,8 +465,11 @@
       chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
     );
     $('#syncMsg').textContent = !res || !res.ok
-      ? (res && res.message) || 'Sync failed.'
-      : `Up to date. ${res.appliedToday} applications today.`;
+      ? (res && (res.message || res.error)) || 'Sync failed.'
+      : res.pushError
+        ? `Pulled from CareerOS, but your changes here weren't saved there: ${res.pushError}`
+        : `Up to date. ${res.appliedThisMonth != null ? res.appliedThisMonth : (res.appliedToday || 0)} applications this month.`;
+    if (res && res.ok) refreshFromStorage();
   };
 
   /* ---------- platforms ---------- */
@@ -463,6 +489,7 @@
         settings.platformModes = settings.platformModes || {};
         settings.platformModes[sel.dataset.platform] = sel.value;
         await Storage.saveSettings({ platformModes: settings.platformModes });
+        queuePush();
         flagSaved();
       };
     });
@@ -829,4 +856,32 @@
     const requestedTab = new URLSearchParams(location.search).get('tab');
     if (requestedTab) goToTab(requestedTab);
   }
+  /* ---------- changes from the website ----------
+     A sync can bring down a profile or settings edited on the website while this page is open. Show them,
+     so the next edit here doesn't put the old values back. Fields being typed in are left alone. */
+  async function refreshFromStorage() {
+    if (saveTimer) return;
+    const data = await Storage.getProfiles();
+    const fresh = data.profiles[profile.id || data.activeId];
+    if (fresh) profile = Profile.hydrate(fresh);
+    settings = await Storage.getSettings();
+    $$('[data-bind]').forEach((el) => { if (el !== document.activeElement) showBound(el); });
+    $$('[data-setting]').forEach((el) => {
+      if (el === document.activeElement) return;
+      const v = settings[el.dataset.setting];
+      if (el.type === 'checkbox') el.checked = Boolean(v);
+      else el.value = v == null ? '' : v;
+    });
+    const active = document.activeElement;
+    if (!active || !active.closest('#roles, #education')) { renderRoles(); renderEdu(); }
+    if (!active || !active.closest('.platformRow')) renderPlatforms();
+  }
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    const p = changes[Storage.KEYS.PROFILES];
+    const mine = p && p.newValue && p.newValue.profiles && p.newValue.profiles[profile.id || p.newValue.activeId];
+    const fromElsewhere = mine && mine.updatedAt !== lastSavedAt;
+    if (fromElsewhere) refreshFromStorage();
+  });
 })();

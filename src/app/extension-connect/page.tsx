@@ -15,6 +15,21 @@ function ConnectContent() {
     "checking"
   );
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ label: string; version: string | null; createdAt: string; code: string; valid: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!state) return;
+    fetch(`/api/extension/connect/info?state=${encodeURIComponent(state)}`)
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error?.message ?? "This connection request couldn't be loaded.");
+        setInfo(json.data);
+      })
+      .catch((e: Error) => {
+        setError(e.message);
+        setStatus("error");
+      });
+  }, [state]);
 
   // The extension opens this page assuming the person is already signed in
   // on the site, but a fresh browser profile or an expired session means
@@ -118,16 +133,30 @@ function ConnectContent() {
       <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
         <ShieldCheck className="h-8 w-8 text-primary" />
         <p className="font-medium text-foreground">Connect this browser to Career OS?</p>
+        {info && (
+          <div className="w-full rounded-lg border border-border p-3 text-left text-sm">
+            <p className="text-foreground">
+              <span className="font-medium">{info.label}</span>
+              {info.version ? <span className="text-muted-foreground"> · extension {info.version}</span> : null}
+            </p>
+            <p className="text-muted-foreground">Asked {new Date(info.createdAt).toLocaleTimeString()}</p>
+            <p className="mt-2 text-muted-foreground">
+              Code: <span className="font-mono text-base font-semibold tracking-widest text-foreground">{info.code}</span>
+            </p>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">
-          The Career OS extension will be able to read your Career Profile, resumes, and Auto
-          Apply settings, and record applications it submits on your behalf.
+          Approve only if you just pressed Sign in in the Career OS extension and its notification shows the same
+          code. The extension will be able to read your Career Profile, resumes, and Auto Apply settings, and record
+          applications it submits on your behalf.
         </p>
+        {info && !info.valid && <p className="text-sm text-destructive">This request has expired. Press Sign in in the extension again.</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="mt-2 flex gap-3">
           <Button variant="secondary" onClick={() => respond("deny")} disabled={status === "loading"}>
             Decline
           </Button>
-          <Button onClick={() => respond("approve")} disabled={status === "loading"}>
+          <Button onClick={() => respond("approve")} disabled={status === "loading" || !info || !info.valid}>
             {status === "loading" && <Loader2 className="h-4 w-4 animate-spin" />}
             Approve
           </Button>
