@@ -205,3 +205,42 @@ export const BOARD_CATALOG: ReadonlyArray<{ kind: 'greenhouse' | 'lever' | 'ashb
   {"kind": "greenhouse", "identifier": "wizinc", "name": "Wiz"},
   {"kind": "lever", "identifier": "yuno", "name": "Yuno"},
 ];
+
+/**
+ * Employers hiring through Workday, searched by the candidate's titles through each career site's public job
+ * search (the same one the site's own search box uses). Verified live; one that disappears is skipped.
+ */
+export const WORKDAY_CATALOG: ReadonlyArray<{ tenant: string; pod: string; site: string; name: string }> = [
+  { tenant: "nvidia", pod: "wd5", site: "NVIDIAExternalCareerSite", name: "NVIDIA" },
+  { tenant: "salesforce", pod: "wd12", site: "External_Career_Site", name: "Salesforce" },
+  { tenant: "adobe", pod: "wd5", site: "external_experienced", name: "Adobe" },
+  { tenant: "intel", pod: "wd1", site: "External", name: "Intel" },
+  { tenant: "hp", pod: "wd5", site: "ExternalCareerSite", name: "HP" },
+  { tenant: "target", pod: "wd5", site: "targetcareers", name: "Target" },
+  { tenant: "capitalone", pod: "wd12", site: "Capital_One", name: "Capital One" },
+  { tenant: "mastercard", pod: "wd1", site: "CorporateCareers", name: "Mastercard" },
+  { tenant: "paypal", pod: "wd1", site: "jobs", name: "PayPal" },
+  { tenant: "workday", pod: "wd5", site: "Workday", name: "Workday" },
+  { tenant: "accenture", pod: "wd103", site: "AccentureCareers", name: "Accenture" },
+  { tenant: "crowdstrike", pod: "wd5", site: "crowdstrikecareers", name: "CrowdStrike" },
+  { tenant: "zoom", pod: "wd5", site: "Zoom", name: "Zoom" },
+  { tenant: "autodesk", pod: "wd1", site: "Ext", name: "Autodesk" },
+  { tenant: "broadcom", pod: "wd1", site: "External_Career", name: "Broadcom" },
+  { tenant: "disney", pod: "wd5", site: "disneycareer", name: "Disney" },
+  { tenant: "boeing", pod: "wd1", site: "EXTERNAL_CAREERS", name: "Boeing" },
+  { tenant: "pfizer", pod: "wd1", site: "PfizerCareers", name: "Pfizer" },
+  { tenant: "humana", pod: "wd5", site: "Humana_External_Career_Site", name: "Humana" },
+  { tenant: "motorolasolutions", pod: "wd5", site: "Careers", name: "Motorola Solutions" },
+  { tenant: "generalmotors", pod: "wd5", site: "Careers_GM", name: "General Motors" },
+  { tenant: "redhat", pod: "wd5", site: "jobs", name: "Red Hat" },
+  { tenant: "sonyglobal", pod: "wd1", site: "SonyGlobalCareers", name: "Sony" },
+  { tenant: "cvshealth", pod: "wd1", site: "CVS_Health_Careers", name: "CVS Health" },
+  { tenant: "analogdevices", pod: "wd1", site: "External", name: "Analog Devices" },
+  { tenant: "marvell", pod: "wd1", site: "MarvellCareers", name: "Marvell" },
+  { tenant: "kla", pod: "wd1", site: "Search", name: "KLA" },
+  { tenant: "equinix", pod: "wd1", site: "External", name: "Equinix" },
+  { tenant: "fmr", pod: "wd1", site: "FidelityCareers", name: "Fidelity" },
+  { tenant: "statestreet", pod: "wd1", site: "Global", name: "State Street" },
+  { tenant: "travelers", pod: "wd5", site: "External", name: "Travelers" },
+  { tenant: "bdx", pod: "wd1", site: "EXTERNAL_CAREER_SITE_USA", name: "BD" },
+];

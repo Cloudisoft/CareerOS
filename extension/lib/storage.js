@@ -30,6 +30,7 @@
     tailorCoverLetter: true,
     tailorScreeningAnswers: true,
     autoHarvest: true,           // keep collecting cards from a search page without a click
+    searchJobBoards: true,       // a run also searches LinkedIn and Indeed (needs the Job boards permission)
     harvestMaxScrolls: 40,       // stop auto-scrolling a search page after this many loads
     harvestMaxJobsPerVisit: 400, // stop collecting once a single page-visit has found this many
     /* LinkedIn's f_TPR window for the "Search this position" URL builder

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchBoard } from "./discover";
+import { fetchBoard, workdayPostedAt } from "./discover";
 import { isRecent, locationFits, titleFit } from "./match";
 
 const now = new Date().toISOString();
@@ -53,5 +53,17 @@ describe("employer board discovery", () => {
     expect(locationFits({ location: "Remote - US", workplaceType: "remote" }, prefs)).toBe(true);
     expect(locationFits({ location: "Remote - Germany", workplaceType: "remote" }, prefs)).toBe(false);
     expect(isRecent(new Date(Date.now() - 40 * 86400000).toISOString(), 21)).toBe(false);
+  });
+});
+
+describe("Workday posting dates", () => {
+  const day = 86_400_000;
+  const at = Date.parse("2026-10-17T12:00:00Z");
+  it("reads the career site's relative dates, and treats 30+ days as stale", () => {
+    expect(workdayPostedAt("Posted Today", at)).toBe(at);
+    expect(workdayPostedAt("Posted Yesterday", at)).toBe(at - day);
+    expect(workdayPostedAt("Posted 3 Days Ago", at)).toBe(at - 3 * day);
+    expect(workdayPostedAt("Posted 30+ Days Ago", at)).toBe(0);
+    expect(workdayPostedAt(undefined, at)).toBe(0);
   });
 });

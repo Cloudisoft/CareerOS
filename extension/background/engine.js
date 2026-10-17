@@ -17,15 +17,17 @@
 (function (root) {
   'use strict';
 
-  const { Storage, Profile, Matcher, Policy, Discovery, Api } = root.CareerOS;
+  const { Storage, Profile, Matcher, Policy, Discovery, Api, SearchUrls } = root.CareerOS;
 
   const STATE_KEY = 'careeros.engine';
   const JOB_TIMEOUT_MS = 180000;
+  const STAGGER_MS = 4000;     // 4–8 s between opening two tabs
 
   const TABS_KEY = 'careeros.tabs';
+  let addLock = Promise.resolve();
   const runtime = {
     tabs: new Map(),        // tabId -> { job, resolve, timer, deadline, waiting }
-    gateUntil: new Map(),   // ats -> earliest timestamp for the next job
+    gateUntil: new Map(),   // gateKey(job) -> earliest timestamp for the next job there
     pregen: new Map(),      // externalId -> generated text
     loopRunning: false
   };
@@ -195,12 +197,24 @@
         stats: Object.assign({}, prior.stats, { queued: queued.length })
       });
 
+      // LinkedIn and Indeed come in from the person's own search pages, in the background: the run starts
+      // on what is already queued and picks these up as they arrive.
+      searchJobBoards(activeProfile, settings);
+
       return { queued: queued.length, found: jobs.length, errors };
     },
 
     /* Jobs harvested from a results page. They arrive without a description,
        so they get scored again in the tab once the posting has loaded. */
-    async add(jobs) {
+    add(jobs) {
+      // Serialised: the background board search and an open search page both add at once, and two
+      // overlapping read-modify-writes of the queue would drop one side's jobs.
+      const run = addLock.then(() => Engine.addNow(jobs));
+      addLock = run.catch(() => {});
+      return run;
+    },
+
+    async addNow(jobs) {
       const state = await Engine.getState();
       const settings = await Storage.getSettings();
       const profilesData = await Storage.getProfiles();
@@ -280,6 +294,10 @@
         });
       }
 
+      // A queue left over from earlier skips build(), so the LinkedIn / Indeed search starts here too.
+      const profiles = await Storage.getProfiles();
+      searchJobBoards(Profile.hydrate(profiles.profiles[profiles.activeId]), await Storage.getSettings());
+
       await Engine.setState({
         running: true,
         startedAt: Date.now(),
@@ -340,7 +358,7 @@
 
           const next = pickNext(state.queue, settings, await getBlockedSites());
           if (!next) {
-            if (!runtime.tabs.size || [...runtime.tabs.values()].every((t) => t.waiting)) {
+            if (!runtime.boardSearch && (!runtime.tabs.size || [...runtime.tabs.values()].every((t) => t.waiting))) {
               await Engine.stop('Queue finished');
               notify('Run finished', summarize(await Engine.getState()));
               break;
@@ -361,7 +379,9 @@
           // Jitter the gap so a run doesn't tick like a metronome. Restricted
           // platforms watch session shape, and a perfectly regular cadence is
           // the most obvious signal there is.
-          runtime.gateUntil.set(next.ats, Date.now() + Policy.jitter(next.ats, settings));
+          runtime.gateUntil.set(gateKey(next), Date.now() + Policy.jitter(next.ats, settings));
+          // Tabs open one after another rather than all at once.
+          runtime.gateUntil.set('*', Date.now() + STAGGER_MS + Math.round(Math.random() * STAGGER_MS));
           await mark(next.id, 'running');
           pregenerateAhead(state.queue, settings);
 
@@ -595,15 +615,97 @@
     return JOB_TIMEOUT_MS;
   }
 
+  /* LinkedIn and Indeed have no job API anyone may use, so their jobs come from the person's own search,
+     read the way CareerOS reads it when they browse it themselves (Harvest): one search per target title
+     opens in a background tab, its results are queued, and the tab closes. Only with the "Job boards"
+     permission, and only for boards whose mode lets jobs be queued. Easy Apply / Indeed Apply jobs then
+     fill like any other (submitted by the person unless they turned on full automation for that board). */
+  const BOARD_SEARCH_MS = 60000;
+  const BOARD_SEARCH_EVERY_MS = 20 * 60 * 1000;
+  function searchJobBoards(profile, settings) {
+    if (runtime.boardSearch || settings.searchJobBoards === false || !SearchUrls) return runtime.boardSearch;
+    if (Date.now() - (runtime.boardSearchedAt || 0) < BOARD_SEARCH_EVERY_MS) return null;
+    runtime.boardSearchedAt = Date.now();
+    runtime.boardSearch = (async () => {
+      const notes = [];
+      let added = 0;
+      try {
+        const allowed = await chrome.permissions.contains({ origins: ['https://*.linkedin.com/*', 'https://*.indeed.com/*'] }).catch(() => false);
+        if (!allowed) {
+          notes.push('Allow "Job boards" in CareerOS settings so a run can search LinkedIn and Indeed for you');
+        } else {
+          const titles = ((profile.targeting || {}).titles || []).filter(Boolean).slice(0, 2);
+          for (const board of ['linkedin', 'indeed']) {
+            if (!Policy.canQueue(board, settings)) continue;
+            for (const title of titles.length ? titles : ['']) {
+              const url = SearchUrls[board](profile, settings, title ? { title } : undefined);
+              added += await harvestSearch(url).catch(() => 0);
+            }
+          }
+        }
+      } finally {
+        runtime.boardSearch = null;
+      }
+      if (notes.length) {
+        const state = await Engine.getState();
+        if (!String(state.lastError || '').includes(notes[0])) {
+          await Engine.setState({ lastError: [state.lastError, ...notes].filter(Boolean).join(' · ') });
+        }
+      }
+      return added;
+    })();
+    return runtime.boardSearch;
+  }
+
+  /* One search page: let it load and scroll (the content script's auto-harvest does that), take what it
+     shows until nothing new appears, then close it. */
+  async function harvestSearch(url) {
+    const tab = await chrome.tabs.create({ url, active: false });
+    const seen = new Set();
+    let added = 0;
+    let quiet = 0;
+    const end = Date.now() + BOARD_SEARCH_MS;
+    try {
+      await sleep(5000);
+      while (Date.now() < end && quiet < 3) {
+        const page = await chrome.tabs.sendMessage(tab.id, { type: 'careeros:harvest' }).catch(() => null);
+        const fresh = ((page && page.jobs) || []).filter((j) => j && j.id && !seen.has(j.id));
+        fresh.forEach((j) => seen.add(j.id));
+        if (fresh.length) {
+          quiet = 0;
+          added += (await Engine.add(fresh)).added;
+        } else {
+          quiet += 1;
+        }
+        await sleep(4000);
+      }
+    } finally {
+      chrome.tabs.remove(tab.id).catch(() => {});
+    }
+    return added;
+  }
+
   function pickNext(queue, settings, blocked) {
     const now = Date.now();
     return queue.find((j) => {
       if (j.state !== 'queued') return false;
       if (blocked && isBlockedJob(j, blocked)) return false;
       if (!Policy.canQueue(j.ats, settings)) return false;
-      const gate = runtime.gateUntil.get(j.ats) || 0;
-      return now >= gate;
+      const gate = runtime.gateUntil.get(gateKey(j)) || 0;
+      return now >= gate && now >= (runtime.gateUntil.get('*') || 0);
     });
+  }
+
+  /* Where the pacing gap applies. LinkedIn, Indeed and the other job boards watch one account's
+     whole session, so the gap is for the whole board. An employer ATS is a different site for every
+     company: a gap per platform there made every Greenhouse job wait minutes after the previous
+     Greenhouse job at another company, and every job on an unknown site (most aggregator links) wait
+     up to nine minutes, so a run looked stuck after its first application. */
+  function gateKey(job) {
+    if (Policy.isRestricted(job.ats)) return job.ats;
+    let host = '';
+    try { host = new URL(job.url).hostname; } catch (_) { /* no usable URL: the company name decides */ }
+    return `${job.ats}:${normalizeKey(job.company) || host}`;
   }
 
   async function applyTo(job) {

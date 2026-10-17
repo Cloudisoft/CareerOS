@@ -11,6 +11,7 @@ importScripts(
   '/lib/sync.js',
   '/lib/permissions.js',
   '/lib/harvest.js',
+  '/lib/search-urls.js',
   '/lib/discovery.js',
   '/background/engine.js'
 );

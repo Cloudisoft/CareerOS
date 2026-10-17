@@ -1,17 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- board APIs return loosely shaped JSON; every field is read defensively where it is used. */
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { BOARD_CATALOG } from "./catalog";
+import { BOARD_CATALOG, WORKDAY_CATALOG } from "./catalog";
 import { discoveryTitles, isRecent, locationFits, titleFit } from "./match";
 
 /**
- * Automatic job discovery for Auto Apply: scan public employer boards (Greenhouse, Lever, Ashby: the forms
- * the extension fills end to end) for postings that fit the candidate's target titles and locations, so a
+ * Automatic job discovery for Auto Apply: scan public employer boards (Greenhouse, Lever, Ashby, Workday: the
+ * forms the extension fills) for postings that fit the candidate's target titles and locations, so a
  * run always has jobs without anyone configuring sources. Board responses are cached for a few hours, so a
  * run costs at most one fetch per board, and a board that fails is skipped, never fatal.
  */
 
 export type BoardKind = "greenhouse" | "lever" | "ashby";
+export type DiscoveredAts = BoardKind | "workday";
 
 export interface DiscoveredJob {
   externalId: string;
@@ -21,7 +22,7 @@ export interface DiscoveredJob {
   workplaceType: "remote" | "hybrid" | "onsite" | null;
   url: string;
   applyUrl: string;
-  ats: BoardKind;
+  ats: DiscoveredAts;
   description: string;
   postedAt: number;
 }
@@ -147,6 +148,113 @@ export async function fetchBoard(kind: BoardKind, identifier: string, company: s
   return jobs;
 }
 
+/* ---------------- Workday ---------------- */
+
+type WorkdaySite = (typeof WORKDAY_CATALOG)[number];
+const WORKDAY_PART = /^[A-Za-z0-9_-]{1,80}$/;
+const WORKDAY_SEARCH_LIMIT = 20;
+const WORKDAY_DETAILS_MAX = 40;
+const workdayCache = new Map<string, { at: number; value: unknown }>();
+
+function workdayBase(site: WorkdaySite): string {
+  if (!WORKDAY_PART.test(site.tenant) || !/^wd\d{1,3}$/.test(site.pod) || !WORKDAY_PART.test(site.site)) throw new Error("Invalid Workday site");
+  return `https://${site.tenant}.${site.pod}.myworkdayjobs.com`;
+}
+
+/** The career site's own search API: fixed host, no redirects, bounded time, cached like the boards. */
+async function workdayJson(site: WorkdaySite, path: string, body?: unknown): Promise<any> {
+  const url = new URL(`${workdayBase(site)}/wday/cxs/${site.tenant}/${site.site}${path}`);
+  if (!url.hostname.endsWith(".myworkdayjobs.com")) throw new Error("Unexpected host");
+  const key = `${url.href}|${body ? JSON.stringify(body) : ""}`;
+  const hit = workdayCache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  const res = await fetch(url, {
+    method: body ? "POST" : "GET",
+    redirect: "error",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    headers: { accept: "application/json", ...(body ? { "content-type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Workday site "${site.tenant}" returned ${res.status}`);
+  const value = await res.json();
+  workdayCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+/** "Posted Today", "Posted Yesterday", "Posted 3 Days Ago", "Posted 30+ Days Ago". */
+export function workdayPostedAt(postedOn: unknown, now = Date.now()): number {
+  const text = String(postedOn ?? "").toLowerCase();
+  const day = 24 * 60 * 60 * 1000;
+  if (/today|just now|hour/.test(text)) return now;
+  if (/yesterday/.test(text)) return now - day;
+  const n = text.match(/(\d+)\s*(\+)?\s*days?/);
+  if (!n) return 0;
+  return n[2] ? 0 : now - Number(n[1]) * day; // "30+ days": too old to say, treated as stale
+}
+
+/** Postings on one Workday site matching a title, with location and description from each posting. */
+async function searchWorkday(site: WorkdaySite, title: string): Promise<Array<DiscoveredJob & { detailPath: string }>> {
+  const json = await workdayJson(site, "/jobs", { appliedFacets: {}, limit: WORKDAY_SEARCH_LIMIT, offset: 0, searchText: title });
+  const base = workdayBase(site);
+  return ((json?.jobPostings ?? []) as Array<Record<string, any>>)
+    .filter((j) => j.title && typeof j.externalPath === "string" && j.externalPath.startsWith("/job/"))
+    .map((j) => {
+      const url = `${base}/${site.site}${j.externalPath}`;
+      return {
+        externalId: `workday:${site.tenant}:${String(j.bulletFields?.[0] ?? j.externalPath).slice(0, 120)}`,
+        title: j.title,
+        company: site.name,
+        location: /^\d+ locations?$/i.test(j.locationsText ?? "") ? "" : String(j.locationsText ?? ""),
+        workplaceType: workplace(String(j.locationsText ?? "")),
+        url,
+        applyUrl: `${url}/apply/applyManually`,
+        ats: "workday" as const,
+        description: "",
+        postedAt: workdayPostedAt(j.postedOn),
+        detailPath: j.externalPath,
+      };
+    });
+}
+
+async function withWorkdayDetails(site: WorkdaySite, job: DiscoveredJob & { detailPath: string }): Promise<DiscoveredJob> {
+  const { detailPath, ...rest } = job;
+  try {
+    const info = (await workdayJson(site, detailPath))?.jobPostingInfo ?? {};
+    const location = [info.location, ...(Array.isArray(info.additionalLocations) ? info.additionalLocations : [])].filter(Boolean).join("; ");
+    return {
+      ...rest,
+      location: location || rest.location,
+      workplaceType: workplace(location || rest.location, null, info.remoteType) ?? rest.workplaceType,
+      description: htmlToText(info.jobDescription).slice(0, 6000),
+      url: typeof info.externalUrl === "string" && info.externalUrl.startsWith(`${workdayBase(site)}/`) ? info.externalUrl : rest.url,
+    };
+  } catch {
+    return rest;
+  }
+}
+
+/** Workday postings fitting the candidate's titles across the catalog, best title matches first. */
+async function discoverWorkday(titles: string[], onFail: (tenant: string) => void): Promise<Array<{ job: DiscoveredJob; fit: number }>> {
+  const searches = WORKDAY_CATALOG.flatMap((site) => titles.slice(0, 2).map((title) => ({ site, title })));
+  const found = await pool(searches, 8, ({ site, title }) =>
+    searchWorkday(site, title)
+      .then((jobs) => jobs.map((job) => ({ site, job })))
+      .catch(() => {
+        onFail(site.tenant);
+        return [];
+      })
+  );
+  const seen = new Set<string>();
+  const fitting = found
+    .flat()
+    .filter(({ job }) => job.postedAt && isRecent(new Date(job.postedAt).toISOString(), RECENT_DAYS))
+    .map((x) => ({ ...x, fit: titleFit(x.job.title, titles) }))
+    .filter((x) => x.fit >= 0.6 && !seen.has(x.job.externalId) && seen.add(x.job.externalId))
+    .sort((a, b) => b.fit - a.fit || b.job.postedAt - a.job.postedAt)
+    .slice(0, WORKDAY_DETAILS_MAX);
+  return pool(fitting, 8, async ({ site, job, fit }) => ({ job: await withWorkdayDetails(site, job), fit }));
+}
+
 /** Run `fn` over `items` with at most `limit` in flight. */
 async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
@@ -181,23 +289,31 @@ export async function discoverJobsForUser(userId: string, opts: { limit?: number
   };
 
   let failed = 0;
-  const boards = await pool([...BOARD_CATALOG], 12, (b) =>
-    fetchBoard(b.kind, b.identifier, b.name).catch(() => {
-      failed += 1;
-      return [] as DiscoveredJob[];
-    })
-  );
+  const workdayFailed = new Set<string>();
+  const [boards, workday] = await Promise.all([
+    pool([...BOARD_CATALOG], 12, (b) =>
+      fetchBoard(b.kind, b.identifier, b.name).catch(() => {
+        failed += 1;
+        return [] as DiscoveredJob[];
+      })
+    ),
+    discoverWorkday(titles, (tenant) => workdayFailed.add(tenant)),
+  ]);
 
-  const scored = boards
+  const fits = ({ job }: { job: DiscoveredJob }) => locationFits({ location: job.location, workplaceType: job.workplaceType }, prefs);
+  const fromBoards = boards
     .flat()
     .filter((j) => j.title && isRecent(j.postedAt ? new Date(j.postedAt).toISOString() : null, RECENT_DAYS))
     .map((j) => ({ job: j, fit: titleFit(j.title, titles) }))
-    .filter(({ job, fit }) => fit >= 0.6 && locationFits({ location: job.location, workplaceType: job.workplaceType }, prefs))
-    .sort((a, b) => b.fit - a.fit || b.job.postedAt - a.job.postedAt);
+    .filter((x) => x.fit >= 0.6 && fits(x));
+  // A Workday posting with no readable location (only "3 Locations") is kept: the title already matched.
+  const fromWorkday = workday.filter((x) => !x.job.location || fits(x));
+  const scored = [...fromBoards, ...fromWorkday].sort((a, b) => b.fit - a.fit || b.job.postedAt - a.job.postedAt);
 
+  failed += workdayFailed.size;
   return {
     jobs: scored.slice(0, opts.limit ?? 100).map((s) => s.job),
-    scanned: BOARD_CATALOG.length - failed,
+    scanned: BOARD_CATALOG.length + WORKDAY_CATALOG.length - failed,
     failed,
     reason: null as string | null,
   };

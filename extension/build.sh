@@ -51,6 +51,11 @@ validate_manifest() {
 case "${1:-}" in
   package)
     validate_manifest manifest.json
+    # The store build may only talk to the production server: a development address draws review questions.
+    if grep -qE 'localhost|127\.0\.0\.1' manifest.json; then
+      echo "error: manifest.json references localhost — that belongs in manifest.dev.json only." >&2
+      exit 1
+    fi
     if grep -q 'careeros\.example' manifest.json; then
       echo "warning: manifest.json still references the placeholder careeros.example host — fix host_permissions before uploading." >&2
     fi

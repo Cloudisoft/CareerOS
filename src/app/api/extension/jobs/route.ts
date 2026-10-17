@@ -6,6 +6,7 @@ import { syncExternalJobs } from "@/lib/jobs/external/sync";
 import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
 import { withinRadius } from "@/lib/geo/cities";
 import { discoverJobsForUser } from "@/lib/jobs/boards/discover";
+import { saveDiscoveredJobs } from "@/lib/jobs/boards/store";
 import { extOk, extCatch } from "@/lib/extension/response";
 import type { Prisma } from "@prisma/client";
 
@@ -25,7 +26,7 @@ import type { Prisma } from "@prisma/client";
  * person to search something isn't stuck with an empty result waiting on an
  * admin to run the batch job.
  *
- * Alongside that, fresh postings from public employer boards (Greenhouse, Lever, Ashby; the company list is
+ * Alongside that, fresh postings from public employer boards (Greenhouse, Lever, Ashby, Workday; the company list is
  * seeded from career-ops, see src/lib/jobs/boards/catalog.ts) that fit the person's titles and locations.
  * These apply straight on the employer's own form, which is where CareerOS can finish an application.
  */
@@ -78,6 +79,8 @@ export async function GET(req: NextRequest) {
 
     // Employer boards: a failure here (a board down, a timeout) never loses the cached results above.
     const boards = await discoverJobsForUser(user.id, { limit: RESULT_LIMIT }).catch(() => null);
+    // Also on the website's Jobs page. Not awaited: the extension doesn't wait on the database writes.
+    if (boards?.jobs.length) saveDiscoveredJobs(boards.jobs).catch(() => {});
     const seen = new Set<string>();
     const merged = [...(boards?.jobs ?? []).map((j) => ({ ...j, source: j.ats, remote: j.workplaceType === "remote" })), ...jobs]
       .filter((j) => {
