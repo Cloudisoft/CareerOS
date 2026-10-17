@@ -115,7 +115,7 @@
     async registerScripts() {
       const granted = await chrome.permissions.getAll();
       const origins = (granted.origins || []).filter(
-        (o) => !o.includes('careeros.example') && !o.includes('localhost')
+        (o) => !o.includes('careeros.silverspringstaffing.com') && !o.includes('localhost')
       );
 
       try {
@@ -144,7 +144,9 @@
             'lib/careeros-api.js',
             'lib/flows.js',
             'lib/harvest.js',
+            'lib/answers.js',
             'lib/filler.js',
+            'lib/coach.js',
             'content/careeros.js',
           ],
           css: ['content/fields.css'],

@@ -8,6 +8,76 @@
   let profile = Profile.hydrate(await Storage.getProfile());
   let settings = await Storage.getSettings();
   let saveTimer = null;
+  let pushTimer = null;
+  let lastSavedAt = 0;
+  const SYNCED_SETTINGS = window.CareerOS.Sync.SYNCED_SETTINGS;
+
+  /* Changes made here go to the CareerOS website too (and the website's come back), shortly after typing stops. */
+  function queuePush() {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'push' }, (res) => {
+        void chrome.runtime.lastError;
+        if (res && res.ok === false && (res.error || res.message)) setState('saving', 'Saved here, not synced');
+        else if (res && res.pushError) setState('saving', 'Saved here, not synced');
+      });
+    }, 1200);
+  }
+
+  /* ---------- profiles ---------- */
+  let profilesData = await Storage.getProfiles();
+
+  function renderProfileBar() {
+    const ids = Object.keys(profilesData.profiles);
+    $('#profileSelect').innerHTML = ids.map((id) => {
+      const p = profilesData.profiles[id];
+      return `<option value="${attr(id)}"${id === profilesData.activeId ? ' selected' : ''}>${esc(p.name || [p.identity && p.identity.firstName, p.identity && p.identity.lastName].filter(Boolean).join(' ') || 'My profile')}</option>`;
+    }).join('');
+    $('#deleteProfile').disabled = ids.length <= 1;
+  }
+
+  $('#profileSelect').onchange = async () => {
+    await Storage.setActiveProfile($('#profileSelect').value);
+    location.reload();
+  };
+
+  $('#newProfile').onclick = async () => {
+    const name = prompt('Name this profile', 'New profile');
+    if (name == null) return;
+    const created = await Storage.createProfile(name.trim() || 'New profile');
+    await Storage.setActiveProfile(created.id);
+    location.reload();
+  };
+
+  $('#duplicateProfile').onclick = async () => {
+    const current = profilesData.profiles[profilesData.activeId];
+    const name = prompt('Name for the copy', `${(current && current.name) || 'Profile'} copy`);
+    if (name == null) return;
+    const copy = await Storage.duplicateProfile(profilesData.activeId, name.trim());
+    if (!copy) return;
+    await Storage.setActiveProfile(copy.id);
+    location.reload();
+  };
+
+  $('#renameProfile').onclick = async () => {
+    const current = profilesData.profiles[profilesData.activeId];
+    const name = prompt('Rename this profile', (current && current.name) || '');
+    if (name == null || !name.trim()) return;
+    profile.name = name.trim();
+    await Storage.saveProfile(profile);
+    renderProfileBar();
+    flagSaved();
+  };
+
+  $('#deleteProfile').onclick = async () => {
+    const current = profilesData.profiles[profilesData.activeId];
+    if (!confirm(`Delete the profile "${(current && current.name) || 'this profile'}"? There is no undo.`)) return;
+    const res = await Storage.deleteProfile(profilesData.activeId);
+    if (!res.ok) { alert(res.error); return; }
+    location.reload();
+  };
+
+  renderProfileBar();
 
   /* ---------- tabs ---------- */
   $$('.tab').forEach((tab) => {
@@ -28,20 +98,23 @@
     target[last] = value;
   }
 
-  $$('[data-bind]').forEach((el) => {
-    const path = el.dataset.bind;
-    const value = read(path);
-
+  function showBound(el) {
+    const value = read(el.dataset.bind);
     if (el.type === 'checkbox') el.checked = Boolean(value);
     else if (el.dataset.list !== undefined) el.value = (value || []).join(', ');
     else if (el.dataset.lines !== undefined) el.value = (value || []).join('\n');
     else el.value = value == null ? '' : value;
+  }
+
+  $$('[data-bind]').forEach((el) => {
+    const path = el.dataset.bind;
+    showBound(el);
 
     el.addEventListener('input', () => {
       if (el.type === 'checkbox') write(path, el.checked);
       else if (el.dataset.list !== undefined) write(path, splitList(el.value));
       else if (el.dataset.lines !== undefined) write(path, splitLines(el.value));
-      else if (el.type === 'number') write(path, el.value === '' ? 0 : Number(el.value));
+      else if (el.type === 'number' || el.dataset.number !== undefined) write(path, el.value === '' ? 0 : Number(el.value));
       else write(path, el.value);
       queueSave();
     });
@@ -55,8 +128,10 @@
     el.addEventListener('input', async () => {
       const value = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? Number(el.value) : el.value);
       settings[key] = value;
-      await Storage.saveSettings({ [key]: value });
+      // A daily limit the person typed is theirs to keep, even if it equals an old default.
+      await Storage.saveSettings(key === 'dailyLimit' ? { dailyLimit: value, dailyLimitChosen: true } : { [key]: value });
       if (key === 'acknowledgedRestricted') renderPlatforms();
+      if (SYNCED_SETTINGS.includes(key)) queuePush();
       flagSaved();
     });
   });
@@ -72,8 +147,11 @@
     setState('saving', 'Saving');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
-      await Storage.saveProfile(profile);
+      saveTimer = null;
+      const saved = await Storage.saveProfile(profile);
+      lastSavedAt = saved && saved.updatedAt;
       flagSaved();
+      queuePush();
     }, 450);
   }
   function flagSaved() { setState('saved', 'Saved'); }
@@ -236,11 +314,36 @@
     if (e.key === 'Enter') $('#pairBtn').click();
   });
 
+  $('#connectBtn').onclick = async () => {
+    $('#connectBtn').disabled = true;
+    $('#connectBtn').classList.add('is-loading');
+    $('#connectBtn').textContent = 'Waiting for approval…';
+    $('#connectMsg').textContent = 'Approve it in the tab that just opened.';
+
+    const res = await new Promise((resolve) =>
+      chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'connect' }, resolve)
+    );
+
+    $('#connectBtn').disabled = false;
+    $('#connectBtn').classList.remove('is-loading');
+    $('#connectBtn').textContent = 'Sign in';
+    if (res && res.ok) {
+      $('#connectMsg').textContent = 'Signed in. Pulling your profile…';
+      const sync = await new Promise((resolve) =>
+        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
+      );
+      await showFetchedSummary(sync);
+    } else {
+      $('#connectMsg').textContent = (res && res.error) || 'Could not sign in.';
+    }
+  };
+
   $('#pairBtn').onclick = async () => {
     const code = codeInput.value.trim();
     if (code.length !== 6) { $('#pairMsg').textContent = 'The code is six characters.'; return; }
 
     $('#pairBtn').disabled = true;
+    $('#pairBtn').classList.add('is-loading');
     $('#pairMsg').textContent = 'Connecting…';
 
     const res = await new Promise((resolve) =>
@@ -248,19 +351,111 @@
     );
 
     $('#pairBtn').disabled = false;
+    $('#pairBtn').classList.remove('is-loading');
     if (!res || !res.ok) {
       $('#pairMsg').textContent = (res && res.error) || 'Could not reach CareerOS. Check the server address above.';
       return;
     }
     $('#pairMsg').textContent = 'Connected. Pulling your profile…';
-    await new Promise((resolve) =>
+    const sync = await new Promise((resolve) =>
       chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
     );
-    location.reload();
+    await showFetchedSummary(sync);
   };
 
+  /* Pairing used to just reload the page silently — no confirmation of what
+     was actually pulled in, and no obvious next step. Show the real fetched
+     data (not a generic "done!") and put the one-click Auto Apply action
+     right there, since that's the entire point of connecting an account. */
+  async function showFetchedSummary(sync) {
+    if (!sync || sync.ok === false || sync.entitled === false) {
+      location.reload();
+      return;
+    }
+    const fresh = Profile.hydrate(await Storage.getProfile());
+    const items = [];
+    const name = Profile.fullName(fresh);
+    if (name) items.push(`Name: ${esc(name)}`);
+    if (fresh.identity.email) items.push(`Email: ${esc(fresh.identity.email)}`);
+    const skillCount = Profile.allSkills(fresh).length;
+    if (skillCount) items.push(`${skillCount} skill${skillCount === 1 ? '' : 's'}`);
+    if ((fresh.targeting.titles || []).length) {
+      items.push(`Targeting: ${esc(fresh.targeting.titles.slice(0, 3).join(', '))}`);
+    }
+    const resume = await Storage.getResume();
+    items.push(resume ? `Resume on file: ${esc(resume.name || 'yes')}` : 'No resume on file yet');
+
+    $('#pairState').hidden = true;
+    $('#fetchedBox').hidden = false;
+    $('#fetchedList').innerHTML = items.map((i) => `<li>${i}</li>`).join('');
+
+    $('#startAutoApplyBtn').onclick = async () => {
+      const btn = $('#startAutoApplyBtn');
+
+      /* Same gap as the popup: signing in doesn't grant access to the sites
+         a job actually lives on, so without this the queue fills with
+         postings CareerOS has no permission to touch and nothing happens
+         on any of them. Ask right here, in the click itself. */
+      const { Permissions } = window.CareerOS;
+      let permOk = true;
+      if (Permissions) {
+        const granted = await chrome.permissions.request({
+          origins: [...Permissions.GROUPS.ats.origins, ...Permissions.GROUPS.boards.origins],
+        });
+        permOk = granted;
+        if (granted) {
+          // Wait for the content scripts to actually be (re)registered for
+          // the newly granted sites before a job tab can open on one — see
+          // the matching comment in popup.js's ensureApplyPermissions().
+          await new Promise((resolve) =>
+            chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'reregister' }, resolve)
+          );
+        }
+      }
+      if (!permOk) {
+        $('#startAutoApplyMsg').textContent = 'CareerOS needs permission to fill forms on job sites. Click the button again and allow access when Chrome asks.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      btn.textContent = 'Finding jobs…';
+      $('#startAutoApplyMsg').textContent = '';
+
+      const build = await new Promise((resolve) =>
+        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'build' }, resolve)
+      );
+      if (!build || !build.ok) {
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
+        btn.textContent = 'Start finding & applying to jobs';
+        $('#startAutoApplyMsg').textContent = (build && build.error) || 'Could not search for jobs.';
+        return;
+      }
+
+      if (!build.queued) {
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
+        btn.textContent = 'Start finding & applying to jobs';
+        $('#startAutoApplyMsg').textContent = 'No matching jobs found right now. Widen your targeting or check back later.';
+        return;
+      }
+
+      // Auto-submit off still runs the queue — every job gets opened and
+      // filled, it just stops short of sending. Restricted boards (LinkedIn,
+      // Indeed, etc.) always fill-and-stop regardless of this setting.
+      const current = await Storage.getSettings();
+      btn.textContent = current.autoSubmit ? 'Applying…' : 'Filling forms…';
+      await new Promise((resolve) =>
+        chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'start' }, resolve)
+      );
+      chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+    };
+  }
+
   $('#unpairBtn').onclick = async () => {
-    await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+    // Ends this browser's session on the server too, not just here.
+    await new Promise((resolve) => chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'unpair' }, resolve));
     location.reload();
   };
 
@@ -270,8 +465,11 @@
       chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'sync' }, resolve)
     );
     $('#syncMsg').textContent = !res || !res.ok
-      ? (res && res.message) || 'Sync failed.'
-      : `Up to date. ${res.appliedToday} applications today.`;
+      ? (res && (res.message || res.error)) || 'Sync failed.'
+      : res.pushError
+        ? `Pulled from CareerOS, but your changes here weren't saved there: ${res.pushError}`
+        : `Up to date. ${res.appliedThisMonth != null ? res.appliedThisMonth : (res.appliedToday || 0)} applications this month.`;
+    if (res && res.ok) refreshFromStorage();
   };
 
   /* ---------- platforms ---------- */
@@ -291,6 +489,7 @@
         settings.platformModes = settings.platformModes || {};
         settings.platformModes[sel.dataset.platform] = sel.value;
         await Storage.saveSettings({ platformModes: settings.platformModes });
+        queuePush();
         flagSaved();
       };
     });
@@ -320,10 +519,40 @@
   /* ---------- job sources ---------- */
   let sources = await Storage.get('careeros.sources', { boards: [] });
 
+  // A handful of real companies known to run on Greenhouse — a starting
+  // point so this list isn't empty, not a guarantee any of them have a
+  // matching opening right now. Board tokens can go stale (a company
+  // migrates ATS, renames its board) with no warning beyond "zero jobs",
+  // which is exactly what the "Test this board" button next to each one
+  // is for — press it before relying on any of these. Seeded once, only
+  // when the person has never touched this list themselves.
+  const STARTER_BOARDS = [
+    { ats: 'greenhouse', token: 'notion' },
+    { ats: 'greenhouse', token: 'asana' },
+    { ats: 'greenhouse', token: 'gusto' },
+    { ats: 'greenhouse', token: 'brex' },
+  ];
+  if (!sources.boards || !sources.boards.length) {
+    if (!(await Storage.get('careeros.boardsSeeded', false))) {
+      sources.boards = STARTER_BOARDS.slice();
+      await Storage.set('careeros.sources', sources);
+      await Storage.set('careeros.boardsSeeded', true);
+    }
+  }
+  // Robinhood was in an earlier starter list; its application flow blocks
+  // automation, so drop it from lists that got it that way.
+  if ((sources.boards || []).some((b) => String(b.token).toLowerCase() === 'robinhood')) {
+    sources.boards = sources.boards.filter((b) => String(b.token).toLowerCase() !== 'robinhood');
+    await Storage.set('careeros.sources', sources);
+  }
+
   $$('[data-source]').forEach((el) => {
     const path = el.dataset.source;
-    el.value = readPath(sources, path) || '';
-    el.addEventListener('input', async () => {
+    const saved = readPath(sources, path);
+    // A select keeps its default option when nothing is saved, instead of showing blank.
+    if (saved != null && saved !== '') el.value = saved;
+    else if (el.tagName !== 'SELECT') el.value = '';
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', async () => {
       writePath(sources, path, el.type === 'number' ? Number(el.value) : el.value);
       await Storage.set('careeros.sources', sources);
       flagSaved();
@@ -345,11 +574,13 @@
     const out = document.querySelector(`[data-testresult="${source}"]`);
     btn.onclick = async () => {
       btn.disabled = true;
+      btn.classList.add('is-loading');
       out.textContent = 'Checking…';
       const res = await new Promise((resolve) =>
         chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'testSource', source }, resolve)
       );
       btn.disabled = false;
+      btn.classList.remove('is-loading');
       if (!res || !res.ok) {
         out.textContent = (res && res.error) || 'No response from the extension.';
         return;
@@ -378,6 +609,10 @@
             </select>
           </label>
           <label>Board token<input data-k="token" value="${attr(b.token)}" placeholder="stripe"></label>
+        </div>
+        <div class="row">
+          <button class="ghost" data-action="testBoard">Test this board</button>
+          <span class="note" data-boardresult></span>
         </div>`;
       entry.querySelector('.remove').onclick = async () => {
         sources.boards.splice(i, 1);
@@ -392,6 +627,21 @@
           flagSaved();
         };
       });
+      entry.querySelector('[data-action="testBoard"]').onclick = async () => {
+        const btn = entry.querySelector('[data-action="testBoard"]');
+        const out = entry.querySelector('[data-boardresult]');
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+        out.textContent = 'Testing…';
+        const res = await new Promise((resolve) =>
+          chrome.runtime.sendMessage({ type: 'careeros:engine', command: 'testBoard', ats: b.ats, token: b.token }, resolve)
+        );
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
+        out.textContent = res.ok
+          ? `✓ Found ${res.count} open role${res.count === 1 ? '' : 's'}`
+          : `✗ ${res.error || 'Could not reach that board.'}`;
+      };
       host.appendChild(entry);
     });
   }
@@ -552,7 +802,86 @@
     return esc(s).replace(/"/g, '&quot;');
   }
 
-  if (new URLSearchParams(location.search).get('welcome')) {
-    setState('saving', 'Start with your name and email');
+  /* First-run wizard: a short, guided path through the tabs that already do
+     the real work (Account's sign-in, Resume's parse-from-text, You's basics)
+     rather than a separate onboarding flow with its own logic. Each step just
+     switches to the relevant existing tab and explains what to do there. */
+  const WELCOME_STEPS = [
+    { panel: 'account', title: 'Connect your CareerOS account', copy: 'Sign in below so Auto Apply can pull your profile and resume.' },
+    { panel: 'resume', title: 'Add your resume', copy: 'Paste your resume text and press "Build my profile from this text" — it fills in the tabs below for you.' },
+    { panel: 'you', title: 'Check your basics', copy: 'Confirm your name, email and phone came through right, then you’re set.' }
+  ];
+
+  function goToTab(panelId) {
+    const tab = $$('.tab').find((t) => t.dataset.panel === panelId);
+    if (tab) tab.click();
   }
+
+  function startWelcomeWizard() {
+    // Already connected: start at "Add your resume", not "Connect".
+    let step = settings.deviceToken ? 1 : 0;
+    const wizard = $('#welcomeWizard');
+    wizard.hidden = false;
+
+    function render() {
+      const s = WELCOME_STEPS[step];
+      $('#welcomeStepLabel').textContent = `Step ${step + 1} of ${WELCOME_STEPS.length}`;
+      $('#welcomeTitle').textContent = s.title;
+      $('#welcomeCopy').textContent = s.copy;
+      $('#welcomeNext').textContent = step === WELCOME_STEPS.length - 1 ? 'Done' : 'Next';
+      goToTab(s.panel);
+    }
+
+    function finish() {
+      wizard.hidden = true;
+      // Drop ?welcome=1 from the URL so a page refresh doesn't restart the tour.
+      history.replaceState(null, '', location.pathname);
+    }
+
+    $('#welcomeNext').onclick = () => {
+      if (step === WELCOME_STEPS.length - 1) { finish(); return; }
+      step += 1;
+      render();
+    };
+    $('#welcomeSkip').onclick = finish;
+
+    render();
+  }
+
+  if (new URLSearchParams(location.search).get('welcome')) {
+    startWelcomeWizard();
+  } else {
+    // Deep link from the in-page panel's Profile tab ("edit your profile" ->
+    // options.html?tab=you), same pattern as the wizard above.
+    const requestedTab = new URLSearchParams(location.search).get('tab');
+    if (requestedTab) goToTab(requestedTab);
+  }
+  /* ---------- changes from the website ----------
+     A sync can bring down a profile or settings edited on the website while this page is open. Show them,
+     so the next edit here doesn't put the old values back. Fields being typed in are left alone. */
+  async function refreshFromStorage() {
+    if (saveTimer) return;
+    const data = await Storage.getProfiles();
+    const fresh = data.profiles[profile.id || data.activeId];
+    if (fresh) profile = Profile.hydrate(fresh);
+    settings = await Storage.getSettings();
+    $$('[data-bind]').forEach((el) => { if (el !== document.activeElement) showBound(el); });
+    $$('[data-setting]').forEach((el) => {
+      if (el === document.activeElement) return;
+      const v = settings[el.dataset.setting];
+      if (el.type === 'checkbox') el.checked = Boolean(v);
+      else el.value = v == null ? '' : v;
+    });
+    const active = document.activeElement;
+    if (!active || !active.closest('#roles, #education')) { renderRoles(); renderEdu(); }
+    if (!active || !active.closest('.platformRow')) renderPlatforms();
+  }
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    const p = changes[Storage.KEYS.PROFILES];
+    const mine = p && p.newValue && p.newValue.profiles && p.newValue.profiles[profile.id || p.newValue.activeId];
+    const fromElsewhere = mine && mine.updatedAt !== lastSavedAt;
+    if (fromElsewhere) refreshFromStorage();
+  });
 })();

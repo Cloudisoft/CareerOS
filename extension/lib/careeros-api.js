@@ -12,7 +12,7 @@
 
   const { Storage } = root.CareerOS;
 
-  const DEFAULT_BASE = 'http://localhost:3000/api/extension';
+  const DEFAULT_BASE = 'https://careeros.silverspringstaffing.com/api/extension';
 
   async function base() {
     const settings = await Storage.getSettings();
@@ -72,6 +72,7 @@
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error((body && body.error) || `Pairing failed (${res.status})`);
 
+      await Storage.set('careeros.serverCopy', null);
       await Storage.saveSettings({
         deviceToken: body.token,
         pairedAs: body.email || body.name || '',
@@ -101,7 +102,7 @@
 
       const settings = await Storage.getSettings();
       const tab = await chrome.tabs.create({
-        url: `${(settings.webAppUrl || 'http://localhost:3000').replace(/\/$/, '')}/extension-connect?state=${state}`,
+        url: `${(settings.webAppUrl || 'https://careeros.silverspringstaffing.com').replace(/\/$/, '')}/extension-connect?state=${state}`,
       });
 
       /* Poll rather than wait for a redirect, because the person may complete
@@ -119,6 +120,7 @@
         if (!body) continue;
 
         if (body.status === 'approved' && body.token) {
+          await Storage.set('careeros.serverCopy', null);
           await Storage.saveSettings({
             deviceToken: body.token,
             pairedAs: body.email || body.name || '',
@@ -134,8 +136,26 @@
       return { ok: false, error: 'Timed out waiting for approval.' };
     },
 
+    /* Disconnect: end this browser's session on the server too (where the server supports it), then forget it here. */
     async unpair() {
+      await request('/disconnect', { method: 'POST' }).catch(() => {});
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+    },
+
+    /* Run settings changed in the options page, so the Auto Apply page and other browsers show them. */
+    async saveSettings(patch) {
+      return request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+    },
+
+    /* Profile fields changed in the options page, written to the Career Profile. */
+    async saveProfile(patch) {
+      return request('/profile', { method: 'PATCH', body: JSON.stringify(patch) });
+    },
+
+    /* Answers the person typed into forms: saved to their CareerOS account so every browser reuses them. */
+    async saveAnswers(answers) {
+      if (!answers || !answers.length) return null;
+      return request('/answers', { method: 'POST', body: JSON.stringify({ answers: answers.slice(0, 60) }) });
     },
 
     async isPaired() {
@@ -147,6 +167,12 @@
        round trip rather than four. */
     async sync() {
       return request('/sync');
+    },
+
+    /* The person's CareerOS resume rendered as a PDF, for attaching to
+       application upload fields. { name, mime, base64, text, updatedAt }. */
+    async getResumeFile() {
+      return request('/resume-file');
     },
 
     /* The tailored package for a specific posting — a resume summary and
@@ -173,6 +199,21 @@
       }
     },
 
+    /* Broad keyword/location search, run server-side against CareerOS's own
+       Adzuna/JSearch keys rather than the browser's — see discovery.js's
+       header comment. radiusMiles is the one search preference that still
+       lives client-side only (no server column for it yet), so it rides
+       along as a query param; the server defaults it when it's missing. */
+    async getJobs(profile) {
+      const radius = profile && profile.targeting && profile.targeting.radiusMiles;
+      const qs = radius ? `?radius=${encodeURIComponent(radius)}` : '';
+      try {
+        return await request(`/jobs${qs}`);
+      } catch (err) {
+        return { jobs: [], message: err.message };
+      }
+    },
+
     async markPackageSubmitted(applicationId) {
       return request('/package/submitted', {
         method: 'POST',
@@ -184,8 +225,24 @@
       return request('/application', { method: 'POST', body: JSON.stringify(entry) });
     },
 
+    /* Start / Stop pressed on the Auto Apply page in CareerOS. */
+    async control() {
+      return request('/control');
+    },
+
     async heartbeat(run) {
       return request('/run', { method: 'POST', body: JSON.stringify(run) });
+    },
+
+    /* Remote selector overrides — see ATS.applyOverrides(). Never throws:
+       a fetch failure just means the extension keeps running on whatever it
+       already had cached (or the hardcoded defaults if nothing is cached). */
+    async getSelectorOverrides() {
+      try {
+        return await request('/selectors');
+      } catch (err) {
+        return { overrides: null, message: err.message };
+      }
     },
   };
 

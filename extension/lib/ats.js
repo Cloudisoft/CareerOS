@@ -30,8 +30,9 @@
       id: 'ashby',
       label: 'Ashby',
       match: (h) => /ashbyhq\.com/.test(h),
-      form: 'form',
-      submit: 'button[type="submit"]',
+      // Ashby renders the application without a <form> element.
+      form: '.ashby-application-form-container, [class*="ApplicationForm"], form',
+      submit: '.ashby-application-form-submit-button, button[type="submit"]',
       title: 'h1, [class*="jobTitle"]',
       company: '[class*="companyName"], header img[alt]',
       description: '[class*="jobDescription"], main'
@@ -99,6 +100,28 @@
       multiStep: true
     },
     {
+      /* Oracle Taleo — an older platform, still common at large enterprises.
+       * Taleo Enterprise Edition (careersection.*) and Business Edition
+       * (tbe.taleo.net) render fairly plain server-rendered forms rather than
+       * a SPA, but both put the form fields under an iframe/panel with
+       * `id`s prefixed by the requisition flow rather than stable class
+       * names. The selectors below follow Taleo's documented DOM patterns
+       * (form#req_wizard / .taleo-* classes on TBE, requisitionDescription*
+       * ids on TEE) but have NOT been verified against a live posting — no
+       * Taleo instance was reachable to test against in this environment.
+       * Verify against a real posting before relying on this in production;
+       * until then the generic adapter below is the actual fallback if any
+       * of these miss. */
+      id: 'taleo',
+      label: 'Taleo',
+      match: (h) => /taleo\.net/.test(h),
+      form: 'form#req_wizard, form[name="reqDataForm"], .taleo-form, form',
+      submit: 'input[name="submit"], input[type="submit"], button[type="submit"], .taleo-button-primary, #save_button',
+      title: '.taleo-requisition-title, #requisitionDescriptionInterface\\.reqTitleLabel, h1, h2.title',
+      company: '.taleo-company-name, [class*="company"]',
+      description: '#requisitionDescriptionInterface\\.reqDescription, .taleo-job-description, [class*="description"], #content'
+    },
+    {
       id: 'ziprecruiter',
       label: 'ZipRecruiter',
       match: (h) => /ziprecruiter\.com/.test(h),
@@ -136,7 +159,13 @@
     { key: 'city',       re: /\b(city|town|current city)\b/,                              path: 'identity.city' },
     { key: 'state',      re: /\b(state|province|region)\b/,                               path: 'identity.state' },
     { key: 'postal',     re: /\b(zip|postal|pin ?code)\b/,                                path: 'identity.postalCode' },
-    { key: 'country',    re: /\bcountry\b/,                                               path: 'identity.country' },
+    // Deliberately not a bare \bcountry\b: "are you authorized to work in
+    // this country" and "willing to relocate to another country" both
+    // contain that word too, and would otherwise shadow the workAuth/
+    // sponsorship/relocate patterns below since classify() takes the first
+    // match. Anchoring to the phrasing an address/identity field actually
+    // uses avoids that collision.
+    { key: 'country',    re: /\bcountry\s*(of (residence|citizenship))?\s*\??$|^country$|\bcurrent country\b|\bcountry\/region\b/, path: 'identity.country' },
     { key: 'location',   re: /\b(location|where are you based|current location)\b/,       resolve: (p, P) => P.locationLine(p) },
 
     { key: 'currentTitle',   re: /\b(current|present|most recent)\s*(job )?title\b|\bcurrent role\b/, path: 'experience.currentTitle' },
@@ -144,14 +173,14 @@
     { key: 'years',          re: /\b(years|yrs)\b.*\bexperience\b|\bexperience\b.*\b(years|yrs)\b/,  resolve: (p) => String(p.experience.totalYears || '') },
     { key: 'notice',         re: /\bnotice period\b|\bhow soon can you (start|join)\b/,              path: 'experience.noticePeriod' },
     { key: 'availableFrom',  re: /\b(available|start date|earliest start)\b/,                        path: 'narrative.availableFrom' },
-    { key: 'salary',         re: /\b(salary|compensation|expected pay|rate)\b/,                      resolve: (p) => p.targeting.minSalary ? String(p.targeting.minSalary) : '' },
+    { key: 'salary',         re: /\b(salary|compensation|expected pay|pay rate|hourly rate|rate of pay|desired pay)\b/,                      resolve: (p) => p.targeting.minSalary ? String(p.targeting.minSalary) : '' },
     { key: 'skills',         re: /\b(skills|technolog|tech stack|proficienc)\w*\b/,                  resolve: (p, P) => P.allSkills(p).join(', ') },
     { key: 'summary',        re: /\b(summary|about you|tell us about|profile|bio)\b/,                path: 'narrative.summary' },
     { key: 'coverLetter',    re: /\b(cover letter|why (do you want|are you interested)|motivation)\b/, generated: 'coverLetter' },
     { key: 'whyCompany',     re: /\bwhy (this )?(company|us|role|position)\b/,                       generated: 'whyCompany' },
 
-    { key: 'workAuth',    re: /\b(authoriz|authoris|eligible to work|legally (able|entitled) to work|right to work)\b/, resolve: (p) => p.workAuth.needsSponsorship ? 'No' : 'Yes' },
-    { key: 'sponsorship', re: /\b(sponsor|visa (support|sponsorship)|h-?1b)\b/,                      resolve: (p) => p.workAuth.needsSponsorship ? 'Yes' : 'No' },
+    { key: 'workAuth',    re: /\b(authori[sz]\w*|eligible to work|legally (able|entitled) to work|right to work)/, resolve: (p) => p.workAuth.needsSponsorship ? 'No' : 'Yes' },
+    { key: 'sponsorship', re: /\b(sponsor\w*|visa (support|sponsorship)|h-?1b)/,                      resolve: (p) => p.workAuth.needsSponsorship ? 'Yes' : 'No' },
     { key: 'relocate',    re: /\b(relocat|willing to move)\w*\b/,                                    resolve: (p) => p.workAuth.willingToRelocate ? 'Yes' : 'No' },
     { key: 'remote',      re: /\b(remote|hybrid|on-?site|work from)\b/,                              resolve: (p) => (p.targeting.workModes || [])[0] || '' },
 
@@ -169,13 +198,42 @@
     { key: 'source',     re: /\bhow did you (hear|find)\b|\bsource\b/,      resolve: () => 'Company website' }
   ];
 
+  /* Remote overrides, patched in from the CareerOS backend (see
+     Api.getSelectorOverrides / Storage.getCachedSelectorOverrides and
+     careeros.js's refreshSelectorOverrides()). Shape matches an adapter's own
+     selector fields: { [atsId]: { form?, submit?, title?, company?, description? } }.
+     A DOM change on some ATS can then be patched from the backend without a
+     store release — this module always still works from ADAPTERS alone if
+     nothing has ever been fetched, or the fetch fails. */
+  let overridesByAdapter = {};
+
+  const OVERRIDABLE_KEYS = ['form', 'submit', 'title', 'company', 'description'];
+
+  function withOverrides(adapter) {
+    const patch = overridesByAdapter[adapter.id];
+    if (!patch) return adapter;
+    const merged = Object.assign({}, adapter);
+    OVERRIDABLE_KEYS.forEach((k) => {
+      if (patch[k]) merged[k] = patch[k];
+    });
+    return merged;
+  }
+
   const ATS = {
     ADAPTERS,
     FIELD_PATTERNS,
 
+    /* Replaces the whole override set (this is what a fetch returns — not a
+       merge of merges, so a selector removed on the backend actually goes
+       away here too). Safe to call with null/undefined to clear it. */
+    applyOverrides(overrides) {
+      overridesByAdapter = (overrides && typeof overrides === 'object') ? overrides : {};
+    },
+
     detect(loc) {
       const l = loc || (typeof location !== 'undefined' ? location : { hostname: '', href: '' });
-      return ADAPTERS.find((a) => a.match(l.hostname || '', l.href || '')) || ADAPTERS[ADAPTERS.length - 1];
+      const adapter = ADAPTERS.find((a) => a.match(l.hostname || '', l.href || '')) || ADAPTERS[ADAPTERS.length - 1];
+      return withOverrides(adapter);
     },
 
     /* Pull the posting off the page so the matcher has something to score. */
@@ -208,9 +266,18 @@
       const d = doc || document;
       for (const s of (adapter.form || 'form').split(',')) {
         const el = d.querySelector(s.trim());
-        if (el) return el;
+        if (el && el.querySelectorAll('input:not([type="hidden"]), select, textarea').length) return el;
       }
-      return d.querySelector('form');
+      const form = d.querySelector('form');
+      if (form) return form;
+      // Single-page apps often have no <form>: start from the submit button and widen to the
+      // smallest container that holds the application's fields.
+      const button = Array.from(d.querySelectorAll('button, input[type="submit"]'))
+        .find((b) => /submit( application)?|send application|apply/i.test(b.textContent || b.value || ''));
+      for (let el = button && button.parentElement; el && el !== d.body; el = el.parentElement) {
+        if (el.querySelectorAll('input:not([type="hidden"]), select, textarea').length >= 3) return el;
+      }
+      return null;
     },
 
     findSubmit(adapter, scope) {

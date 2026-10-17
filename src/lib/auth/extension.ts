@@ -32,3 +32,19 @@ export async function requireExtensionUser(req: NextRequest) {
 
   return session.user;
 }
+
+export class ExtensionProfileError extends Error {
+  code = "NO_PROFILE";
+}
+
+/** Authenticates the request and loads the caller's CandidateProfile —
+ * shared by extension routes (Auto Apply, and the interview-extension
+ * companion) that need the profile row, not just the user. */
+export async function requireExtensionCandidateProfile(req: NextRequest) {
+  const user = await requireExtensionUser(req);
+  const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
+  if (!profile) {
+    throw new ExtensionProfileError("Finish your Career Profile in Career OS before using this feature.");
+  }
+  return { user, profile };
+}

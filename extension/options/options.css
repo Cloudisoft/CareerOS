@@ -20,20 +20,40 @@
   --brand-tint-16: rgba(244,106,41,0.16);
   --brand-tint-28: rgba(244,106,41,0.28);
 
-  --ink: var(--brand-ink);
-  --surface: #241E29;
-  --surface-2: #2B2431;
-  --line: rgba(255, 255, 255, 0.08);
-  --text: #EDE9F0;
-  --muted: #9A929F;
+  --ink: #F7F5F3;
+  --surface: #FFFFFF;
+  --surface-2: #FBF9F7;
+  --line: #ECE6E1;
+  --text: #1C1720;
+  --muted: #7A7480;
   --flame: var(--brand-flame);
   --ember: var(--brand-ember);
-  --ok: #4FB980;
+  --ok: #16A05A;
 }
 
 
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+@keyframes softPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(241, 127, 38, 0.28); }
+  50%      { box-shadow: 0 0 0 6px rgba(241, 127, 38, 0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 body {
   background: var(--ink);
@@ -44,6 +64,39 @@ body {
   padding-bottom: 80px;
 }
 
+/* First-run wizard: a short, guided path through the tabs that already
+   exist below it (connect -> resume -> profile basics) rather than a
+   separate onboarding flow with its own logic. */
+.welcomeWizard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 880px;
+  margin: 16px auto 0;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--brand-tint-28);
+  box-shadow: 0 8px 24px rgba(28, 23, 32, 0.08);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .welcomeWizard { animation: fadeSlideDown 380ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+}
+.welcomeWizard__step {
+  flex: none;
+  font: 700 10.5px/1 -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--brand-gradient);
+  padding: 5px 9px;
+  border-radius: 999px;
+}
+.welcomeWizard__body { flex: 1; min-width: 0; }
+.welcomeWizard__body strong { display: block; font-size: 14px; color: var(--text); }
+.welcomeWizard__body p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.welcomeWizard .row { flex: none; display: flex; gap: 8px; }
+
 .masthead {
   display: flex;
   align-items: center;
@@ -53,6 +106,11 @@ body {
   padding: 30px 24px 22px;
 }
 .masthead .mark { width: 44px; height: 44px; }
+@media (prefers-reduced-motion: no-preference) {
+  .masthead { animation: fadeSlideDown 340ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .masthead .mark { transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .masthead:hover .mark { transform: rotate(-6deg) scale(1.06); }
+}
 .masthead h1 {
   font-size: 21px;
   font-weight: 680;
@@ -75,6 +133,36 @@ body {
 }
 .saveState[data-on="saving"] { color: var(--flame); border-color: rgba(241, 127, 38, 0.4); }
 .saveState[data-on="saved"]  { color: var(--ok); border-color: rgba(143, 224, 182, 0.3); }
+@media (prefers-reduced-motion: no-preference) {
+  .saveState { transition: color 200ms ease, border-color 200ms ease; }
+  .saveState[data-on="saved"] { animation: popScale 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+}
+@keyframes popScale {
+  0%   { transform: scale(0.92); }
+  60%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.profileBar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 24px 14px;
+}
+.profileSelectWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.6px;
+  color: var(--muted);
+  min-width: 200px;
+}
+.profileBar .row { margin-top: 0; }
+.profileBar .ghost { padding: 6px 10px; font-size: 11.6px; }
 
 .tabs {
   display: flex;
@@ -93,14 +181,18 @@ body {
   font-size: 12.8px;
   padding: 9px 12px;
   cursor: pointer;
+  transition: color 160ms ease, border-color 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .tab:hover { color: var(--text); }
-.tab.is-on { color: #FFF; border-bottom-color: var(--flame); }
+.tab.is-on { color: var(--text); border-bottom-color: var(--flame); }
 
 main { max-width: 880px; margin: 0 auto; padding: 22px 24px; }
 
 .panel { display: none; }
 .panel.is-on { display: block; }
+@media (prefers-reduced-motion: no-preference) {
+  .panel.is-on { animation: fadeSlideUp 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+}
 
 h2 {
   display: flex;
@@ -128,7 +220,7 @@ label {
   font-size: 11.6px;
   color: var(--muted);
 }
-label small { color: #6C6577; font-size: 10.8px; }
+label small { color: #8A838F; font-size: 10.8px; }
 
 input[type="text"], input:not([type]), input[type="email"], input[type="tel"],
 input[type="number"], input[type="password"], select, textarea {
@@ -160,7 +252,10 @@ label.check {
   padding: 9px 11px;
   cursor: pointer;
 }
-label.check input { width: 15px; height: 15px; accent-color: var(--flame); }
+label.check input { width: 15px; height: 15px; accent-color: var(--flame); flex: none; }
+/* Checkbox in its own column; label and help text stacked beside it, not squeezed side by side. */
+label.check { display: grid; grid-template-columns: 15px 1fr; column-gap: 8px; align-items: center; align-content: center; }
+label.check small { grid-column: 2; margin-top: 3px; }
 label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
 
 .note { color: var(--muted); font-size: 11.8px; margin: 8px 0; max-width: 620px; }
@@ -175,7 +270,23 @@ label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
   cursor: pointer;
 }
 .btn { color: #FFF; background: linear-gradient(135deg, var(--flame), var(--ember)); }
-.btn:hover { filter: brightness(1.08); }
+.btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(241, 76, 46, 0.32); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(0.98); filter: brightness(0.98); }
+/* Only a button doing real async work gets the spinner — see popup.css's
+   matching comment. A button simply disabled because there's nothing to
+   do (e.g. Start applying with an empty queue after Clear queue) must not
+   get it, or a correctly-idle button reads as permanently frozen. */
+.btn.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 7px;
+  vertical-align: -1.5px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #FFF;
+}
 .ghost {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -183,9 +294,17 @@ label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
   font-size: 11.6px;
   padding: 5px 11px;
 }
-.ghost:hover { color: #FFF; border-color: rgba(255, 255, 255, 0.2); }
-.ghost.danger { color: #F79C90; border-color: rgba(241, 70, 50, 0.3); }
+.ghost:hover { color: var(--brand-flame); border-color: var(--brand-tint-28); transform: translateY(-1px); }
+.ghost:active { transform: translateY(0) scale(0.97); }
+.ghost.danger { color: #D9452F; border-color: rgba(241, 70, 50, 0.3); }
 :focus-visible { outline: 2px solid var(--brand-amber); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .ghost {
+    transition: filter 140ms ease, color 140ms ease, border-color 160ms ease,
+      transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
+  }
+  .btn.is-loading::after { animation: spin 700ms linear infinite; }
+}
 
 .row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 
@@ -207,7 +326,10 @@ label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
   cursor: pointer;
   font-size: 15px;
 }
-.entry .remove:hover { color: #F79C90; }
+.entry .remove:hover { color: #D9452F; }
+@media (prefers-reduced-motion: no-preference) {
+  .entry { animation: fadeSlideUp 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+}
 
 .dropzone {
   display: flex;
@@ -221,9 +343,12 @@ label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
   background: rgba(241, 127, 38, 0.04);
   margin-bottom: 18px;
 }
-.dropzone.is-over { border-color: var(--flame); background: rgba(241, 127, 38, 0.1); }
+.dropzone.is-over { border-color: var(--flame); background: rgba(241, 127, 38, 0.1); transform: scale(1.01); }
 .dropzone strong { font-size: 13.5px; }
 .dropzone span { font-size: 11.4px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .dropzone { transition: border-color 160ms ease, background-color 160ms ease, transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+}
 
 @media (max-width: 620px) {
   .masthead { flex-wrap: wrap; }
@@ -242,11 +367,24 @@ label.check.danger { border-color: rgba(241, 70, 50, 0.32); }
 }
 .platformRow .pName { font-size: 13px; font-weight: 580; text-transform: capitalize; }
 .platformRow .pNote { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
-.platformRow .pRate { font-size: 10.6px; color: #6C6577; white-space: nowrap; }
+.platformRow .pRate { font-size: 10.6px; color: #8A838F; white-space: nowrap; }
 .platformRow select { width: auto; min-width: 160px; margin-left: auto; }
 .platformRow[data-locked="1"] { opacity: 0.5; }
+.platformRow button, .platformRow select { transition: filter 140ms ease, transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.platformRow button:hover:not(:disabled) { transform: translateY(-1px); }
+@media (prefers-reduced-motion: no-preference) {
+  .platformList .platformRow { animation: fadeSlideUp 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .platformList .platformRow:nth-child(1) { animation-delay: 0ms; }
+  .platformList .platformRow:nth-child(2) { animation-delay: 40ms; }
+  .platformList .platformRow:nth-child(3) { animation-delay: 80ms; }
+  .platformList .platformRow:nth-child(n+4) { animation-delay: 120ms; }
+}
 
 .pairBox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+@media (prefers-reduced-motion: no-preference) {
+  .pairBox:not([hidden]) { animation: fadeSlideUp 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  #fetchedBox:not([hidden]) #startAutoApplyBtn { animation: softPulse 2.2s ease-out 1; }
+}
 .pairBox h2 { margin-top: 0; color: var(--text); text-transform: none; letter-spacing: -0.01em; font-size: 15px; }
 .pairRow { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
 .pairInput {
@@ -283,5 +421,29 @@ body::before {
   inset: 0 0 auto 0;
   height: 2px;
   background: var(--brand-gradient);
+  background-size: 200% 100%;
   z-index: 10;
 }
+@media (prefers-reduced-motion: no-preference) {
+  body::before { animation: shimmer 5s ease-in-out infinite; }
+}
+
+/* ─── light theme polish ───────────────────────────────────────────────── */
+.pairBox, .entry, .platformRow, label.check, .welcomeWizard {
+  box-shadow: 0 1px 2px rgba(28, 23, 32, 0.04), 0 4px 14px rgba(28, 23, 32, 0.04);
+}
+.pairBox { border-radius: 16px; }
+.btn { border-radius: 11px; box-shadow: 0 4px 14px rgba(241, 76, 46, 0.24); }
+.ghost { border-radius: 10px; }
+input:not([type="checkbox"]):not([type="file"]), select, textarea {
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.tabs { background: transparent; }
+.tab { border-radius: 9px 9px 0 0; }
+.tab:hover { background: var(--brand-tint-04); }
+.platformRow > div:first-child { flex: 1; min-width: 0; }
+.platformRow > button, .platformRow > select { flex: none; white-space: nowrap; margin-left: auto; }
+/* An element's own display rule (e.g. .welcomeWizard { display: flex })
+   otherwise beats the browser's [hidden] style, so setting .hidden = true
+   left it on screen — "Skip for now" looked broken. */
+[hidden] { display: none !important; }

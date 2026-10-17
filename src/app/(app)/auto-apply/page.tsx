@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Send, Laptop, CheckCircle2, XCircle, SkipForward, Clock } from "lucide-react";
+import { Loader2, Send, Laptop, CheckCircle2, XCircle, SkipForward, Clock, Play, Square, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,17 @@ interface Settings {
   pacingSeconds: number;
   concurrency: number;
   autoSubmit: boolean;
+  runCommand?: "start" | "stop" | null;
+  runCommandAt?: string | null;
+}
+
+interface WaitingApplication {
+  title: string;
+  company: string;
+  url: string;
+  reason: string;
+  message: string;
+  since?: number;
 }
 
 interface Run {
@@ -29,6 +40,7 @@ interface Run {
   skipped: number;
   failed: number;
   lastError: string | null;
+  waiting?: WaitingApplication[];
   updatedAt: string;
 }
 
@@ -56,8 +68,19 @@ export default function AutoApplyPage() {
   const [devices, setDevices] = useState<DeviceSession[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [controlBusy, setControlBusy] = useState(false);
+  const [controlError, setControlError] = useState<string | null>(null);
 
   async function loadAll() {
+    try {
+      await loadAllUnsafe();
+    } catch {
+      setLoading(false);
+    }
+  }
+
+  async function loadAllUnsafe() {
     const billingRes = await fetch("/api/billing/status");
     const billingJson = await billingRes.json();
     const isEntitled = Boolean(billingJson.data?.entitlements?.autoApply);
@@ -88,21 +111,51 @@ export default function AutoApplyPage() {
 
   useEffect(() => {
     loadAll();
+    // Live view of the run: the extension reports progress and what's waiting for you.
+    const timer = setInterval(loadAll, 15000);
+    return () => clearInterval(timer);
+    // loadAll only uses state setters, so running it from the first render's closure is correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function sendControl(action: "start" | "stop") {
+    setControlBusy(true);
+    setControlError(null);
+    try {
+      const res = await fetch("/api/auto-apply/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error?.message ?? "Couldn't send that to your browser.");
+      setSettings((s) => (s ? { ...s, runCommand: json.data.runCommand, runCommandAt: json.data.runCommandAt } : s));
+    } catch (e) {
+      setControlError((e as Error).message);
+    } finally {
+      setControlBusy(false);
+    }
+  }
 
   async function saveSettings() {
     if (!settings) return;
     setSaving(true);
-    const res = await fetch("/api/auto-apply/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (res.ok) {
+    setSaveError(null);
+    try {
+      const { minMatchScore, monthlyLimit, pacingSeconds, concurrency, autoSubmit } = settings;
+      const res = await fetch("/api/auto-apply/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minMatchScore, monthlyLimit, pacingSeconds, concurrency, autoSubmit }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error?.message ?? "Couldn't save your settings.");
       setSettings(json.data.settings);
       setSavedAt(Date.now());
+    } catch (e) {
+      setSaveError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -124,6 +177,10 @@ export default function AutoApplyPage() {
   }
 
   const latestRun = runs[0];
+  const running = latestRun?.status === "running" && Date.now() - new Date(latestRun.updatedAt).getTime() < 10 * 60 * 1000;
+  const waiting = (latestRun?.waiting ?? []) as WaitingApplication[];
+  const pending = settings?.runCommand && settings.runCommandAt && Date.now() - new Date(settings.runCommandAt).getTime() < 15 * 60 * 1000 ? settings.runCommand : null;
+  const reasonLabel: Record<string, string> = { captcha: "Verification check", login: "Sign in needed", questions: "Your answer needed" };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -141,7 +198,7 @@ export default function AutoApplyPage() {
             <CardDescription>
               {devices.length > 0
                 ? `${devices.length} browser${devices.length === 1 ? "" : "s"} paired.`
-                : "No browser paired yet — Auto Apply runs from the extension, not this page."}
+                : "No browser connected yet. Install the Career OS extension and press Sign in."}
             </CardDescription>
           </div>
           <Button asChild variant="secondary">
@@ -152,12 +209,72 @@ export default function AutoApplyPage() {
         </CardHeader>
       </Card>
 
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">Run</CardTitle>
+            <CardDescription>
+              {pending
+                ? `Sent to your browser. It ${pending === "start" ? "starts" : "stops"} within a minute while Chrome is open with the extension connected.`
+                : running
+                  ? "Applying in your browser now."
+                  : devices.length
+                    ? "Start applying from here or from the extension."
+                    : "Connect the Career OS extension first, then start applying from here."}
+            </CardDescription>
+            {controlError && <p className="mt-1 text-sm text-destructive">{controlError}</p>}
+          </div>
+          {running || pending === "start" ? (
+            <Button variant="secondary" onClick={() => sendControl("stop")} disabled={controlBusy || pending === "stop"}>
+              {controlBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />} Stop
+            </Button>
+          ) : (
+            <Button onClick={() => sendControl("start")} disabled={controlBusy || !devices.length || !settings?.autoSubmit} title={!settings?.autoSubmit ? "Turn on fully-automated submission in Settings below first" : undefined}>
+              {controlBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Start applying
+            </Button>
+          )}
+        </CardHeader>
+        {settings && !settings.autoSubmit && (
+          <CardContent className="pt-0">
+            <p className="text-sm text-muted-foreground">Turn on fully-automated submission in Settings below to run Auto Apply.</p>
+          </CardContent>
+        )}
+      </Card>
+
+      {waiting.length > 0 && (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4 text-destructive" /> Needs you ({waiting.length})
+            </CardTitle>
+            <CardDescription>
+              These applications are waiting in tabs in your browser. Click the CareerOS notification (or the tab) and finish the
+              step there: CareerOS saves your answers for later forms and submits by itself. The rest of the run keeps going.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {waiting.map((w, i) => (
+              <div key={`${w.url}-${i}`} className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {w.title || "Application"}
+                    {w.company ? ` @ ${w.company}` : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{w.message || reasonLabel[w.reason] || "Needs you"}</p>
+                </div>
+                <Badge variant="outline">{reasonLabel[w.reason] ?? "Needs you"}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {latestRun && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Latest run</CardTitle>
-              <Badge variant={latestRun.status === "running" ? "brand" : "outline"}>{latestRun.status}</Badge>
+              <Badge variant={running ? "brand" : "outline"}>{running ? "running" : latestRun.status === "running" ? "not reporting" : latestRun.status}</Badge>
             </div>
             <CardDescription>Updated {new Date(latestRun.updatedAt).toLocaleString()}</CardDescription>
           </CardHeader>
@@ -176,7 +293,7 @@ export default function AutoApplyPage() {
               <div>
                 <Send className="mx-auto h-4 w-4 text-primary" />
                 <p className="mt-1 font-semibold text-foreground">{latestRun.assisted}</p>
-                <p className="text-xs text-muted-foreground">Assisted</p>
+                <p className="text-xs text-muted-foreground">Filled, not sent</p>
               </div>
               <div>
                 <SkipForward className="mx-auto h-4 w-4 text-muted-foreground" />
@@ -245,7 +362,7 @@ export default function AutoApplyPage() {
                   id="concurrency"
                   type="number"
                   min={1}
-                  max={3}
+                  max={6}
                   value={settings.concurrency}
                   onChange={(e) => setSettings({ ...settings, concurrency: Number(e.target.value) })}
                 />
@@ -270,6 +387,7 @@ export default function AutoApplyPage() {
                 Save settings
               </Button>
               {savedAt && Date.now() - savedAt < 4000 && <p className="text-sm text-success">Saved.</p>}
+              {saveError && <p className="text-sm text-destructive">{saveError}</p>}
             </div>
           </CardContent>
         </Card>

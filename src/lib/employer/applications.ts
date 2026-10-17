@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications/service";
+import { triggerPrepPackGeneration } from "@/lib/interview/prep";
 import type { ApplicationStatus } from "@prisma/client";
 
 export class EmployerApplicationError extends Error {
@@ -60,6 +61,12 @@ export async function updateApplicationStatusForCompany(
     body: STATUS_LABEL[status],
     linkUrl: "/applications",
   });
+
+  // "Prepare" — the moment an application reaches INTERVIEW, kick off prep
+  // pack generation for it (best-effort; never blocks this status update).
+  if (status === "INTERVIEW" && application.status !== "INTERVIEW") {
+    triggerPrepPackGeneration(applicationId);
+  }
 
   return updated;
 }

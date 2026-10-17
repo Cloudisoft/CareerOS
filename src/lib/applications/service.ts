@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { computeAndCacheMatch, getProfileForMatching, getJobForMatching } from "@/lib/matching/service";
-import type { ApplicationSource } from "@prisma/client";
+import type { ApplicationSource, ApplicationStatus } from "@prisma/client";
 
 export class ApplicationServiceError extends Error {
   code: string;
@@ -81,4 +81,26 @@ export async function withdrawApplication(profileId: string, applicationId: stri
     },
   });
   return updated;
+}
+
+/**
+ * Review step of Prepare → Practice → Review: after an interview, the
+ * candidate — not the system — confirms how it actually went. Never a
+ * silent auto-transition; this is always an explicit, one-click action the
+ * user takes themselves.
+ */
+export async function confirmApplicationStage(profileId: string, applicationId: string, status: ApplicationStatus, note?: string) {
+  const application = await prisma.application.findUnique({ where: { id: applicationId } });
+  if (!application || application.profileId !== profileId) {
+    throw new ApplicationServiceError("This application could not be found.", "NOT_FOUND");
+  }
+  if (application.status === status) return application;
+
+  return prisma.application.update({
+    where: { id: applicationId },
+    data: {
+      status,
+      events: { create: { fromStatus: application.status, toStatus: status, note: note ? `Candidate confirmed: ${note}` : "Candidate confirmed this stage." } },
+    },
+  });
 }

@@ -15,31 +15,65 @@
   window.__careerosLoaded = true;
   if (window.top !== window.self && document.body && document.body.innerText.length < 200) return;
 
-  const { Storage, Profile, ATS, Matcher, Filler, Policy, Flows, Harvest } = window.CareerOS;
+  const { Storage, Profile, ATS, Matcher, Filler, Policy, Flows, Harvest, Api, Answers } = window.CareerOS;
+
+  /* Stop typing/clicking for this long and CareerOS continues: it never submits mid-answer. */
+  const IDLE_MS = 4000;
 
   const state = {
     adapter: null,
     posting: null,
     match: null,
-    profile: null,
+    matchAll: null,      // every profile scored against the current posting, best first
+    profile: null,       // the active profile, hydrated
+    profiles: {},         // { id: profile }, all of them
+    activeProfileId: null,
     settings: null,
     resume: null,
     policy: null,
     ready: false,
     busy: false,
+    autoRunning: false, // an automated run (runAutomated) is actively working this tab
+    pressedSubmit: false,
     report: null
+  };
+
+  /* Auto-harvest: what's been sent to the queue during this page-visit, and
+     where the scroll/widen loop is. Lives outside `state` since it resets per
+     page-life, not per posting. */
+  const harvestState = {
+    active: false,
+    sentIds: new Set(),
+    scrollCount: 0,
+    timer: null
   };
 
   init();
 
   async function init() {
     state.settings = await Storage.getSettings();
-    state.profile = Profile.hydrate(await Storage.getProfile());
+
+    const profilesData = await Storage.getProfiles();
+    state.profiles = profilesData.profiles;
+    state.activeProfileId = profilesData.activeId;
+    state.profile = Profile.hydrate(profilesData.profiles[profilesData.activeId]);
+
+    // Remote selector overrides, if anything was ever fetched — see
+    // refreshSelectorOverrides() below and lib/ats.js's applyOverrides().
+    // Applied before the first detect() so this very page-load benefits
+    // from a patch, not just the next one.
+    const cachedOverrides = await Storage.getCachedSelectorOverrides();
+    if (cachedOverrides && cachedOverrides.overrides) ATS.applyOverrides(cachedOverrides.overrides);
+
     state.resume = await Storage.getResume();
     state.adapter = ATS.detect(location);
     state.policy = Policy.for(state.adapter.id, state.settings);
     state.ready = Profile.isReady(state.profile);
     Filler.setHighlight(state.settings.highlightFields);
+
+    refreshSelectorOverrides(cachedOverrides); // fire and forget
+
+    if (Harvest.isSearchPage() && state.settings.autoHarvest !== false) startAutoHarvest();
 
     if (!state.ready) return;
 
@@ -54,16 +88,59 @@
     watchForChanges();
   }
 
+  /* A DOM change on some ATS breaking a selector shouldn't need a store
+   * release to fix — the backend can push a patch (see
+   * src/app/api/extension/selectors and src/app/api/admin/extension/selectors)
+   * that this merges over lib/ats.js's hardcoded ADAPTERS. Refetched at most
+   * once every few hours per browser, and any failure here just means the
+   * extension keeps running on whatever it already had cached, or the
+   * hardcoded defaults if it never fetched anything — this must never be a
+   * point where a fill can break. */
+  const SELECTOR_OVERRIDES_TTL_MS = 6 * 60 * 60 * 1000;
+
+  async function refreshSelectorOverrides(cached) {
+    if (cached && cached.fetchedAt && Date.now() - cached.fetchedAt < SELECTOR_OVERRIDES_TTL_MS) return;
+    try {
+      const res = await Api.getSelectorOverrides();
+      if (!res || !res.overrides) return;
+      await Storage.saveCachedSelectorOverrides(res.overrides);
+      ATS.applyOverrides(res.overrides);
+      // Re-detect in case this exact page's adapter selectors just changed.
+      state.adapter = ATS.detect(location);
+      state.policy = Policy.for(state.adapter.id, state.settings);
+    } catch (err) {
+      // Keep whatever was already applied — never let this block a fill.
+    }
+  }
+
   /* ================= reading the page ================= */
 
   function scan() {
     const posting = ATS.readPosting(state.adapter, document);
-    if (!posting.title || posting.description.length < 200) return;
+    if (!posting.title || posting.description.length < 200) {
+      // An application form on its own page (Lever's /apply, Workday, an embedded Greenhouse form) has no
+      // long description, but it still needs the icon: that's where the filling happens.
+      if (!panel && window.top === window.self && hasFillableForm()) showPanel();
+      return;
+    }
     if (state.posting && state.posting.title === posting.title && state.posting.url === posting.url) return;
 
     state.posting = posting;
-    state.match = Matcher.score(state.profile, posting);
+
+    const ids = Object.keys(state.profiles || {});
+    if (ids.length > 1) {
+      const hydrated = ids.map((id) => Profile.hydrate(state.profiles[id]));
+      state.matchAll = Matcher.scoreAll(hydrated, posting);
+      state.match = state.matchAll.find((m) => m.profileId === state.activeProfileId) || state.matchAll[0];
+    } else {
+      state.matchAll = null;
+      state.match = Matcher.score(state.profile, posting);
+    }
     state.report = null;
+    panelState.selectedProfileId = null;
+    panelState.lastError = null;
+    panelState.justLogged = false;
+    showPanel();
   }
 
   function watchForChanges() {
@@ -71,6 +148,7 @@
     new MutationObserver(() => {
       clearTimeout(timer);
       timer = setTimeout(scan, 800);
+      if (harvestState.active) harvestAndQueue();
     }).observe(document.body, { childList: true, subtree: true });
 
     let lastUrl = location.href;
@@ -79,9 +157,493 @@
         lastUrl = location.href;
         state.posting = null;
         state.report = null;
+        hidePanel();
         setTimeout(scan, 1200);
       }
     }, 1000);
+  }
+
+  /* ================= the docked panel ================= */
+
+  /* The popup is the full picture, but making someone open it just to start
+     a fill is exactly the friction competitors like Simplify don't have —
+     their whole pitch is a persistent panel docked to the job page itself.
+     This is that panel: header, tabs (Autofill / Match Score / Profile), the
+     current posting, a live per-field checklist once state.report exists,
+     and a "Run Autofill Again" button wired to the same doFill() the popup
+     itself calls. Shown whenever there's a posting to act on — during a
+     driven session (scan()) or an automated run (runAutomated()) alike, so
+     there's exactly one on-page UI surface, never two overlapping ones. */
+  let panel = null;
+  // Starts as just the floating icon; the full panel opens on click.
+  const panelState = { collapsed: true, tab: 'autofill', selectedProfileId: null, filling: false, waiting: null };
+
+  function showPanel() {
+    if (!document.body) return;
+    const isNew = !panel;
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'careeros-panel careeros-panel--collapsed';
+      document.body.appendChild(panel);
+    }
+    renderPanel();
+    if (isNew && panelState.collapsed) maybeIntroduceLauncher();
+  }
+
+  function hidePanel() {
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+    panel = null;
+  }
+
+  function currentMatch() {
+    if (panelState.selectedProfileId && state.matchAll) {
+      return state.matchAll.find((m) => m.profileId === panelState.selectedProfileId) || state.match;
+    }
+    return state.match;
+  }
+
+  function openPanel() {
+    panelState.collapsed = false;
+    renderPanel();
+    if (!state.settings.panelTutorialSeenAt) setTimeout(startPanelTour, 380);
+  }
+
+  function renderPanel() {
+    if (!panel) return;
+
+    if (panelState.collapsed) {
+      const match = currentMatch();
+      const score = match && !match.blocked ? match.score : null;
+      const busy = !panelState.waiting && (panelState.filling || state.busy || state.autoRunning);
+      const top = Number(state.settings.launcherTop);
+      panel.className = `careeros-panel careeros-panel--collapsed${busy ? ' is-busy' : ''}`;
+      panel.style.top = Number.isFinite(top) && top > 0 ? `${Math.min(top, 92)}%` : '';
+      const label = panelState.waiting ? 'Needs your answer · Click for details'
+        : busy ? 'Filling this application…'
+        : score == null ? 'Open CareerOS' : `${score}% match · Click to autofill`;
+      panel.innerHTML = `
+        <div class="careeros-launcher">
+          <span class="careeros-launcher__label">${esc(label)}</span>
+          <button type="button" class="careeros-launcher__btn" aria-label="${esc(label)}">
+            <span class="careeros-launcher__ring"></span>
+            <img class="careeros-launcher__icon" src="${iconUrl()}" alt="">
+            ${score == null ? '' : `<span class="careeros-launcher__score" data-tone="${scoreTone(score)}">${score}</span>`}
+          </button>
+        </div>
+      `;
+      wireLauncherDrag(panel.querySelector('.careeros-launcher__btn'));
+      return;
+    }
+
+    panel.className = 'careeros-panel is-open';
+    panel.style.top = '';
+    panel.innerHTML = `
+      <div class="careeros-panel__header">
+        <img class="careeros-panel__logo" src="${iconUrl()}" alt="">
+        <span class="careeros-panel__brand">CareerOS</span>
+        <button type="button" class="careeros-panel__icon-btn" data-action="help" aria-label="Show me how it works" title="Show me how it works">${ICON_HELP}</button>
+        <button type="button" class="careeros-panel__icon-btn" data-action="settings" aria-label="Settings" title="Settings">${ICON_GEAR}</button>
+        <button type="button" class="careeros-panel__icon-btn" data-action="collapse" aria-label="Minimize to icon" title="Minimize to icon">${ICON_CHEVRON}</button>
+      </div>
+      <div class="careeros-panel__tabs">
+        <button type="button" class="careeros-panel__tabbtn${panelState.tab === 'autofill' ? ' is-active' : ''}" data-tab="autofill">Autofill</button>
+        <button type="button" class="careeros-panel__tabbtn${panelState.tab === 'match' ? ' is-active' : ''}" data-tab="match">Match Score</button>
+        <button type="button" class="careeros-panel__tabbtn${panelState.tab === 'profile' ? ' is-active' : ''}" data-tab="profile">Profile</button>
+      </div>
+      <div class="careeros-panel__body">${renderPanelBody()}</div>
+      <div class="careeros-panel__footer">${renderPanelFooter()}</div>
+    `;
+
+    panel.querySelector('[data-action="help"]').onclick = () => startPanelTour();
+    panel.querySelector('[data-action="settings"]').onclick = () => {
+      send({ type: 'careeros:openOptions', tab: 'you' });
+    };
+    panel.querySelector('[data-action="collapse"]').onclick = () => {
+      if (coach() && coach().isActive()) coach().stop(false);
+      panelState.collapsed = true;
+      renderPanel();
+    };
+    panel.querySelectorAll('.careeros-panel__tabbtn').forEach((btn) => {
+      btn.onclick = () => {
+        panelState.tab = btn.dataset.tab;
+        renderPanel();
+      };
+    });
+
+    const profileOptions = panel.querySelectorAll('.careeros-panel__profile-option');
+    profileOptions.forEach((opt) => {
+      opt.onclick = () => {
+        panelState.selectedProfileId = opt.dataset.profileId;
+        renderPanel();
+      };
+    });
+    const editProfile = panel.querySelector('[data-action="edit-profile"]');
+    if (editProfile) editProfile.onclick = () => send({ type: 'careeros:openOptions', tab: 'you' });
+
+    const cta = panel.querySelector('.careeros-panel__cta');
+    if (cta && !cta.disabled) {
+      cta.onclick = async () => {
+        if (coach() && coach().isActive()) coach().stop(false);
+        panelState.filling = true;
+        renderPanel();
+        const res = await doFill(panelState.selectedProfileId);
+        panelState.filling = false;
+        panelState.lastError = res.ok ? null : res.error;
+        // Storage.logApplication (inside doFill) only writes once per URL, so
+        // the "saved" note only shows the first time, not on every refill.
+        panelState.justLogged = res.ok && !res.priorApplication;
+        renderPanel();
+      };
+    }
+  }
+
+  /* The icon can be dragged up or down the right edge; a press that barely
+     moves is a click and opens the panel. Position is remembered. */
+  function wireLauncherDrag(btn) {
+    if (!btn) return;
+    btn.onpointerdown = (e) => {
+      if (e.button !== 0) return;
+      const startY = e.clientY;
+      const startTop = panel.getBoundingClientRect().top + panel.offsetHeight / 2;
+      let moved = false;
+      btn.setPointerCapture(e.pointerId);
+      btn.onpointermove = (ev) => {
+        const dy = ev.clientY - startY;
+        if (!moved && Math.abs(dy) < 5) return;
+        moved = true;
+        panel.classList.add('is-dragging');
+        const y = Math.min(Math.max(startTop + dy, 40), window.innerHeight - 40);
+        panel.style.top = `${(y / window.innerHeight) * 100}%`;
+      };
+      btn.onpointerup = () => {
+        btn.onpointermove = null;
+        btn.onpointerup = null;
+        panel.classList.remove('is-dragging');
+        if (moved) {
+          const pct = parseFloat(panel.style.top);
+          if (Number.isFinite(pct)) {
+            state.settings.launcherTop = Math.round(pct);
+            Storage.saveSettings({ launcherTop: state.settings.launcherTop });
+          }
+        } else {
+          openPanel();
+        }
+      };
+    };
+  }
+
+  function renderPanelFooter() {
+    const match = currentMatch();
+    const blocked = Boolean(match && match.blocked);
+    if (panelState.filling) return `<button type="button" class="careeros-panel__cta" disabled>Filling…</button>`;
+    const label = state.report ? 'Run Autofill Again' : (match && match.score < state.settings.minMatchScore ? 'Fill anyway' : 'Fill this application');
+    return `<button type="button" class="careeros-panel__cta" ${blocked ? 'disabled' : ''}>${esc(label)}</button>`;
+  }
+
+  function renderPanelBody() {
+    if (panelState.tab === 'match') return renderMatchTab();
+    if (panelState.tab === 'profile') return renderProfileTab();
+    return renderAutofillTab();
+  }
+
+  function renderPostingCard() {
+    if (!state.posting) {
+      return hasFillableForm()
+        ? `<div class="careeros-panel__posting"><strong>${esc(document.title || 'Application form')}</strong><span>Application form on this page</span></div>`
+        : `<div class="careeros-panel__posting careeros-panel__posting--empty">Looking for a job posting on this page…</div>`;
+    }
+    return `
+      <div class="careeros-panel__posting">
+        <strong>${esc(state.posting.title || 'Untitled role')}</strong>
+        ${state.posting.company ? `<span>${esc(state.posting.company)}</span>` : ''}
+      </div>
+    `;
+  }
+
+  function renderAutofillTab() {
+    const parts = [renderPostingCard()];
+
+    if (panelState.waiting) {
+      parts.push(`<div class="careeros-panel__status" data-tone="warn">${esc(panelState.waiting)}</div>`);
+      if (state.report) parts.push(renderChecklist(state.report));
+    } else if (panelState.filling || state.busy || state.autoRunning) {
+      parts.push(`
+        <div class="careeros-panel__status">
+          <span class="careeros-panel__status-dot"></span>
+          <span>Filling…</span>
+        </div>
+      `);
+    } else if (state.report) {
+      const needsYou = state.report.skipped.filter((s) => s.required);
+      parts.push(`
+        <div class="careeros-panel__status" data-tone="${needsYou.length ? 'warn' : 'ok'}">
+          ${needsYou.length ? `${needsYou.length} field${needsYou.length > 1 ? 's need' : ' needs'} you` : 'Autofill complete!'}
+        </div>
+      `);
+      parts.push(renderChecklist(state.report));
+      if (panelState.justLogged) parts.push(`<div class="careeros-panel__toast">Saved to your tracker.</div>`);
+    } else if (panelState.lastError) {
+      parts.push(`<div class="careeros-panel__status" data-tone="warn">${esc(panelState.lastError)}</div>`);
+    } else {
+      parts.push(`<div class="careeros-panel__status">Not filled yet — press the button below.</div>`);
+    }
+
+    return parts.join('');
+  }
+
+  function renderChecklist(report) {
+    const rows = [];
+    report.filled.forEach((f) => rows.push(checklistRow(f.label, 'filled')));
+    report.generated.forEach((f) => rows.push(checklistRow(f.label, 'generated')));
+    report.skipped.filter((s) => s.required).forEach((s) => rows.push(checklistRow(s.label, 'attention', s.reason)));
+    if (!rows.length) return '';
+    return `<ul class="careeros-panel__checklist">${rows.join('')}</ul>`;
+  }
+
+  function checklistRow(label, kind, reason) {
+    const icon = kind === 'attention' ? ICON_ATTENTION : ICON_CHECK;
+    const badge = kind === 'generated' ? `<span class="careeros-panel__badge" title="Written by JobGPT">${ICON_SPARKLE} AI</span>` : '';
+    return `
+      <li class="careeros-panel__item" data-kind="${kind}">
+        <span class="careeros-panel__item-icon">${icon}</span>
+        <span class="careeros-panel__item-label">${esc(String(label || '').replace(/\s*\*+\s*$/, ''))}${reason ? `<small>${esc(reason)}</small>` : ''}</span>
+        ${badge}
+      </li>
+    `;
+  }
+
+  function renderMatchTab() {
+    const match = currentMatch();
+    if (!match) return `<div class="careeros-panel__status">Scoring this posting…</div>`;
+    const blocked = Boolean(match.blocked);
+    const score = blocked ? null : match.score;
+    const verdict = blocked ? { label: 'On your skip list' } : Matcher.verdict(score, state.settings.minMatchScore);
+    const reasons = (blocked ? match.blockers : match.reasons) || [];
+
+    return `
+      <div class="careeros-panel__score-row">
+        <div class="careeros-panel__score-circle" data-tone="${scoreTone(score)}">${score == null ? '—' : score}</div>
+        <div class="careeros-panel__verdict">
+          <strong>${esc(verdict.label)}</strong>
+          <span>${esc((state.adapter && state.adapter.label) || '')}</span>
+        </div>
+      </div>
+      ${reasons.length ? `<ul class="careeros-panel__reasons">${reasons.slice(0, 4).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+    `;
+  }
+
+  function renderProfileTab() {
+    const ids = Object.keys(state.profiles || {});
+    const parts = [];
+
+    if (state.matchAll && state.matchAll.length > 1) {
+      const selected = panelState.selectedProfileId || (state.matchAll[0] && state.matchAll[0].profileId) || state.activeProfileId;
+      parts.push(`<div class="careeros-panel__profile-list">${state.matchAll.map((m) => `
+        <button type="button" class="careeros-panel__profile-option${m.profileId === selected ? ' is-active' : ''}" data-profile-id="${esc(m.profileId)}">
+          <span>${esc(m.profileName)}</span>
+          <span class="careeros-panel__profile-score">${m.score}</span>
+        </button>
+      `).join('')}</div>`);
+    } else {
+      const name = ids.length && state.profiles[ids[0]] ? state.profiles[ids[0]].name : 'your profile';
+      parts.push(`<div class="careeros-panel__status">Filling from ${esc(name)}.</div>`);
+    }
+
+    parts.push(`<button type="button" class="careeros-panel__link" data-action="edit-profile">Edit your profile in CareerOS settings →</button>`);
+    return parts.join('');
+  }
+
+  function iconUrl() {
+    try { return chrome.runtime.getURL('icons/icon32.png'); } catch (err) { return ''; }
+  }
+
+  function scoreTone(score) {
+    if (score == null) return 'unknown';
+    if (score >= 85) return 'strong';
+    if (score >= state.settings.minMatchScore) return 'good';
+    return 'weak';
+  }
+
+  const ICON_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  const ICON_ATTENTION = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+  const ICON_SPARKLE = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z"></path></svg>';
+  const ICON_GEAR = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>';
+  const ICON_HELP = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.3-2.4 3.8"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+  const ICON_CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = String(s == null ? '' : s);
+    return d.innerHTML;
+  }
+
+  /* ================= walkthroughs ================= */
+
+  /* Spotlight walkthroughs (lib/coach.js). Two, each shown once per install
+     and replayable from the ? button: one pointing at the floating icon the
+     first time it appears, one through the panel the first time it opens. */
+  function coach() { return window.CareerOS && window.CareerOS.Coach; }
+
+  function maybeIntroduceLauncher() {
+    // Never during an automatic run: the tutorial would sit over a form the person may need to answer.
+    if (state.settings.launcherTipSeenAt || state.autoRunning || !coach() || coach().isActive()) return;
+    setTimeout(() => {
+      const btn = panel && panel.querySelector('.careeros-launcher__btn');
+      if (!btn || state.autoRunning) return;
+      coach().start({
+        steps: [{
+          target: btn,
+          title: 'CareerOS is ready on this job',
+          text: 'Click this icon to fill the whole application from your profile, resume attached. Drag it up or down to move it out of the way.',
+          placement: 'left',
+          padding: 4,
+          round: true,
+        }],
+        onFinish: () => saveFlag('launcherTipSeenAt'),
+      });
+    }, 900);
+  }
+
+  function startPanelTour() {
+    if (!coach() || !panel || panelState.collapsed) return;
+    panelState.tab = 'autofill';
+    renderPanel();
+    const q = (sel) => () => panel && panel.querySelector(sel);
+    coach().start({
+      steps: [
+        { target: q('.careeros-panel__posting'), title: 'The job on this page', text: 'CareerOS reads the posting so it can score it and answer questions about it.', placement: 'left' },
+        { target: q('.careeros-panel__tabs'), title: 'Match score and profiles', text: 'See how well this job fits you, and pick which of your profiles to apply with.', placement: 'left' },
+        { target: q('.careeros-panel__cta'), title: 'One click fills everything', text: 'Every page of the form gets filled and your resume attached. You review it and press Submit.', placement: 'left' },
+        { target: q('.careeros-panel__body'), title: 'Watch it happen', text: 'Each field appears here as it is filled. Anything only you can answer is flagged in orange.', placement: 'left' },
+        { target: q('[data-action="collapse"]'), title: 'Tuck it away', text: 'Shrink the panel back to the icon anytime. Your settings are behind the gear.', placement: 'left' },
+      ],
+      onFinish: () => saveFlag('panelTutorialSeenAt'),
+    });
+  }
+
+  function saveFlag(key) {
+    state.settings[key] = Date.now();
+    Storage.saveSettings({ [key]: state.settings[key] });
+  }
+
+  /* ================= auto-harvest ================= */
+
+  /* Reads whatever cards are on screen right now, sends only the ones this
+     page-visit hasn't already sent, and folds their count into the running
+     total the popup badge reads from `snapshot()`. */
+  async function harvestAndQueue() {
+    const collected = Harvest.collect();
+    if (!collected.ats) return 0;
+    const fresh = collected.jobs.filter((j) => !harvestState.sentIds.has(j.id));
+    if (!fresh.length) return 0;
+    fresh.forEach((j) => harvestState.sentIds.add(j.id));
+    await send({ type: 'careeros:engine', command: 'add', jobs: fresh });
+    return fresh.length;
+  }
+
+  /* LinkedIn (and some other boards) render the results list inside its own
+     scrollable pane, not the document body — the outer page never grows no
+     matter how far it's scrolled. Driving window.scrollTo alone meant the
+     "did more load" check below almost always came back false on the very
+     first tick, so auto-harvest quietly gave up after whatever the first
+     paint already had (LinkedIn: ~25 cards) even with hundreds more one
+     scroll away. Walk up from an actual card to find its real scrollable
+     ancestor and drive that instead. */
+  function findScrollContainer() {
+    const key = Harvest.reader();
+    if (!key) return null;
+    const cards = Harvest.READERS[key].cards();
+    let el = cards[0] || null;
+    while (el && el !== document.body) {
+      const style = getComputedStyle(el);
+      if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 40) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  /* Scrolls to the bottom of the real results pane (falling back to the
+     window for single-column layouts), or presses a "see more" / pagination
+     control if one is there, and reports whether more actually loaded —
+     judged by card count, not page height, since a virtualized list's
+     scrollHeight can lag behind what just rendered. */
+  function scrollForMore() {
+    return new Promise((resolve) => {
+      const key = Harvest.reader();
+      const before = key ? Harvest.READERS[key].cards().length : 0;
+
+      const more = Flows.byText(['see more jobs', 'show more jobs', 'load more', 'load more jobs', 'next']);
+      if (more) Flows.press(more);
+
+      const container = findScrollContainer();
+      if (container) container.scrollTop = container.scrollHeight;
+      window.scrollTo(0, document.body.scrollHeight);
+
+      setTimeout(() => {
+        const after = key ? Harvest.READERS[key].cards().length : 0;
+        resolve(Boolean(more) || after > before);
+      }, 1500);
+    });
+  }
+
+  /* Periodically harvests and gently auto-scrolls a search page without
+     needing a click, capped so it can't run forever unattended. The manual
+     "Queue these N" button in the popup still works as a top-up on demand;
+     this is what keeps the queue filling while the person is just browsing. */
+  async function startAutoHarvest() {
+    if (harvestState.active) return;
+    harvestState.active = true;
+
+    const maxScrolls = state.settings.harvestMaxScrolls || 12;
+    const maxJobs = state.settings.harvestMaxJobsPerVisit || 150;
+
+    const tick = async () => {
+      if (!harvestState.active) return;
+      await harvestAndQueue();
+
+      if (harvestState.sentIds.size >= maxJobs || harvestState.scrollCount >= maxScrolls) {
+        stopAutoHarvest();
+        return;
+      }
+
+      const grew = await scrollForMore();
+      if (!grew) { stopAutoHarvest(); return; }
+      harvestState.scrollCount += 1;
+      harvestState.timer = setTimeout(tick, 3500);
+    };
+
+    tick();
+  }
+
+  function stopAutoHarvest() {
+    harvestState.active = false;
+    clearTimeout(harvestState.timer);
+    maybeWidenLinkedInSearch();
+  }
+
+  /* If a LinkedIn search settled with almost nothing harvested, the radius is
+     probably too tight. Widen it and reload, twice at most, so a thin market
+     doesn't just quietly come back empty. */
+  function maybeWidenLinkedInSearch() {
+    if (state.adapter.id !== 'linkedin') return;
+    if (harvestState.sentIds.size >= 5) return;
+
+    let url;
+    try { url = new URL(location.href); } catch (err) { return; }
+    const steps = [25, 50, 100];
+    const current = Number(url.searchParams.get('distance') || 0);
+    const next = steps.find((s) => s > current);
+    if (!next) return;
+
+    let attempts = 0;
+    try { attempts = Number(sessionStorage.getItem('careeros:widenAttempts') || '0'); } catch (err) { /* private mode */ }
+    if (attempts >= 2) return;
+
+    try { sessionStorage.setItem('careeros:widenAttempts', String(attempts + 1)); } catch (err) { /* ignore */ }
+    url.searchParams.set('distance', String(next));
+    location.replace(url.toString());
   }
 
   /* What the popup renders itself from. */
@@ -101,8 +663,16 @@
       submitNote: permission.reason,
       posting: state.posting,
       match: state.match,
+      matchAll: state.matchAll,
       report: state.report && summarize(state.report),
-      harvest: harvest ? { ats: harvest.ats, count: harvest.jobs.length, easy: harvest.jobs.filter((j) => j.easyApply).length } : null,
+      // Auto-harvest runs continuously in the background of this tab, so the
+      // count is the running total collected this page-visit, not just what
+      // happens to be rendered on screen the instant the popup asks.
+      harvest: harvest ? {
+        ats: harvest.ats,
+        count: harvestState.sentIds.size || harvest.jobs.length,
+        easy: harvest.jobs.filter((j) => j.easyApply).length
+      } : null,
       busy: state.busy
     };
   }
@@ -120,20 +690,58 @@
 
   /* ================= driven by the popup ================= */
 
-  async function doFill() {
+  async function doFill(profileId) {
     if (state.busy) return { ok: false, error: 'Already filling' };
 
     const cap = await Storage.appliedToday();
     if (cap >= state.settings.dailyLimit) {
-      return { ok: false, error: `Daily cap of ${state.settings.dailyLimit} reached` };
+      return { ok: false, error: `Daily limit of ${state.settings.dailyLimit} applications reached. It resets at midnight.` };
     }
 
+    // A profileId lets the popup fill from whichever profile fits this
+    // posting best without changing which profile is globally active.
+    const override = profileId && state.profiles[profileId] ? Profile.hydrate(state.profiles[profileId]) : null;
+    const fillProfile = override || state.profile;
+    const match = override && state.matchAll
+      ? (state.matchAll.find((m) => m.profileId === profileId) || state.match)
+      : state.match;
+
     state.busy = true;
+    if (panel) renderPanel(); // also reflects a fill triggered from the popup, not just the panel's own button
     try {
-      const prior = await Storage.alreadyApplied(location.href);
-      const form = ATS.findForm(state.adapter, document) || document.body;
-      const report = await Filler.fillForm(form, state.profile, buildContext(null));
+      const prior = await Storage.findApplication(location.href);
+
+      // On LinkedIn/Indeed/ZipRecruiter/Dice/Glassdoor the real form only
+      // exists inside a modal/flow that has to be opened first (clicking
+      // "Easy Apply" and waiting for it) — the automated queue-driven run
+      // already does this via runFlow()/flow.open(), but this manual "Fill
+      // this application" path used to skip straight to findForm(). On a
+      // plain posting page, with the modal not open yet, that found
+      // nothing, fell back to document.body, and reported a false
+      // "Autofill complete" having filled zero real fields.
+      let scope = document;
+      const flowId = Policy.flow(state.adapter.id);
+      if (flowId && !ATS.findForm(state.adapter, document)) {
+        const flow = Flows.get(flowId);
+        if (flow) {
+          const opened = await flow.open();
+          if (opened.error === 'external_apply') {
+            return { ok: false, error: "This job applies on the employer's own site. Open its Apply button, then press Fill on that page." };
+          }
+          if (opened.error) {
+            return { ok: false, error: `Could not open the application form (${opened.error}).` };
+          }
+          scope = opened.root || document;
+        }
+      }
+
+      const form = ATS.findForm(state.adapter, scope) || (scope === document ? document.body : scope);
+      const report = await Filler.fillForm(form, fillProfile, buildContext(null, null, override, { skipOptionalUploads: scope !== document }));
       state.report = report;
+      // Whatever the person answers themselves is learned when they submit, for the next form.
+      learnOnSubmit(form);
+      // LinkedIn / Indeed: fill each further step as the person presses Next. CareerOS never presses submit here.
+      if (flowId && scope !== document) followSteps(Flows.get(flowId), scope, fillProfile, override);
 
       if (!prior) {
         await Storage.logApplication({
@@ -141,7 +749,7 @@
           title: (state.posting && state.posting.title) || document.title,
           company: state.posting && state.posting.company,
           ats: state.adapter.id,
-          score: state.match ? state.match.score : null,
+          score: match ? match.score : null,
           filled: report.filled.length + report.generated.length,
           status: 'filled'
         });
@@ -152,7 +760,34 @@
       return { ok: false, error: err.message };
     } finally {
       state.busy = false;
+      if (panel) renderPanel();
     }
+  }
+
+  /* Fill each new step of a LinkedIn / Indeed form as the person moves through it, until it closes or is sent. */
+  function followSteps(flow, root, fillProfile, override) {
+    if (!flow || !root) return;
+    let sig = formSignature(root);
+    let busy = false;
+    let timer = null;
+    const obs = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (busy) return;
+        if (!document.contains(root) || (flow.isDone && flow.isDone())) { obs.disconnect(); return; }
+        const next = formSignature(root);
+        if (next === sig) return;
+        sig = next;
+        busy = true;
+        try {
+          state.report = await Filler.fillForm(root, fillProfile, buildContext(null, null, override, { skipOptionalUploads: true }));
+          learnOnSubmit(root);
+          if (panel) renderPanel();
+        } finally { busy = false; }
+      }, 700);
+    });
+    obs.observe(root, { childList: true, subtree: true });
+    setTimeout(() => obs.disconnect(), 20 * 60 * 1000);
   }
 
   async function doSubmit() {
@@ -168,7 +803,7 @@
     const confirmed = await Flows.waitFor(() => isConfirmation(), 8000);
 
     if (confirmed) {
-      const applied = await Storage.alreadyApplied(location.href);
+      const applied = await Storage.findApplication(location.href);
       if (applied) await Storage.updateApplication(applied.id, { status: 'submitted', submittedAt: Date.now() });
     }
     return { ok: true, confirmed: Boolean(confirmed) };
@@ -177,11 +812,24 @@
   /* ================= automated run ================= */
 
   async function runAutomated(directive) {
+    showAutofillBanner();
     try {
+      // The page we land on after a submit (or after the person submitted it themselves while we waited).
+      if (directive.directive.submitPressed) {
+        await sleep(1500);
+        if (isConfirmation()) return report({ outcome: 'submitted', detail: 'confirmation page' });
+        state.pressedSubmit = true;
+      }
+
       const flowId = Policy.flow(state.adapter.id);
-      if (flowId) return report(await runFlow(Flows.get(flowId), directive));
+      if (flowId) {
+        const result = await runFlow(Flows.get(flowId), directive);
+        if (result !== HANDED_OFF) report(result);
+        return;
+      }
 
       const gate = await waitForForm();
+      if (gate.closed) return report({ outcome: 'skipped', detail: 'This job is no longer accepting applications' });
       if (gate.blocked) return report({ outcome: 'failed', detail: gate.blocked });
 
       state.posting = ATS.readPosting(state.adapter, document);
@@ -191,7 +839,39 @@
       return report(await stepThrough(directive.directive));
     } catch (err) {
       return report({ outcome: 'failed', detail: err.message });
+    } finally {
+      hideAutofillBanner();
     }
+  }
+
+  /* A dismissible on-page signal that this tab is being worked automatically
+     — the one thing a hidden background tab can't show, but costs nothing to
+     add for the times a run tab (or a showApplyTabs window) is actually on
+     screen. Rather than a second, separate floating pill, this drives the
+     same docked panel scan()/doFill() use — one on-page UI surface, not two
+     overlapping ones — showing a "Filling…" status line until the run's
+     Filler.fillForm calls land in state.report. Collapsing (or the panel
+     never having been shown yet) only hides the status; the fill itself
+     keeps going regardless. */
+  function showAutofillBanner() {
+    state.autoRunning = true;
+    showPanel();
+  }
+  function hideAutofillBanner() {
+    state.autoRunning = false;
+    if (state.posting) renderPanel();
+    else hidePanel();
+  }
+
+  /* The generic-ATS and aggregator-flow paths below fill the same form as
+     doFill(), just without going through it — this keeps state.report (and
+     so the panel's live checklist) current across every step of an
+     automated run too, not only a person-driven fill from the popup. */
+  async function fillTracked(scope, profile, context) {
+    const rep = await Filler.fillForm(scope, profile, context);
+    state.report = rep;
+    if (panel) renderPanel();
+    return rep;
   }
 
   /* Aggregator flows: open the apply surface, then work it step by step. */
@@ -209,42 +889,66 @@
       state.match = match;
     }
 
+    await clearBlockers();
+    // Indeed Apply (and some employers' links) continue in a new tab: let the run follow it there.
+    await send({ type: 'careeros:expectTab' });
     const opened = await flow.open();
     if (opened.error === 'external_apply') {
-      return { outcome: 'skipped', detail: 'applies on the employer site — queue that instead' };
+      // "Apply on company website": follow it to the employer's own form and apply there. The run moves to
+      // the page that opens (same tab or a new one) and fills it like any other application.
+      await send({ type: 'careeros:handoff' });
+      if (opened.href && !/^javascript:/i.test(opened.href)) location.href = new URL(opened.href, location.href).href;
+      else if (opened.button) await Flows.press(opened.button);
+      return HANDED_OFF;
     }
     if (opened.error) return { outcome: 'failed', detail: opened.error };
 
     const scope = opened.root || document;
-    const context = buildContext(directive.directive.pregenerated, directive.directive);
+    const directiveProfile = directive.directive.profileOverride ? Profile.hydrate(directive.directive.profileOverride) : null;
+    // LinkedIn / Indeed keep the resume used last time; don't upload a new copy into an optional field.
+    const context = buildContext(directive.directive.pregenerated, directive.directive, directiveProfile, { skipOptionalUploads: true });
     let filledTotal = 0;
 
     for (let step = 0; step < directive.directive.maxSteps; step++) {
-      const blocked = detectBlocker();
-      if (blocked) { await flow.close(); return { outcome: 'failed', detail: blocked }; }
+      await clearBlockers();
       if (flow.isDone()) return { outcome: 'submitted', detail: `${filledTotal} fields over ${step} step${step === 1 ? '' : 's'}` };
 
       const before = { sig: formSignature(scope), progress: flow.progress(scope) };
-      const filled = await Filler.fillForm(scope, context.profileOverride || state.profile, context);
+      const filled = await fillTracked(scope, context.profileOverride || state.profile, context);
       filledTotal += filled.filled.length + filled.generated.length;
+      reportProgress(step + 1, directive.directive.maxSteps, filledTotal);
 
-      const unanswered = filled.skipped.filter((f) => f.required);
-      if (unanswered.length) {
-        await flow.close();
-        return { outcome: 'skipped', detail: `needs you: ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` };
-      }
-
-      if (!directive.directive.autoSubmit) {
-        return { outcome: 'assisted', detail: `${filledTotal} fields filled, ${directive.directive.policyNote}` };
+      // Questions only the person can answer: wait for them in this tab, learn the answers, carry on.
+      if (Filler.missingRequired(scope).length) {
+        const waited = await waitForPersonAnswers(scope);
+        if (waited.submittedByPerson) return { outcome: 'submitted', detail: 'you submitted it' };
       }
 
       const c = flow.controls(scope);
-      const button = c.submit || c.review || c.next;
+
+      // Easy Apply and the other board flows are several panes long. Without
+      // auto-submit, every pane is still filled (Next / Review are pressed)
+      // and it stops on the pane whose button would send the application,
+      // leaving the modal open for the person. It used to stop on pane one.
+      if (!directive.directive.autoSubmit && (c.submit || (!c.review && !c.next))) {
+        return { outcome: 'assisted', detail: `${filledTotal} fields filled over ${step + 1} step${step ? 's' : ''}, ready for you to submit` };
+      }
+
+      const button = directive.directive.autoSubmit ? (c.submit || c.review || c.next) : (c.review || c.next);
       if (!button) {
         await flow.close();
         return filledTotal
           ? { outcome: 'assisted', detail: 'filled but found nothing to press' }
           : { outcome: 'failed', detail: 'no control on this step' };
+      }
+      if (button === c.submit) {
+        const hold = await holdBeforeSubmit(c.submit);
+        if (hold === 'cancelled') return { outcome: 'assisted', detail: 'you cancelled the automatic submit' };
+        if (hold === 'person') {
+          const done = await Flows.waitFor(() => flow.isDone() || null, 14000);
+          return done ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
+        await announceSubmit();
       }
 
       if (!await Flows.press(button)) {
@@ -264,13 +968,69 @@
       }
       if (!moved) {
         const errors = readFormErrors();
+        if (errors) {
+          const retry = await retryFlowValidationOnce(flow, scope, context, before);
+          filledTotal += retry.filledDelta;
+          if (retry.outcome) { await flow.close(); return retry.outcome; }
+          reportProgress(step + 1, directive.directive.maxSteps, filledTotal);
+          continue; // the retry's press actually moved the form on
+        }
         await flow.close();
-        return { outcome: errors ? 'skipped' : 'failed', detail: errors || 'the form did not move' };
+        return { outcome: 'failed', detail: 'the form did not move' };
       }
     }
 
     await flow.close();
     return { outcome: 'failed', detail: 'ran out of steps before a confirmation' };
+  }
+
+  /* One retry after a submit/next press left validation errors on screen —
+   * the classifier may have answered a field wrong (a phone format the form
+   * rejected) or skipped a required one it didn't recognise. Re-fills the
+   * same scope (a fixed field may now read differently, e.g. a highlighted
+   * error) and presses once more. Capped at exactly this one attempt: a
+   * regular retry loop on the same failing submission is exactly the
+   * metronome pattern lib/policy.js's jitter exists to avoid. Returns
+   * {filledDelta, outcome:null} when the retry's press actually moved the
+   * form on (caller's step loop should just continue), or {filledDelta,
+   * outcome:{...}} with a terminal result otherwise. */
+  async function retryFlowValidationOnce(flow, scope, context, before) {
+    const retryReport = await fillTracked(scope, context.profileOverride || state.profile, context);
+    const filledDelta = retryReport.filled.length + retryReport.generated.length;
+    const changed = describeChangedFields(retryReport);
+
+    const unanswered = retryReport.skipped.filter((f) => f.required);
+    if (unanswered.length) {
+      return { filledDelta, outcome: { outcome: 'skipped', detail: `still needs you after retrying (changed: ${changed}): ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` } };
+    }
+
+    const c = flow.controls(scope);
+    const button = c.submit || c.review || c.next;
+    if (!button || !await Flows.press(button)) {
+      return { filledDelta, outcome: { outcome: 'failed', detail: `retried (changed: ${changed}) but found nothing to press` } };
+    }
+
+    const movedAgain = await Flows.waitFor(() => {
+      if (flow.isDone()) return 'done';
+      if (flow.progress(scope) !== before.progress) return 'progress';
+      if (formSignature(scope) !== before.sig) return 'changed';
+      return null;
+    }, 14000);
+
+    if (flow.isDone()) {
+      return { filledDelta, outcome: { outcome: 'submitted', detail: `submitted after one retry (changed: ${changed})` } };
+    }
+    if (!movedAgain) {
+      const stillErrors = readFormErrors();
+      return {
+        filledDelta,
+        outcome: {
+          outcome: stillErrors ? 'skipped' : 'failed',
+          detail: `retried once (changed: ${changed}) — ${stillErrors || 'the form still did not move'}`
+        }
+      };
+    }
+    return { filledDelta, outcome: null };
   }
 
   /* Some flows show the posting first and the form only after a button. */
@@ -279,8 +1039,8 @@
     let pressedApply = false;
 
     while (Date.now() < deadline) {
-      const blocked = detectBlocker();
-      if (blocked) return { blocked };
+      await clearBlockers();
+      if (isClosed()) return { closed: true };
 
       const form = ATS.findForm(state.adapter, document);
       if (form && hasAnswerableFields(form)) return { form };
@@ -296,39 +1056,62 @@
       }
       await sleep(500);
     }
-    return { blocked: 'no_form' };
+    return { blocked: 'no application form found on this page' };
   }
 
   /* Generic multi-step ATS form. */
   async function stepThrough(directive) {
-    const context = buildContext(directive.pregenerated, directive);
+    const directiveProfile = directive.profileOverride ? Profile.hydrate(directive.profileOverride) : null;
+    const context = buildContext(directive.pregenerated, directive, directiveProfile);
     let filledTotal = 0;
 
     for (let step = 0; step < directive.maxSteps; step++) {
-      const blocked = detectBlocker();
-      if (blocked) return { outcome: 'failed', detail: blocked };
-      if (isConfirmation()) {
+      await clearBlockers();
+      // A confirmation only counts after a submit was pressed: descriptions often say "thank you for applying".
+      if (state.pressedSubmit && isConfirmation()) {
         return { outcome: 'submitted', detail: `confirmed after ${step} step${step === 1 ? '' : 's'}` };
       }
 
       const form = ATS.findForm(state.adapter, document) || document.body;
       const before = formSignature(form);
 
-      const filled = await Filler.fillForm(form, context.profileOverride || state.profile, context);
+      const filled = await fillTracked(form, context.profileOverride || state.profile, context);
       filledTotal += filled.filled.length + filled.generated.length;
+      reportProgress(step + 1, directive.maxSteps, filledTotal);
 
-      const unanswered = filled.skipped.filter((s) => s.required);
-      if (unanswered.length) {
-        return { outcome: 'skipped', detail: `needs you: ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` };
-      }
-
-      if (!directive.autoSubmit) {
-        return { outcome: 'assisted', detail: `${filledTotal} fields filled, ${directive.policyNote}` };
+      // Questions only the person can answer: wait for them in this tab, learn the answers, carry on.
+      if (Filler.missingRequired(form).length) {
+        const waited = await waitForPersonAnswers(form);
+        if (waited.submittedByPerson) {
+          const ok = await Flows.waitFor(() => isConfirmation(), 15000);
+          return ok ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
       }
 
       const button = ATS.findSubmit(state.adapter, form)
         || ATS.findSubmit(state.adapter, document)
         || Flows.byText(['submit application', 'submit', 'send application', 'next', 'continue', 'save and continue', 'review']);
+
+      // Without auto-submit, a long multi-page form still gets filled all
+      // the way through: Next/Continue/Review pages are advanced, and the run
+      // stops only when the next press would actually send the application.
+      // It used to stop after page one, leaving the rest of the form blank.
+      if (!directive.autoSubmit && (!button || isFinalSubmit(button))) {
+        return { outcome: 'assisted', detail: `${filledTotal} fields filled over ${step + 1} page${step ? 's' : ''}, ready for you to submit` };
+      }
+
+      // A "tick the box" CAPTCHA sits next to the submit button: the person ticks it, then CareerOS submits.
+      if (button && challenge() === 'checkbox') await park('captcha', 'Tick the "I\'m not a robot" check, then CareerOS submits for you.', () => !challenge());
+
+      if (button && isFinalSubmit(button)) {
+        const hold = await holdBeforeSubmit(button);
+        if (hold === 'cancelled') return { outcome: 'assisted', detail: 'you cancelled the automatic submit' };
+        if (hold === 'person') {
+          const ok = await Flows.waitFor(() => isConfirmation() || null, 15000);
+          return ok ? { outcome: 'submitted', detail: 'you submitted it' } : { outcome: 'assisted', detail: 'you pressed submit; no confirmation seen yet' };
+        }
+        await announceSubmit();
+      }
 
       if (!await Flows.press(button)) {
         return filledTotal
@@ -336,38 +1119,341 @@
           : { outcome: 'failed', detail: 'nothing to fill and nothing to press' };
       }
 
-      const changed = await waitForChange(before);
-      if (isConfirmation()) {
+      let changed = await waitForChange(before);
+      // An invisible CAPTCHA can escalate to a puzzle once submit is pressed: the person solves it, then on.
+      if (!changed && challenge()) {
+        await clearBlockers();
+        changed = await waitForChange(before);
+      }
+      if (state.pressedSubmit && isConfirmation()) {
         return { outcome: 'submitted', detail: `${filledTotal} fields over ${step + 1} step${step ? 's' : ''}` };
       }
       if (!changed) {
         const errors = readFormErrors();
-        return { outcome: errors ? 'skipped' : 'failed', detail: errors || 'the form did not move after submit' };
+        if (errors) {
+          const retry = await retryFormValidationOnce(form, context, before);
+          filledTotal += retry.filledDelta;
+          if (retry.outcome && /needs you|rejected/i.test(retry.outcome.detail || '') && retry.outcome.outcome !== 'submitted') {
+            // Still rejected: show the person, wait for them to fix it, then go round again.
+            const waited = await waitForPersonAnswers(form, { force: true });
+            if (waited.submittedByPerson) return { outcome: 'submitted', detail: 'you submitted it' };
+            continue;
+          }
+          if (retry.outcome) return retry.outcome;
+          reportProgress(step + 1, directive.maxSteps, filledTotal);
+          continue; // the retry's press actually moved the form on
+        }
+        return { outcome: 'failed', detail: 'the form did not move after submit' };
       }
     }
     return { outcome: 'failed', detail: 'ran out of steps before a confirmation' };
   }
 
+  /* Generic-ATS counterpart to retryFlowValidationOnce — see its comment for
+   * why this is capped at exactly one attempt. */
+  async function retryFormValidationOnce(form, context, before) {
+    const retryReport = await fillTracked(form, context.profileOverride || state.profile, context);
+    const filledDelta = retryReport.filled.length + retryReport.generated.length;
+    const changed = describeChangedFields(retryReport);
+
+    const unanswered = retryReport.skipped.filter((s) => s.required);
+    if (unanswered.length) {
+      return { filledDelta, outcome: { outcome: 'skipped', detail: `still needs you after retrying (changed: ${changed}): ${unanswered.slice(0, 3).map((u) => u.label).join(', ')}` } };
+    }
+
+    const button = ATS.findSubmit(state.adapter, form)
+      || ATS.findSubmit(state.adapter, document)
+      || Flows.byText(['submit application', 'submit', 'send application', 'next', 'continue', 'save and continue', 'review']);
+
+    if (!await Flows.press(button)) {
+      return { filledDelta, outcome: { outcome: 'failed', detail: `retried (changed: ${changed}) but found nothing to press` } };
+    }
+
+    const movedAgain = await waitForChange(before);
+    if (isConfirmation()) {
+      return { filledDelta, outcome: { outcome: 'submitted', detail: `submitted after one retry (changed: ${changed})` } };
+    }
+    if (!movedAgain) {
+      const stillErrors = readFormErrors();
+      return {
+        filledDelta,
+        outcome: {
+          outcome: stillErrors ? 'skipped' : 'failed',
+          detail: `retried once (changed: ${changed}) — ${stillErrors || 'the form still did not move'}`
+        }
+      };
+    }
+    return { filledDelta, outcome: null };
+  }
+
+  /* A short, human-readable list of what the retry actually changed, for the
+   * result detail the dashboard shows — "why did the retry work/fail" is
+   * otherwise invisible. */
+  function describeChangedFields(report) {
+    const labels = report.filled.map((f) => f.label).concat(report.generated.map((f) => f.label));
+    if (!labels.length) return 'nothing';
+    return labels.slice(0, 4).join(', ') + (labels.length > 4 ? ` +${labels.length - 4} more` : '');
+  }
+
+  /* runFlow handed the application to the employer's site: the page that opens reports the outcome. */
+  const HANDED_OFF = { handedOff: true };
+
   function report(result) {
+    hideBanner();
     return send({ type: 'careeros:result', result });
+  }
+
+  /* "Seconds to cancel before an auto submit" (settings): CareerOS waits that long before pressing submit.
+     Working on the page restarts the wait, Escape cancels it (the application stays in this tab for the
+     person), and if the person presses submit themselves CareerOS never presses it a second time. */
+  async function holdBeforeSubmit(button) {
+    const seconds = Math.max(0, Math.min(60, Number(state.settings.reviewCountdown) || 0));
+    if (!seconds) return 'go';
+    let last = Date.now();
+    let result = null;
+    const touch = () => { last = Date.now(); };
+    const onKey = (e) => { if (e.key === 'Escape') result = 'cancelled'; else touch(); };
+    const onPress = (e) => {
+      if (e.isTrusted && button && (e.type === 'submit' || button.contains(e.target))) {
+        result = 'person';
+        state.pressedSubmit = true;
+        send({ type: 'careeros:submitting' });
+      }
+    };
+    const events = ['input', 'change', 'mousedown', 'pointerdown', 'wheel', 'touchstart'];
+    events.forEach((ev) => document.addEventListener(ev, touch, { capture: true, passive: true }));
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('click', onPress, true);
+    document.addEventListener('submit', onPress, true);
+    try {
+      while (!result && Date.now() - last < seconds * 1000) await sleep(250);
+    } finally {
+      events.forEach((ev) => document.removeEventListener(ev, touch, { capture: true }));
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('click', onPress, true);
+      document.removeEventListener('submit', onPress, true);
+    }
+    return result || 'go';
+  }
+
+  /* Tell the worker a submit is being pressed, so a reload onto the confirmation page is recognised
+     and a lost tab is never retried into a duplicate application. */
+  async function announceSubmit() {
+    state.pressedSubmit = true;
+    await send({ type: 'careeros:submitting' });
+  }
+
+  /* ================= waiting for the person ================= */
+
+  /* Something only the person can do. The application waits in this tab (the rest of the run carries on),
+     the person is notified, and this continues by itself once `resolved()` is true. */
+  async function park(reason, message, resolved) {
+    await send({ type: 'careeros:needsYou', reason, message });
+    showBanner(message);
+    while (!resolved()) await sleep(1000);
+    hideBanner();
+    await send({ type: 'careeros:resumed' });
+  }
+
+  async function clearBlockers() {
+    const ch = challenge();
+    if (ch === 'puzzle' || ch === 'interstitial') {
+      await park('captcha', 'Complete the verification on this page. CareerOS carries on by itself afterwards.', () => {
+        const c = challenge();
+        return c !== 'puzzle' && c !== 'interstitial';
+      });
+      await sleep(800);
+    }
+    if (needsLogin()) {
+      await park('login', 'Sign in or create an account on this page. CareerOS fills the application once the form appears.', () => !needsLogin());
+      await sleep(800);
+    }
+  }
+
+  /* Required questions CareerOS couldn't answer: highlight them, then only watch the page (never type,
+     focus or scroll while the person works). Once every required answer is in and they've paused, their
+     answers are saved for next time and the run continues. If they press submit themselves, that counts. */
+  async function waitForPersonAnswers(scope, opts) {
+    let missing = Filler.missingRequired(scope);
+    if (!missing.length && !(opts && opts.force)) return {};
+    const asked = missing.slice();
+    // What the form says now: anything the person changes while we wait is learned too.
+    const before = new Map(Filler.collectFields(scope).map((f) => [f.node, Filler.valueOf(f)]));
+    let lastTouch = Date.now();
+    let submittedByPerson = false;
+    const touch = () => { lastTouch = Date.now(); };
+    const events = ['keydown', 'input', 'change', 'mousedown', 'pointerdown', 'wheel', 'touchstart'];
+    const onSubmit = (e) => {
+      if (submittedByPerson || !e.isTrusted) return;
+      if (e.type === 'click') {
+        const btn = ATS.findSubmit(state.adapter, document);
+        if (!btn || !btn.contains(e.target) || Filler.missingRequired(scope).length) return;
+      }
+      submittedByPerson = true;
+      state.pressedSubmit = true;
+      learn(asked, scope, before);
+      send({ type: 'careeros:submitting' });
+    };
+    events.forEach((e) => document.addEventListener(e, touch, { capture: true, passive: true }));
+    document.addEventListener('submit', onSubmit, true);
+    document.addEventListener('click', onSubmit, true);
+
+    const labels = missing.map((f) => cleanLabel(f.label)).filter(Boolean).slice(0, 4).join('; ');
+    const what = missing.length
+      ? `${missing.length} question${missing.length === 1 ? ' needs' : 's need'} your answer${labels ? `: ${labels}` : ''}.`
+      : 'The form needs a correction (see the highlighted message).';
+    await send({ type: 'careeros:needsYou', reason: 'questions', message: what });
+    showBanner(`${what} Answer in this tab; when you stop typing, CareerOS saves your answers and continues.`);
+    missing.forEach((f) => Filler.markAttention(f.kind === 'radio' || f.kind === 'choice' ? (f.node.closest('fieldset') || f.node.parentElement) : f.node));
+    const first = missing[0] && missing[0].node;
+    if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+    try {
+      for (;;) {
+        await sleep(1000);
+        if (submittedByPerson) return { submittedByPerson: true };
+        missing = Filler.missingRequired(scope);
+        if (missing.length || Date.now() - lastTouch < IDLE_MS) continue;
+        if (opts && opts.force && readFormErrors() && Date.now() - lastTouch < IDLE_MS * 2) continue;
+        learn(asked, scope, before);
+        return {};
+      }
+    } finally {
+      events.forEach((e) => document.removeEventListener(e, touch, { capture: true }));
+      document.removeEventListener('submit', onSubmit, true);
+      document.removeEventListener('click', onSubmit, true);
+      Filler.clearAttention(document);
+      hideBanner();
+      send({ type: 'careeros:resumed' });
+    }
+  }
+
+  /* Save what the person entered for the questions CareerOS asked them (and anything of ours they corrected),
+     in this browser and on their CareerOS account. Self-identification answers are also saved by meaning. */
+  function learn(asked, scope, before) {
+    const answers = [];
+    const changed = before
+      ? Filler.collectFields(scope || document).filter((f) => before.has(f.node) && before.get(f.node) !== Filler.valueOf(f) && !asked.some((a) => a.node === f.node))
+      : [];
+    asked.concat(changed).forEach((f) => {
+      const fresh = Filler.collectFields(document).find((x) => x.node === f.node || (x.label === f.label && x.kind === f.kind)) || f;
+      const answer = Filler.valueOf(fresh);
+      const question = cleanLabel(f.label);
+      if (!question || !answer || answer.length > 5000 || f.kind === 'file') return;
+      answers.push({ question, answer });
+      const meaning = Answers && Answers.meaningOf(question, answer);
+      if (meaning) answers.push({ question, answer: meaning.value, key: meaning.key });
+    });
+    if (answers.length) send({ type: 'careeros:learn', answers, profileId: state.activeProfileId });
+  }
+
+  /* After a fill from the panel or popup, answers the person types in themselves are learned when they submit. */
+  function learnOnSubmit(scope) {
+    const asked = Filler.missingRequired(scope);
+    const before = new Map(Filler.collectFields(scope).map((f) => [f.node, Filler.valueOf(f)]));
+    let done = false;
+    const onSubmit = (e) => {
+      if (done || !e.isTrusted) return;
+      if (e.type === 'click') {
+        const btn = ATS.findSubmit(state.adapter, document) || Flows.byText(['submit application', 'submit', 'send application']);
+        if (!btn || !btn.contains(e.target)) return;
+      }
+      done = true;
+      learn(asked, scope, before);
+      document.removeEventListener('submit', onSubmit, true);
+      document.removeEventListener('click', onSubmit, true);
+    };
+    document.addEventListener('submit', onSubmit, true);
+    document.addEventListener('click', onSubmit, true);
+  }
+
+  /* While CareerOS waits for the person, the docked panel says what it needs (no extra UI on the page). */
+  function showBanner(message) {
+    if (coach() && coach().isActive()) coach().stop(false);
+    panelState.waiting = message;
+    if (!panel) showPanel();
+    else renderPanel();
+  }
+  function hideBanner() {
+    if (!panelState.waiting) return;
+    panelState.waiting = null;
+    if (panel) renderPanel();
+  }
+
+  function cleanLabel(label) {
+    return String(label || '').replace(/\s*\*+\s*$/, '').replace(/\s+/g, ' ').trim();
+  }
+
+  /* Fire-and-forget: lets the dashboard show "step 3 of 7" instead of a flat
+     "Applying" pill for however long a multi-step form takes. Losing one of
+     these to a suspended service worker is cosmetic, so no response is awaited. */
+  function reportProgress(step, maxSteps, filled) {
+    try {
+      chrome.runtime.sendMessage({ type: 'careeros:progress', step, maxSteps, filled }, () => void chrome.runtime.lastError);
+    } catch (err) { /* tab is going away */ }
   }
 
   /* ================= page signals ================= */
 
-  function detectBlocker() {
-    if (document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], .h-captcha, .g-recaptcha, [class*="cf-turnstile"]')) {
-      return 'captcha';
-    }
-    const pw = document.querySelector('input[type="password"]');
-    if (pw && Flows.visible(pw)) return 'needs_login';
-    const text = bodyText();
-    if (/sign in to (continue|apply)|log ?in to apply|please sign in/i.test(text)) return 'needs_login';
-    if (/no longer accepting applications|this (job|position) (is|has) (closed|expired|been filled)/i.test(text)) return 'closed';
+  /* Whether pressing this button would send the application, as opposed to
+     moving to the next page of a long form. Judged by its label: Workday's
+     "next" button and Greenhouse's submit input both match the adapter's
+     submit selector, so the selector alone can't tell them apart. */
+  function isFinalSubmit(el) {
+    const label = String(
+      el.getAttribute('aria-label') || el.value || el.innerText || el.textContent || ''
+    ).trim().toLowerCase();
+    if (/\b(next|continue|review|save and continue|proceed)\b/.test(label)) return false;
+    if (/\b(submit|send|apply|finish|complete)\b/.test(label)) return true;
+    // Unlabelled submit inputs on a single-page form are the final submit.
+    return el.type === 'submit';
+  }
+
+  /* A verification the person must deal with. Invisible reCAPTCHA (the corner badge) and score-based checks
+     are on most application pages and never need anyone, so they don't count.
+       'puzzle'        a challenge window is open
+       'interstitial'  the whole page is a "verify you are human" check
+       'checkbox'      an "I'm not a robot" box that hasn't been ticked yet */
+  function challenge() {
+    const big = (el) => {
+      if (!el || !Flows.visible(el)) return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 30 && r.height > 30;
+    };
+    const popup = Array.from(document.querySelectorAll('iframe[src*="recaptcha"][src*="bframe"], iframe[src*="hcaptcha"][src*="challenge"], iframe[title*="challenge" i]')).find(big);
+    if (popup) return 'puzzle';
+    const text = `${document.title} ${bodyText().slice(0, 1500)}`;
+    const formPresent = !!ATS.findForm(state.adapter, document);
+    if (!formPresent && /verify (that )?you are (a )?human|checking (if the site connection is secure|your browser)|are you a robot|security check/i.test(text)) return 'interstitial';
+    const widgets = Array.from(document.querySelectorAll(
+      '.g-recaptcha:not([data-size="invisible"]), .h-captcha:not([data-size="invisible"]), .cf-turnstile, iframe[src*="recaptcha"][src*="anchor"], iframe[src*="hcaptcha.com"][src*="checkbox"], iframe[src*="challenges.cloudflare.com"]'
+    )).filter((w) => !w.closest('.grecaptcha-badge') && !/size=invisible/.test(w.getAttribute('src') || '') && big(w));
+    if (widgets.length && !captchaTokenPresent()) return 'checkbox';
     return null;
   }
 
+  function captchaTokenPresent() {
+    return Array.from(document.querySelectorAll('textarea[name="g-recaptcha-response"], textarea[name="h-captcha-response"], input[name="cf-turnstile-response"]'))
+      .some((t) => (t.value || '').length > 20);
+  }
+
+  /* A sign-in wall: a password box and no application form, or an explicit "sign in to apply". */
+  function needsLogin() {
+    const pw = Array.from(document.querySelectorAll('input[type="password"]')).find((n) => Flows.visible(n));
+    const form = ATS.findForm(state.adapter, document);
+    const appFields = form ? form.querySelectorAll('input:not([type="hidden"]):not([type="password"]), select, textarea').length : 0;
+    if (pw && appFields < 4) return true;
+    return !form && /sign in to (continue|apply)|log ?in to apply|create an account to apply/i.test(bodyText().slice(0, 3000));
+  }
+
+  function isClosed() {
+    return /no longer accepting applications|this (job|position|posting) (is|has) (closed|expired|been filled)|job not found/i.test(bodyText().slice(0, 4000));
+  }
+
+
+
   function isConfirmation() {
-    return /thank you for (applying|your application)|application (was |has been )?(received|submitted|sent)|we(?:'ve| have) received your application|successfully applied|your application is (in|complete)/i
+    return /thank you for (applying|your application|your interest)|application (was |has been )?(received|submitted|sent)|we(?:'ve| have) received your application|successfully (applied|submitted)|your application is (in|complete)/i
       .test(bodyText());
   }
 
@@ -380,6 +1466,11 @@
       .map((n) => (n.getAttribute('aria-label') || n.textContent || '').trim())
       .filter((t) => t && t.length < 160);
     return msgs.length ? `form rejected it: ${msgs.slice(0, 2).join('; ')}` : null;
+  }
+
+  function hasFillableForm() {
+    const form = ATS.findForm(state.adapter, document);
+    return Boolean(form && hasAnswerableFields(form));
   }
 
   function hasAnswerableFields(form) {
@@ -405,12 +1496,18 @@
   }
 
   function bodyText() {
-    return (document.body.innerText || '').slice(0, 8000);
+    return ((document.body && document.body.innerText) || '').slice(0, 8000);
   }
 
   /* ================= shared ================= */
 
-  function buildContext(pregenerated, tailored) {
+  function buildContext(pregenerated, tailored, directiveProfile, opts) {
+    /* directiveProfile is the profile this specific job was queued and scored
+       against (see Engine.build/add + handleReady) — it may not be whichever
+       profile is globally active. Falls back to the active profile, same as
+       before, when nothing overrides it. */
+    const baseProfile = directiveProfile || state.profile;
+
     /* When a tailored package exists, the form is filled from the resume
        written for this specific posting rather than the base profile. That
        distinction is the whole product: a spray tool sends one resume
@@ -421,30 +1518,43 @@
        Object.assign here would silently drop whyLeaving/availableFrom. */
     const profileForFill = tailored?.tailoredResume
       ? Profile.hydrate(
-          Object.assign({}, state.profile, {
-            narrative: Object.assign({}, state.profile.narrative, tailored.tailoredResume.narrative)
+          Object.assign({}, baseProfile, {
+            narrative: Object.assign({}, baseProfile.narrative, tailored.tailoredResume.narrative)
           })
         )
-      : state.profile;
+      : baseProfile;
+
+    // Screening answers are scoped to whichever profile is actually being used
+    // to fill this form — different profiles reasonably answer the same
+    // generic question differently.
+    const profileId = baseProfile.id || state.activeProfileId;
 
     return {
       profileOverride: profileForFill,
       resume: state.resume,
+      // LinkedIn / Indeed keep the resume used last time; an optional upload there is left alone.
+      skipOptionalUploads: !!(opts && opts.skipOptionalUploads),
 
-      async answerQuestion(question) {
-        /* An answer approved for this specific role wins over the bank, because
-           the person reviewed it against this posting. */
+      /* The person's earlier answer to this (or a near-identical) question. An answer approved for this
+         specific role wins, because the person reviewed it against this posting. */
+      async recall(question) {
         const approved = (tailored?.screeningAnswers || []).find(
           (a) => normalizeQuestion(a.question) === normalizeQuestion(question)
         );
-        if (approved && approved.confidence === 'high') return approved.answer;
+        if (approved && approved.answer && approved.confidence !== 'low') return approved.answer;
+        return Storage.recallAnswer(question, profileId);
+      },
 
-        const remembered = await Storage.recallAnswer(question);
-        if (remembered) return remembered;
+      /* A self-identification answer the person gave on an earlier form ("eeo:veteran" -> "No"). */
+      recallKey(key) {
+        return Storage.recallKey(key, profileId);
+      },
+
+      /* AI, grounded in the profile; with the form's options when it's a choice. Never saved as the
+         person's own answer: only what they type or keep is learned. */
+      async answerQuestion(question, options) {
         if (!state.settings.tailorScreeningAnswers) return null;
-        const answer = await ask('answerQuestion', { question });
-        if (answer) await Storage.rememberAnswer(question, answer);
-        return answer;
+        return ask('answerQuestion', { question, options: options || undefined });
       },
 
       async generate(kind) {
@@ -490,7 +1600,7 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     if (msg.type === 'careeros:ping') { respond(snapshot()); return true; }
-    if (msg.type === 'careeros:fill') { doFill().then(respond); return true; }
+    if (msg.type === 'careeros:fill') { doFill(msg.profileId).then(respond); return true; }
     if (msg.type === 'careeros:submit') { doSubmit().then(respond); return true; }
     if (msg.type === 'careeros:harvest') {
       const collected = Harvest.collect();
