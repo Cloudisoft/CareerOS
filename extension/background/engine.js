@@ -84,7 +84,7 @@
             title: String(j.title || '').slice(0, 200),
             company: String(j.company || '').slice(0, 200),
             url: String(j.url || '').slice(0, 2000),
-            reason: 'needs_you',
+            reason: j.waitReason || 'questions',
             message: String(j.detail || '').slice(0, 500)
           })),
         }).catch(() => {});
@@ -466,7 +466,7 @@
       entry.deadline = 0;
       saveTabs();
       const message = String((info && info.message) || 'Needs your answer').slice(0, 300);
-      await mark(entry.job.id, 'waiting', message);
+      await mark(entry.job.id, 'waiting', message, { waitReason: String((info && info.reason) || 'questions').slice(0, 40) });
       if (first) {
         chrome.notifications.create(`careeros:tab:${tabId}`, {
           type: 'basic',
@@ -752,10 +752,10 @@
     );
   }
 
-  async function mark(id, state, detail) {
+  async function mark(id, state, detail, extra) {
     const s = await Engine.getState();
     await Engine.setState({
-      queue: s.queue.map((j) => (j.id === id ? Object.assign({}, j, { state }, detail !== undefined ? { detail } : {}) : j))
+      queue: s.queue.map((j) => (j.id === id ? Object.assign({}, j, { state }, detail !== undefined ? { detail } : {}, extra || {}) : j))
     });
   }
 

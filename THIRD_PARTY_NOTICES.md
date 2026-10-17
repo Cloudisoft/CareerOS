@@ -1,6 +1,6 @@
 # Third-party notices
 
-Career OS's automatic job discovery uses material from **career-ops** (https://github.com/career-ops-hq/career-ops),
+Career OS's automatic job discovery uses material from **career-ops** (https://github.com/santifer/career-ops),
 by way of ApplyFlux, under the MIT License:
 
 - `src/lib/jobs/boards/catalog.ts`: the tracked company job boards, seeded from `templates/portals.example.yml`.

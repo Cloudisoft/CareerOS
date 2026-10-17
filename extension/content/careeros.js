@@ -485,10 +485,11 @@
   function coach() { return window.CareerOS && window.CareerOS.Coach; }
 
   function maybeIntroduceLauncher() {
-    if (state.settings.launcherTipSeenAt || !coach() || coach().isActive()) return;
+    // Never during an automatic run: the tutorial would sit over a form the person may need to answer.
+    if (state.settings.launcherTipSeenAt || state.autoRunning || !coach() || coach().isActive()) return;
     setTimeout(() => {
       const btn = panel && panel.querySelector('.careeros-launcher__btn');
-      if (!btn) return;
+      if (!btn || state.autoRunning) return;
       coach().start({
         steps: [{
           target: btn,
@@ -1368,6 +1369,7 @@
 
   /* While CareerOS waits for the person, the docked panel says what it needs (no extra UI on the page). */
   function showBanner(message) {
+    if (coach() && coach().isActive()) coach().stop(false);
     panelState.waiting = message;
     if (!panel) showPanel();
     else renderPanel();
