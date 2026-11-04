@@ -35,6 +35,9 @@ interface PostItem {
   author: ConnectionUser;
   reactions: { userId: string }[];
   comments: { id: string; content: string; author: ConnectionUser }[];
+  kind?: "GENERAL" | "JOB_ANNOUNCEMENT";
+  company?: { name: string; slug: string } | null;
+  promoted?: boolean;
 }
 
 interface ConnectionRequest {
@@ -191,11 +194,15 @@ export default function NetworkPage() {
                       <div>
                         <p className="text-sm font-medium text-foreground">
                           {post.author.firstName} {post.author.lastName}
+                          {post.company && <span className="font-normal text-muted-foreground"> · {post.company.name}</span>}
                         </p>
-                        <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {post.promoted ? "Promoted · " : post.kind === "JOB_ANNOUNCEMENT" ? "Hiring · " : ""}
+                          {new Date(post.createdAt).toLocaleString()}
+                        </p>
                       </div>
                     </div>
-                    <p className="text-sm text-foreground">{post.content}</p>
+                    <p className="whitespace-pre-wrap text-sm text-foreground">{post.content}</p>
                     <button
                       onClick={() => react(post.id)}
                       className="text-xs text-muted-foreground hover:text-primary"

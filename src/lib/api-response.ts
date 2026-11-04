@@ -31,6 +31,14 @@ export function apiCatch(error: unknown) {
       BILLING_NOT_CONFIGURED: 503,
       PRICE_NOT_CONFIGURED: 503,
       NEEDS_COMPANY: 409,
+      QUOTA_EXCEEDED: 429,
+      NO_CREDITS: 402,
+      TRIAL_USED: 409,
+      INTRO_USED: 409,
+      CONFLICT: 409,
+      AI_UNAVAILABLE: 503,
+      PROVIDER_FAILED: 502,
+      LOCKED: 403,
     };
     return apiError(err.message, statusByCode[err.code] ?? 400, err.code);
   }

@@ -14,7 +14,7 @@ export class TalentSearchError extends Error {
 }
 
 /** A profile is discoverable to a company if it's public/recruiter-visible, or if it applied to that company. */
-function visibilityFilter(companyId: string): Prisma.CandidateProfileWhereInput {
+export function visibilityFilter(companyId: string): Prisma.CandidateProfileWhereInput {
   return {
     OR: [
       { visibility: "PUBLIC" },

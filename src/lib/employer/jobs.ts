@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { JobInput } from "@/lib/validations/employer";
+import type { Prisma } from "@prisma/client";
 import { employerJobExpiry } from "@/lib/jobs/lifecycle";
 
 export class EmployerJobError extends Error {
@@ -36,10 +37,20 @@ export async function getJobForCompany(companyId: string, jobId: string) {
   return job;
 }
 
-export async function createJobForCompany(companyId: string, input: JobInput) {
-  const skillIds = await Promise.all(input.skills.map((s) => resolveSkillId(s)));
+/** Resolve skill names to ids before opening a quota transaction, so that transaction stays short. */
+export async function resolveSkillIds(names: string[]) {
+  return Promise.all(names.map((s) => resolveSkillId(s)));
+}
 
-  return prisma.job.create({
+export async function createJobForCompany(
+  companyId: string,
+  input: JobInput,
+  options: { db?: Prisma.TransactionClient; skillIds?: string[] } = {}
+) {
+  const skillIds = options.skillIds ?? (await resolveSkillIds(input.skills));
+  const db = options.db ?? prisma;
+
+  return db.job.create({
     data: {
       companyId,
       title: input.title,

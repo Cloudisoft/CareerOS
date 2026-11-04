@@ -24,6 +24,7 @@ interface JobListItem {
   skills: string[];
   matchScore: number | null;
   source: string;
+  promoted?: boolean;
 }
 
 const WORKPLACE_OPTIONS = ["ONSITE", "HYBRID", "REMOTE"];
@@ -168,6 +169,11 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
                   <div>
                     <p className="font-semibold text-foreground">
                       {job.title}
+                      {job.promoted && (
+                        <Badge variant="brand" className="ml-2 align-middle text-xs font-normal">
+                          Promoted
+                        </Badge>
+                      )}
                       {job.source !== "careeros" && (
                         <Badge variant="outline" className="ml-2 align-middle text-xs font-normal">
                           via {SOURCE_LABELS[job.source] ?? job.source}

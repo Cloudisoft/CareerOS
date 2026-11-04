@@ -16,9 +16,11 @@ enum UserRole {
   EMPLOYER
   COMPANY_ADMIN
   PLATFORM_ADMIN
-  /** Refers candidates into a company's open Bounty (Phase 5 — Earn). Not
-      necessarily a job seeker on the platform, so kept separate from
-      CANDIDATE rather than overloading it. */
+  /**
+   * Refers candidates into a company's open Bounty (Phase 5 — Earn). Not
+   * necessarily a job seeker on the platform, so kept separate from
+   * CANDIDATE rather than overloading it.
+   */
   REFERRER
 }
 
@@ -76,6 +78,8 @@ model User {
   referralsMade     Referral[] @relation("ReferralsMade")
   referralsReceived Referral[] @relation("ReferralsReceived")
   payouts           Payout[]
+
+  careersPublisher CareersPublisher?
 
   @@index([email])
   @@map("users")
@@ -296,6 +300,9 @@ model CandidateProfile {
   toolkitOutputs       ToolkitOutput[]
   extensionAnswers     ExtensionAnswer[]
 
+  resumeUnlocks ResumeUnlock[]
+  atsScreenings AtsScreening[]
+
   @@map("candidate_profiles")
 }
 
@@ -466,6 +473,8 @@ model Company {
   jobs      Job[]
   bounties  Bounty[]
 
+  enterpriseAccount EnterpriseAccount?
+
   @@index([slug])
   @@map("companies")
 }
@@ -544,16 +553,19 @@ model Job {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  skills            JobSkill[]
-  savedBy           SavedJob[]
-  matches           JobMatch[]
-  applications      Application[]
-  resumeScores      ResumeScore[]
-  interviewSessions InterviewSession[]
+  skills             JobSkill[]
+  savedBy            SavedJob[]
+  matches            JobMatch[]
+  applications       Application[]
+  resumeScores       ResumeScore[]
+  interviewSessions  InterviewSession[]
   interviewPrepPacks InterviewPrepPack[]
-  targetedResumes   Resume[]           @relation("ResumeTargetJob")
-  toolkitOutputs    ToolkitOutput[]
-  bounties          Bounty[]
+  targetedResumes    Resume[]            @relation("ResumeTargetJob")
+  toolkitOutputs     ToolkitOutput[]
+  bounties           Bounty[]
+
+  enterprisePost EnterpriseJobPost?
+  atsScreenings  AtsScreening[]
 
   @@unique([source, externalId])
   @@index([companyId])
@@ -1014,10 +1026,12 @@ model InterviewQuestion {
   strengths    String[]
   improvements String[]
   answeredAt   DateTime?
-  /** How many times this question has been (re)scored — 0 means the initial
-      answer only. A retry re-scores the same question in place instead of
-      advancing the session, distinct from the normal linear flow. */
-  attempts Int @default(0)
+  /**
+   * How many times this question has been (re)scored — 0 means the initial
+   * answer only. A retry re-scores the same question in place instead of
+   * advancing the session, distinct from the normal linear flow.
+   */
+  attempts     Int       @default(0)
 
   createdAt DateTime @default(now())
 
@@ -1034,31 +1048,41 @@ model InterviewQuestion {
 // ============================================================
 
 model InterviewPrepPack {
-  id            String      @id @default(cuid())
-  applicationId String      @unique
-  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id            String           @id @default(cuid())
+  applicationId String           @unique
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   profileId     String
   profile       CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   jobId         String
-  job           Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job           Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  /** A few sentences pulled from the real Job/Company records — never fabricated. */
+  /**
+   * A few sentences pulled from the real Job/Company records — never fabricated.
+   */
   companyBrief String
 
-  /** GeneratedQuestion[] — likely interview questions for this role. */
+  /**
+   * GeneratedQuestion[] — likely interview questions for this role.
+   */
   questions Json
 
-  /** PrepStory[] — 5-6 STAR-format stories grounded in the candidate's real history. */
+  /**
+   * PrepStory[] — 5-6 STAR-format stories grounded in the candidate's real history.
+   */
   stories Json
 
-  /** 3-4 good questions the candidate could ask the interviewer. */
+  /**
+   * 3-4 good questions the candidate could ask the interviewer.
+   */
   questionsToAsk String[]
 
-  /** 0-100, distinct from CandidateProfile.interviewScore — how ready this
-      candidate is for THIS job specifically, computed from practice
-      performance against this pack. Recomputed after each completed
-      practice session tied to this job (see recomputeJobReadiness). */
-  readinessScore    Int       @default(0)
+  /**
+   * 0-100, distinct from CandidateProfile.interviewScore — how ready this
+   * candidate is for THIS job specifically, computed from practice
+   * performance against this pack. Recomputed after each completed
+   * practice session tied to this job (see recomputeJobReadiness).
+   */
+  readinessScore     Int       @default(0)
   readinessUpdatedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -1082,7 +1106,9 @@ model InterviewStory {
   profileId String
   profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  /** One of CORE_STORY_QUESTIONS in src/lib/interview/stories.ts. */
+  /**
+   * One of CORE_STORY_QUESTIONS in src/lib/interview/stories.ts.
+   */
   question String
 
   answer       String?
@@ -1091,7 +1117,9 @@ model InterviewStory {
   strengths    String[]
   improvements String[]
 
-  /** Null until the candidate explicitly approves a final wording. */
+  /**
+   * Null until the candidate explicitly approves a final wording.
+   */
   lockedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -1181,10 +1209,14 @@ model AutoApplyRun {
 // ============================================================
 
 model ExtensionSelectorOverride {
-  /** Always "singleton" — one row holds every adapter's overrides. */
+  /**
+   * Always "singleton" — one row holds every adapter's overrides.
+   */
   id String @id @default("singleton")
 
-  /** { [atsId]: { form?, submit?, title?, company?, description? } } */
+  /**
+   * { [atsId]: { form?, submit?, title?, company?, description? } }
+   */
   overrides Json @default("{}")
 
   updatedAt DateTime @updatedAt
@@ -1359,10 +1391,11 @@ model Follow {
 }
 
 model Post {
-  id       String @id @default(cuid())
+  id       String   @id @default(cuid())
   authorId String
-  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content  String
+  kind     PostKind @default(GENERAL)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1370,6 +1403,8 @@ model Post {
 
   comments  Comment[]
   reactions Reaction[]
+
+  boosts Boost[]
 
   @@index([authorId])
   @@map("posts")
@@ -1462,22 +1497,30 @@ model ToolkitOutput {
 
   type ToolkitType
 
-  /** The job this output was generated for, if any (cover letters/emails
-      are usually job-specific; a resume review may not be). */
+  /**
+   * The job this output was generated for, if any (cover letters/emails
+   * are usually job-specific; a resume review may not be).
+   */
   jobId String?
   job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
-  /** Free-form input the candidate supplied beyond their Career Profile
-      (e.g. a pasted question to respond to, a recipient name for an email).
-      Never used to invent facts — only Career Profile + Job data is
-      grounding; this is prompt input, not a source of truth. */
+  /**
+   * Free-form input the candidate supplied beyond their Career Profile
+   * (e.g. a pasted question to respond to, a recipient name for an email).
+   * Never used to invent facts — only Career Profile + Job data is
+   * grounding; this is prompt input, not a source of truth.
+   */
   input Json?
 
-  /** The generated body. */
+  /**
+   * The generated body.
+   */
   output String
 
-  /** Which AI provider actually served this call — kept here too since
-      AiUsage rows are not queryable per-output. */
+  /**
+   * Which AI provider actually served this call — kept here too since
+   * AiUsage rows are not queryable per-output.
+   */
   provider String
 
   createdAt DateTime @default(now())
@@ -1508,16 +1551,20 @@ model Bounty {
   jobId     String? // optional: a bounty can target a specific open Job
   job       Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
-  title       String
-  description String
-  status      BountyStatus @default(DRAFT)
-  amountCents Int
-  currency    String       @default("USD")
-  /** Paid once the referred candidate reaches INTERVIEW (or similar). */
-  interviewBonusCents Int @default(0)
-  /** Paid after the post-hire guarantee period. */
-  hireBonusCents      Int @default(0)
-  guaranteeDays       Int @default(90)
+  title               String
+  description         String
+  status              BountyStatus @default(DRAFT)
+  amountCents         Int
+  currency            String       @default("USD")
+  /**
+   * Paid once the referred candidate reaches INTERVIEW (or similar).
+   */
+  interviewBonusCents Int          @default(0)
+  /**
+   * Paid after the post-hire guarantee period.
+   */
+  hireBonusCents      Int          @default(0)
+  guaranteeDays       Int          @default(90)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1546,11 +1593,13 @@ model Referral {
   bountyId String
   bounty   Bounty @relation(fields: [bountyId], references: [id], onDelete: Cascade)
 
-  referrerId String
-  referrer   User   @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
-  /** The person being referred — may not have a CareerOS account yet, so
-      this is captured as plain fields, not a required User relation, until/
-      unless they sign up and the candidate side of the flow links them. */
+  referrerId      String
+  referrer        User    @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+  /**
+   * The person being referred — may not have a CareerOS account yet, so
+   * this is captured as plain fields, not a required User relation, until/
+   * unless they sign up and the candidate side of the flow links them.
+   */
   candidateName   String
   candidateEmail  String
   candidateUserId String?
@@ -1594,8 +1643,8 @@ model Payout {
 
   trigger     PayoutTrigger
   amountCents Int
-  currency    String       @default("USD")
-  status      PayoutStatus @default(PENDING)
+  currency    String        @default("USD")
+  status      PayoutStatus  @default(PENDING)
 
   paypalPayoutId String? @unique
 
@@ -1616,16 +1665,355 @@ model Payout {
 // ============================================================
 
 model FeatureFlag {
-  id          String  @id @default(cuid())
-  key         String  @unique
-  description String?
-  enabled     Boolean @default(false)
-  /** 0-100. When enabled, the flag is also gated by this percentage of
-      users (stable-hashed on userId) — 100 means everyone. */
-  rolloutPercent Int @default(100)
+  id             String  @id @default(cuid())
+  key            String  @unique
+  description    String?
+  enabled        Boolean @default(false)
+  /**
+   * 0-100. When enabled, the flag is also gated by this percentage of
+   * users (stable-hashed on userId) — 100 means everyone.
+   */
+  rolloutPercent Int     @default(100)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("feature_flags")
+}
+
+// ============================================================
+// ENTERPRISE RECRUITER SUITE — paid recruiter subscription for job
+// providers (EMPLOYER / COMPANY_ADMIN accounts). Everything hangs off the
+// recruiter's Company, which is the tenant boundary: one firm's credits,
+// screenings and outreach are never visible to another.
+// ============================================================
+
+enum EnterprisePlanKey {
+  STARTER
+  PROFESSIONAL
+}
+
+enum EnterpriseStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  FREE
+}
+
+model EnterpriseAccount {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /**
+   * Null while on the trial or the free tier.
+   */
+  plan   EnterprisePlanKey?
+  status EnterpriseStatus   @default(FREE)
+
+  trialStartedAt DateTime?
+  trialEndsAt    DateTime?
+
+  /**
+   * Set once the $199 first month has been used — never offered again.
+   */
+  introUsedAt DateTime?
+  /**
+   * True while the current PayPal subscription is still on its $199 cycle.
+   */
+  introActive Boolean   @default(false)
+
+  paypalSubscriptionId String?   @unique
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events      EnterpriseEvent[]
+  credits     CreditTransaction[]
+  jobPosts    EnterpriseJobPost[]
+  unlocks     ResumeUnlock[]
+  screenings  AtsScreening[]
+  outreach    OutreachMessage[]
+  boosts      Boost[]
+  boostOrders BoostOrder[]
+
+  @@map("enterprise_accounts")
+}
+
+/**
+ * Subscription history: every state change, payment and plan switch.
+ */
+model EnterpriseEvent {
+  id          String             @id @default(cuid())
+  accountId   String
+  account     EnterpriseAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  actorUserId String?
+  type        String
+  fromStatus  EnterpriseStatus?
+  toStatus    EnterpriseStatus?
+  plan        EnterprisePlanKey?
+  amountCents Int?
+  detail      String?
+  createdAt   DateTime           @default(now())
+
+  @@index([accountId, createdAt])
+  @@map("enterprise_events")
+}
+
+enum CreditKind {
+  RESUME_FETCH
+  INMAIL
+  POST_BOOST
+  CAMPAIGN_BOOST
+}
+
+/**
+ * Append-only credit ledger. A period's balance is the sum of `delta` for
+ * that account, kind and periodKey — grants are +N rows written once per
+ * billing period, each use is a -1 row. `refKey` makes every write
+ * idempotent (the same unlock or send can never be charged twice).
+ */
+model CreditTransaction {
+  id                 String            @id @default(cuid())
+  accountId          String
+  account            EnterpriseAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind               CreditKind
+  delta              Int
+  /**
+   * GRANT | CONSUME | REFUND
+   */
+  type               String
+  periodKey          String
+  refKey             String
+  actorUserId        String?
+  candidateProfileId String?
+  jobId              String?
+  boostId            String?
+  outreachId         String?
+  note               String?
+  createdAt          DateTime          @default(now())
+
+  @@unique([accountId, kind, refKey])
+  @@index([accountId, kind, periodKey])
+  @@map("credit_transactions")
+}
+
+/**
+ * One row per formal job posted, so a deleted job never refunds the day's quota.
+ */
+model EnterpriseJobPost {
+  id         String            @id @default(cuid())
+  accountId  String
+  account    EnterpriseAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  jobId      String            @unique
+  job        Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  /**
+   * UTC calendar day, YYYY-MM-DD.
+   */
+  dayKey     String
+  postedById String
+  createdAt  DateTime          @default(now())
+
+  @@index([accountId, dayKey])
+  @@map("enterprise_job_posts")
+}
+
+/**
+ * A candidate's full resume + contact package unlocked by a firm for one billing period.
+ */
+model ResumeUnlock {
+  id                 String            @id @default(cuid())
+  accountId          String
+  account            EnterpriseAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  candidateProfileId String
+  candidateProfile   CandidateProfile  @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+  periodKey          String
+  unlockedById       String
+  createdAt          DateTime          @default(now())
+
+  @@unique([accountId, candidateProfileId, periodKey])
+  @@index([accountId, periodKey])
+  @@map("resume_unlocks")
+}
+
+enum AtsCategory {
+  HIGHLY_QUALIFIED
+  QUALIFIED
+  POTENTIAL_MATCH
+  NOT_SUITABLE
+}
+
+model AtsScreening {
+  id                 String            @id @default(cuid())
+  accountId          String
+  account            EnterpriseAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  jobId              String
+  job                Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidateProfileId String?
+  candidateProfile   CandidateProfile? @relation(fields: [candidateProfileId], references: [id], onDelete: SetNull)
+  candidateName      String?
+  score              Int
+  category           AtsCategory
+  summary            String
+  strengths          String[]
+  weaknesses         String[]
+  missingSkills      String[]
+  recommendations    String[]
+  /**
+   * Per-criterion scores: skills, experience, education, employment, technical, location, salary, relevance.
+   */
+  breakdown          Json
+  model              String?
+  createdById        String
+  createdAt          DateTime          @default(now())
+
+  @@index([accountId, jobId])
+  @@map("ats_screenings")
+}
+
+enum OutreachChannel {
+  IN_APP
+  EMAIL
+}
+
+enum OutreachStatus {
+  SENT
+  DELIVERED
+  FAILED
+  REPLIED
+}
+
+model OutreachMessage {
+  id                String            @id @default(cuid())
+  accountId         String
+  account           EnterpriseAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  senderUserId      String
+  targetCompanyId   String?
+  targetCompanyName String?
+  channel           OutreachChannel
+  recipientUserId   String?
+  recipientEmail    String?
+  subject           String
+  body              String
+  status            OutreachStatus
+  providerMessageId String?
+  conversationId    String?
+  error             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([accountId, senderUserId, createdAt])
+  @@map("outreach_messages")
+}
+
+enum BoostKind {
+  POST
+  CAMPAIGN
+}
+
+enum BoostSource {
+  FREE
+  PAID
+}
+
+model Boost {
+  id          String            @id @default(cuid())
+  accountId   String
+  account     EnterpriseAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind        BoostKind
+  source      BoostSource
+  name        String?
+  postId      String?
+  post        Post?             @relation(fields: [postId], references: [id], onDelete: SetNull)
+  jobIds      String[]
+  startsAt    DateTime          @default(now())
+  endsAt      DateTime
+  createdById String
+  createdAt   DateTime          @default(now())
+
+  order BoostOrder?
+
+  @@index([kind, endsAt])
+  @@index([accountId])
+  @@map("boosts")
+}
+
+/**
+ * A pay-as-you-go boost purchase. The PayPal order id is unique, and the boost is created only once, on a confirmed capture.
+ */
+model BoostOrder {
+  id            String            @id @default(cuid())
+  accountId     String
+  account       EnterpriseAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind          BoostKind
+  amountCents   Int
+  paypalOrderId String            @unique
+  /**
+   * CREATED | CAPTURED | FAILED
+   */
+  status        String
+  /**
+   * What to boost once paid: { postId } or { name, jobIds }.
+   */
+  payload       Json
+  boostId       String?           @unique
+  boost         Boost?            @relation(fields: [boostId], references: [id], onDelete: SetNull)
+  createdById   String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([accountId])
+  @@map("boost_orders")
+}
+
+// ============================================================
+// CAREER OS CAREERS — the centralized public job board. Only users in
+// CareersPublisher may create or change listings; the apply URL is never
+// sent to the browser, only followed server-side by /careers/apply/[id].
+// ============================================================
+
+model CareersListing {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  applyUrl    String
+  published   Boolean   @default(true)
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([published, createdAt])
+  @@map("careers_listings")
+}
+
+model CareersPublisher {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedById String?
+  createdAt   DateTime @default(now())
+
+  @@map("careers_publishers")
+}
+
+/**
+ * Small server-side settings store, e.g. the PayPal plan ids the app creates for itself.
+ */
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+enum PostKind {
+  GENERAL
+  JOB_ANNOUNCEMENT
 }

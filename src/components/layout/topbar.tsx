@@ -15,9 +15,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { initials } from "@/lib/utils";
+import { Logo } from "@/components/brand/logo";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import type { UserRole } from "@prisma/client";
 
 interface TopbarProps {
-  user: { firstName: string; lastName: string; email: string; avatarUrl: string | null };
+  user: { firstName: string; lastName: string; email: string; avatarUrl: string | null; role?: UserRole };
 }
 
 export function Topbar({ user }: TopbarProps) {
@@ -50,9 +53,12 @@ export function Topbar({ user }: TopbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-md">
-      <div />
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
+      <div className="flex items-center gap-2 lg:hidden">
+        <MobileNav role={user.role} />
+        <Logo />
+      </div>
+      <div className="ml-auto flex items-center gap-2">
         <ThemeToggle />
         <Link
           href="/notifications"

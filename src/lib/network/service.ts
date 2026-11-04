@@ -137,24 +137,76 @@ export async function createPost(authorId: string, content: string) {
   return prisma.post.create({ data: { authorId, content } });
 }
 
-/** Feed = the author's own posts plus posts from their accepted connections. */
+const POST_INCLUDE = {
+  author: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      avatarUrl: true,
+      companyMemberships: { select: { company: { select: { name: true, slug: true } } }, take: 1 },
+    },
+  },
+  reactions: true,
+  comments: {
+    include: { author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } },
+    orderBy: { createdAt: "asc" as const },
+  },
+};
+
+/**
+ * Feed = the author's own posts plus posts from their accepted connections,
+ * plus job announcements from companies they follow. Announcements a
+ * company paid to boost are pinned on top for everyone, labelled Promoted.
+ */
 export async function getFeed(userId: string) {
   const connections = await listConnections(userId);
   const connectionIds = connections.accepted.map((c) => c.id);
+  const now = new Date();
 
-  return prisma.post.findMany({
-    where: { authorId: { in: [userId, ...connectionIds] }, deletedAt: null },
-    include: {
-      author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
-      reactions: true,
-      comments: {
-        include: { author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } },
-        orderBy: { createdAt: "asc" },
+  const [boosts, followed] = await Promise.all([
+    prisma.boost.findMany({
+      where: { kind: "POST", postId: { not: null }, startsAt: { lte: now }, endsAt: { gt: now } },
+      select: { postId: true },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+    prisma.companyFollower.findMany({ where: { userId }, select: { companyId: true } }),
+  ]);
+  const promotedIds = boosts.map((b) => b.postId!);
+
+  const [promoted, regular] = await Promise.all([
+    promotedIds.length
+      ? prisma.post.findMany({ where: { id: { in: promotedIds }, deletedAt: null }, include: POST_INCLUDE })
+      : [],
+    prisma.post.findMany({
+      where: {
+        deletedAt: null,
+        id: { notIn: promotedIds },
+        OR: [
+          { authorId: { in: [userId, ...connectionIds] } },
+          ...(followed.length
+            ? [{ kind: "JOB_ANNOUNCEMENT" as const, author: { companyMemberships: { some: { companyId: { in: followed.map((f) => f.companyId) } } } } }]
+            : []),
+        ],
       },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
+      include: POST_INCLUDE,
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+  ]);
+
+  const shape = (p: (typeof regular)[number], isPromoted: boolean) => {
+    const { companyMemberships, ...author } = p.author;
+    return {
+      ...p,
+      author,
+      company: p.kind === "JOB_ANNOUNCEMENT" ? companyMemberships[0]?.company ?? null : null,
+      promoted: isPromoted,
+    };
+  };
+  promoted.sort((a, b) => promotedIds.indexOf(a.id) - promotedIds.indexOf(b.id));
+  return [...promoted.map((p) => shape(p, true)), ...regular.map((p) => shape(p, false))];
 }
 
 export async function toggleReaction(userId: string, postId: string) {

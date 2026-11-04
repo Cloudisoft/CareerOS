@@ -184,11 +184,22 @@ const PROVIDER_BASE_URL: Record<"openrouter" | "agentrouter" | "openai", string>
   openai: "https://api.openai.com/v1",
 };
 
+/**
+ * ANTHROPIC_MODEL wins; AI_MODEL is only used when it names a Claude model,
+ * because on servers that also have OpenRouter/OpenAI keys AI_MODEL is often
+ * set for those providers (e.g. "openai/gpt-5"), which Anthropic would reject.
+ */
+export function anthropicModel(env: Record<string, string | undefined> = process.env) {
+  if (env.ANTHROPIC_MODEL) return env.ANTHROPIC_MODEL;
+  if (env.AI_MODEL && /^claude-/.test(env.AI_MODEL)) return env.AI_MODEL;
+  return "claude-opus-5-5";
+}
+
 function buildProvider(name: AiProviderName): AiProvider | null {
   switch (name) {
     case "anthropic": {
       const apiKey = process.env.ANTHROPIC_API_KEY;
-      return apiKey ? new AnthropicAiProvider(apiKey, process.env.AI_MODEL || "claude-opus-5-5") : null;
+      return apiKey ? new AnthropicAiProvider(apiKey, anthropicModel()) : null;
     }
     case "openrouter": {
       const apiKey = process.env.OPENROUTER_API_KEY;

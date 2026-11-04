@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,16 @@ export default function NewJobPage() {
   const [skills, setSkills] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [quota, setQuota] = useState<{ postedToday: number; perDay: number } | null>(null);
+
+  // Daily posting allowance from the firm's Recruiter Suite plan.
+  useEffect(() => {
+    fetch("/api/enterprise/state")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j?.data?.jobs && setQuota({ postedToday: j.data.jobs.postedToday, perDay: j.data.jobs.perDay }))
+      .catch(() => {});
+  }, []);
 
   async function submit() {
     setSaving(true);
@@ -49,6 +60,7 @@ export default function NewJobPage() {
     setSaving(false);
     if (!res.ok) {
       setError(json.error?.message ?? "Something went wrong.");
+      setErrorCode(json.error?.code ?? null);
       return;
     }
     router.push(`/employer/jobs/${json.data.job.id}`);
@@ -56,7 +68,21 @@ export default function NewJobPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-6 text-2xl font-semibold text-foreground">Post a job</h1>
+      <h1 className="mb-2 text-2xl font-semibold text-foreground">Post a job</h1>
+      {quota && (
+        <p className="mb-6 text-sm text-muted-foreground">
+          {quota.perDay > 0 ? (
+            <>
+              {Math.max(0, quota.perDay - quota.postedToday)} of {quota.perDay} job posts left today (resets at midnight UTC).
+            </>
+          ) : (
+            <>
+              Posting jobs needs the Recruiter Suite.{" "}
+              <Link href="/employer/enterprise" className="text-primary hover:underline">Start a free trial or see plans</Link>
+            </>
+          )}
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -150,7 +176,16 @@ export default function NewJobPage() {
             <TagInput value={skills} onChange={setSkills} placeholder="Type a skill and press Enter" />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <p className="text-sm text-destructive">
+              {error}{" "}
+              {(errorCode === "UPGRADE_REQUIRED" || errorCode === "QUOTA_EXCEEDED") && (
+                <Link href="/employer/enterprise/billing" className="text-primary underline">
+                  {errorCode === "QUOTA_EXCEEDED" ? "Need more? See plans" : "See plans"}
+                </Link>
+              )}
+            </p>
+          )}
 
           <Button onClick={submit} disabled={saving || !title.trim() || !description.trim()}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
