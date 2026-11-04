@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Search,
@@ -24,6 +25,44 @@ import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
 import { ResumeShowcase } from "@/components/marketing/resume-showcase";
 import { HeroExplode } from "@/components/marketing/hero-explode";
 import { AutoApplySteps, AutoApplyAgentCard } from "@/components/marketing/auto-apply-showcase";
+import { Micro1Partnership } from "@/components/marketing/micro1-partnership";
+import { HOME_FAQS, homeStructuredData } from "@/lib/marketing/home-seo";
+
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com";
+
+export const metadata: Metadata = {
+  title: { absolute: "Career OS — AI Job Search, Auto Apply, Resume Builder & Recruiter Suite" },
+  description:
+    "Career OS is the AI career operating system: find jobs, tailor ATS-ready resumes, auto-apply safely, practise with Interview AI, and hire with the Recruiter Suite. In partnership with micro1. Free to start.",
+  keywords: [
+    "AI job search",
+    "auto apply jobs",
+    "AI resume builder",
+    "ATS resume checker",
+    "AI interview practice",
+    "recruiter software",
+    "resume search for recruiters",
+    "AI ATS screening",
+    "staffing firm software",
+    "micro1",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Career OS",
+    title: "Career OS — Your career. One operating system.",
+    description:
+      "Find jobs, tailor ATS-ready resumes, auto-apply safely, practise interviews with AI, and hire with the Recruiter Suite. In partnership with micro1.",
+    images: [{ url: "/brand/logo-full-dark.png", alt: "Career OS" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Career OS — Your career. One operating system.",
+    description: "AI job search, Auto Apply, resumes, Interview AI and a Recruiter Suite — in partnership with micro1.",
+    images: ["/brand/logo-full-dark.png"],
+  },
+};
 
 const FLOW = [
   { icon: Search, label: "Discover" },
@@ -162,6 +201,15 @@ export default function MarketingHomePage() {
                 <Link href="/features">Explore Career OS</Link>
               </Button>
             </div>
+          </Reveal>
+
+          <Reveal delay={0.28}>
+            <a
+              href="#micro1"
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface/70 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            >
+              In partnership with <span className="font-semibold text-foreground">micro1</span>
+            </a>
           </Reveal>
         </div>
 
@@ -397,6 +445,36 @@ export default function MarketingHomePage() {
           </RevealGroup>
         </div>
       </section>
+
+      <Micro1Partnership />
+
+      {/* FAQ — mirrored in the FAQPage structured data below */}
+      <section aria-labelledby="home-faq-heading" className="border-t border-border bg-surface/40 py-24">
+        <div className="mx-auto max-w-3xl px-6">
+          <Reveal>
+            <h2 id="home-faq-heading" className="text-center text-3xl font-bold text-foreground sm:text-4xl">
+              Questions, answered
+            </h2>
+          </Reveal>
+          <RevealGroup className="mt-10 divide-y divide-border" stagger={0.05}>
+            {HOME_FAQS.map((f) => (
+              <RevealItem key={f.q} className="py-5">
+                <h3 className="font-semibold text-foreground">{f.q}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.a}</p>
+              </RevealItem>
+            ))}
+          </RevealGroup>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            More in the <Link href="/faq" className="text-primary hover:underline">FAQ</Link>.
+          </p>
+        </div>
+      </section>
+
+      <script
+        type="application/ld+json"
+        // Static content defined in this repo; JSON.stringify escapes it. "<" is escaped so it can't close the tag.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homeStructuredData(SITE_URL)).replace(/</g, "\\u003c") }}
+      />
 
       {/* Final CTA */}
       <section className="border-t border-border py-24">
