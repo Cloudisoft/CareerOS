@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/lib/auth/session";
+import { isCareersPublisher } from "@/lib/careers/service";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MarketingNavbar } from "@/components/marketing/navbar";
@@ -14,11 +15,12 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
   const user = await getSessionUser();
 
   if (user) {
+    const careersPublisher = await isCareersPublisher(user.id);
     return (
       <div className="flex min-h-screen bg-background">
-        <Sidebar role={user.role} />
+        <Sidebar role={user.role} careersPublisher={careersPublisher} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar user={user} />
+          <Topbar user={user} careersPublisher={careersPublisher} />
           <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
         </div>
       </div>

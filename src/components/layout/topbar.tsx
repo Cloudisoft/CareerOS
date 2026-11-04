@@ -21,9 +21,10 @@ import type { UserRole } from "@prisma/client";
 
 interface TopbarProps {
   user: { firstName: string; lastName: string; email: string; avatarUrl: string | null; role?: UserRole };
+  careersPublisher?: boolean;
 }
 
-export function Topbar({ user }: TopbarProps) {
+export function Topbar({ user, careersPublisher }: TopbarProps) {
   const router = useRouter();
   const [unread, setUnread] = useState(0);
 
@@ -55,7 +56,7 @@ export function Topbar({ user }: TopbarProps) {
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
       <div className="flex items-center gap-2 lg:hidden">
-        <MobileNav role={user.role} />
+        <MobileNav role={user.role} careersPublisher={careersPublisher} />
         <Logo />
       </div>
       <div className="ml-auto flex items-center gap-2">

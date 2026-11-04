@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Sparkles, FilePlus2 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { CANDIDATE_NAV, EMPLOYER_NAV, ADMIN_NAV, type NavItem } from "@/config/nav";
 import { cn } from "@/lib/utils";
@@ -11,10 +11,12 @@ import type { UserRole } from "@prisma/client";
 // The real UserRole enum, not a hand-copied list — a role added there (e.g.
 // REFERRER) falls through to CANDIDATE_NAV by default rather than failing
 // to compile.
-export function navItemsFor(role: UserRole = "CANDIDATE"): NavItem[] {
-  if (role === "PLATFORM_ADMIN") return ADMIN_NAV;
-  if (role === "EMPLOYER" || role === "COMPANY_ADMIN") return EMPLOYER_NAV;
-  return CANDIDATE_NAV;
+export function navItemsFor(role: UserRole = "CANDIDATE", careersPublisher = false): NavItem[] {
+  const base = role === "PLATFORM_ADMIN" ? ADMIN_NAV : role === "EMPLOYER" || role === "COMPANY_ADMIN" ? EMPLOYER_NAV : CANDIDATE_NAV;
+  // Career OS Careers publishers (assigned in Admin) can be any kind of account.
+  return careersPublisher
+    ? [...base, { href: "/careers/manage", label: "Manage Careers", icon: FilePlus2, available: true }]
+    : base;
 }
 
 /* A nav item stays highlighted on its sub-pages too (/interview-ai/abc),
@@ -25,9 +27,9 @@ function isActive(pathname: string, href: string) {
 }
 
 /** The nav list itself, shared by the desktop sidebar and the mobile drawer. */
-export function SidebarNav({ role, onNavigate }: { role?: UserRole; onNavigate?: () => void }) {
+export function SidebarNav({ role, careersPublisher, onNavigate }: { role?: UserRole; careersPublisher?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const items = navItemsFor(role);
+  const items = navItemsFor(role, careersPublisher);
 
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto p-4">
@@ -105,13 +107,13 @@ export function UpgradeCard({ onNavigate, role }: { onNavigate?: () => void; rol
 
 /** Desktop sidebar. Below the lg breakpoint the same nav lives in the
     Topbar's slide-out menu (see MobileNav). */
-export function Sidebar({ role = "CANDIDATE" }: { role?: UserRole }) {
+export function Sidebar({ role = "CANDIDATE", careersPublisher = false }: { role?: UserRole; careersPublisher?: boolean }) {
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-surface lg:flex">
       <div className="flex h-16 items-center border-b border-border px-6">
         <Logo />
       </div>
-      <SidebarNav role={role} />
+      <SidebarNav role={role} careersPublisher={careersPublisher} />
       <UpgradeCard role={role} />
     </aside>
   );

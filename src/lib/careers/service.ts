@@ -118,7 +118,18 @@ export async function deleteListing(id: string) {
 
 export async function listPublishers() {
   return prisma.careersPublisher.findMany({
-    include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          companyMemberships: { select: { role: true, company: { select: { name: true } } }, take: 1 },
+        },
+      },
+    },
     orderBy: { createdAt: "asc" },
   });
 }
