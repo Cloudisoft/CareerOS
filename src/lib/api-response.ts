@@ -39,6 +39,7 @@ export function apiCatch(error: unknown) {
       AI_UNAVAILABLE: 503,
       PROVIDER_FAILED: 502,
       LOCKED: 403,
+      NEEDS_EMPLOYER: 409,
     };
     return apiError(err.message, statusByCode[err.code] ?? 400, err.code);
   }

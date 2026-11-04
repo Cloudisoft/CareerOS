@@ -127,7 +127,12 @@ export default function EnterpriseOverviewPage() {
               </>
             )}
             <p className="text-xs text-muted-foreground">
-              Job quota resets at midnight UTC. {o.period.end ? `Credits renew with your billing period on ${fmtDate(o.period.end)}.` : ""}
+              Job quota resets at midnight UTC.{" "}
+              {o.period.end
+                ? `Credits renew with your billing period on ${fmtDate(o.period.end)}.`
+                : o.complimentary
+                  ? "Credits reset on the 1st of each month (UTC)."
+                  : ""}
             </p>
           </CardContent>
         </Card>

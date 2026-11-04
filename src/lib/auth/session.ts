@@ -2,7 +2,8 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { generateToken, hashToken } from "@/lib/auth/crypto";
-import { SESSION_COOKIE } from "@/lib/auth/constants";
+import { SESSION_COOKIE, VIEW_AS_COOKIE } from "@/lib/auth/constants";
+import { allowedRolesFor } from "@/lib/auth/multi-role";
 import type { User } from "@prisma/client";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -43,6 +44,7 @@ export async function destroySession() {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
   cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(VIEW_AS_COOKIE);
 }
 
 export async function getSessionUser(): Promise<User | null> {
@@ -62,6 +64,15 @@ export async function getSessionUser(): Promise<User | null> {
 
   if (session.user.status !== "ACTIVE" || session.user.deletedAt) {
     return null;
+  }
+
+  // Full-access accounts can view the app as another of their allowed roles.
+  // The choice is re-checked against the admin-granted list on every request,
+  // so revoking access takes effect immediately.
+  const viewAs = cookieStore.get(VIEW_AS_COOKIE)?.value as User["role"] | undefined;
+  if (viewAs && viewAs !== session.user.role) {
+    const allowed = await allowedRolesFor(session.user);
+    if (allowed.includes(viewAs)) return { ...session.user, role: viewAs };
   }
 
   return session.user;

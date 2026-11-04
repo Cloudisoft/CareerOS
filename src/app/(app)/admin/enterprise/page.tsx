@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { api, ErrorBanner, SuccessBanner } from "@/components/enterprise/shared";
+import { AccessCards } from "@/components/admin/access-cards";
 
 interface Publisher {
   id: string;
@@ -94,6 +95,8 @@ export default function AdminEnterprisePage() {
       <h1 className="text-2xl font-semibold text-foreground">Enterprise & Careers</h1>
       {error && <ErrorBanner message={error} />}
       {notice && <SuccessBanner message={notice} />}
+
+      <AccessCards />
 
       <Card>
         <CardHeader>

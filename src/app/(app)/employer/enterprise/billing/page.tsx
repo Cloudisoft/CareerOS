@@ -115,6 +115,9 @@ function BillingInner() {
               {o.plan && hasAccess ? `${PLAN_NAME[o.plan]} · ` : ""}{STATUS_LABEL[o.status]}
             </p>
             {o.status === "TRIAL" && <p className="text-sm text-muted-foreground">Trial ends {fmtDate(o.trial.endsAt)}, then you move to the free tier.</p>}
+            {o.complimentary && (
+              <p className="text-sm text-muted-foreground">Complimentary plan from Career OS — no charge, no renewal date. Credits reset on the 1st of each month (UTC).</p>
+            )}
             {o.status === "ACTIVE" && o.period.end && (
               <p className="text-sm text-muted-foreground">
                 {o.intro.active ? `This month billed at the ${usd(o.intro.priceCents)} intro price. ` : ""}
@@ -124,7 +127,7 @@ function BillingInner() {
             {o.status === "CANCELLED" && <p className="text-sm text-muted-foreground">Cancelled — access until {fmtDate(o.period.end)}.</p>}
             {o.pendingDowngrade && <p className="text-sm text-muted-foreground">Switching to {PLAN_NAME[o.pendingDowngrade.plan as "STARTER"]} at renewal.</p>}
           </div>
-          {o.canManageBilling && (o.status === "ACTIVE" || o.status === "PAST_DUE") && (
+          {o.canManageBilling && !o.complimentary && (o.status === "ACTIVE" || o.status === "PAST_DUE") && (
             <Button variant="outline" disabled={busy} onClick={cancel}>Cancel subscription</Button>
           )}
         </CardContent>
@@ -158,7 +161,7 @@ function BillingInner() {
                     <li key={f} className="flex gap-2 text-foreground"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{f}</li>
                   ))}
                 </ul>
-                {o.canManageBilling && !current && (
+                {o.canManageBilling && !current && !o.complimentary && (
                   <div className="mt-5">
                     {isDowngrade ? (
                       <Button variant="outline" className="w-full" disabled={busy || Boolean(o.pendingDowngrade)} onClick={() => downgrade(p.key)}>

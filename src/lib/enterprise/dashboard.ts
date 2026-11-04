@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { creditSummary, jobsPostedToday, nextUtcMidnight, canManageBilling, type RecruiterContext } from "./account";
 import { ENTERPRISE_PLANS, INTRO_PRICE_CENTS, TRIAL_DAYS, BOOST_PRICES_CENTS, BOOST_DAYS } from "./plans";
 import { settleInmailReplies } from "./outreach";
+import { isComplimentary } from "./complimentary";
 
 /** The firm's subscription, allowances and live usage — every number from the database. */
 export async function enterpriseOverview(ctx: RecruiterContext) {
@@ -22,6 +23,7 @@ export async function enterpriseOverview(ctx: RecruiterContext) {
     canManageBilling: canManageBilling(ctx.role),
     status: state.status,
     plan: state.plan,
+    complimentary: isComplimentary(state.account),
     entitlements: state.entitlements,
     trial: { eligible: state.trialEligible, endsAt: state.trialEndsAt, days: TRIAL_DAYS },
     intro: { eligible: state.introEligible, priceCents: INTRO_PRICE_CENTS, active: state.account?.introActive ?? false },

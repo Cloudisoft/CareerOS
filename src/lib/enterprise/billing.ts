@@ -144,6 +144,9 @@ const customIdFor = (companyId: string) => `ent:${companyId}`;
 /** What the browser needs to render a PayPal subscribe button for `plan`. Picks the intro plan when the firm is eligible. */
 export async function subscriptionCheckout(ctx: RecruiterContext, plan: EnterprisePlanKey) {
   requireBillingManager(ctx);
+  if (ctx.state.account && ctx.state.status === "ACTIVE" && !ctx.state.account.paypalSubscriptionId) {
+    throw new EnterpriseError("Your company has a complimentary plan, so there's nothing to pay.", "CONFLICT");
+  }
   if (!isPayPalConfigured()) throw new PayPalNotConfiguredError();
   getEnterprisePlan(plan);
   const ids = await enterprisePlanIds();

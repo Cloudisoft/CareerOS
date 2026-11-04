@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, LogOut, CreditCard, Laptop, User as UserIcon } from "lucide-react";
+import { Bell, LogOut, CreditCard, Laptop, User as UserIcon, Repeat } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -22,9 +22,17 @@ import type { UserRole } from "@prisma/client";
 interface TopbarProps {
   user: { firstName: string; lastName: string; email: string; avatarUrl: string | null; role?: UserRole };
   careersPublisher?: boolean;
+  /** Views a full-access account can switch between; one entry (or none) hides the switcher. */
+  viewRoles?: UserRole[];
 }
 
-export function Topbar({ user, careersPublisher }: TopbarProps) {
+const VIEW_LABEL: Partial<Record<UserRole, string>> = {
+  CANDIDATE: "Job seeker",
+  EMPLOYER: "Employer & Recruiter Suite",
+  PLATFORM_ADMIN: "Platform admin",
+};
+
+export function Topbar({ user, careersPublisher, viewRoles = [] }: TopbarProps) {
   const router = useRouter();
   const [unread, setUnread] = useState(0);
 
@@ -46,6 +54,16 @@ export function Topbar({ user, careersPublisher }: TopbarProps) {
       clearInterval(interval);
     };
   }, []);
+
+  async function switchView(role: UserRole) {
+    const res = await fetch("/api/auth/view-as", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+    const json = await res.json().catch(() => null);
+    if (res.ok) window.location.href = json?.data?.home ?? "/dashboard";
+  }
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -97,6 +115,21 @@ export function Topbar({ user, careersPublisher }: TopbarProps) {
                 <Laptop className="h-4 w-4" /> Connected browsers
               </Link>
             </DropdownMenuItem>
+            {viewRoles.length > 1 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Switch view</DropdownMenuLabel>
+                {viewRoles.map((r) => {
+                  const current = r === user.role || (r === "EMPLOYER" && user.role === "COMPANY_ADMIN");
+                  return (
+                    <DropdownMenuItem key={r} disabled={current} onSelect={() => switchView(r)}>
+                      <Repeat className="h-4 w-4" /> {VIEW_LABEL[r]}
+                      {current ? " (current)" : ""}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={handleLogout}>
               <LogOut className="h-4 w-4" /> Log out

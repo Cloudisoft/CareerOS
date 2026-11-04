@@ -16,6 +16,7 @@ import {
   Users2,
   Sparkles,
   Globe,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 
@@ -54,6 +55,7 @@ export const EMPLOYER_NAV: NavItem[] = [
 
 export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "Overview", icon: ShieldCheck, available: true },
+  { href: "/admin/insights", label: "Insights", icon: Activity, available: true },
   { href: "/admin/users", label: "Users", icon: Users2, available: true },
   { href: "/admin/enterprise", label: "Enterprise & Careers", icon: Sparkles, available: true },
   { href: "/careers", label: "Career OS Careers", icon: Globe, available: true },
