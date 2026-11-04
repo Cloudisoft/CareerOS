@@ -26,6 +26,7 @@ import { ResumeShowcase } from "@/components/marketing/resume-showcase";
 import { HeroExplode } from "@/components/marketing/hero-explode";
 import { AutoApplySteps, AutoApplyAgentCard } from "@/components/marketing/auto-apply-showcase";
 import { Micro1Partnership } from "@/components/marketing/micro1-partnership";
+import { Micro1Logo } from "@/components/marketing/micro1-logo";
 import { HOME_FAQS, homeStructuredData } from "@/lib/marketing/home-seo";
 
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com";
@@ -208,7 +209,7 @@ export default function MarketingHomePage() {
               href="#micro1"
               className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface/70 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
             >
-              In partnership with <span className="font-semibold text-foreground">micro1</span>
+              In partnership with <Micro1Logo className="h-3.5 w-auto text-foreground" />
             </a>
           </Reveal>
         </div>

@@ -1,6 +1,7 @@
 import { ArrowUpRight, BadgeCheck, Bot, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
+import { Micro1Logo } from "@/components/marketing/micro1-logo";
 
 export const MICRO1_URL = "https://www.micro1.ai";
 
@@ -22,7 +23,7 @@ const POINTS = [
   },
 ];
 
-/** Homepage partnership section. Plain text name only — no partner logo or marks are reproduced. */
+/** Homepage partnership section, with micro1's own wordmark. */
 export function Micro1Partnership() {
   return (
     <section id="micro1" aria-labelledby="micro1-heading" className="scroll-mt-20 border-t border-border py-24">
@@ -30,8 +31,11 @@ export function Micro1Partnership() {
         <Reveal>
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Partnership</p>
-            <h2 id="micro1-heading" className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
-              Career OS <span className="text-muted-foreground">×</span> micro1
+            <h2 id="micro1-heading" className="mt-4 flex items-center justify-center gap-3 text-3xl font-bold text-foreground sm:text-4xl">
+              Career OS <span className="text-muted-foreground">×</span>
+              <a href={MICRO1_URL} target="_blank" rel="noopener" aria-label="micro1">
+                <Micro1Logo className="h-7 w-auto sm:h-8" />
+              </a>
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
               Career OS is in partnership with{" "}

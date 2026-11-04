@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { generateToken, hashPassword } from "@/lib/auth/crypto";
+import { generateToken } from "@/lib/auth/crypto";
 import type { User } from "@prisma/client";
 
 /**
@@ -129,26 +129,37 @@ export async function completeGoogleSignIn(profile: GoogleProfile, type: GoogleA
   if (!profile.emailVerified) {
     throw new GoogleAuthError("Your Google account's email isn't verified, so it can't be used to sign in.", "GOOGLE_UNVERIFIED");
   }
-  const existing = await prisma.user.findFirst({ where: { email: { equals: profile.email, mode: "insensitive" } } });
+  // Match the Google identity first (accounts created by the earlier Google sign-in), then the email.
+  const existing =
+    (await prisma.user.findUnique({ where: { googleId: profile.sub } })) ??
+    (await prisma.user.findFirst({ where: { email: { equals: profile.email, mode: "insensitive" } } }));
   if (existing) {
     if (existing.deletedAt || existing.status !== "ACTIVE") {
       throw new GoogleAuthError("This account is not active. Contact support.", "ACCOUNT_INACTIVE");
     }
     // Google has verified this address, so the account's email is verified too.
-    const updated = existing.emailVerified
-      ? existing
-      : await prisma.user.update({ where: { id: existing.id }, data: { emailVerified: new Date(), ...(existing.avatarUrl ? {} : { avatarUrl: profile.picture }) } });
+    const needsUpdate = !existing.emailVerified || existing.googleId !== profile.sub;
+    const updated = needsUpdate
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            emailVerified: existing.emailVerified ?? new Date(),
+            googleId: existing.googleId ?? profile.sub,
+            ...(existing.avatarUrl ? {} : { avatarUrl: profile.picture }),
+          },
+        })
+      : existing;
     return { user: updated, created: false };
   }
   if (!type) {
     throw new GoogleAuthError("There's no Career OS account for this Google email yet. Choose job searching or hiring to create one.", "GOOGLE_NO_ACCOUNT");
   }
   // No password is set; the account can add one any time with "Forgot password".
-  const passwordHash = await hashPassword(generateToken(32));
   const user = await prisma.user.create({
     data: {
       email: profile.email,
-      passwordHash,
+      passwordHash: null,
+      googleId: profile.sub,
       firstName: profile.givenName.slice(0, 80),
       lastName: profile.familyName.slice(0, 80),
       avatarUrl: profile.picture,
