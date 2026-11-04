@@ -1,9 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireExtensionCandidateProfile } from "@/lib/auth/extension";
-import { prisma } from "@/lib/prisma";
-import { resumeContentSchema } from "@/lib/validations/resume";
-import { getProfileForExtensionSync, buildExtensionProfile } from "@/lib/autoapply/adapter";
-import { documentFromProfile, documentFromResumeContent, renderResumePdf, type ResumeDocument } from "@/lib/resume/pdf";
+import { candidateResumePdf, resumePlainText } from "@/lib/resume/candidate-document";
 import { extCatch, extOk } from "@/lib/extension/response";
 
 /**
@@ -18,65 +15,16 @@ import { extCatch, extOk } from "@/lib/extension/response";
 export async function GET(req: NextRequest) {
   try {
     const { user, profile } = await requireExtensionCandidateProfile(req);
-
-    const resume = await prisma.resume.findFirst({
-      where: { profileId: profile.id },
-      orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }],
-    });
-
-    let doc: ResumeDocument;
-    let updatedAt: Date;
-    const parsed = resume ? resumeContentSchema.safeParse(resume.content) : null;
-
-    if (resume && parsed && parsed.success) {
-      doc = documentFromResumeContent(
-        {
-          name: [user.firstName, user.lastName].filter(Boolean).join(" "),
-          email: user.email,
-          phone: user.phone ?? "",
-          location: profile.location ?? "",
-        },
-        parsed.data
-      );
-      updatedAt = resume.updatedAt;
-    } else {
-      const full = await getProfileForExtensionSync(profile.id);
-      doc = documentFromProfile(buildExtensionProfile(user, full));
-      updatedAt = full.updatedAt;
-    }
-
-    const bytes = await renderResumePdf(doc);
-    const baseName = [user.firstName, user.lastName].filter(Boolean).join("_").replace(/[^A-Za-z0-9_]/g, "") || "Resume";
-
+    const { bytes, fileName, doc, updatedAt, source } = await candidateResumePdf(user, profile.id, profile.location);
     return extOk({
-      name: `${baseName}_Resume.pdf`,
+      name: fileName,
       mime: "application/pdf",
       base64: Buffer.from(bytes).toString("base64"),
-      text: plainText(doc),
+      text: resumePlainText(doc),
       updatedAt: updatedAt.toISOString(),
-      source: resume && parsed && parsed.success ? "resume-studio" : "career-profile",
+      source,
     });
   } catch (error) {
     return extCatch(error);
   }
-}
-
-function plainText(doc: ResumeDocument) {
-  const lines = [doc.name, [doc.email, doc.phone, doc.location].filter(Boolean).join(" | "), ""];
-  if (doc.summary) lines.push("SUMMARY", doc.summary, "");
-  if (doc.experience.length) {
-    lines.push("EXPERIENCE");
-    doc.experience.forEach((e) => {
-      lines.push(`${e.title} - ${e.company} ${e.dates ? `(${e.dates})` : ""}`.trim());
-      e.bullets.forEach((b) => lines.push(`- ${b}`));
-    });
-    lines.push("");
-  }
-  if (doc.education.length) {
-    lines.push("EDUCATION");
-    doc.education.forEach((e) => lines.push(`${e.school}${e.degree ? `, ${e.degree}` : ""} ${e.dates}`.trim()));
-    lines.push("");
-  }
-  if (doc.skills.length) lines.push("SKILLS", doc.skills.join(", "));
-  return lines.join("\n");
 }

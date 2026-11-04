@@ -5,6 +5,7 @@ import { getEntitlements } from "@/lib/billing/entitlements";
 import { scoreJobsForProfile } from "@/lib/matching/service";
 import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
 import { apiCatch, apiOk } from "@/lib/api-response";
+import { activeCampaignJobIds } from "@/lib/enterprise/boosts";
 import type { Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 20;
@@ -39,16 +40,34 @@ export async function GET(req: NextRequest) {
       ...(minSalary ? { salaryMax: { gte: minSalary } } : {}),
     };
 
-    const [jobs, total] = await Promise.all([
+    // Jobs in an active paid/free campaign boost lead the results, labelled
+    // Promoted — but only when they match the search, and never twice.
+    const campaignIds = await activeCampaignJobIds();
+    const promotedJobs = campaignIds.length
+      ? await prisma.job.findMany({
+          where: { AND: [where, { id: { in: campaignIds } }] },
+          include: { company: true, skills: { include: { skill: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        })
+      : [];
+    const promotedIds = new Set(promotedJobs.map((j) => j.id));
+    const regularWhere: Prisma.JobWhereInput = promotedIds.size ? { AND: [where, { id: { notIn: Array.from(promotedIds) } }] } : where;
+
+    const offset = (page - 1) * PAGE_SIZE;
+    const fromPromoted = promotedJobs.slice(offset, offset + PAGE_SIZE);
+    const [regularJobs, regularTotal] = await Promise.all([
       prisma.job.findMany({
-        where,
+        where: regularWhere,
         include: { company: true, skills: { include: { skill: true } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
+        skip: Math.max(0, offset - promotedJobs.length),
+        take: PAGE_SIZE - fromPromoted.length,
       }),
-      prisma.job.count({ where }),
+      prisma.job.count({ where: regularWhere }),
     ]);
+    const jobs = [...fromPromoted, ...regularJobs];
+    const total = regularTotal + promotedJobs.length;
 
     const user = await getSessionUser();
     let scores = new Map<string, number>();
@@ -77,6 +96,7 @@ export async function GET(req: NextRequest) {
         matchScore: scores.get(job.id) ?? null,
         source: job.source,
         externalUrl: job.externalUrl,
+        promoted: promotedIds.has(job.id),
       })),
       total,
       page,

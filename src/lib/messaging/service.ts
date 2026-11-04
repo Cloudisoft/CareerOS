@@ -37,11 +37,17 @@ export async function listConversations(userId: string) {
   });
 }
 
-export async function getOrCreateConversation(userId: string, otherUserId: string) {
+/**
+ * `allowUnconnected` is for server-side callers that have already checked
+ * the sender may contact this person some other way — a recruiter writing
+ * to their own applicant or a candidate they unlocked. The public
+ * conversations API never passes it.
+ */
+export async function getOrCreateConversation(userId: string, otherUserId: string, options: { allowUnconnected?: boolean } = {}) {
   if (userId === otherUserId) {
     throw new MessagingError("You can't message yourself.", "INVALID_TARGET");
   }
-  const connected = await areConnected(userId, otherUserId);
+  const connected = options.allowUnconnected || (await areConnected(userId, otherUserId));
   if (!connected) {
     throw new MessagingError("You can only message people you're connected with.", "NOT_CONNECTED");
   }

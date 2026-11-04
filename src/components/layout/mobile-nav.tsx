@@ -87,7 +87,7 @@ export function MobileNav({ role }: { role?: UserRole }) {
               </button>
             </div>
             <SidebarNav role={role} onNavigate={() => setOpen(false)} />
-            <UpgradeCard onNavigate={() => setOpen(false)} />
+            <UpgradeCard role={role} onNavigate={() => setOpen(false)} />
           </aside>
         </>,
         document.body

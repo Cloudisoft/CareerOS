@@ -74,11 +74,13 @@ export function SidebarNav({ role, onNavigate }: { role?: UserRole; onNavigate?:
   );
 }
 
-export function UpgradeCard({ onNavigate }: { onNavigate?: () => void }) {
+export function UpgradeCard({ onNavigate, role }: { onNavigate?: () => void; role?: UserRole }) {
+  const employer = role === "EMPLOYER" || role === "COMPANY_ADMIN";
+  if (role === "PLATFORM_ADMIN") return null;
   return (
     <div className="border-t border-border p-4">
       <Link
-        href="/pricing"
+        href={employer ? "/employer/enterprise/billing" : "/pricing"}
         onClick={onNavigate}
         className="group relative flex flex-col gap-1 overflow-hidden rounded-lg border border-border bg-surface-raised p-4 transition-colors hover:border-primary/40"
       >
@@ -89,10 +91,12 @@ export function UpgradeCard({ onNavigate }: { onNavigate?: () => void }) {
         />
         <span className="relative flex items-center gap-1.5 text-xs font-semibold text-foreground">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
-          Upgrade your plan
+          {employer ? "Recruiter Suite plans" : "Upgrade your plan"}
         </span>
         <span className="relative text-xs text-muted-foreground">
-          Unlock Auto Apply limits, Interview AI, and more.
+          {employer
+            ? "Resume search, AI screening, InMail and boosts."
+            : "Unlock Auto Apply limits, Interview AI, and more."}
         </span>
       </Link>
     </div>
@@ -108,7 +112,7 @@ export function Sidebar({ role = "CANDIDATE" }: { role?: UserRole }) {
         <Logo />
       </div>
       <SidebarNav role={role} />
-      <UpgradeCard />
+      <UpgradeCard role={role} />
     </aside>
   );
 }

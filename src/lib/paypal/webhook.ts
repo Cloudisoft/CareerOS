@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { paypalRequest } from "./client";
 import { planFromPayPalId, addOnFromPayPalId } from "./plans";
 import type { PayPalSubscriptionDetails } from "./subscriptions";
+import { isEnterpriseWebhook, handleEnterpriseWebhook } from "@/lib/enterprise/billing";
 
 export interface PayPalWebhookHeaders {
   authAlgo: string;
@@ -131,6 +132,11 @@ export interface PayPalWebhookEvent {
 }
 
 export async function handlePayPalWebhookEvent(event: PayPalWebhookEvent) {
+  // Enterprise (recruiter firm) subscriptions are billed per company, not per user.
+  if (await isEnterpriseWebhook(event.event_type, event.resource)) {
+    await handleEnterpriseWebhook(event.event_type, event.resource);
+    return;
+  }
   switch (event.event_type) {
     case "BILLING.SUBSCRIPTION.ACTIVATED":
     case "BILLING.SUBSCRIPTION.UPDATED":
