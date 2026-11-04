@@ -12,8 +12,22 @@ interface Publisher {
   id: string;
   userId: string;
   createdAt: string;
-  user: { id: string; email: string; firstName: string; lastName: string };
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    companyMemberships: { role: string; company: { name: string } }[];
+  };
 }
+
+const ROLE_LABEL: Record<string, string> = {
+  CANDIDATE: "Job seeker account",
+  EMPLOYER: "Employer account",
+  COMPANY_ADMIN: "Employer account",
+  PLATFORM_ADMIN: "Platform admin",
+};
 interface BillingStatus {
   configured: boolean;
   env: string;
@@ -98,8 +112,21 @@ export default function AdminEnterprisePage() {
           ) : (
             <div className="divide-y divide-border text-sm">
               {publishers.map((p) => (
-                <div key={p.id} className="flex items-center justify-between py-2">
-                  <span className="text-foreground">{p.user.firstName} {p.user.lastName} · <span className="text-muted-foreground">{p.user.email}</span></span>
+                <div key={p.id} className="flex items-start justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-foreground">{p.user.firstName} {p.user.lastName} · <span className="text-muted-foreground">{p.user.email}</span></p>
+                    <p className="text-xs text-muted-foreground">
+                      {ROLE_LABEL[p.user.role] ?? p.user.role}
+                      {p.user.companyMemberships[0] ? ` · ${p.user.companyMemberships[0].company.name}` : ""}
+                      {" · posts from the "}<span className="text-foreground">Manage Careers</span>{" menu item"}
+                    </p>
+                    {(p.user.role === "EMPLOYER" || p.user.role === "COMPANY_ADMIN") && !p.user.companyMemberships[0] && (
+                      <p className="text-xs text-warning">Hasn&apos;t created a company yet — Recruiter Suite opens once they do (Company in the menu).</p>
+                    )}
+                    {p.user.role !== "EMPLOYER" && p.user.role !== "COMPANY_ADMIN" && (
+                      <p className="text-xs text-warning">Recruiter Suite is only available on employer accounts.</p>
+                    )}
+                  </div>
                   <Button size="sm" variant="ghost" onClick={() => revoke(p)}>Remove</Button>
                 </div>
               ))}

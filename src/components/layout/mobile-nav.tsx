@@ -15,7 +15,7 @@ import type { UserRole } from "@prisma/client";
  * tablets had no way to reach Interview AI, Learning, Resume Studio, etc.
  * A menu button in the top bar opens it as a slide-out drawer.
  */
-export function MobileNav({ role }: { role?: UserRole }) {
+export function MobileNav({ role, careersPublisher }: { role?: UserRole; careersPublisher?: boolean }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -86,7 +86,7 @@ export function MobileNav({ role }: { role?: UserRole }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <SidebarNav role={role} onNavigate={() => setOpen(false)} />
+            <SidebarNav role={role} careersPublisher={careersPublisher} onNavigate={() => setOpen(false)} />
             <UpgradeCard role={role} onNavigate={() => setOpen(false)} />
           </aside>
         </>,
