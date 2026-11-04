@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { GoogleButton, OrDivider } from "@/components/auth/google-button";
 
 type AccountType = "CANDIDATE" | "EMPLOYER";
 
@@ -19,7 +20,7 @@ function SignupForm() {
   const next = searchParams.get("next");
   const [accountType, setAccountType] = useState<AccountType>("CANDIDATE");
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "" });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(searchParams.get("error"));
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -75,6 +76,13 @@ function SignupForm() {
             </button>
           ))}
         </div>
+
+        <GoogleButton
+          type={accountType}
+          next={next}
+          label={accountType === "CANDIDATE" ? "Continue with Google as a job seeker" : "Continue with Google as an employer"}
+        />
+        <OrDivider />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
