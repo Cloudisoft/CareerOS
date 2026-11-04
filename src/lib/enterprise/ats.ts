@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { generateText } from "@/lib/ai/gateway";
+import { generateText, AiNotConfiguredError } from "@/lib/ai/gateway";
 import { rateLimit } from "@/lib/rate-limit";
 import { candidateResumeDocument, resumePlainText } from "@/lib/resume/candidate-document";
 import type { AtsCategory } from "@prisma/client";
@@ -159,6 +159,9 @@ export async function screenCandidate(ctx: RecruiterContext, input: ScreenInput)
     result = parseAtsResponse(res.text);
   } catch (error) {
     if (error instanceof EnterpriseError) throw error;
+    if (error instanceof AiNotConfiguredError) {
+      throw new EnterpriseError("AI screening isn't available right now: no AI provider is configured.", "AI_UNAVAILABLE");
+    }
     console.error("ATS screening failed", error);
     throw new EnterpriseError("The AI couldn't complete this screening. Nothing was saved — please try again.", "AI_UNAVAILABLE");
   }
