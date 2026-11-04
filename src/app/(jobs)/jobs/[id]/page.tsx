@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Loader2, CheckCircle2, MapPin, Briefcase, DollarSign, ExternalLink } from "lucide-react";
+import { Bookmark, BookmarkCheck, Loader2, CheckCircle2, MapPin, Briefcase, DollarSign, ExternalLink, Sparkles, AlertTriangle, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,19 @@ interface SalaryIntelligence {
   gapAmount: number | null;
 }
 
+interface JobEvaluation {
+  score: number;
+  summary: string;
+  cvMatchNotes: string;
+  levelStrategy: string;
+  compNotes: string;
+  personalization: string;
+  interviewPrep: string;
+  legitimacy: "CLEAR" | "CAUTION" | "LIKELY_SCAM";
+  legitimacyNotes: string;
+  sponsorshipBlocker: boolean;
+}
+
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<JobDetail | null>(null);
@@ -71,6 +84,10 @@ export default function JobDetailPage() {
   const [resumeId, setResumeId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [evaluation, setEvaluation] = useState<JobEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evalError, setEvalError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -92,10 +109,27 @@ export default function JobDetailPage() {
         setResumes(list);
         const primary = list.find((r) => r.isPrimary) ?? list[0];
         if (primary) setResumeId(primary.id);
+
+        const evalRes = await fetch(`/api/jobs/${params.id}/evaluate`);
+        const evalJson = await evalRes.json();
+        if (evalRes.ok) setEvaluation(evalJson.data?.evaluation ?? null);
       }
       setLoading(false);
     })();
   }, [params.id]);
+
+  async function runEvaluation() {
+    setEvaluating(true);
+    setEvalError(null);
+    const res = await fetch(`/api/jobs/${params.id}/evaluate`, { method: "POST" });
+    const json = await res.json();
+    setEvaluating(false);
+    if (!res.ok) {
+      setEvalError(json.error?.message ?? "Couldn't generate an evaluation. Please try again.");
+      return;
+    }
+    setEvaluation(json.data.evaluation);
+  }
 
   async function toggleSave() {
     setSaved((s) => !s);
@@ -346,6 +380,85 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-sm">AI evaluation</CardTitle>
+              <Button size="sm" variant="ghost" onClick={runEvaluation} disabled={evaluating}>
+                {evaluating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {evaluation ? "Redo" : "Evaluate"}
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0 text-sm">
+              {evalError && <p className="text-destructive">{evalError}</p>}
+              {!evaluation && !evaluating && (
+                <p className="text-muted-foreground">
+                  Get a holistic read on this posting — fit, level strategy, comp, and a legitimacy check — beyond the match score above.
+                </p>
+              )}
+              {evaluation && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Overall fit</span>
+                    <span className="font-semibold text-foreground">{(evaluation.score / 10).toFixed(1)} / 5</span>
+                  </div>
+                  {evaluation.legitimacy !== "CLEAR" && (
+                    <div
+                      className={
+                        "flex items-start gap-2 rounded-md border p-2 text-xs " +
+                        (evaluation.legitimacy === "LIKELY_SCAM"
+                          ? "border-destructive/30 bg-destructive/10 text-destructive"
+                          : "border-warning/30 bg-warning/10 text-warning")
+                      }
+                    >
+                      <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {evaluation.legitimacy === "LIKELY_SCAM" ? "Likely scam or ghost posting" : "Proceed with caution"}
+                        {evaluation.legitimacyNotes ? ` — ${evaluation.legitimacyNotes}` : ""}
+                      </span>
+                    </div>
+                  )}
+                  {evaluation.sponsorshipBlocker && (
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>This posting states it won't sponsor — a likely hard blocker given your profile.</span>
+                    </div>
+                  )}
+                  <p className="text-foreground">{evaluation.summary}</p>
+                  {evaluation.cvMatchNotes && (
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CV match</p>
+                      <p className="mt-0.5 text-muted-foreground">{evaluation.cvMatchNotes}</p>
+                    </div>
+                  )}
+                  {evaluation.levelStrategy && (
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Level strategy</p>
+                      <p className="mt-0.5 text-muted-foreground">{evaluation.levelStrategy}</p>
+                    </div>
+                  )}
+                  {evaluation.compNotes && (
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Compensation</p>
+                      <p className="mt-0.5 text-muted-foreground">{evaluation.compNotes}</p>
+                    </div>
+                  )}
+                  {evaluation.personalization && (
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Personalize with</p>
+                      <p className="mt-0.5 text-muted-foreground">{evaluation.personalization}</p>
+                    </div>
+                  )}
+                  {evaluation.interviewPrep && (
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Interview prep</p>
+                      <p className="mt-0.5 text-muted-foreground">{evaluation.interviewPrep}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

@@ -43,6 +43,10 @@ interface AiProvider {
   name: AiProviderName;
   generateText(input: GenerateTextInput): Promise<string>;
   generateChat(input: GenerateChatInput): Promise<string>;
+  /** Same as generateChat, but calls onDelta with each chunk of text as it
+      arrives — lets a caller (Job GPT) show the reply appearing as it's
+      generated instead of one long wait for the full response. */
+  generateChatStream(input: GenerateChatInput, onDelta: (chunk: string) => void): Promise<string>;
 }
 
 /**
@@ -70,6 +74,12 @@ class MockAiProvider implements AiProvider {
       `AGENTROUTER_API_KEY, or OPENAI_API_KEY to get real output.]\n\n` +
       `Placeholder reply to: "${excerpt}"`
     );
+  }
+
+  async generateChatStream(input: GenerateChatInput, onDelta: (chunk: string) => void): Promise<string> {
+    const text = await this.generateChat(input);
+    onDelta(text);
+    return text;
   }
 }
 
@@ -115,6 +125,24 @@ class AnthropicAiProvider implements AiProvider {
     if (!textBlock) throw new Error("The AI provider returned no usable text.");
     return textBlock.text.trim();
   }
+
+  async generateChatStream(
+    { system, messages, maxTokens = 1024, effort = "low" }: GenerateChatInput,
+    onDelta: (chunk: string) => void
+  ): Promise<string> {
+    const stream = this.client.messages.stream({
+      model: this.model,
+      max_tokens: maxTokens,
+      system,
+      output_config: { effort },
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+    stream.on("text", (text) => onDelta(text));
+    const finalMessage = await stream.finalMessage();
+    const textBlock = finalMessage.content.find((block): block is Anthropic.TextBlock => block.type === "text");
+    if (!textBlock) throw new Error("The AI provider returned no usable text.");
+    return textBlock.text.trim();
+  }
 }
 
 /**
@@ -130,7 +158,42 @@ class OpenAiCompatibleProvider implements AiProvider {
     private model: string
   ) {}
 
+  /**
+   * OpenAI's reasoning/GPT-5-family models reject `max_tokens` with a 400
+   * ("Unsupported parameter") and require `max_completion_tokens` instead
+   * — and this is a constraint of the underlying MODEL, not the transport,
+   * so it applies whether that model is reached directly or proxied
+   * through an aggregator that passes requests through close to verbatim
+   * (which is why this was surfacing as a failure via OpenRouter too, not
+   * only the direct OpenAI provider).
+   *
+   * These same reasoning models spend part of that token budget on hidden
+   * "thinking" tokens before ever producing visible output — with a small
+   * budget (the app's callers typically ask for ~1024) it's easy for
+   * reasoning alone to consume the whole thing, leaving a 200 OK response
+   * with an entirely empty message.content. Two mitigations, both scoped
+   * to reasoning models only: force a much larger token ceiling so there's
+   * real headroom left after reasoning, and set reasoning_effort to "low"
+   * (the documented lever for these models) so less of the budget goes to
+   * reasoning in the first place.
+   */
+  private buildBody(
+    messages: { role: "system" | "user" | "assistant"; content: string }[],
+    maxTokens: number,
+    stream: boolean
+  ): Record<string, unknown> {
+    const isReasoningModel = usesMaxCompletionTokens(this.model);
+    const tokenParam = isReasoningModel ? "max_completion_tokens" : "max_tokens";
+    const effectiveMaxTokens = isReasoningModel ? Math.max(maxTokens, REASONING_MODEL_MIN_TOKENS) : maxTokens;
+
+    const body: Record<string, unknown> = { model: this.model, messages, [tokenParam]: effectiveMaxTokens, stream };
+    if (isReasoningModel) body.reasoning_effort = "low";
+    return body;
+  }
+
   private async complete(messages: { role: "system" | "user" | "assistant"; content: string }[], maxTokens: number): Promise<string> {
+    const body = this.buildBody(messages, maxTokens, false);
+
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -139,7 +202,7 @@ class OpenAiCompatibleProvider implements AiProvider {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({ model: this.model, messages, max_tokens: maxTokens }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
     } catch (error) {
@@ -154,9 +217,23 @@ class OpenAiCompatibleProvider implements AiProvider {
       throw new Error(`${this.name} request failed (${response.status} ${response.statusText}): ${body.slice(0, 300)}`);
     }
 
-    const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
+      error?: unknown;
+    };
     const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error(`${this.name} returned no usable text.`);
+    if (!content) {
+      // Surface whatever the provider actually told us — a generic "no
+      // usable text" message hides the real cause (an embedded API error,
+      // a length-truncated response, a moderation refusal, ...).
+      const finishReason = data.choices?.[0]?.finish_reason;
+      const detail = data.error
+        ? JSON.stringify(data.error).slice(0, 300)
+        : finishReason
+          ? `finish_reason=${finishReason}`
+          : JSON.stringify(data).slice(0, 300);
+      throw new Error(`${this.name} returned no usable text (${detail}).`);
+    }
     return content.trim();
   }
 
@@ -176,7 +253,99 @@ class OpenAiCompatibleProvider implements AiProvider {
       maxTokens
     );
   }
+
+  private async completeStream(
+    messages: { role: "system" | "user" | "assistant"; content: string }[],
+    maxTokens: number,
+    onDelta: (chunk: string) => void
+  ): Promise<string> {
+    const body = this.buildBody(messages, maxTokens, true);
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new Error(`${this.name} request timed out after ${PROVIDER_TIMEOUT_MS / 1000}s`);
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      throw new Error(`${this.name} request failed (${response.status} ${response.statusText}): ${errorBody.slice(0, 300)}`);
+    }
+    if (!response.body) throw new Error(`${this.name} returned no response stream.`);
+
+    // Server-Sent Events framing: lines starting "data: ", a blank line
+    // between events, and a final "data: [DONE]" — every OpenAI-compatible
+    // streaming endpoint (OpenRouter, AgentRouter, OpenAI itself) uses this
+    // exact wire format, so no per-provider parsing is needed here either.
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let full = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const json = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] };
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            full += delta;
+            onDelta(delta);
+          }
+        } catch {
+          // A keep-alive or partial line that isn't valid JSON — ignore it,
+          // the rest of the stream is unaffected.
+        }
+      }
+    }
+
+    if (!full) throw new Error(`${this.name} returned no usable text.`);
+    return full;
+  }
+
+  async generateChatStream(
+    { system, messages, maxTokens = 1024 }: GenerateChatInput,
+    onDelta: (chunk: string) => void
+  ): Promise<string> {
+    return this.completeStream(
+      [{ role: "system", content: system }, ...messages.map((m) => ({ role: m.role, content: m.content }))],
+      maxTokens,
+      onDelta
+    );
+  }
 }
+
+/** OpenAI's o-series reasoning models and the GPT-5 family all require
+    `max_completion_tokens` instead of `max_tokens` — matched on the model
+    name itself (stripping any router-style "openai/" prefix) since the
+    constraint follows the model regardless of which provider serves it. */
+function usesMaxCompletionTokens(model: string): boolean {
+  return /^(o1|o3|o4|gpt-5)/i.test(model.replace(/^openai\//i, ""));
+}
+
+/** Floor for reasoning-model token budgets — see the comment in `complete`.
+    High enough to leave real room for visible output after low-effort
+    reasoning, without being an unreasonable cost ceiling. */
+const REASONING_MODEL_MIN_TOKENS = 4000;
 
 const PROVIDER_BASE_URL: Record<"openrouter" | "agentrouter" | "openai", string> = {
   openrouter: "https://openrouter.ai/api/v1",
@@ -297,5 +466,18 @@ export async function generateText(input: GenerateTextInput): Promise<GenerateTe
 
 export async function generateChat(input: GenerateChatInput): Promise<GenerateTextResult> {
   const { result: text, provider } = await withFallback((p) => p.generateChat(input));
+  return { text, provider };
+}
+
+/**
+ * Streaming counterpart to generateChat — onDelta fires as text arrives.
+ * Provider fallback still applies, but only up to the point a provider
+ * starts actually streaming content: OpenRouter/AgentRouter fail with an
+ * error status before any SSE data reaches this code (their failures here
+ * are account-level, not mid-stream), so falling back never re-sends
+ * partial output the caller already forwarded to onDelta.
+ */
+export async function generateChatStream(input: GenerateChatInput, onDelta: (chunk: string) => void): Promise<GenerateTextResult> {
+  const { result: text, provider } = await withFallback((p) => p.generateChatStream(input, onDelta));
   return { text, provider };
 }

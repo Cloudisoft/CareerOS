@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, FileText, Star, Loader2, Trash2, ScanSearch } from "lucide-react";
+import { Plus, FileText, Star, Loader2, Trash2, ScanSearch, Upload, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,9 @@ export default function ResumeStudioPage() {
   const [resumes, setResumes] = useState<ResumeSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/resumes")
@@ -45,6 +48,25 @@ export default function ResumeStudioPage() {
     await fetch(`/api/resumes/${id}`, { method: "DELETE" });
   }
 
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError(null);
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/resumes/upload", { method: "POST", body: formData });
+    const json = await res.json();
+    setUploading(false);
+    if (!res.ok) {
+      setUploadError(json.error?.message ?? "Couldn't read that resume. Please try again.");
+      return;
+    }
+    router.push(`/resume-studio/${json.data.resume.id}`);
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6 flex items-center justify-between">
@@ -61,7 +83,7 @@ export default function ResumeStudioPage() {
         </Button>
       </div>
 
-      <div className="mb-6 flex gap-3">
+      <div className="mb-3 flex flex-wrap gap-3">
         <Button onClick={() => createResume(true)} disabled={creating}>
           {creating && <Loader2 className="h-4 w-4 animate-spin" />}
           Build from my profile
@@ -69,7 +91,24 @@ export default function ResumeStudioPage() {
         <Button variant="secondary" onClick={() => createResume(false)} disabled={creating}>
           <Plus className="h-4 w-4" /> Start blank
         </Button>
+        <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          Upload existing resume
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+          hidden
+          onChange={handleUpload}
+        />
       </div>
+
+      {uploadError && (
+        <p className="mb-6 flex items-center gap-1.5 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" /> {uploadError}
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16">

@@ -75,6 +75,7 @@ model User {
   posts               Post[]
   comments            Comment[]
   reactions           Reaction[]
+  circleMemberships   CircleMember[]
   conversationMembers ConversationMember[]
   messages            Message[]
 
@@ -234,6 +235,7 @@ model CandidateProfile {
   location String?
   headline String?
   bio      String?
+  coverUrl String?
 
   // Professional
   currentTitle         String?
@@ -243,15 +245,19 @@ model CandidateProfile {
   industry             String?
 
   // Job preferences
-  desiredTitles     String[]
-  desiredIndustries String[]
-  desiredLocations  String[]
-  workplaceTypes    WorkplaceType[]
-  employmentTypes   EmploymentType[]
-  desiredSalaryMin  Int?
-  desiredSalaryMax  Int?
-  salaryCurrency    String           @default("USD")
-  noticePeriodDays  Int?
+  desiredTitles              String[]
+  desiredIndustries          String[]
+  desiredLocations           String[]
+  /// Radius in miles around desiredLocations[0] to treat as "close enough" —
+  /// only meaningful when the location resolves in lib/geo/cities.ts; unset
+  /// (null) keeps the previous substring-only location matching.
+  desiredLocationRadiusMiles Int?
+  workplaceTypes             WorkplaceType[]
+  employmentTypes            EmploymentType[]
+  desiredSalaryMin           Int?
+  desiredSalaryMax           Int?
+  salaryCurrency             String           @default("USD")
+  noticePeriodDays           Int?
 
   // Work authorization
   workAuthorization String?
@@ -303,8 +309,11 @@ model CandidateProfile {
   toolkitOutputs       ToolkitOutput[]
   extensionAnswers     ExtensionAnswer[]
 
-  resumeUnlocks ResumeUnlock[]
-  atsScreenings AtsScreening[]
+  resumeUnlocks      ResumeUnlock[]
+  atsScreenings      AtsScreening[]
+  jobEvaluations     JobEvaluation[]
+  negotiationScripts NegotiationScript[]
+  outreachDrafts     OutreachDraft[]
 
   @@map("candidate_profiles")
 }
@@ -567,8 +576,12 @@ model Job {
   toolkitOutputs     ToolkitOutput[]
   bounties           Bounty[]
 
-  enterprisePost EnterpriseJobPost?
-  atsScreenings  AtsScreening[]
+  enterprisePost     EnterpriseJobPost?
+  atsScreenings      AtsScreening[]
+  posts              Post[]
+  evaluations        JobEvaluation[]
+  negotiationScripts NegotiationScript[]
+  outreachDrafts     OutreachDraft[]
 
   @@unique([source, externalId])
   @@index([companyId])
@@ -1393,12 +1406,78 @@ model Follow {
   @@map("follows")
 }
 
+model Circle {
+  id          String @id @default(cuid())
+  slug        String @unique
+  name        String
+  description String
+  category    String
+
+  createdAt DateTime @default(now())
+
+  members CircleMember[]
+  posts   Post[]
+
+  @@index([category])
+  @@map("circles")
+}
+
+enum CircleMemberRole {
+  MEMBER
+  ADMIN
+}
+
+model CircleMember {
+  id       String           @id @default(cuid())
+  circleId String
+  circle   Circle           @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     CircleMemberRole @default(MEMBER)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([circleId, userId])
+  @@index([userId])
+  @@map("circle_members")
+}
+
 model Post {
   id       String   @id @default(cuid())
   authorId String
   author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content  String
   kind     PostKind @default(GENERAL)
+
+  /**
+   * An uploaded image, stored as a data: URL — see src/lib/upload/image.ts.
+   */
+  imageUrl String?
+  /**
+   * An external video link (YouTube/Vimeo/Loom) shown as an embed.
+   */
+  videoUrl String?
+
+  /**
+   * Set when this post was made inside a Circle rather than the general feed.
+   */
+  circleId String?
+  circle   Circle? @relation(fields: [circleId], references: [id], onDelete: SetNull)
+  /**
+   * Set when an employer shares a real open role as a "hiring" post.
+   */
+  jobId    String?
+  job      Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  /**
+   * Set when this post is a repost of another — content holds the reposter's
+   * own added commentary, if any (may be empty). onDelete: Cascade because a
+   * repost with its original gone is meaningless, unlike circle/job which
+   * degrade gracefully to SetNull.
+   */
+  repostOfId String?
+  repostOf   Post?   @relation("PostRepost", fields: [repostOfId], references: [id], onDelete: Cascade)
+  reposts    Post[]  @relation("PostRepost")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1410,6 +1489,8 @@ model Post {
   boosts Boost[]
 
   @@index([authorId])
+  @@index([circleId])
+  @@index([repostOfId])
   @@map("posts")
 }
 
@@ -1427,12 +1508,22 @@ model Comment {
   @@map("comments")
 }
 
+enum ReactionType {
+  LIKE
+  CELEBRATE
+  SUPPORT
+  LOVE
+  INSIGHTFUL
+  FUNNY
+}
+
 model Reaction {
-  id     String @id @default(cuid())
+  id     String       @id @default(cuid())
   postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post   Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   ReactionType @default(LIKE)
 
   createdAt DateTime @default(now())
 
@@ -2019,4 +2110,95 @@ model AppSetting {
 enum PostKind {
   GENERAL
   JOB_ANNOUNCEMENT
+}
+
+// ============================================================
+// CAREER TOOLS (restored from September): per-job fit evaluation with a
+// legitimacy check, negotiation scripts, and draft-only outreach.
+// ============================================================
+
+enum JobLegitimacy {
+  CLEAR
+  CAUTION
+  LIKELY_SCAM
+}
+
+/// A narrative, holistic evaluation of one posting for one candidate —
+/// deliberately separate from JobMatch's automatic 0-100 sub-scores, which
+/// are cheap and computed for every job. This is an on-demand AI judgement
+/// call: a 1-5 fit score, a written case for it, and a legitimacy check
+/// that flags scam/ghost postings and an explicit no-sponsorship blocker.
+model JobEvaluation {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /// 1-5 in tenths (e.g. 4.5 stored as 45), reached by holistic judgement,
+  /// not an arithmetic formula.
+  score Int
+
+  summary         String
+  cvMatchNotes    String
+  levelStrategy   String
+  compNotes       String
+  personalization String
+  interviewPrep   String
+
+  legitimacy         JobLegitimacy @default(CLEAR)
+  legitimacyNotes    String
+  sponsorshipBlocker Boolean       @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, jobId])
+  @@index([jobId])
+  @@map("job_evaluations")
+}
+
+/// A generated negotiation script for one scenario (counter-offer,
+/// competing-offer leverage, geographic-discount pushback, ...), grounded
+/// in the candidate's real desired range and, when tied to a job, that
+/// job's posted range and the offer actually on the table.
+model NegotiationScript {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String?
+  job       Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  scenario      String
+  offeredSalary Int?
+  currency      String @default("USD")
+  script        String
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@map("negotiation_scripts")
+}
+
+/// A drafted cold email or LinkedIn message — CareerOS never sends this,
+/// it only writes the draft for the candidate to review and send
+/// themselves. Contact details are whatever the candidate supplied; this
+/// never invents a name, title, or address.
+model OutreachDraft {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jobId     String?
+  job       Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  channel     String
+  contactName String?
+  contactRole String?
+  subject     String?
+  body        String
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@map("outreach_drafts")
 }

@@ -72,3 +72,24 @@ export function emailVerificationEmail(firstName: string, verifyUrl: string): Em
     </div>
   `;
 }
+
+export interface NewSignInDetails {
+  when: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+export function newSignInEmail(firstName: string, details: NewSignInDetails): EmailPayload["html"] {
+  return `
+    <div style="font-family:sans-serif;background:#0D0711;padding:32px;color:#FCFBFC">
+      <h1 style="color:#FCFBFC">New sign-in to your account</h1>
+      <p style="color:#B8B4BA">Hi ${firstName}, we noticed a new sign-in to your Career OS account.</p>
+      <table style="margin-top:16px;color:#B8B4BA;font-size:14px">
+        <tr><td style="padding:4px 12px 4px 0;color:#FCFBFC">Time</td><td>${details.when}</td></tr>
+        ${details.ipAddress ? `<tr><td style="padding:4px 12px 4px 0;color:#FCFBFC">IP address</td><td>${details.ipAddress}</td></tr>` : ""}
+        ${details.userAgent ? `<tr><td style="padding:4px 12px 4px 0;color:#FCFBFC">Device</td><td>${details.userAgent}</td></tr>` : ""}
+      </table>
+      <p style="color:#B8B4BA;margin-top:16px">If this was you, no action is needed. If you don't recognize this, change your password right away and reach out to support.</p>
+    </div>
+  `;
+}

@@ -96,3 +96,24 @@ body {
     -webkit-mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
   }
 }
+
+/* Printing a resume or cover letter should print only that document, not the
+   app chrome (sidebar, topbar, buttons) around it. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #resume-print-area,
+  #resume-print-area *,
+  #cover-letter-print-area,
+  #cover-letter-print-area * {
+    visibility: visible;
+  }
+  #resume-print-area,
+  #cover-letter-print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

@@ -43,6 +43,55 @@ export const course: CourseSeed = {
           body: "Functions-as-a-Service (AWS Lambda, Azure Functions, Google Cloud Functions) takes PaaS further: you deploy individual functions, the platform handles provisioning, scaling, and teardown entirely, and you pay per invocation rather than for idle capacity. The tradeoff is cold-start latency and execution time limits.",
         },
         {
+          kind: "bullets",
+          heading: "A concrete decision framework",
+          intro: "Same Node.js API, three layers — the right one depends on the shape of the traffic and the team, not on which is \"more modern\":",
+          bullets: [
+            "Steady, predictable traffic and a team that wants full control over the runtime (custom system packages, a specific kernel tuning) — IaaS (EC2). You own patching, but nothing about the environment is guessed at.",
+            "Steady traffic, no need for OS-level control, and a team that wants to stop thinking about servers — PaaS (Elastic Beanstalk, App Engine). You deploy code and the platform keeps the instances patched and running.",
+            "Spiky or unpredictable traffic — bursts a few times a day, long idle stretches overnight — FaaS (Lambda). You pay only for the milliseconds of actual execution, instead of an EC2 instance idling at 2am.",
+            "A live video-processing pipeline with strict, consistent low-latency requirements — usually IaaS or containers on Kubernetes, because cold starts and per-invocation overhead make serverless a poor fit for sustained, latency-sensitive workloads.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Moving up the stack trades control for lock-in",
+          body: "A Lambda function written against AWS's event and context objects, IAM execution role, and API Gateway integration doesn't move to Azure Functions with a find-and-replace — the surrounding plumbing is provider-specific. An EC2 instance running a standard Linux distro migrates to another cloud (or on-prem) far more easily, because there's less proprietary surface area between your code and the raw compute. Neither choice is wrong, but \"just use serverless, it's easier\" quietly signs you up for a harder exit later.",
+        },
+        {
+          kind: "text",
+          heading: "Where the math on serverless flips",
+          body: [
+            "Serverless pricing looks cheap because idle time is free — but at sustained high volume, per-invocation billing can cost more than a reserved instance running the same workload continuously. A function handling 50 million invocations a month, each running for a few hundred milliseconds, can easily cost more on Lambda than a couple of reserved t3.large instances handling the same steady load.",
+            "The rule of thumb: serverless wins on spiky or low-volume traffic where you'd otherwise pay for idle capacity; reserved or on-demand compute wins once traffic is high enough and steady enough that you'd be running near-continuously anyway.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Signals you're operating at the wrong layer",
+          intro:
+            "The cost of a layer mismatch rarely shows up as one bad decision — it shows up as a recurring pattern over weeks, once you know what to look for:",
+          bullets: [
+            "Constant OS-level firefighting — patch Tuesdays, a kernel CVE, a disk filling up at 2am — on a team with no actual need for kernel-level control is a sign IaaS is costing more in operational attention than the control it buys is worth. Moving that workload to PaaS removes the whole category of toil, not just one incident.",
+            "Fighting a PaaS platform's constraints is the mirror image: a background job that needs to run longer than the platform's request timeout allows, or a system dependency the supported runtime simply doesn't include. That friction is a sign you've outgrown the layer, not a bug to work around indefinitely.",
+            "A serverless bill climbing in a straight line with steady traffic, rather than the spiky, bursty shape serverless pricing is actually built for, is worth revisiting against a reserved-instance cost the moment volume looks continuous rather than occasional.",
+            "None of these are permanent verdicts. A team's right layer shifts as the product and its traffic shape change — a service that started as an occasional internal script and grew into an always-on production dependency has usually outgrown FaaS along the way, even though nobody made one deliberate decision to move it.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "Increasing abstraction, decreasing control",
+          description:
+            "Each step hands more operational responsibility to the provider — and takes away a corresponding amount of low-level control.",
+          steps: [
+            { label: "IaaS", detail: "You manage the OS, runtime, and everything above it" },
+            { label: "PaaS", detail: "Provider manages the OS and runtime; you deploy code" },
+            { label: "FaaS", detail: "Provider manages everything except individual functions" },
+            { label: "SaaS", detail: "Provider manages the entire application" },
+          ],
+        },
+        {
           kind: "summary",
           heading: "The practical takeaway",
           bullets: [
@@ -81,11 +130,77 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "terminal",
+          heading: "The same operation, three CLIs",
+          description:
+            "Listing object storage buckets looks different on each provider's CLI, but it's the same underlying concept — this is the pattern that repeats across almost every service.",
+          lines: [
+            { text: "aws s3 ls" },
+            { text: "2024-01-15 09:32:11 acme-monthly-reports", output: true },
+            { text: "2024-02-03 14:07:45 acme-app-assets", output: true },
+            { text: "az storage account list --output table" },
+            { text: "Name              ResourceGroup    Location    Kind", output: true },
+            { text: "acmestorage001    acme-rg          eastus      StorageV2", output: true },
+            { text: "gcloud storage buckets list --format='value(name)'" },
+            { text: "acme-monthly-reports-gcs", output: true },
+          ],
+        },
+        {
           kind: "text",
           heading: "Databases and networking",
           body: [
             "Each provider offers managed relational databases (AWS RDS, Azure SQL Database, Cloud SQL) and managed NoSQL options (DynamoDB, Cosmos DB, Firestore/Bigtable) — the managed part is the key value: automated backups, patching, and failover without running the database software yourself.",
             "All three share the same core networking concepts under different names: a virtual private network (VPC in AWS/GCP, VNet in Azure), subnets, security groups/firewall rules, load balancers, and a managed DNS service (Route 53, Azure DNS, Cloud DNS).",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Storage tiers: the same cost lever, three names",
+          intro: "Object storage isn't one price — every provider lets you pick a tier based on how often you'll actually read the data, and picking the wrong one is a recurring, easy-to-miss cost mistake:",
+          bullets: [
+            "AWS S3: Standard (frequent access) → Standard-IA (infrequent, cheaper storage, per-GB retrieval fee) → Glacier (archival, retrieval takes minutes to hours).",
+            "Azure Blob Storage: Hot → Cool → Archive — same shape, same tradeoff: cheaper storage in exchange for a retrieval cost and, for Archive, a rehydration delay.",
+            "GCP Cloud Storage: Standard → Nearline → Coldline → Archive, with the same pattern extended one tier further.",
+            "The trap: leaving rarely-accessed data (old logs, backups) in the default \"Standard\" tier indefinitely — a lifecycle policy that auto-transitions objects after N days is the fix, not manually reviewing buckets.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Messaging and eventing",
+          intro: "Decoupling services with a queue or event bus follows the same mapping as everything else:",
+          bullets: [
+            "Message queues (point-to-point, one consumer processes each message): SQS (AWS), Service Bus Queues (Azure), Pub/Sub with a single subscriber (GCP).",
+            "Pub/sub fan-out (one event, many independent consumers): SNS (AWS, usually paired with SQS per subscriber), Event Grid (Azure), Pub/Sub (GCP, natively many-subscriber).",
+            "The concept that matters more than any product name: decoupling a producer from a consumer through a durable broker, so a downstream service being slow or down doesn't block or lose the request that triggered it.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Content delivery: caching at the edge",
+          intro: "Serving static assets (or even API responses) from a location physically close to the user, instead of your origin region every time:",
+          bullets: [
+            "CDN mapping: CloudFront (AWS), Azure CDN or Front Door (Azure), Cloud CDN (GCP) — all cache content at edge locations worldwide and serve it from the nearest one.",
+            "This isn't just a latency win — it also absorbs traffic spikes before they ever hit your origin servers, and cuts your origin's data-transfer bill since cached hits never leave the edge.",
+            "The tradeoff to manage: cache invalidation. Deploy a new version of a static asset without also invalidating (or versioning the URL of) the old cached copy, and users keep getting the stale one until the cache's TTL expires.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "IAM and identity — the part most people skim past",
+          body: [
+            "Every provider has an identity and access layer controlling who (or what service) can do what: IAM (AWS), Azure AD/Entra ID with role-based access control (Azure), Cloud IAM (GCP). The concepts map directly — a user or service identity, a role or policy defining allowed actions, and a binding attaching that role to that identity on a specific resource.",
+            "The default failure mode is identical across all three: attaching a broad, pre-built \"admin\" or \"contributor\" role to a service account because scoping a custom policy down to the three actions it actually needs takes more effort. That gap between granted and needed permission is where most real cloud breaches start — not from the provider's IAM system being weak.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Secrets management and observability: the mapping continues",
+          intro: "Two more service categories worth knowing cold, since almost every real application touches both:",
+          bullets: [
+            "Secrets management: AWS Secrets Manager (with automatic credential rotation for RDS and a few other integrations), Azure Key Vault, GCP Secret Manager — all solve the same problem: an application fetches a credential at runtime instead of it being hardcoded or committed to a repo.",
+            "Centralized logging and monitoring: CloudWatch (AWS), Azure Monitor, Cloud Monitoring/Cloud Logging (GCP) — collect metrics and logs from every other service without an application having to ship its own monitoring stack, and each integrates natively with that provider's alerting.",
+            "Distributed tracing: AWS X-Ray, Azure Application Insights, Cloud Trace (GCP) — the managed-service version of following one request across several services, without standing up your own tracing infrastructure.",
+            "The pattern holds here too: the concept (secrets stored outside application code, logs and metrics centralized, a request traceable across services) is what actually transfers between providers — the product name is the part worth looking up when you need it, not memorizing in advance.",
           ],
         },
         {
@@ -117,12 +232,83 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "chart",
+          heading: "Reserved vs. on-demand pricing, roughly",
+          description:
+            "Committing to a term cuts the hourly rate substantially — the tradeoff is flexibility, not risk of a worse deal.",
+          chartType: "bar",
+          unit: "$/month (equivalent instance)",
+          data: [
+            { label: "On-Demand", value: 70 },
+            { label: "1-Year Reserved", value: 49 },
+            { label: "3-Year Reserved", value: 21 },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Spot instances: the third lever, and its real risk",
+          intro: "Reserved isn't the only way to cut compute cost — spot instances undercut both on-demand and reserved pricing, at a real cost:",
+          bullets: [
+            "Spot instances sell a provider's unused capacity at a steep discount — often 60-90% off on-demand — but the provider can reclaim the instance with as little as a couple of minutes' notice when it needs that capacity back.",
+            "Good fit: stateless, horizontally-scaled, fault-tolerant workloads — batch processing, CI runners, a web tier behind a load balancer that can lose one instance without user impact.",
+            "Bad fit: anything stateful without its own replication — a single-instance database on spot means an unplanned interruption is now a data-loss incident, not a cost optimization.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "NAT gateways are a classic hidden line item",
+          body: "A NAT gateway bills an hourly rate plus a per-GB charge on every byte of traffic it processes — easy to miss because it's infrastructure, not a headline compute cost. A private subnet with instances pulling container images or calling external APIs through a NAT gateway can rack up meaningful per-GB charges that never show up when you're only looking at EC2 and RDS line items. Routing that same traffic through a VPC endpoint (for AWS service traffic) avoids the NAT gateway entirely for those calls.",
+        },
+        {
           kind: "bullets",
           heading: "Common cost traps",
           bullets: [
             "Orphaned resources. A deleted VM's attached storage volume keeps billing indefinitely until someone notices.",
             "Over-provisioned instances. Defaulting to a large instance \"to be safe\" when a smaller one would fit.",
             "Cross-region or cross-AZ data transfer inside your own architecture, often billed even though it feels \"internal.\"",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Finding orphaned EBS volumes",
+          description:
+            "The exact command that turns \"orphaned storage\" from a vague warning into a concrete, billable list.",
+          lines: [
+            {
+              text: "aws ec2 describe-volumes --filters Name=status,Values=available --query 'Volumes[].[VolumeId,Size,CreateTime]' --output table",
+            },
+            { text: "----------------------------------------------------------------", output: true },
+            { text: "|  vol-0a1b2c3d4e5f6g7h8  |  100  |  2023-11-02T03:14:22Z  |", output: true },
+            { text: "|  vol-0f9e8d7c6b5a4321f  |   50  |  2024-01-19T22:41:07Z  |", output: true },
+            { text: "|  vol-0123abc456def7890  |  200  |  2024-02-27T11:05:53Z  |", output: true },
+            { text: "----------------------------------------------------------------", output: true },
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Cost allocation tags turn a bill into a diagnosis",
+          body: [
+            "A monthly bill that just says \"$14,200 in EC2\" doesn't tell you which team, project, or environment spent it. Tagging every resource on creation (team:platform, env:staging, project:checkout) lets you break down spend by tag in Cost Explorer or the equivalent billing console — the difference between \"cloud costs went up\" and \"the staging environment's load test left 20 instances running over the weekend.\"",
+            "Enforce this with policy, not memory: AWS Config rules or a tagging Service Control Policy that blocks resource creation without required tags catches what a wiki page telling people to \"please tag your resources\" never will.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Savings Plans: committing to spend, not to an instance type",
+          body: [
+            "A Reserved Instance locks in a specific instance family and region for its discount — a t3.large reservation doesn't help once the team migrates to c6g.large instances six months later, and the discount goes unused for the rest of the term. AWS Savings Plans (Azure Reservations and GCP Committed Use Discounts follow the same idea) commit to a dollar amount of compute per hour instead of a specific instance type, and that commitment applies automatically across instance families and sizes — a Compute Savings Plan even applies across EC2, Fargate, and Lambda simultaneously.",
+            "For most teams past the earliest experimentation phase, a Savings Plan is the safer default over an instance-specific Reserved Instance: you get most of the same 1-year or 3-year discount without betting that today's instance type is still the right one when the commitment renews.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few more cost traps worth watching for",
+          intro: "Beyond orphaned resources and over-provisioning, these show up often enough to be worth a standing check:",
+          bullets: [
+            "Idle load balancers — an ALB or NLB left running with zero registered healthy targets still bills its hourly rate and per-GB processed charge, and it's easy to lose track of after a service is decommissioned but its load balancer isn't.",
+            "Unattached Elastic IPs — AWS charges for an Elastic IP that isn't attached to a running instance, specifically to discourage hoarding a scarce public IPv4 address; a handful of these left over from decommissioned instances is a small but genuinely avoidable monthly charge.",
+            "Forgotten snapshots — an EBS snapshot or RDS manual snapshot taken before a risky change and never cleaned up afterward keeps billing indefinitely, and snapshots accumulate quietly because taking one feels like a safety action, not a cost decision.",
           ],
         },
         {
@@ -154,6 +340,13 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "text",
+          heading: "The line moves depending on the service model",
+          body: [
+            "\"Shared responsibility\" isn't a fixed 50/50 split — it slides with the service model from the first lesson. On EC2 (IaaS), you patch the OS. On RDS (a managed database, closer to PaaS), the provider patches the OS and database engine, but you're still responsible for who can connect to it and whether encryption is turned on. On Lambda, there's no OS to patch at all — but the code and its IAM permissions are still entirely yours.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "What you're responsible for",
           intro: "You secure what's in the cloud:",
@@ -165,6 +358,55 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "example",
+          heading: "Overly broad vs. least-privilege IAM policy",
+          language: "json",
+          body: "The first policy is how a rushed deploy actually gets granted access. The second is what it should have been.",
+          code: `// Grants full control over every S3 bucket in the account — a common
+// "just make the error go away" fix that never gets revisited
+{
+  "Effect": "Allow",
+  "Action": "s3:*",
+  "Resource": "*"
+}
+
+// Scoped to exactly the bucket and actions the app needs
+{
+  "Effect": "Allow",
+  "Action": ["s3:GetObject", "s3:PutObject"],
+  "Resource": "arn:aws:s3:::acme-user-uploads/*"
+}`,
+        },
+        {
+          kind: "terminal",
+          heading: "Checking whether a bucket is actually public",
+          description: "The command that turns \"is this bucket public?\" from a guess into a fact, before someone else finds out first.",
+          lines: [
+            { text: "aws s3api get-public-access-block --bucket acme-user-uploads" },
+            { text: "BlockPublicAcls: false", output: true },
+            { text: "BlockPublicPolicy: false", output: true },
+            { text: "IgnorePublicAcls: false", output: true },
+            { text: "RestrictPublicBuckets: false", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "All four flags false means the bucket can be made public",
+          body: "That output doesn't mean the bucket is public right now — it means nothing is stopping a bucket policy or object ACL change from making it public. The fix for buckets that should never be public is to turn all four block-public-access settings on at the account level as a default, not to check each bucket individually after the fact.",
+        },
+        {
+          kind: "bullets",
+          heading: "Network security: security groups and NACLs, not the same layer",
+          intro: "\"Network configuration\" from the responsibility list above breaks down into two distinct controls that are easy to conflate:",
+          bullets: [
+            "Security groups are stateful and attached to a resource (an EC2 instance, an RDS instance) — allow a rule in, and the matching response traffic is automatically allowed back out, without a separate outbound rule for it.",
+            "Network ACLs (NACLs) are stateless and attached to a subnet, evaluated for every resource inside it — an allowed inbound rule needs a matching outbound rule too, since nothing is remembered between the two directions.",
+            "Most teams lean almost entirely on security groups for day-to-day access control and leave NACLs at their permissive default — NACLs are the blunter, subnet-wide tool, worth reaching for when you need a rule that applies to everything in a subnet regardless of what any specific resource's security group says.",
+            "The default mistake: a security group rule allowing SSH (port 22) or RDP (port 3389) from 0.0.0.0/0 \"just for now\" during setup, which then never gets narrowed to a specific IP range or removed once a bastion host or VPN is actually in place.",
+          ],
+        },
+        {
           kind: "bullets",
           heading: "The practical baseline",
           bullets: [
@@ -172,6 +414,8 @@ export const course: CourseSeed = {
             "Never use root/owner-level credentials for day-to-day work.",
             "Enable MFA on any account with meaningful access.",
             "Fix \"quick test\" permissions before deploying, not after.",
+            "Never hardcode credentials in application code or commit them to a repo — use a secrets manager (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager) and short-lived, auto-rotated credentials instead.",
+            "Turn on account-level audit logging (CloudTrail, Azure Activity Log, Cloud Audit Logs) before you need it — reconstructing \"who changed this\" after an incident is impossible without it.",
           ],
         },
         {
@@ -179,6 +423,333 @@ export const course: CourseSeed = {
           tone: "insight",
           heading: "The takeaway",
           body: "Cloud security failures are overwhelmingly configuration failures, not provider failures.",
+        },
+      ],
+    },
+    {
+      title: "High Availability: Regions, Availability Zones, and Redundancy",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "High Availability: Regions, Availability Zones, and Redundancy",
+          subheading:
+            "Every cloud provider will happily let you run everything in one place — the outage that follows is not the provider's failure, it's an architecture that never spread the risk around.",
+        },
+        {
+          kind: "text",
+          heading: "Regions and Availability Zones, precisely",
+          body: [
+            "A region is a geographic area (e.g., us-east-1, West Europe) containing multiple Availability Zones (AZs) — physically separate data centers with independent power, cooling, and networking, close enough for low-latency links between them but far enough apart that one physical disaster doesn't take out the others.",
+            "\"Multi-AZ\" and \"multi-region\" solve different problems: multi-AZ protects against a single data center failing; multi-region protects against an entire geographic area failing, or reduces latency for users far from your primary region. Multi-region costs and complicates far more, and most teams need multi-AZ long before they need multi-region.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Where redundancy actually gets built in",
+          bullets: [
+            "Spreading compute across at least two AZs, behind a load balancer that only routes to instances passing a health check — one AZ going down removes its instances from rotation instead of taking the app down.",
+            "Managed databases with multi-AZ replication (e.g., RDS Multi-AZ) that fail over to a synced standby in a different AZ automatically, instead of a single-AZ database with a nightly backup and hours of recovery time.",
+            "Auto Scaling Groups that replace a failed instance and can add capacity under load — the same self-healing pattern as a Kubernetes Deployment, applied at the VM level.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "RTO and RPO: the metrics that actually define \"available\"",
+          intro: "\"We want high availability\" isn't a spec until it's attached to two numbers:",
+          bullets: [
+            "RTO (Recovery Time Objective) — how long can the system be down before it's an unacceptable outage? Minutes for a checkout flow, hours for an internal reporting dashboard.",
+            "RPO (Recovery Point Objective) — how much data can you afford to lose, measured in time? Multi-AZ synchronous replication gets RPO close to zero; nightly backups mean an RPO of up to 24 hours.",
+            "These two numbers, not \"be more available\" as a vague goal, are what determine whether nightly backups are enough or you need a live standby.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "Disaster recovery strategies, cheapest to most resilient",
+          description: "Each step up costs more to run and buys a lower RTO/RPO — most teams don't need to go past warm standby.",
+          steps: [
+            { label: "Backup & restore", detail: "Cheapest. RPO/RTO measured in hours; you're standing infrastructure up from scratch after a disaster." },
+            { label: "Pilot light", detail: "Core systems (database) replicated and running minimally in a second region; everything else provisioned on demand during failover." },
+            { label: "Warm standby", detail: "A scaled-down but fully functional copy running in a second region at all times, scaled up when failover happens." },
+            { label: "Active-active", detail: "Full capacity running in multiple regions simultaneously, serving live traffic. Lowest RTO/RPO, highest cost and complexity." },
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Read replicas are not the same thing as a Multi-AZ standby",
+          body: [
+            "It's an easy mix-up: a read replica serves read traffic to reduce load on the primary database, and replication to it is typically asynchronous — some lag is expected, and promoting it to primary during a failure is usually a manual, deliberate operation. A Multi-AZ standby exists purely for failover, is kept in sync (often synchronously), and the database automatically promotes it during a failure without anyone intervening.",
+            "Using a read replica as your only failover plan means accepting both replication lag as data loss risk and a manual, error-prone promotion process during an actual incident — which is precisely the moment you least want a new manual step.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Checking target health across Availability Zones",
+          description:
+            "This is what \"only routes to instances passing a health check\" looks like from the command line — one AZ's instance dropping out of rotation without anyone paging.",
+          lines: [
+            {
+              text: "aws elbv2 describe-target-health --target-group-arn arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/web-app/6d0ecf831eec9f09",
+            },
+            { text: "TargetHealthDescriptions:", output: true },
+            { text: "  - Target: i-0a1b2c3d4e5f6g7h8 (us-east-1a)  State: healthy", output: true },
+            { text: "  - Target: i-0f9e8d7c6b5a4321f (us-east-1a)  State: healthy", output: true },
+            {
+              text: "  - Target: i-0123abc456def7890 (us-east-1b)  State: unhealthy  Reason: Target.Timeout",
+              output: true,
+            },
+            { text: "  - Target: i-0987fed654cba3210 (us-east-1b)  State: healthy", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Single points of failure hide in ordinary-looking setups",
+          body: "A single EC2 instance with no load balancer in front of it, a NAT gateway with no standby, a database in one AZ with backups but no live standby — none of these look wrong day to day. They only reveal themselves the moment that one AZ has a bad day, which is exactly why they get built by accident rather than on purpose.",
+        },
+        {
+          kind: "bullets",
+          heading: "An HA architecture nobody has tested is a theory, not a guarantee",
+          intro: "Multi-AZ replication and an Auto Scaling Group only prove they work the moment they're actually exercised — which, left untested, is usually during a real outage:",
+          bullets: [
+            "A \"game day\" — deliberately terminating an instance, failing over a Multi-AZ database, or blocking traffic to one AZ in a non-production environment — turns \"we believe this fails over correctly\" into \"we watched it fail over correctly, and it took four minutes, not the fifteen we assumed.\"",
+            "The most common thing a game day actually catches isn't the infrastructure failing over — it's an application assumption that breaks during failover: a cached database connection that doesn't retry, a health check that takes too long to notice the primary is gone, a DNS TTL cached longer than the failover itself takes.",
+            "Chaos engineering tools (AWS Fault Injection Simulator, or open-source options like Chaos Mesh on Kubernetes) automate this kind of controlled failure injection on a schedule, rather than relying on someone remembering to run a manual game day before it matters.",
+            "The RTO number from a disaster recovery plan is a claim until it's been measured against an actual failure — treating it as settled the day it's written down, rather than revisited the next time the architecture changes, is how a 15-minute RTO on paper quietly becomes a 45-minute RTO in practice.",
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "The practical takeaway",
+          bullets: [
+            "High availability isn't a setting you turn on — it's the sum of every place you did or didn't add redundancy.",
+            "Default to spreading across AZs for anything user-facing; reach for multi-region only when the requirement (compliance, latency, disaster recovery) actually calls for it.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Choosing Cloud Architecture and Controlling Cost",
+      durationMinutes: 13,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Choosing Cloud Architecture and Controlling Cost",
+          subheading:
+            "Five scenarios, the kind that actually show up in an interview or on the job — work through each before checking the solution.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to use this practice",
+          body: "Each scenario below is deliberately underspecified in exactly the way a real request from a stakeholder is — part of the exercise is noticing which details actually change the answer (traffic shape, interruption tolerance, a compliance requirement) versus which are just color. Write down your reasoning, not just your final pick, before checking the solution.",
+        },
+        {
+          kind: "practice",
+          heading: "Pick the right service model",
+          prompt:
+            "A three-person startup is building an internal admin tool used by about 15 employees. It needs to ship in a week, nobody on the team wants to manage servers or patch operating systems, and traffic will always be small and predictable. Decide which service model — IaaS, PaaS, or serverless/FaaS — fits best, and justify it in 2-3 sentences covering what you give up in exchange for what you gain.",
+          hint: "\"Nobody wants to manage servers\" rules a whole option out immediately. Between what's left, think about which one's downsides (cold starts, per-invocation billing) matter more when traffic is small and steady rather than spiky.",
+          solution:
+            "PaaS. It rules out IaaS immediately (no OS/server management), and serverless's main advantages — scaling to zero and paying only per-invocation — matter most for spiky, unpredictable traffic, which this isn't. PaaS gives a supported runtime with no server management, without taking on the cold-start latency and execution-time limits serverless introduces for comparatively little benefit here. The tradeoff: less low-level control than IaaS, and constrained to whatever runtimes/versions the platform supports.",
+        },
+        {
+          kind: "practice",
+          heading: "Find the cost trap",
+          prompt:
+            "Your team's monthly AWS bill jumped 40% with no new features shipped. In the console you find: 12 running t3.large EC2 instances, but only 4 are registered behind the load balancer and receiving traffic; 30 EBS volumes exist even though only 18 instances (running + stopped) do; and there's new cross-AZ data transfer between an app tier in us-east-1a and a database in us-east-1b that wasn't there last month. Identify the concrete cost traps and what you'd do about each.",
+          hint: "Match each symptom back to a specific trap from the cost lesson: idle compute, orphaned storage, and unplanned cross-AZ transfer are three separate problems, not one.",
+          solution:
+            "1) Eight of the 12 running instances aren't receiving any traffic through the load balancer — likely leftover or over-provisioned capacity. Terminate or right-size them after confirming nothing else depends on them directly. 2) 30 EBS volumes against 18 instances means at least 12 volumes are orphaned (detached from any instance) and billing for storage nobody is using — find and delete volumes not attached to a running or stopped instance. 3) The new cross-AZ transfer between app and database tiers is a direct, ongoing cost from splitting those tiers across AZs — either colocate latency-sensitive tiers in the same AZ where the redundancy isn't needed, or accept the cost deliberately as the price of the availability it buys, rather than let it show up as a surprise.",
+        },
+        {
+          kind: "practice",
+          heading: "Design for high availability",
+          prompt:
+            "A web app currently runs as a single EC2 instance in one Availability Zone, backed by a single-AZ RDS database with nightly backups. Describe, as a short bullet list, exactly what you'd change and which specific single point of failure each change removes.",
+          hint: "There are three separate single points of failure here — the compute layer, the database layer, and the fact that only one AZ is involved at all. Address each on its own.",
+          solution:
+            "- Put at least 2 EC2 instances across 2+ AZs behind an Application Load Balancer with health checks, in an Auto Scaling Group — removes the single-instance and single-AZ compute failure, and the ASG replaces any instance that fails automatically. - Switch RDS to Multi-AZ, which keeps a synchronously replicated standby in a different AZ and fails over automatically — removes the single-AZ database failure, and cuts recovery time from 'restore last night's backup' to an automatic failover. - Nightly backups stay, but now as protection against data corruption or accidental deletion, not as the primary availability mechanism — Multi-AZ handles the infrastructure failure case; backups handle the 'someone dropped a table' case.",
+        },
+        {
+          kind: "practice",
+          heading: "Pick the right pricing model per workload",
+          prompt:
+            "Your team runs three workloads: (1) a production web tier with steady, round-the-clock traffic that can't tolerate an unplanned interruption; (2) a nightly batch job that regenerates image thumbnails, taking about 90 minutes, that can safely restart from where it left off if interrupted; (3) a throwaway environment spun up for a two-week client demo, then torn down. Choose on-demand, reserved, or spot pricing for each, and justify your choice in one sentence per workload.",
+          hint: "Match each workload against the two things that actually decide this: how tolerant it is of an unplanned interruption, and how long it's expected to run for.",
+          solution:
+            "(1) Reserved (1-year or 3-year) — steady, always-on, and explicitly can't tolerate interruption, which rules out spot outright; the discount over on-demand (roughly 30-70%) is worth committing to for a workload you know will run continuously regardless. (2) Spot — fault-tolerant by design (can restart from where it left off) and doesn't need to run at a guaranteed instant, which is exactly the profile spot's steep discount (often 60-90% off on-demand) is meant for; an occasional reclaimed instance just means the job restarts and finishes a bit later. (3) On-demand — a fixed two-week lifespan is too short to earn back a reserved commitment's upfront tradeoff, and a client demo is a poor candidate for spot's interruption risk, so the flexibility of paying only for the two weeks actually used, with no risk of a mid-demo interruption, wins here.",
+        },
+        {
+          kind: "practice",
+          heading: "Design a disaster recovery tier that fits the requirement",
+          prompt:
+            "A checkout service has an RTO of 15 minutes and an RPO close to zero, and currently runs single-AZ. A new compliance requirement says the business must be able to keep operating even if an entire AWS region becomes unavailable — though that scenario is rare enough that some added latency during a regional failover is acceptable, and the business doesn't want to pay for full active-active capacity in two regions at once. Propose an architecture, referencing the availability and DR concepts from this course, and name which DR tier fits the cross-region part specifically.",
+          hint: "The RTO/RPO numbers on their own point to a within-region fix; the compliance requirement is a separate, additional layer on top of that — handle them as two different problems.",
+          solution:
+            "Within the region: Multi-AZ for both compute (load-balanced instances across 2+ AZs in an Auto Scaling Group) and the database (RDS Multi-AZ with synchronous replication) gets RPO close to zero and comfortably clears a 15-minute RTO for the common case of a single-AZ failure — this is the same fix as the previous exercise, and it's necessary but not sufficient here. For the cross-region compliance requirement: warm standby, not active-active. A scaled-down but fully functional copy of the stack, kept running in a second region at all times and scaled up during failover, matches 'some added latency during failover is acceptable' and avoids paying for full active-active capacity the business explicitly doesn't want. Active-active would be over-engineering for a scenario acknowledged to be rare and latency-tolerant during failover; pilot light or backup-and-restore would under-deliver against the 15-minute RTO once a full region, not just an AZ, is what failed — pilot light in particular still requires provisioning most of the stack from scratch during the failover window, which eats directly into that 15-minute budget. The compliance requirement and the RTO/RPO numbers are answering two genuinely different questions here, and it's worth being able to say which architecture decision answers which if asked to defend the design.",
+        },
+        {
+          kind: "example",
+          heading: "Turning a vague 'cloud costs went up' into a diagnosis",
+          body: "Cost allocation tags (from the cost lesson) are what make a query like this possible — without them, this same investigation means opening dozens of individual resources by hand.",
+          code: `aws ce get-cost-and-usage \\
+  --time-period Start=2024-02-01,End=2024-03-01 \\
+  --granularity MONTHLY \\
+  --metrics "UnblendedCost" \\
+  --group-by Type=TAG,Key=env
+
+{
+  "env=production": "$9,840",
+  "env=staging":    "$6,120",
+  "env=untagged":   "$1,340"
+}
+
+Staging alone is 62% of production's spend for an environment with
+no real users — the kind of finding a monthly cost-by-tag review
+catches quickly, and a plain total-bill number hides completely.
+The $1,340 in "untagged" resources is its own finding: nobody can
+say which team owns that spend until it's tagged.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A tag alone doesn't stay accurate without enforcement",
+          body: "A tagging convention that lives only in a wiki page decays fast — someone spins up a resource under deadline pressure, forgets the tag, and the \"untagged\" bucket in the report above quietly grows every month until cost-by-tag reporting is missing a meaningful slice of the real bill. The durable fix is enforcing tags at creation time, not asking people to remember: an AWS Config rule or Service Control Policy that blocks resource creation without the required tags catches the gap a wiki page never will, and turns \"please tag your resources\" from a hopeful request into something the platform itself guarantees.",
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Matching a service model to actual constraints (team size, ops appetite, traffic shape) instead of picking whatever's trendy.",
+            "Recognizing that idle compute, orphaned storage, and unplanned data transfer are three distinct cost traps, not one fuzzy 'cloud costs went up' problem.",
+            "Naming the specific single point of failure each architecture change removes, rather than adding redundancy in general.",
+            "Choosing on-demand, reserved, or spot based on a workload's actual interruption tolerance and expected lifespan, not habit.",
+            "Treating multi-AZ and multi-region as separate tools for separate failure scopes, and picking a DR tier that matches the real RTO/RPO and cost tolerance instead of defaulting to the most resilient (and most expensive) option.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading: "Five questions across the whole course — not just the last lesson.",
+        },
+        {
+          kind: "quiz",
+          heading: "Service models",
+          question:
+            "Your team deploys code to a platform that automatically handles OS patching and runtime updates, but you never touch the underlying servers directly. Which service model is this?",
+          options: ["IaaS", "PaaS", "SaaS", "On-premises virtualization"],
+          correctIndex: 1,
+          explanation:
+            "This is PaaS: the provider manages the OS and runtime, you deploy code. IaaS would still leave OS patching to you; SaaS would mean you're using a finished application, not deploying your own code to it.",
+        },
+        {
+          kind: "quiz",
+          heading: "Cost traps",
+          question:
+            "Which of these is most likely to keep silently costing money after the resource that originally used it is gone?",
+          options: [
+            "A reserved instance purchased upfront for 1-3 years",
+            "An EBS volume left behind after its EC2 instance was terminated without delete-on-termination enabled",
+            "A load balancer actively routing production traffic",
+            "A VPC with no resources inside it",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Orphaned storage is one of the most common real cost traps — a detached EBS volume keeps billing indefinitely until someone notices, because nothing forces you to look at unattached volumes the way you'd notice a running, obviously-in-use instance.",
+        },
+        {
+          kind: "quiz",
+          heading: "Shared responsibility",
+          question:
+            "Under the shared responsibility model, which of these is always the customer's job, regardless of provider or service model?",
+          options: [
+            "Physical security of the data center",
+            "Patching the hypervisor",
+            "Configuring IAM permissions and who can access what",
+            "Maintaining the physical network hardware",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The provider secures the cloud (physical/hypervisor/hardware); you secure what's in the cloud — and IAM configuration is squarely on your side of that line no matter which service model you're using.",
+        },
+        {
+          kind: "quiz",
+          heading: "High availability",
+          question:
+            "An application runs as a single EC2 instance in one Availability Zone with no load balancer in front of it. What's the most direct risk this creates?",
+          options: [
+            "It will automatically fail over to another AZ if the instance goes down",
+            "The whole application becomes unavailable if that instance fails or its AZ has an outage, with nothing to replace it automatically",
+            "It will start incurring unexpected cross-AZ data transfer charges",
+            "It cannot be used with any managed database service",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Without a load balancer, an Auto Scaling Group, or a second AZ involved, there's no mechanism watching this instance or ready to replace it — a single failure is a full outage until a human intervenes.",
+        },
+        {
+          kind: "quiz",
+          heading: "Provider mapping",
+          question: "Which pairing correctly matches managed Kubernetes across the three major providers?",
+          options: [
+            "AWS EKS, Azure AKS, GCP GKE",
+            "AWS ECS, Azure AKS, GCP Cloud Run",
+            "AWS EKS, Azure Functions, GCP GKE",
+            "AWS Lambda, Azure AKS, GCP Compute Engine",
+          ],
+          correctIndex: 0,
+          explanation:
+            "EKS, AKS, and GKE are each provider's managed Kubernetes offering. ECS is AWS's own non-Kubernetes container orchestrator; Cloud Run and Lambda are serverless/FaaS-style products, a different layer entirely.",
+        },
+        {
+          kind: "quiz",
+          heading: "Spot instances",
+          question:
+            "A team moves a single-instance, non-replicated database onto spot pricing to cut costs. What's the direct risk this introduces that reserved or on-demand pricing wouldn't?",
+          options: [
+            "Spot instances are simply less reliable hardware than on-demand instances",
+            "The provider can reclaim a spot instance with only a couple of minutes' notice, and for a single, non-replicated database, that reclamation is a real data-loss/downtime incident, not just a minor cost optimization",
+            "Spot pricing cannot be used for any database workload under any circumstances",
+            "Spot instances cannot be attached to persistent storage volumes",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Spot instances trade a steep discount for the provider's right to reclaim capacity on short notice. That tradeoff fits stateless, fault-tolerant, horizontally-scaled workloads well — but a single-instance database with no replication has nowhere to fail over to when reclaimed, turning a cost-saving choice into an availability and potential data-loss risk.",
+        },
+        {
+          kind: "quiz",
+          heading: "RTO and RPO",
+          question:
+            "A system's RPO is defined as 24 hours, backed only by nightly backups with no live standby. What does this actually commit to?",
+          options: [
+            "The system will never be down for more than 24 hours",
+            "In a real failure, the business accepts losing up to roughly 24 hours of data — whatever changed between the last completed backup and the moment of failure",
+            "The system automatically fails over to a second region within 24 hours",
+            "RPO measures how long it takes to detect an outage, not how much data could be lost",
+          ],
+          correctIndex: 1,
+          explanation:
+            "RPO measures acceptable data loss, not downtime (that's RTO's job) — nightly backups mean the worst case is losing everything since the last backup completed, up to roughly a day's worth of changes. A live, synchronously replicated standby would bring that number down to near-zero; relying on nightly backups alone means implicitly accepting the 24-hour exposure.",
+        },
+        {
+          kind: "summary",
+          heading: "The course, in seven takeaways",
+          bullets: [
+            "IaaS, PaaS, and SaaS mainly differ in how much operational responsibility you take on versus hand to the provider.",
+            "Learn the concept once (compute, storage, networking, databases) and the provider-specific names follow easily.",
+            "Cost surprises come from a small set of recurring traps: idle compute, orphaned storage, and unplanned data transfer.",
+            "The shared responsibility model always leaves IAM, network configuration, encryption, and data exposure on you.",
+            "High availability means deliberately removing single points of failure across AZs — not a setting you enable once.",
+            "Reserved, on-demand, and spot pricing exist for genuinely different workload shapes — matching one to the wrong workload trades cost savings for real availability risk.",
+            "RTO and RPO turn a vague 'we want high availability' into two concrete numbers that actually determine which DR tier is enough.",
+          ],
         },
       ],
     },

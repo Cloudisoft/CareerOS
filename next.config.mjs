@@ -21,11 +21,24 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // microphone=(self) allows this same origin to request mic access (Interview
+  // AI and Job GPT voice input rely on it) — camera and geolocation stay fully
+  // disabled since nothing in the product uses either.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
   { key: "Content-Security-Policy", value: CSP },
 ];
 
 const nextConfig = {
+  // pdf-parse (via pdfjs-dist) loads its worker script from a path relative
+  // to its own package directory at runtime. Webpack-bundling it into the
+  // API route moves that code out of node_modules, so the worker path no
+  // longer resolves ("Cannot find module '.../pdf.worker.mjs'"). Excluding
+  // it from bundling makes Next require() it straight from node_modules
+  // instead, where its relative paths are correct. (Next 14.2 still calls
+  // this experimental — it isn't stable until Next 15.)
+  experimental: {
+    serverComponentsExternalPackages: ["pdf-parse", "pdfjs-dist"],
+  },
   async headers() {
     return [
       {

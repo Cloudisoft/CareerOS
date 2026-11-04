@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search, MapPin, Loader2 } from "lucide-react";
+import { Search, MapPin, Loader2, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,9 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get("q") ?? "");
   const [location, setLocation] = useState(searchParams.get("location") ?? "");
+  // A 5-digit US zip code searches by distance; anything else matches the job's location text.
+  const [radius, setRadius] = useState(searchParams.get("radius") ?? "25");
+  const isZipSearch = /^\d{5}$/.test(location.trim());
   const [workplaceType, setWorkplaceType] = useState<string[]>(
     searchParams.get("workplaceType")?.split(",").filter(Boolean) ?? []
   );
@@ -68,6 +71,7 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (location) params.set("location", location);
+    if (/^\d{5}$/.test(location.trim())) params.set("radius", radius);
     if (workplaceType.length) params.set("workplaceType", workplaceType.join(","));
     if (sources.length) params.set("source", sources.join(","));
     const res = await fetch(`/api/jobs?${params.toString()}`);
@@ -75,7 +79,7 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
     setJobs(json.data?.jobs ?? []);
     setTotal(json.data?.total ?? 0);
     setLoading(false);
-  }, [q, location, workplaceType, sources]);
+  }, [q, location, radius, workplaceType, sources]);
 
   useEffect(() => {
     fetchJobs();
@@ -96,12 +100,17 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">{brandName}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {loading ? "Searching…" : `${total} open role${total === 1 ? "" : "s"}`}
-        </p>
-        {tagline && !loading && <p className="mt-1 text-sm text-muted-foreground">{tagline}</p>}
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">{brandName}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading ? "Searching…" : `${total} open role${total === 1 ? "" : "s"}`}
+          </p>
+          {tagline && !loading && <p className="mt-1 text-sm text-muted-foreground">{tagline}</p>}
+        </div>
+        <Link href="/jobs/swipe" className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <Layers className="h-4 w-4" /> Swipe view
+        </Link>
       </div>
 
       <form onSubmit={handleSearch} className="mb-4 flex flex-col gap-3 sm:flex-row">
@@ -111,8 +120,22 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
         </div>
         <div className="relative sm:w-56">
           <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
+          <Input className="pl-9" placeholder="City or zip code" value={location} onChange={(e) => setLocation(e.target.value)} />
         </div>
+        {isZipSearch && (
+          <select
+            aria-label="Distance"
+            className="h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground sm:w-36"
+            value={radius}
+            onChange={(e) => setRadius(e.target.value)}
+          >
+            {[10, 25, 50, 100].map((miles) => (
+              <option key={miles} value={miles}>
+                Within {miles} miles
+              </option>
+            ))}
+          </select>
+        )}
         <Button type="submit">Search</Button>
       </form>
 

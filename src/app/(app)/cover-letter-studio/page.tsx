@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Sparkles, Copy, Check } from "lucide-react";
+import { Loader2, Sparkles, Copy, Check, Printer, Pencil, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,14 +31,19 @@ export default function CoverLetterStudioPage() {
   const [letter, setLetter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [view, setView] = useState<"edit" | "preview">("edit");
+  const [candidateName, setCandidateName] = useState("");
 
   useEffect(() => {
     Promise.all([
       fetch("/api/billing/status").then((r) => r.json()),
       fetch("/api/applications").then((r) => r.json()),
-    ]).then(([billingJson, appsJson]) => {
+      fetch("/api/auth/me").then((r) => r.json()),
+    ]).then(([billingJson, appsJson, meJson]) => {
       setEntitled(Boolean(billingJson.data?.entitlements?.coverLetterStudio));
       setJobs(appsJson.data?.applications ?? []);
+      const me = meJson.data?.user;
+      if (me) setCandidateName(`${me.firstName} ${me.lastName}`.trim());
       setLoading(false);
     });
   }, []);
@@ -63,7 +68,12 @@ export default function CoverLetterStudioPage() {
       return;
     }
     setLetter(json.data.text);
+    setView("preview");
   }
+
+  const selectedJob = jobId !== "none" ? jobs.find((a) => a.job.id === jobId) : null;
+  const letterCompanyName = selectedJob?.job.company.name || companyName;
+  const letterJobTitle = selectedJob?.job.title || jobTitle;
 
   async function copyLetter() {
     await navigator.clipboard.writeText(letter);
@@ -188,6 +198,24 @@ export default function CoverLetterStudioPage() {
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Your cover letter</CardTitle>
             <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setView((v) => (v === "edit" ? "preview" : "edit"))}
+              >
+                {view === "edit" ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                {view === "edit" ? "Preview" : "Edit"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setView("preview");
+                  requestAnimationFrame(() => window.print());
+                }}
+              >
+                <Printer className="h-4 w-4" /> Print / Save PDF
+              </Button>
               <SpeakButton text={letter} />
               <Button size="sm" variant="secondary" onClick={copyLetter}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -196,13 +224,32 @@ export default function CoverLetterStudioPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Textarea rows={14} value={letter} onChange={(e) => setLetter(e.target.value)} className="pb-12" />
-              <MicButton
-                className="absolute bottom-2 right-2"
-                onFinalText={(text) => setLetter((prev) => (prev ? `${prev} ${text}` : text))}
-              />
-            </div>
+            {view === "preview" ? (
+              <div
+                id="cover-letter-print-area"
+                className="mx-auto max-w-[8.5in] whitespace-pre-wrap rounded-lg border border-border bg-white p-10 text-sm leading-relaxed text-neutral-900 shadow-sm print:max-w-none print:rounded-none print:border-0 print:shadow-none"
+              >
+                <div className="mb-6 flex items-baseline justify-between text-xs text-neutral-500">
+                  <span>{candidateName}</span>
+                  <span>{new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</span>
+                </div>
+                {(letterJobTitle || letterCompanyName) && (
+                  <p className="mb-4 text-xs text-neutral-500">
+                    Re: {letterJobTitle || "the open role"}
+                    {letterCompanyName ? ` at ${letterCompanyName}` : ""}
+                  </p>
+                )}
+                {letter}
+              </div>
+            ) : (
+              <div className="relative">
+                <Textarea rows={14} value={letter} onChange={(e) => setLetter(e.target.value)} className="pb-12" />
+                <MicButton
+                  className="absolute bottom-2 right-2"
+                  onFinalText={(text) => setLetter((prev) => (prev ? `${prev} ${text}` : text))}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

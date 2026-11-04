@@ -49,6 +49,7 @@ export const preferencesStepSchema = z.object({
   desiredTitles: z.array(z.string().trim().min(1).max(120)).max(10),
   desiredIndustries: z.array(z.string().trim().min(1).max(120)).max(10),
   desiredLocations: z.array(z.string().trim().min(1).max(120)).max(10),
+  desiredLocationRadiusMiles: z.coerce.number().min(1).max(500).optional().nullable(),
   workplaceTypes: z.array(z.enum(WORKPLACE_TYPES)).max(3),
   employmentTypes: z.array(z.enum(EMPLOYMENT_TYPES)).max(5),
   desiredSalaryMin: z.coerce.number().min(0).optional().nullable(),

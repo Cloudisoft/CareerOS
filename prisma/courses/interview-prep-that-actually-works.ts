@@ -30,6 +30,37 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "diagram",
+          heading: "The STAR shape, as a flow",
+          description: "Action should visibly be the largest step — the other three exist to set it up and land it.",
+          steps: [
+            { label: "Situation", detail: "1-2 sentences of real context" },
+            { label: "Task", detail: "What you specifically owned" },
+            { label: "Action", detail: "What you did, step by step — the bulk of the answer" },
+            { label: "Result", detail: "The outcome, ideally with a number" },
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A complete STAR answer, for scale",
+          body: "Notice how little space Situation and Task take relative to Action — that proportion is the whole point of the shape.",
+          code: `Q: "Tell me about a time you managed a tight deadline."
+
+S/T: "Our team had three weeks to migrate a client's data
+before a contract deadline, and I was the one coordinating
+the technical handoff."
+
+A: "I mapped every dependency first, found that two steps
+could run in parallel instead of sequentially, negotiated a
+day of contractor help for the highest-risk piece, and ran
+daily 10-minute check-ins so we caught two blockers early
+instead of at the deadline."
+
+R: "We delivered two days ahead of schedule with zero data
+issues post-migration, and the parallel-run approach became
+the template for the next three migrations."`,
+        },
+        {
           kind: "bullets",
           heading: "Where people go wrong",
           bullets: [
@@ -40,11 +71,39 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "callout",
+          tone: "warning",
+          heading: "\"What I would do\" isn't an answer",
+          body: "A behavioral question asks for a real, past example — answering in the hypothetical (\"I would probably talk to the person directly and try to find common ground\") dodges the actual question, even when it's not intentional. If you catch yourself sliding into hypothetical language, stop and ask which real situation you're actually describing before continuing.",
+        },
+        {
           kind: "text",
           heading: "Building your story bank ahead of time",
           body: [
             "Don't improvise STAR answers live for the first time in the interview. Before you start applying, write out 6-8 real situations that cover: a conflict, a failure or mistake, a time you influenced without authority, a time you managed ambiguity, a time you went beyond your role, and your proudest piece of work.",
             "Most behavioral questions map onto one of these — you're not memorizing scripts, you're making sure you don't have to invent an example under pressure.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "One story can usually answer two or three different questions",
+          body: "You don't need a separate story for every possible question — a well-chosen example of, say, disagreeing with a manager about scope can also answer \"tell me about a time you influenced without authority\" or \"tell me about managing a tight deadline,\" just told with a different emphasis. Before an interview, look at your 6-8 core stories and note which 2-3 questions each one could plausibly answer, so you're not caught flat-footed by an unexpected phrasing of something you'd actually prepared for.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Matching the story to the question, not just the topic",
+          body: "\"Tell me about a time you managed a tight deadline\" and \"tell me about a time you had too much on your plate\" sound similar, but they're testing different things — the first wants to see planning and prioritization under a fixed constraint, the second wants to see how you triage and communicate when everything can't get done. Reusing the same story for both without adjusting the emphasis is a common miss: before answering, take a beat to notice exactly which trait the question is pointing at, then pick (or angle) the story toward that, even if it means leading with a different part of the same underlying situation.",
+        },
+        {
+          kind: "bullets",
+          heading: "When you don't have a clean number for Result",
+          intro: "Not every story has a tidy metric — that's fine, as long as the outcome is still concrete.",
+          bullets: [
+            "If there's a real number, use it — but don't force a fake-precise one (\"improved efficiency by 23%\") if you're actually estimating; \"cut the review time roughly in half\" is more credible than false precision.",
+            "Without a metric, name a concrete change instead: a process that's still used, a decision that got made because of what you found, a relationship that improved measurably in how it functions day to day.",
+            "\"It went well\" isn't a Result — \"my manager asked me to run the same approach on the next two projects\" is, even with zero numbers attached.",
           ],
         },
       ],
@@ -70,12 +129,28 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "callout",
+          tone: "warning",
+          heading: "The trap of starting too far back",
+          body: "A common failure mode is opening with \"So I grew up in...\" or \"I went to college for...\" — starting from the most distant point in your history instead of where you are now. It buries the relevant information at the end of a long answer, right when the interviewer's attention is starting to drift. Always start with your current role, then work backward only as far as the story actually needs.",
+        },
+        {
           kind: "bullets",
           heading: "What to leave out",
           bullets: [
             "Personal life details unrelated to the role (this isn't the moment for them, even framed positively).",
             "A full chronological work history — that's what the resume is for.",
             "Self-deprecating framing (\"I don't know, I guess I just kind of fell into this\") that undercuts an otherwise strong background.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Adjusting the answer for your situation",
+          bullets: [
+            "Career changer: spend slightly more time on \"how you got here,\" since the through-line is doing real work connecting two things that don't obviously relate — but still land on \"why this role\" clearly.",
+            "Internal move or referral: you can assume more shared context, so trim the \"how you got here\" section further and spend more time on why this specific role, since the interviewer likely already knows your background.",
+            "A panel or group interview: keep it just as tight, but make eye contact around the room rather than fixating on whoever asked — this is a small thing interviewers do notice.",
+            "If asked this in a later round after already giving it once: don't repeat the same script verbatim to someone new in the loop — that's fine and expected — but do tighten it further, since by this stage they've likely already read your resume closely.",
           ],
         },
         {
@@ -87,6 +162,28 @@ the job most relevant here]. Before that, I [the 1-2 sentence
 version of how you got there]. What's drawing me to this role
 specifically is [genuine, specific reason tied to the job or
 company]."`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "This answer often sets the frame for the rest of the interview",
+          body: "Interviewers frequently take their first real notes during this answer, and the themes you introduce here — a particular skill, a specific kind of project, a reason you're excited — often shape which follow-up questions get asked later in the same conversation. That's a reason to be deliberate about what you lead with, not just concise: whatever you emphasize here is more likely to get picked up and explored than something you mention only once, later, in passing.",
+        },
+        {
+          kind: "bullets",
+          heading: "Rehearsing without sounding rehearsed",
+          intro: "The goal is comfort with the shape, not a memorized script you'd recite identically every time.",
+          bullets: [
+            "Practice out loud, not silently in your head — the two feel very different, and a version that sounds smooth internally often reveals awkward phrasing the moment you actually say it.",
+            "Time yourself once or twice. If you're consistently landing past 90 seconds, look for the part that's really resume narration in disguise and cut it, rather than trying to talk faster.",
+            "Practice starting from a slightly different opening line each time (a different current-role detail, a different \"why this role\" framing) so you're rehearsing the shape and not a fixed script you'd lose your place in if interrupted.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "If you're between jobs, address it in one sentence and move on",
+          body: "An employment gap doesn't need a defensive explanation or an apology — a brief, factual sentence (\"I left my last role in March and have spent the time since focused on X\") followed by moving straight into why you're excited about this role reads as confident. Dwelling on it, over-explaining, or getting defensive about it draws more attention to it than the gap itself ever would.",
         },
       ],
     },
@@ -111,10 +208,57 @@ company]."`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "More questions, same underlying pattern",
+          intro: "The specific wording changes, but each one is still testing a trait, not asking for a story for its own sake.",
+          bullets: [
+            "\"Tell me about a time you had to persuade someone who disagreed with you.\" → Influence without authority — whether you build a case and bring people along, rather than just repeating your position louder.",
+            "\"Tell me about a time you missed a deadline.\" → Ownership and how you handle it in the moment, not whether you've ever missed one — everyone has. What matters is whether you flagged it early, mitigated the impact, and what changed afterward.",
+            "\"Tell me about a time you received difficult feedback.\" → Coachability. The strongest answers show a real behavior change afterward, not just \"I took it well.\"",
+            "\"Tell me about a time you had to lead without formal authority.\" → Whether you can drive an outcome through influence and clarity, not a title — common for cross-functional and early-management scenarios.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few more, worth recognizing on sight",
+          intro: "The pattern holds across nearly every behavioral question you'll hear — name the trait being tested before you start answering.",
+          bullets: [
+            "\"Tell me about a time you went above and beyond.\" → Initiative and ownership — whether you act without being asked, not whether the extra effort was dramatic.",
+            "\"Tell me about a time you had to make a decision without all the information you wanted.\" → Judgment under uncertainty — how you weighed the tradeoffs, not whether the outcome was perfect.",
+            "\"Tell me about a time you worked with someone difficult.\" → Interpersonal resilience and whether you can stay professional and effective despite friction, not whether you can find someone else to blame.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "The same question, a weak answer and a strong one",
+          body: "The weak version isn't dishonest — it's just vague enough that the interviewer can't actually evaluate anything from it.",
+          code: `Q: "Tell me about a conflict with a coworker."
+
+Weak: "I had a disagreement with a coworker once about how to
+approach a project, but we talked it out and it was fine in
+the end."
+
+Strong: "A coworker and I disagreed on whether to rebuild a
+reporting tool from scratch or patch the existing one. I asked
+to walk through their reasoning first, then proposed we each
+timebox a half-day spike to compare real effort. The spike
+showed patching was faster, which they hadn't expected — we
+went with it, and the direct comparison meant neither of us
+had to just defer to the other's opinion."`,
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "The trap: the answer that avoids the question",
           body: "A common failure mode is answering \"tell me about a failure\" with a humble-brag disguised as a weakness (\"I just work too hard and forget to take breaks\"). Interviewers hear this often enough to recognize it immediately, and it reads as evasive rather than self-aware.",
+        },
+        {
+          kind: "text",
+          heading: "Why interviewers ask about failure and conflict at all",
+          body: [
+            "It can feel like a trap, but the reasoning is straightforward: everyone has failed and everyone has had conflict, so these questions are less about the topic and more about whether you can talk about a real weak moment honestly and specifically — a skill that correlates with how you'll actually handle the next hard moment on the job.",
+            "There's a calibration problem on both ends. Underdisclosing (a fake-flaw humble-brag, as covered above) reads as evasive. Overdisclosing — a story so raw or severe it makes the interviewer uncomfortable, or one where you're clearly still upset about it — can read as poor judgment about what's appropriate to share in a professional setting. The target is a real, specific example, told with enough distance that you sound reflective rather than defensive or raw.",
+          ],
         },
         {
           kind: "text",
@@ -123,6 +267,12 @@ company]."`,
             "Know your story bank, but don't memorize word-for-word scripts — you'll sound stiff, and a follow-up question will throw you off.",
             "Instead, know the shape of each story well enough that you could tell it starting from any point, because interviewers often ask a targeted follow-up like \"what would you do differently?\" that a memorized script doesn't cover.",
           ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Expect the follow-up question",
+          body: "A common second question after any behavioral answer is some version of \"what would you do differently?\" or \"how did the other person react?\" A rehearsed script usually only covers the first version of the story and falls apart under a follow-up — knowing your story well enough to improvise from any point (not memorizing it word for word) is what actually holds up here.",
         },
       ],
     },
@@ -146,10 +296,65 @@ company]."`,
           ],
         },
         {
+          kind: "example",
+          heading: "What narrating actually sounds like",
+          body: "None of this is more \"correct\" than staying silent and thinking — it's slower in the moment and evaluates better, because the interviewer can follow the reasoning instead of just the destination.",
+          code: `"So if I'm understanding this right, I need to find the two
+numbers in this list that sum to the target — got it.
+
+I'll start with the brute-force approach first, just to make
+sure I have something working: check every pair, which is
+O(n²). Let me code that up quickly.
+
+...Okay, that works on the example. Now, I think I can do
+better with a hash map — as I iterate, I can check whether the
+complement I need has already been seen, which gets this down
+to O(n) time at the cost of O(n) space. Let me rewrite it that
+way."`,
+        },
+        {
+          kind: "diagram",
+          heading: "The thinking-out-loud loop",
+          description: "The same loop repeats as you work — restate, propose, try, and narrate what happens, rather than going quiet and presenting a finished answer.",
+          steps: [
+            { label: "Restate the problem", detail: "Confirm your understanding before solving" },
+            { label: "Propose an approach", detail: "Say what you'll try and why" },
+            { label: "Work it, narrating", detail: "Talk through wrong turns instead of silently backtracking" },
+            { label: "Land and discuss tradeoffs", detail: "Complexity, edge cases, what you simplified" },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Case interviews: the same principle, a different shape",
+          intro: "Business case interviews (common in consulting, strategy, and some product roles) reward the same thinking-out-loud habit, applied to a different kind of problem.",
+          bullets: [
+            "Clarify the actual objective before structuring anything — \"grow revenue\" and \"grow profit\" call for different analyses, and guessing wrong wastes the whole case.",
+            "Structure the problem into a small number of clear buckets out loud (e.g., \"I'd look at this through pricing, volume, and cost\") before diving into any one of them — this is the case-interview equivalent of narrating your plan before coding.",
+            "State assumptions explicitly and ask if they're reasonable, rather than silently picking a number: \"I'll assume average order value is roughly $50 unless you have a real figure — does that seem right?\"",
+            "Land on a clear recommendation at the end, not just an analysis — a case that ends in \"so there are a few options\" without a stated call is an unfinished answer.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Ask clarifying questions early",
           body: "Jumping straight to a solution on an underspecified problem is a common mistake. A question like \"what's the expected scale here?\" or \"should I assume the data is already cleaned?\" often matters more to the evaluation than the eventual answer, because it shows you don't assume — you check.",
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The mistake of solving before planning",
+          body: "Jumping straight into code or a spreadsheet before stating an approach out loud is one of the most common ways a technically correct answer still evaluates poorly — the interviewer loses the thread of your reasoning and is left inferring your process from the result alone. State the plan first, even briefly, before executing it.",
+        },
+        {
+          kind: "bullets",
+          heading: "A few habits that consistently read well in a coding round",
+          intro: "Small, easy to build into practice ahead of time, and noticeably different from just getting to a correct answer.",
+          bullets: [
+            "State a test case or two before writing any code — walking through a concrete example first (\"if the input is [2,7,11,15] and target is 9...\") often surfaces an edge case or misunderstanding before you've written a single line to fix.",
+            "Name the edge cases out loud even if you don't handle all of them: empty input, a single element, duplicates, negative numbers. Naming one you're choosing not to handle, and why, reads better than silently ignoring it.",
+            "Narrate space as well as time complexity, not just time — interviewers often notice when a candidate optimizes one and never mentions the other.",
+          ],
         },
         {
           kind: "text",
@@ -166,6 +371,21 @@ company]."`,
             "Don't stop at \"it works.\" Briefly note the tradeoffs.",
             "What's the time/space complexity? What would break at 10x the scale? What did you deliberately simplify?",
             "This is usually worth more than perfecting the first solution to a shine.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "If you genuinely don't know, say what you'd do to find out",
+          body: "Not knowing a specific algorithm, API, or piece of domain knowledge outright isn't the failure — going silent or bluffing is. \"I don't remember the exact time complexity of that off the top of my head, but I'd expect it to be roughly O(n log n) because of the sort, and I'd verify that before relying on it\" shows real reasoning even without a memorized fact. Interviewers are generally far more forgiving of an honest gap handled well than a confident wrong answer.",
+        },
+        {
+          kind: "bullets",
+          heading: "System design rounds run on the same principle, at a different altitude",
+          bullets: [
+            "Clarify scale and constraints before proposing an architecture — \"how many requests per second, roughly?\" changes the right answer as much as any technical detail does.",
+            "Narrate tradeoffs explicitly as you make them (\"I'm picking eventual consistency here because the availability requirement matters more than instant accuracy for this use case\") rather than presenting one architecture as the only option.",
+            "Draw the system as you talk, even roughly — a shared diagram keeps you and the interviewer looking at the same mental model instead of two different ones.",
           ],
         },
       ],
@@ -192,6 +412,31 @@ company]."`,
         },
         {
           kind: "bullets",
+          heading: "Matching the question to who's asking",
+          intro: "The best question for a recruiter screen isn't always the best one for a peer interview or a hiring-manager round — tailor which questions you lead with.",
+          bullets: [
+            "Recruiter screen: process and timeline questions fit naturally here — \"what does the full interview process look like?\" or \"what's the typical timeline from here?\" — without feeling out of place.",
+            "Hiring manager: lead with questions about the role's success metrics, priorities, and how the team is structured — they're the person best positioned to answer with real specifics.",
+            "Peer / would-be teammate: ask what they'd want someone new on the team to hit the ground running on, or what they'd change about how the team works if they could — peers tend to answer more candidly than a manager would.",
+            "Skip-level or executive round: broader questions about company direction or how the team's work ties to larger goals land better here than day-to-day process questions.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Following an answer instead of moving to the next question",
+          body: "The follow-up is what separates a real conversation from a list being read off a notes app — and it costs nothing but genuine attention to what they just said.",
+          code: `Interviewer: "The biggest challenge right now is probably
+that we're scaling faster than our onboarding docs can keep
+up with."
+
+Weak: [moves straight to the next prepared question]
+
+Better: "That's interesting — is that more a documentation
+problem, or is the process itself still evolving too fast to
+document well yet?"`,
+        },
+        {
+          kind: "bullets",
           heading: "Questions to avoid in most first rounds",
           bullets: [
             "Anything answerable from the company's website or the job posting — it signals you didn't prepare.",
@@ -201,9 +446,315 @@ company]."`,
         },
         {
           kind: "callout",
+          tone: "warning",
+          heading: "Some questions land better later in the process",
+          body: "Asking about PTO policy, remote-work exceptions, or how performance reviews handle underperformance in a first-round screen can read as more concerned with the downside than the role itself — the same question in a later round, once mutual interest is established, reads as normal due diligence. Timing changes how a reasonable question is heard.",
+        },
+        {
+          kind: "example",
+          heading: "Turning a generic question into one that actually lands",
+          body: "The generic version isn't wrong to ask — it's just forgettable, and forgettable is a wasted moment in a conversation that's still being evaluated.",
+          code: `Generic: "What's the culture like here?"
+
+Sharper: "You mentioned the team just went through a big
+migration — how did that change the way the team works
+day to day, if at all?"`,
+        },
+        {
+          kind: "bullets",
+          heading: "How many questions to actually ask, and how to pace them",
+          bullets: [
+            "Two to three real questions per round is a reasonable default — more than that starts to eat into time better spent on a genuine conversation, especially in a 30-minute screen.",
+            "Ask your most important question first in case time runs short — interviews routinely run over and end with a rushed \"any final questions?\" that only leaves room for one.",
+            "It's fine to ask a shorter follow-up to their answer instead of moving straight to your next prepared question — a real exchange reads better than a checklist being worked through in order.",
+          ],
+        },
+        {
+          kind: "callout",
           tone: "insight",
           heading: "Always have at least three ready",
           body: "Have more prepared than you'll need, because earlier questions often get answered along the way. Running out of questions, or asking one that was already covered, is a small but avoidable miss. If a question naturally came up during the conversation, say so — \"you actually covered my question about X earlier\" reads as attentive, not as having nothing to ask.",
+        },
+      ],
+    },
+    {
+      title: "Following Up After the Interview (and Reading the Signals)",
+      durationMinutes: 6,
+      slides: [
+        {
+          kind: "title",
+          heading: "Following Up After the Interview (and Reading the Signals)",
+          subheading:
+            "The interview doesn't end when you leave the room. What you do in the next 24 hours, and how you read what happens after, is still part of the process.",
+        },
+        {
+          kind: "bullets",
+          heading: "The thank-you note that actually helps",
+          bullets: [
+            "Send it within 24 hours, to each individual interviewer if you have their emails, not one generic note to the recruiter to forward.",
+            "Reference something specific from your conversation with that person — a question they asked, a detail about their team's work — not a templated paragraph that could apply to any interview.",
+            "Use it to add one thing you didn't get to say, if there's a genuine gap, rather than just repeating your interest in the role.",
+            "Keep it short. A thank-you note is a courtesy and a small signal, not a second interview answer.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "A structure that works",
+          body: "Notice it's specific to the conversation, not just \"thank you for your time\" — that's what makes it read as genuine rather than procedural.",
+          code: `"Thanks for taking the time to talk through the data
+migration project today — I've been thinking more about
+the phased rollout approach you mentioned, and it's a big
+part of why I'm excited about the role. One thing I didn't
+get to mention: I led a similar migration at [company] and
+would be glad to talk through it more if useful."`,
+        },
+        {
+          kind: "bullets",
+          heading: "Reading the signals while you wait",
+          bullets: [
+            "A fast next-round scheduling request is a genuinely good sign — it usually means no internal debate about whether to move you forward.",
+            "A generic \"we'll be in touch\" with no timeline isn't necessarily bad news — ask directly: \"Do you have a sense of timeline for next steps?\" rather than trying to read tone in an email.",
+            "A long silence past the timeline you were given is worth one polite check-in, not several. If a recruiter said \"early next week\" and it's now the following Friday, a single follow-up is reasonable; a daily one reads as pressure, not interest.",
+            "Radio silence after a promised date, with no response to a follow-up either, is itself information — treat the process as likely stalled and keep moving on other opportunities rather than pausing your whole search to wait.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "Reading the post-interview timeline",
+          description: "Each step has a real action attached to it — the goal is never to just wait and guess.",
+          steps: [
+            { label: "Interview ends", detail: "Send a specific thank-you within 24 hours" },
+            { label: "Wait the given timeline", detail: "Don't fill the silence with a weaker follow-up" },
+            { label: "Timeline passes, no word", detail: "One polite check-in asking about timeline" },
+            { label: "Still silent", detail: "Treat as likely stalled; keep other options moving" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "The asymmetry worth remembering",
+          body: "A thoughtful follow-up rarely costs you anything, even in a process that was already going to end in a rejection. Skipping it costs you nothing when things go well, but occasionally costs you a genuine edge when a decision is close. It's a small, low-risk action with only upside.",
+        },
+        {
+          kind: "text",
+          heading: "Handling a rejection well is also part of the process",
+          body: [
+            "A rejection isn't the end of the relationship with that company, and how you respond is visible. A short, gracious reply — thanking them for the opportunity and, if genuinely true, saying you'd welcome being considered for future roles — costs little and occasionally leads somewhere: hiring needs shift, another role opens, or the recruiter moves to a company you'd want to work at next.",
+            "It's also reasonable to ask for feedback, framed as genuine interest in improving rather than a challenge to the decision: \"I really appreciated the conversation — if you're able to share any feedback on where I could have been stronger, I'd value it.\" Many recruiters won't have bandwidth to answer in detail, and that's fine; asking costs nothing and occasionally gets a genuinely useful answer.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "A LinkedIn connection request is a low-effort, low-risk follow-up",
+          body: "Connecting with interviewers on LinkedIn after the process ends — win or lose — with a brief personal note keeps a door open with minimal effort. It's a much lower bar than asking for feedback or checking in again, and it means the relationship doesn't just vanish the moment the recruiting process closes the loop.",
+        },
+        {
+          kind: "summary",
+          heading: "Following up, briefly",
+          bullets: [
+            "A specific, personal thank-you note within 24 hours to each interviewer.",
+            "Ask directly about timeline instead of guessing from tone or silence.",
+            "One polite check-in past a missed date is reasonable; repeated ones aren't.",
+            "Treat unexplained silence as real information and keep your other options moving.",
+            "A gracious response to a rejection, and a LinkedIn connection either way, keep the relationship open for the future at almost no cost.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Building Your STAR Story Bank",
+      durationMinutes: 13,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Building Your STAR Story Bank",
+          subheading:
+            "Draft three real answers now, before an interview forces you to improvise them live.",
+        },
+        {
+          kind: "practice",
+          heading: "Draft your \"tell me about a failure\" answer",
+          prompt:
+            "Using the STAR shape, draft your answer to \"Tell me about a time you failed.\" Pick a real, specific failure — not a disguised humble-brag (\"I work too hard\") — where you can honestly name what went wrong and what you actually changed afterward. Write the full answer, aiming for 60-90 seconds spoken.",
+          hint: "Spend one sentence on Situation, one on Task, most of the answer on Action (what you did and specifically what you got wrong), and make sure Result includes the lesson, not just the outcome.",
+          solution:
+            "\"On a product launch I owned, I assumed our existing analytics setup would capture the new feature's usage automatically — it didn't, because the events needed custom tagging I hadn't scoped in. [Situation/Task] Two weeks after launch, I realized we had almost no usage data to show whether the feature was working. [Action] I owned the mistake directly with my manager rather than downplaying it, then worked with an engineer to backfill instrumentation and built a lightweight weekly report so it wouldn't happen again on the next launch. [Result] We recovered three weeks of partial data through log analysis, and every launch since has had an instrumentation checklist item before go-live — a step that's now standard for the team.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Draft your \"time you disagreed with your manager\" answer",
+          prompt:
+            "Draft a STAR answer to \"Tell me about a time you disagreed with your manager.\" Choose a real disagreement where you pushed back constructively and it led to a genuine resolution — not one where you simply complied, and not one where you were simply right and they were simply wrong.",
+          hint: "This question is testing whether you can push back without either going silent or being insubordinate. Show the actual conversation — what you said, not just that you \"raised concerns.\"",
+          solution:
+            "\"My manager wanted to ship a feature two weeks early by cutting the QA pass to one round instead of two. [Situation/Task] I disagreed, but instead of just saying no, I laid out the specific risk — a similar cut on a past project had caused a production bug that cost us a week of hotfixes — and proposed a middle ground: keep both QA rounds but cut scope on a lower-priority part of the feature to hit the earlier date. [Action] My manager agreed to the trade-off once it was framed as a specific alternative rather than just pushback. [Result] We shipped on the revised date with both QA passes intact, and no regressions — and my manager started looping me into scope-timeline tradeoffs earlier on later projects.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Draft your strongest \"proudest work\" answer",
+          prompt:
+            "Draft a STAR answer to \"What's a piece of work you're most proud of?\" Choose something where your individual contribution is genuinely clear — practice separating \"I\" from \"we\" explicitly, the way the course recommends.",
+          hint: "If it was a team effort, say so once, then be explicit about your specific piece: \"the team did X; I specifically owned Y and drove Z.\"",
+          solution:
+            "\"Our team was tasked with cutting customer churn, which was trending up quarter over quarter. [Situation/Task] The team ran several workstreams — I specifically owned the onboarding-email analysis, and proposed and built a revised email sequence with clearer setup guidance after finding that most churned customers had never completed a key setup step. [Action] I ran it as an A/B test against the old sequence before rolling it out fully. [Result] The new sequence lifted setup completion by 22% for new customers, and churn in that segment dropped by roughly a third over the following two quarters — a change that's still the default onboarding flow today.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Draft your \"time you had to learn something quickly\" answer",
+          prompt:
+            "Draft a STAR answer to \"Tell me about a time you had to learn something quickly to get a job done.\" This question is testing adaptability and your approach to the unfamiliar, not the specific subject matter — pick a real example where you can describe how you learned, not just that you eventually knew it.",
+          hint: "Show your actual learning process — what you tried first, how you found the right resources or people, and how you validated you'd actually learned it correctly before relying on it.",
+          solution:
+            "\"When our team's data analyst left unexpectedly two weeks before a board presentation, I was asked to take over a SQL-heavy reporting pipeline I'd never touched. [Situation/Task] I spent the first afternoon just reading through existing queries to understand the data model rather than immediately trying to change anything, then found the two people on other teams who'd used the same pipeline before and asked for 20 minutes each to walk me through the parts I still didn't follow. I built one report end to end and had it reviewed by someone familiar with the pipeline before trusting it fully. [Action] I had the full reporting suite running correctly by the deadline, [Result] and documented what I'd learned so the next person covering it wouldn't have to start from zero the way I did.\"",
+        },
+        {
+          kind: "practice",
+          heading: "Draft a story with a genuinely fuzzy Result",
+          prompt:
+            "Pick a real accomplishment where you don't have a clean number to cite as the Result — something like improving a process, a relationship, or a team dynamic. Draft the STAR answer, paying particular attention to making the Result concrete and credible without inventing a fake statistic.",
+          hint: "A Result without a number still needs to be specific and verifiable — a changed behavior, a decision made because of your work, or something someone else said or did as a direct consequence.",
+          solution:
+            "\"Our two engineering pods had drifted into rarely talking to each other, which caused repeated duplicate work and conflicting technical decisions. [Situation/Task] I started a biweekly 30-minute sync between a rotating pair from each pod, focused specifically on upcoming work that might overlap, rather than a general status meeting nobody would find useful. I kept it small and concrete on purpose, since a previous attempt at a full-team sync had fizzled out after a month. [Action] Six months later the sync was still running without me having to drive it, two other teams had adopted the same format after hearing about it, and we hadn't had a duplicate-work incident since it started — [Result] a real change in how the teams worked together, even without a single metric to point to.\"",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Review your story bank every few months, not just once",
+          body: "Stories go stale — a project that felt significant a year ago might have a newer, stronger example that's replaced it, and details fade if you don't revisit them. Before a new round of interviews, spend 20 minutes reading back through your story bank and swapping in anything more current or more relevant to the specific roles you're now targeting, rather than reusing the same set indefinitely.",
+        },
+        {
+          kind: "summary",
+          heading: "What a strong story bank has in common",
+          bullets: [
+            "Real, specific situations — not composites or exaggerations you'd struggle to defend under a follow-up question.",
+            "\"I\" clearly separated from \"we\" in every Action section.",
+            "A Result that names what changed, and ideally what you'd still improve — not just \"and it worked out.\"",
+            "Answers you could start from any point in, not a memorized script you'd lose your place in.",
+            "A bank that gets revisited and refreshed periodically, not written once and left untouched for years.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check: Interview Prep",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check: Interview Prep",
+          subheading: "Five questions across the whole course.",
+        },
+        {
+          kind: "quiz",
+          heading: "STAR method",
+          question:
+            "In a strong STAR answer, which part should typically take up the largest share of the response?",
+          options: ["Situation", "Task", "Action", "Result"],
+          correctIndex: 2,
+          explanation:
+            "Action is where you show what you actually did, step by step — it's the part interviewers are most evaluating. A common mistake is spending most of the answer on Situation context and rushing or skipping the rest.",
+        },
+        {
+          kind: "quiz",
+          heading: "Behavioral questions",
+          question:
+            "An interviewer asks, \"Tell me about a time you failed.\" What is this question primarily evaluating, according to this course?",
+          options: [
+            "How severe the failure was, since bigger failures show more resilience",
+            "Whether you can find an example where the failure wasn't really your fault",
+            "Self-awareness and whether you extracted a real, applied lesson from it",
+            "Whether you've ever failed at all, since some candidates will claim they haven't",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course is explicit that severity isn't the point — a small, honest failure with a clear lesson beats a vague or deflected big one. The evaluation is on self-awareness and follow-through, not on how dramatic the failure was.",
+        },
+        {
+          kind: "quiz",
+          heading: "Technical and case interviews",
+          question:
+            "A candidate in a technical interview goes silent for two minutes while stuck, then presents a full working solution. What does this course say about that approach?",
+          options: [
+            "It's ideal — interviewers only care about the final answer being correct",
+            "Silence while stuck is the worst option; narrating what you know, what you've ruled out, and your next direction is stronger even before you land on an answer",
+            "It's fine as long as the solution is optimal on the first attempt",
+            "Interviewers expect total silence during problem-solving and interpret talking as a lack of confidence",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course's core point about technical/case rounds is that the evaluation is on process as much as outcome — an interviewer who sees a structured approach to being stuck often comes away more confident than one who only watches a smooth answer to an easy problem.",
+        },
+        {
+          kind: "quiz",
+          heading: "Questions to ask",
+          question:
+            "Which of these is the strongest question to ask an interviewer near the end of a first-round interview, per this course?",
+          options: [
+            "\"What does your company do?\"",
+            "\"What's the salary range for this role?\"",
+            "\"What does success look like in this role at 6 months and a year?\"",
+            "\"Do you have any concerns about my background?\" as a yes/no check",
+          ],
+          correctIndex: 2,
+          explanation:
+            "Questions answerable from the company website (like what the company does) signal a lack of preparation, and compensation specifics are generally better left until the interviewer raises them. The success-metrics question shows you're thinking about impact and evaluating fit both ways.",
+        },
+        {
+          kind: "quiz",
+          heading: "After the interview",
+          question:
+            "A candidate was told by a recruiter \"we'll follow up early next week\" and it's now the following Friday with no word. What does this course recommend?",
+          options: [
+            "Send one polite check-in asking for a status update",
+            "Email daily until you get a response, since persistence signals interest",
+            "Assume the process is dead and never follow up at all",
+            "Call the interviewer's personal cell phone if you can find it",
+          ],
+          correctIndex: 0,
+          explanation:
+            "The course's guidance is one polite follow-up past a missed timeline, not repeated ones — a single check-in reads as reasonable interest, while daily follow-ups read as pressure rather than genuine engagement.",
+        },
+        {
+          kind: "quiz",
+          heading: "\"Tell me about yourself\"",
+          question:
+            "According to this course, what's the biggest structural mistake candidates make when answering \"tell me about yourself\"?",
+          options: [
+            "Talking for too short a time — under 30 seconds",
+            "Starting too far back in their history instead of with their current role",
+            "Not mentioning their salary expectations",
+            "Failing to name every job they've ever held",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The course specifically calls out opening with something like \"So I grew up in...\" as a common failure — it buries the relevant, current information at the end of a long answer. Starting with where you are now and working backward only as far as needed keeps the answer tight and relevant.",
+        },
+        {
+          kind: "quiz",
+          heading: "Following up without a number",
+          question:
+            "A candidate wants to describe a real accomplishment for a STAR answer, but has no clean metric for the Result. What does this course recommend?",
+          options: [
+            "Skip that story and only use accomplishments with a number attached",
+            "Invent a plausible-sounding statistic to make the answer stronger",
+            "Name a concrete, verifiable outcome even without a number — a changed process, a decision made because of the work, or a specific behavior change",
+            "End the answer on the Action step and let the interviewer infer the outcome",
+          ],
+          correctIndex: 2,
+          explanation:
+            "The course is explicit that a Result doesn't require a number to be strong — it requires being concrete and credible. \"It went well\" isn't a Result, but a specific change that resulted from the work is, even with zero statistics attached.",
+        },
+        {
+          kind: "summary",
+          heading: "This course's core takeaways",
+          bullets: [
+            "STAR works when Action carries the weight and Result is never skipped.",
+            "Behavioral questions test the trait behind the story, not the story's drama — pick honest, specific examples.",
+            "In technical and case rounds, narrate your reasoning; process is evaluated as much as the answer.",
+            "Prepare real, specific questions for them — it's still part of the evaluation, both ways.",
+            "Follow up specifically and promptly, then read silence as real information without escalating pressure.",
+          ],
         },
       ],
     },

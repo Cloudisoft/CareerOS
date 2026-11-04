@@ -28,6 +28,17 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "example",
+          heading: "Something only possible outside a browser",
+          body: "Reading an arbitrary file from disk directly — no such capability exists in browser JavaScript at all, sandboxed deliberately for security. It's a small, concrete illustration of \"different capabilities, same language.\"",
+          code: `const fs = require("fs");
+
+const contents = fs.readFileSync("config.json", "utf8");
+console.log(JSON.parse(contents));
+// A browser tab has no equivalent — it can't reach an arbitrary file on the
+// visitor's disk, and for good reason.`,
+        },
+        {
           kind: "bullets",
           heading: "What that unlocks",
           bullets: [
@@ -37,10 +48,47 @@ export const course: CourseSeed = {
           ],
         },
         {
+          kind: "bullets",
+          heading: "Node isn't the only JavaScript runtime outside a browser",
+          bullets: [
+            "Deno, from one of Node's original creators, ships TypeScript support and stricter security (no filesystem or network access by default) built in, aiming to fix some of Node's early design decisions.",
+            "Bun focuses heavily on raw startup and execution speed, and bundles a bundler and test runner into the runtime itself rather than treating them as separate tools.",
+            "Node remains the overwhelming default in production because of its maturity and its ecosystem — the same reason an established language rarely gets displaced purely on technical merits alone.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why \"non-blocking\" was the original pitch",
           body: "Node was built around a specific bet: that for a huge share of real server workloads — waiting on a database, a file, or a network call — a server spends most of its time waiting, not computing. Traditional server models often handled this by spinning up a new thread per connection, which gets expensive at scale. Node instead uses a single main thread that never sits idle waiting on I/O — it starts the operation, moves on, and comes back when the result is ready. The next lesson covers exactly how that works.",
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "global instead of window",
+          body: "A value that would live on `window` in a browser lives on `global` in Node — but reaching for it directly is rare in practice; well-written Node code deals in modules and explicit imports rather than implicit globals. The one Node global you'll actually see constantly is `process` — access to environment variables, command-line arguments, and the running process itself.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Why the npm ecosystem matters here",
+          body: "Node ships with a deliberately small standard library. Most day-to-day capability — web frameworks, database clients, testing tools — comes from npm packages layered on top, covered in a later lesson. This is a real design trade: a lean core plus an enormous package ecosystem filling in the rest, rather than a large batteries-included standard library the way some other languages ship by default.",
+        },
+        {
+          kind: "bullets",
+          heading: "A few more built-in globals worth knowing",
+          intro: "Beyond process, a handful of other globals show up constantly in real Node code:",
+          bullets: [
+            "Buffer — Node's way of representing raw binary data (file contents, network payloads) before or instead of decoding it as text; something browser JavaScript has no real equivalent for outside of the more recent, more limited Uint8Array/ArrayBuffer APIs.",
+            "__dirname and __filename — the absolute path of the current file and its directory, available automatically in CommonJS files; ESM files don't have them and use import.meta.url instead, one more small difference between the two module systems covered later in this course.",
+            "console — mostly identical to the browser's, though Node's version writes to standard output/error rather than a browser dev tools panel, which matters for how logs actually get captured in production (a log aggregator, a file, a container's stdout).",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "LTS vs. Current: which Node version to actually run",
+          body: "Node ships two release tracks at once: an even-numbered LTS (Long-Term Support) release, which is what most production deployments should run, and a Current release with newer features but a shorter support window and less production hardening. LTS releases get security and bug fixes for roughly 30 months; Current releases don't carry that same long-term guarantee. Defaulting to whatever LTS version is active, rather than always chasing the newest release, is standard practice for anything beyond local experimentation.",
         },
         {
           kind: "summary",
@@ -87,6 +135,24 @@ fs.readFile("large-file.txt", (err, data) => {
 console.log("This logs before the file finishes reading");`,
         },
         {
+          kind: "example",
+          heading: "Microtasks run before the next macrotask, every time",
+          body: "Promise callbacks (microtasks) are drained completely before Node moves on to the next timer or I/O callback (a macrotask) — which is why this logs in an order that looks surprising at first glance.",
+          code: `console.log("1: sync");
+
+setTimeout(() => console.log("4: setTimeout"), 0);
+
+Promise.resolve().then(() => console.log("3: promise"));
+
+console.log("2: sync");
+
+// Actual output:
+// 1: sync
+// 2: sync
+// 3: promise      <- microtask, runs before any macrotask, even a 0ms timer
+// 4: setTimeout    <- macrotask, runs only after all pending microtasks drain`,
+        },
+        {
           kind: "bullets",
           heading: "The event loop, at a practical level",
           bullets: [
@@ -97,10 +163,63 @@ console.log("This logs before the file finishes reading");`,
           ],
         },
         {
+          kind: "diagram",
+          heading: "One trip through the event loop",
+          description: "What happens to a single async operation, like a file read, from start to its callback running.",
+          steps: [
+            { label: "Code runs synchronously", detail: "Executes until it returns or hands off an operation" },
+            { label: "I/O operation handed off", detail: "e.g. fs.readFile — given to the OS / background thread pool" },
+            { label: "Main thread stays free", detail: "Picks up other pending work — other requests, timers, callbacks" },
+            { label: "Operation completes", detail: "Its callback is queued, ready to run" },
+            { label: "Event loop runs the callback", detail: "Runs on the main thread, in order, once it's next up" },
+          ],
+        },
+        {
+          kind: "text",
+          heading: "libuv: the engine underneath the event loop",
+          body: [
+            "The event loop itself isn't implemented in JavaScript — it's provided by libuv, a C library Node is built on top of, which is also what actually hands I/O operations off to the operating system or a background thread pool in the first place. You don't interact with libuv directly, but it's worth knowing the event loop is a real, separate piece of engineering underneath the JavaScript you write, not just a metaphor for \"async stuff happens later.\"",
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "CPU-heavy work still blocks everything",
           body: "Non-blocking I/O only helps with waiting — it does nothing for a genuinely long computation running on the main thread, like sorting a huge array or hashing something expensive synchronously. That kind of work still blocks the single thread completely, and every other request stalls behind it, exactly like the synchronous file read above. Real CPU-bound work belongs in a worker thread or a separate process, not on the main thread of a server handling requests.",
+        },
+        {
+          kind: "bullets",
+          heading: "The event loop actually runs in phases, not one undifferentiated queue",
+          intro: "\"The event loop\" is really several distinct phases the main thread cycles through, each handling a different kind of pending work:",
+          bullets: [
+            "Timers — runs callbacks whose setTimeout/setInterval delay has elapsed.",
+            "Poll — retrieves new I/O events (a completed file read, an incoming connection) and runs their callbacks; this is where the loop spends most of its time in a typical server.",
+            "Check — runs setImmediate callbacks, specifically scheduled to run right after the poll phase completes.",
+            "Close callbacks — handles cleanup like a socket's \"close\" event.",
+            "Microtasks (promise callbacks, process.nextTick) drain completely between every single phase, not just once per full loop — which is why the order in the earlier example held even though nothing timer-related had happened yet.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "setImmediate vs. setTimeout(fn, 0)",
+          body: "Both schedule a callback to run \"as soon as possible\" rather than immediately, but their relative order isn't actually guaranteed outside of one specific case: inside an I/O callback, setImmediate reliably fires before a setTimeout(fn, 0) scheduled at the same moment, because the check phase (setImmediate) runs immediately after the poll phase where the I/O callback itself just ran, before the loop cycles back around to timers.",
+          code: `const fs = require("fs");
+
+fs.readFile(__filename, () => {
+  setTimeout(() => console.log("setTimeout"), 0);
+  setImmediate(() => console.log("setImmediate"));
+  // Inside an I/O callback, this order is guaranteed: setImmediate logs
+  // first here — outside an I/O callback, the order isn't guaranteed
+});`,
+        },
+        {
+          kind: "bullets",
+          heading: "A timer's delay is a minimum, not a guarantee",
+          bullets: [
+            "setTimeout(fn, 1000) schedules fn to run no sooner than 1 second from now, not exactly at 1 second. If the main thread is busy with other work when that time arrives, the timer's callback waits until the thread is actually free.",
+            "This is a direct consequence of the single-threaded model: the event loop can't interrupt currently running code to fire a timer early, so a busy thread delays every pending timer equally.",
+            "process.nextTick (a Node-specific addition, not part of the general microtask queue) runs even before other microtasks like resolved promises — worth knowing the name so it doesn't seem mysterious in library code, though direct use in typical application code is uncommon.",
+          ],
         },
         {
           kind: "summary",
@@ -160,6 +279,52 @@ console.log(add(2, 3));`,
           ],
         },
         {
+          kind: "bullets",
+          heading: "Interop between the two isn't fully symmetric",
+          bullets: [
+            "ESM importing CommonJS mostly just works — Node wraps a CommonJS module's module.exports as the default export automatically.",
+            "CommonJS requiring ESM does not work the same way — require() is synchronous, and loading an ES module is inherently asynchronous, so a plain require() of a .mjs file throws rather than silently working. Dynamic import() (below) is the way around this from a CommonJS file.",
+            "This asymmetry is the single most common real reason a project can't just \"add one ESM-only package\" to an otherwise CommonJS codebase without some friction.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Dynamic import() works in both systems",
+          body: "Unlike static import/require, import() is a function that returns a promise — it works inside CommonJS files too, and is the standard way to load a module conditionally or lazily, without needing it upfront.",
+          code: `// Works in a CommonJS file, not just an ESM one
+async function loadFormatter(locale) {
+  const { format } = await import(\`./formatters/\${locale}.js\`);
+  return format;
+}`,
+        },
+        {
+          kind: "text",
+          heading: "Top-level await: an ESM-only feature",
+          body: [
+            "ESM allows await at the top level of a module, outside any async function — useful for a module that needs to load some configuration or data before anything importing it can run. CommonJS has no equivalent; await there is only valid inside an async function, which is one more real reason a project leaning on top-level await needs to be ESM.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "How Node resolves a bare module name like \"express\"",
+          body: [
+            "A relative import (\"./math.js\") or absolute path resolves exactly where it points. A bare specifier like \"express\" is different: Node looks for a node_modules/express folder starting in the current directory, and if it's not there, walks up one directory at a time — checking node_modules at each level — until it either finds a match or reaches the filesystem root and throws a \"Cannot find module\" error.",
+            "This is also why a single project can end up with multiple copies of the same package at different versions nested inside each other's node_modules — two dependencies each requiring a different version of some shared package get their own copies, resolved independently by wherever their own require or import call sits in that folder structure.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Circular dependencies behave differently in the two systems",
+          body: "CommonJS handles a circular require() by returning whatever partial module.exports has been built so far at the moment of the cycle — which can silently be an incomplete object rather than an error. ESM's static import graph lets it handle some circular cases more gracefully, since bindings are live references resolved lazily, though a genuinely circular dependency is still a sign of a design problem worth untangling in either system, not something to rely on either module system handling gracefully.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "package.json's \"exports\" field narrows what's importable",
+          body: "A package can declare an \"exports\" field in its package.json to explicitly list which files consumers are allowed to import — anything left out becomes inaccessible from outside the package, even if the file physically exists on disk. This is an increasingly common, deliberate way for library authors to stop consumers from reaching into internal files, and a real reason \"importing a file that clearly exists in node_modules\" can still fail with a resolution error.",
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Why this matters practically, not just academically",
@@ -202,6 +367,24 @@ server.listen(3000, () => {
 });`,
         },
         {
+          kind: "terminal",
+          heading: "Running the server and hitting it",
+          description: "Start the server, then make a request against it from another terminal.",
+          lines: [
+            { text: "node server.js" },
+            { text: "Listening on port 3000", output: true },
+            { text: "curl http://localhost:3000" },
+            { text: '{"message":"Hello from Node"}', output: true },
+          ],
+        },
+        {
+          kind: "text",
+          heading: "One callback, called once per request — not once per connection",
+          body: [
+            "A single TCP connection can carry multiple HTTP requests over time thanks to keep-alive — the callback passed to createServer runs once for each individual request, not once when a connection opens. In practice you rarely need to think about the connection layer directly; Node's http module handles the framing of where one request ends and the next begins.",
+          ],
+        },
+        {
           kind: "example",
           heading: "A minimal router by hand",
           body: "Without a framework, routing is just checking req.url and req.method yourself — this is exactly the repetitive work that frameworks like Express exist to remove.",
@@ -224,6 +407,28 @@ server.listen(3000, () => {
 });`,
         },
         {
+          kind: "example",
+          heading: "Parsing a JSON request body by hand",
+          body: "req is a readable stream, not already-parsed data — this is the exact manual work a framework like Express removes with a single line, app.use(express.json()).",
+          code: `function handlePost(req, res) {
+  let body = "";
+  req.on("data", (chunk) => {
+    body += chunk;
+  });
+  req.on("end", () => {
+    const data = JSON.parse(body);
+    res.writeHead(201, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ received: data }));
+  });
+}`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "req and res are streams, not simple objects",
+          body: "req is a readable stream — you listen for \"data\" events as chunks arrive, and \"end\" once they're done — and res is a writable stream, where you can call res.write() multiple times before res.end(). This is why a large response can be sent incrementally instead of built entirely in memory first, and why frameworks built on top of http still expose stream-like behavior for things like file downloads.",
+        },
+        {
           kind: "bullets",
           heading: "Why almost nobody ships raw http in production",
           bullets: [
@@ -234,10 +439,51 @@ server.listen(3000, () => {
           ],
         },
         {
+          kind: "bullets",
+          heading: "A couple of headers worth understanding, not just setting",
+          bullets: [
+            "Content-Type tells the client how to interpret the body — get it wrong (say, sending JSON with a text/plain Content-Type) and a client's automatic parsing may not kick in, even though the actual bytes are valid JSON.",
+            "Content-Length, when set explicitly, tells the client exactly how many bytes to expect; without it (or chunked transfer-encoding), a client can't always tell where a response actually ends.",
+            "Status codes carry real meaning that clients and tools rely on: the 200 range for success, 400 range for a client mistake, 500 range for a server-side failure — returning 200 with an error message in the body, a common shortcut, breaks any tooling that checks the status code rather than parsing every response body.",
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why it's still worth knowing the raw version",
           body: "Every framework you'll use is a layer on top of exactly this module — understanding what createServer, req, and res actually are makes framework behavior (and framework bugs) far less mysterious, because you can reason about what's happening underneath the abstraction instead of treating it as a black box.",
+        },
+        {
+          kind: "example",
+          heading: "Streaming a file response instead of loading it entirely into memory",
+          body: "res is a writable stream, so piping a readable stream (like a file) directly into it sends the response incrementally — the whole file never needs to sit in memory at once, which matters a lot once files get large.",
+          code: `const fs = require("fs");
+
+const server = http.createServer((req, res) => {
+  if (req.url === "/download") {
+    res.writeHead(200, { "Content-Type": "video/mp4" });
+    fs.createReadStream("large-video.mp4").pipe(res);
+    return;
+  }
+  res.writeHead(404);
+  res.end("Not found");
+});`,
+        },
+        {
+          kind: "bullets",
+          heading: "Handling errors the raw module doesn't handle for you",
+          intro: "A framework like Express catches a lot of this automatically; with the raw http module, you're responsible for it yourself:",
+          bullets: [
+            "A synchronous throw inside the request callback, uncaught, can crash the entire process — the same single-thread-affects-everyone consequence covered elsewhere in this course, just triggered from inside a request handler instead of an async call.",
+            "req can itself emit an \"error\" event (a client disconnecting mid-upload, a malformed request) — leaving it unhandled is a common source of an unexplained crash under real-world, imperfect network conditions.",
+            "A server with no timeout set will wait indefinitely on a slow or stalled client; `server.setTimeout(ms)` bounds how long a connection can sit idle before Node closes it.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "An uncaught exception's default fate: the whole process exits",
+          body: "An uncaught synchronous exception inside a request handler, left unhandled, eventually reaches Node's own default behavior: printing the error and exiting the process entirely — again taking every other in-flight request down with it. Wrapping route logic in try/catch (or, at minimum, listening for the process's own \"uncaughtException\" event to log and shut down deliberately rather than crash abruptly) is the raw-server equivalent of the async error handling covered in a later lesson.",
         },
       ],
     },
@@ -272,6 +518,19 @@ server.listen(3000, () => {
 }`,
         },
         {
+          kind: "terminal",
+          heading: "Installing and running from package.json",
+          description: "npm reads the scripts and dependencies fields to know what to do.",
+          lines: [
+            { text: "npm install" },
+            { text: "added 47 packages in 3s", output: true },
+            { text: "npm run dev" },
+            { text: "> my-api@1.0.0 dev", output: true },
+            { text: "> node --watch server.js", output: true },
+            { text: "Listening on port 3000", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "The fields that matter day to day",
           bullets: [
@@ -293,6 +552,47 @@ server.listen(3000, () => {
           tone: "warning",
           heading: "node_modules doesn't belong in version control",
           body: "node_modules is regenerated from package.json and package-lock.json by running `npm install` — it's large, machine-specific in places, and entirely reproducible. It should be in .gitignore, not committed. If a project is missing that entry and node_modules gets committed by accident, it bloats the repository significantly and causes painful merge conflicts on a file nobody should be hand-editing.",
+        },
+        {
+          kind: "bullets",
+          heading: "Version range syntax, beyond the caret",
+          bullets: [
+            "^4.19.2 (caret) — allows minor and patch updates (4.x.x, staying below 5.0.0), the most common default and the one npm writes automatically when you npm install a package.",
+            "~4.19.2 (tilde) — allows only patch updates (4.19.x), a tighter range for a dependency you want to move more cautiously.",
+            "4.19.2 exactly, with no prefix — locks to that precise version; combined with committing the lock file, this is the most conservative option, common for tools where an unexpected minor-version change has bitten a team before.",
+            "* or latest — always resolves to the newest version available, which is rarely what you actually want for anything beyond a quick local experiment; it defeats the whole point of a reproducible dependency tree.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "npm ci: the install command CI pipelines should actually use",
+          description: "npm install can update the lock file if package.json and the lock file disagree slightly; npm ci refuses to and is meaningfully faster, which is exactly what an automated pipeline should want.",
+          lines: [
+            { text: "npm ci" },
+            { text: "npm ERR! `npm ci` can only install packages when your package.json and", output: true },
+            { text: "npm ERR! package-lock.json are in sync. Please update your lock file", output: true },
+            { text: "npm ERR! with `npm install` before continuing.", output: true },
+            { text: "# ...caught the mismatch instead of silently installing something slightly different" },
+            { text: "npm install" },
+            { text: "npm ci" },
+            { text: "added 47 packages in 1.1s", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "npx: running a package's command without installing it globally first",
+          body: "npx create-react-app my-app downloads and runs a package's CLI in one step, without polluting your machine with a global install you'll use once. It also runs a locally installed package's binary directly (npx eslint . reaches for the eslint in node_modules/.bin rather than requiring it on your system PATH), which is the more common day-to-day use once a project actually has dependencies installed.",
+        },
+        {
+          kind: "bullets",
+          heading: "peerDependencies and optionalDependencies, briefly",
+          intro: "Two less common dependency fields worth recognizing when you see them:",
+          bullets: [
+            "peerDependencies declares a package the consuming project is expected to already have installed itself, rather than bundling its own copy — common for plugins (a React component library listing react itself as a peer, so it uses the app's own React instance rather than a second, conflicting copy).",
+            "optionalDependencies installs if possible but doesn't fail the whole install if it can't — typically used for a platform-specific native binary that isn't available or needed on every OS.",
+            "Seeing require inside a try/catch immediately after a package name in application code is a common tell that it's being treated as optional there too, not just in package.json.",
+          ],
         },
         {
           kind: "summary",
@@ -366,10 +666,91 @@ const orders = await getOrders(id);
 const [user, orders] = await Promise.all([getUser(id), getOrders(id)]);`,
         },
         {
+          kind: "example",
+          heading: "Promise.allSettled when one failure shouldn't sink the rest",
+          body: "Promise.all rejects the instant any one of its promises rejects, discarding the results of everything else that was in flight. When you genuinely want every result regardless of individual failures — enriching a response from three optional data sources, say — Promise.allSettled is the right tool instead.",
+          code: `// Promise.all: one failure loses everything, even the successes
+const [profile, orders, recs] = await Promise.all([
+  getProfile(id), getOrders(id), getRecommendations(id),
+]);
+// If getRecommendations rejects, you get nothing back at all —
+// not even the profile and orders that succeeded fine.
+
+// Promise.allSettled: every result comes back, success or failure
+const results = await Promise.allSettled([
+  getProfile(id), getOrders(id), getRecommendations(id),
+]);
+const [profile, orders, recs] = results.map((r) =>
+  r.status === "fulfilled" ? r.value : null
+);
+// A flaky recommendations service degrades gracefully instead
+// of taking the whole response down with it.`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "\"Fire and forget\" is rarely actually safe in a request handler",
+          body: "Calling an async function without awaiting it — logAnalyticsEvent(data); with no await in front — doesn't make the work happen synchronously in the background safely. If it rejects, that's an unhandled rejection with no request-scoped try/catch anywhere near it, and depending on the Node version and framework, it can still surface as a process-level crash minutes later, disconnected from the request that actually triggered it. If work genuinely doesn't need to block the response, still attach a .catch() to it explicitly (fireAndForget().catch(err => logger.error(err))) rather than leaving it fully unhandled.",
+        },
+        {
+          kind: "diagram",
+          heading: "One request, three awaited calls, one place error handling has to cover",
+          description: "Each await is a place the request can fail — the try/catch has to actually wrap all of them, not just the first.",
+          steps: [
+            { label: "Request arrives", detail: "GET /profile/:id" },
+            { label: "await db.user.findUnique(...)", detail: "Can reject — connection drop, bad query" },
+            { label: "await fetchEnrichment(...)", detail: "Can reject — the flaky downstream API" },
+            { label: "await cache.set(...)", detail: "Can reject too — easy to forget this one specifically" },
+            { label: "res.json(...)", detail: "Only reached if every prior await either succeeded or was caught" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "Why this matters more on a server than in a script",
           body: "A one-off script that blocks or crashes only affects itself. A server process handling many concurrent requests is shared — a bug in handling one request (an unguarded rejection, an accidental synchronous block) can degrade or take down every other request currently in flight. Async correctness in Node is a reliability concern for the whole process, not just a style preference for the one function you're writing.",
+        },
+        {
+          kind: "example",
+          heading: "Timing out a call that might just hang forever",
+          body: "A downstream call that never resolves — not even with an error — is a distinct problem from one that rejects quickly: nothing in a plain await protects a request from waiting on it indefinitely. Promise.race against a timer forces a resolution either way.",
+          code: `function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(\`Timed out after \${ms}ms\`)), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
+app.get("/profile/:id", async (req, res) => {
+  try {
+    const enrichment = await withTimeout(fetchFromFlakyPartnerApi(user.email), 2000);
+    res.json({ ...user, enrichment });
+  } catch (err) {
+    // Fires whether the partner API rejected OR just never responded —
+    // a plain await + try/catch alone only handles the first case.
+    res.json({ ...user, enrichment: null });
+  }
+});`,
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "A timeout doesn't cancel the original work — it just stops waiting on it",
+          body: "Promise.race resolves as soon as either promise settles, but the loser keeps running in the background regardless — a timed-out database query doesn't actually stop executing on the database just because your code moved on. For a real cancellation, not just a timeout, the underlying client needs to support one directly (many database drivers and fetch itself accept an AbortSignal for exactly this) — otherwise \"timed out\" only means \"stopped waiting,\" and the abandoned work can still complete and consume resources later, unseen. That distinction matters most under sustained load: a service that only times out, without ever actually cancelling the abandoned work, can quietly pile up more and more orphaned in-flight requests against a struggling downstream dependency — timing out gives your own server relief, but does nothing to relieve the pressure on the thing that was already struggling, and can occasionally make an already-overloaded downstream service worse by leaving it doing work nobody is still waiting on.",
+        },
+        {
+          kind: "example",
+          heading: "AbortController: cancellation as a first-class citizen",
+          body: "fetch() and many modern database clients accept an AbortSignal directly — pairing it with a timer is a cleaner, more complete version of the Promise.race pattern above, because it actually tells the other side to stop, not just tells your own code to stop waiting.",
+          code: `async function fetchWithRealTimeout(url, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer); // don't leave a dangling timer if the fetch resolved first
+  }
+}`,
         },
         {
           kind: "summary",
@@ -378,6 +759,334 @@ const [user, orders] = await Promise.all([getUser(id), getOrders(id)]);`,
             "async/await is the standard modern style — same underlying promises, more readable control flow.",
             "Every await that can fail needs real error handling in a server context — an unhandled failure can affect every other in-flight request.",
             "Use Promise.all for independent async operations so they run concurrently instead of needlessly one after another.",
+            "A call that might hang rather than fail needs an explicit timeout (Promise.race against a timer) — and a true cancellation, not just a timeout, needs the underlying client to support one directly.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Scaling Across Cores: Worker Threads and the Cluster Module",
+      durationMinutes: 8,
+      slides: [
+        {
+          kind: "title",
+          heading: "Scaling Across Cores: Worker Threads and the Cluster Module",
+          subheading:
+            "Earlier in this course: CPU-heavy work blocks Node's single main thread completely, and \"real CPU-bound work belongs in a worker thread or a separate process.\" This lesson is that promise, kept.",
+        },
+        {
+          kind: "text",
+          heading: "One thread, one core, by default",
+          body: [
+            "A single Node process runs your JavaScript on one thread, which means it uses exactly one CPU core for that code, no matter how many cores the machine actually has. Non-blocking I/O makes that one thread handle many concurrent connections well — but it does nothing for a machine sitting on 8 cores while your process only ever touches one of them.",
+            "Node gives you two different tools for this, and they solve different problems: worker_threads for splitting up CPU-heavy work within one process, and the cluster module (or just running multiple processes) for using multiple cores to handle more concurrent requests.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "worker_threads: offloading a genuinely expensive computation",
+          body: "The main thread stays free to keep handling requests while the worker does the CPU-heavy work on a separate thread, and hands back only the result.",
+          code: `// worker.js
+const { parentPort, workerData } = require("worker_threads");
+
+function hashPassword(password) {
+  // stand-in for real, deliberately slow work (e.g. bcrypt/scrypt at a high cost factor)
+  let result = password;
+  for (let i = 0; i < 1_000_000; i++) result = sha256(result);
+  return result;
+}
+
+parentPort.postMessage(hashPassword(workerData.password));
+
+// server.js
+const { Worker } = require("worker_threads");
+
+function hashInBackground(password) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker("./worker.js", { workerData: { password } });
+    worker.on("message", resolve);
+    worker.on("error", reject);
+  });
+}`,
+        },
+        {
+          kind: "example",
+          heading: "cluster: using every core to handle more requests",
+          body: "cluster forks multiple copies of your whole process — one per core is typical — and load-balances incoming connections across them. Each worker is a fully separate process with its own memory; they don't share variables the way threads in other languages do.",
+          code: `const cluster = require("cluster");
+const os = require("os");
+const http = require("http");
+
+if (cluster.isPrimary) {
+  const cpuCount = os.cpus().length;
+  for (let i = 0; i < cpuCount; i++) cluster.fork();
+
+  cluster.on("exit", (worker) => {
+    console.log(\`Worker \${worker.process.pid} died, starting a new one\`);
+    cluster.fork(); // keep the pool at full strength
+  });
+} else {
+  // each worker runs its own independent HTTP server on the same port;
+  // the OS/cluster module distributes incoming connections across them
+  http.createServer((req, res) => res.end("handled by a worker")).listen(3000);
+}`,
+        },
+        {
+          kind: "diagram",
+          heading: "How cluster distributes incoming connections",
+          description: "One primary process forks a worker per CPU core; each worker runs its own copy of the server.",
+          steps: [
+            { label: "Primary process starts", detail: "cluster.isPrimary — forks one worker per CPU core" },
+            { label: "N worker processes", detail: "Each runs the full server independently, listening on the same port" },
+            { label: "Incoming connection", detail: "The OS / cluster module distributes it to one worker" },
+            { label: "Worker handles the request", detail: "Separate memory — no shared variables with other workers" },
+            { label: "Worker dies?", detail: "The \"exit\" handler forks a replacement to keep the pool at full strength" },
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Throughput: single process vs. cluster",
+          description: "Illustrative requests/sec for an I/O-bound server on a 4-core machine.",
+          chartType: "bar",
+          unit: "requests/sec",
+          data: [
+            { label: "1 process (no cluster)", value: 2500 },
+            { label: "cluster, 4 workers", value: 9000 },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "Which one actually fits your problem",
+          bullets: [
+            "worker_threads: one specific piece of work is CPU-heavy (image resizing, password hashing, parsing a huge file) and would otherwise freeze the main thread for everyone. You want to offload just that computation.",
+            "cluster (or running N separate processes behind a load balancer, which is the more common production pattern): your I/O-bound server itself needs more raw throughput than one core's event loop can push through, so you replicate the whole server across cores.",
+            "In practice, most production Node deployments reach for multiple processes (via cluster, or an orchestrator like PM2 or Kubernetes running several replicas) rather than worker_threads for general scaling — worker_threads is a more surgical tool for one expensive task, not a general-purpose scaling strategy.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A wrinkle cluster introduces for stateful connections",
+          bullets: [
+            "A WebSocket connection is long-lived and pinned to whichever worker accepted it — if that specific worker restarts (a deploy, a crash-and-recover), every WebSocket client connected to it drops and has to reconnect, potentially landing on a different worker with no memory of the prior connection's state.",
+            "For this reason, WebSocket-heavy systems often need the same sticky-session or shared-state thinking that came up for load balancing generally — a shared pub/sub layer (Redis is the common choice again) so an event published by one worker reaches clients connected to any worker, not just its own.",
+            "This is a real, recurring cost of the process-per-core model — it's not a flaw specific to cluster, it's the same trade-off horizontal scaling makes anywhere, just visible at the scale of one machine instead of many.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Shutting a worker down cleanly, not abruptly",
+          body: "A worker that dies mid-request drops whatever it was doing. Listening for the shutdown signal and finishing in-flight work first — a graceful shutdown — is standard practice for any process expected to be restarted regularly, which a clustered worker is.",
+          code: `// each worker process
+const server = http.createServer(handler);
+server.listen(3000);
+
+process.on("SIGTERM", () => {
+  console.log("Worker shutting down, finishing in-flight requests...");
+  server.close(() => {
+    // stops accepting new connections, waits for existing ones to finish
+    process.exit(0);
+  });
+
+  // safety net: force-exit if requests hang longer than expected
+  setTimeout(() => process.exit(1), 10_000).unref();
+});`,
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Worker threads can actually share memory — cluster processes can't",
+          body: "Unlike cluster's separate OS processes, worker_threads run inside the same process and can share memory directly via a SharedArrayBuffer, which multiple threads can read and write without serializing data back and forth through postMessage. This is a real capability difference, not just an implementation detail: a computation that needs to pass large buffers back and forth (image or audio data, a big numeric array) can avoid the serialization cost entirely with worker_threads in a way cluster's process boundary makes impossible. It's a narrow, advanced use case — most worker_threads code just uses postMessage like the hashing example above — but worth knowing the option exists for genuinely large-data workloads.",
+        },
+        {
+          kind: "bullets",
+          heading: "A practical checklist before reaching for either tool",
+          intro: "Both add real complexity, so it's worth confirming the problem actually calls for them first:",
+          bullets: [
+            "Have you actually measured that a specific computation is blocking the event loop, rather than assuming it might be? Profiling first avoids adding real complexity (message passing, process management) for a problem that turns out to be elsewhere.",
+            "Is the expensive work occasional (a report generated on demand) or constant (every request does it)? worker_threads suits the former; if literally every request needs heavy computation, the deeper fix is often a different architecture (a queue, a dedicated compute service) rather than more threads on the same box.",
+            "For horizontal scaling specifically, most teams reach for an orchestrator (Kubernetes, PM2, a platform's built-in process manager) running multiple independent instances rather than hand-rolling cluster.fork() calls — the cluster module is worth understanding for what it does conceptually, even when something else ends up managing the actual processes in production.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Neither of these is free complexity",
+          body: "Worker threads and separate processes don't share memory the way regular JavaScript objects do — passing data across that boundary means serializing it (structured cloning for worker_threads, IPC message passing for cluster), which has real cost for large payloads. And with cluster specifically, in-memory state like a rate limiter's counter or a WebSocket connection map now lives separately in each worker process unless you explicitly move it to a shared store like Redis — the same statelessness requirement that showed up for horizontal scaling in general applies just as much across Node worker processes on one machine.",
+        },
+        {
+          kind: "summary",
+          heading: "Recap",
+          bullets: [
+            "A single Node process uses one thread and one CPU core by default, regardless of how many the machine has.",
+            "worker_threads offloads one specific CPU-heavy computation onto a separate thread, keeping the main thread free for I/O.",
+            "cluster (or multiple processes generally) replicates your whole server across cores to handle more concurrent requests — the more common real-world scaling approach.",
+            "Both add real complexity — memory isn't shared across the boundary, so state that used to live in one process's memory needs a deliberate home (message passing, or a shared store like Redis).",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Diagnosing Blocking and Concurrency Bugs",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Diagnosing Blocking and Concurrency Bugs",
+          subheading:
+            "Four snippets, each with a real bug rooted in how Node's event loop and async model actually work. Diagnose before you fix.",
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "How to approach these",
+          body: "In every case below, the code looks reasonable at a glance — it's only wrong once you trace exactly what the single main thread is doing at each await, and what else might run during the gap. Before reading the hint, try to state in one sentence what specific moment in the code hands control back to the event loop, and what could happen during that window.",
+        },
+        {
+          kind: "practice",
+          heading: "1. A server that intermittently stalls for everyone",
+          prompt:
+            "This endpoint computes a report by resizing and hashing a large in-memory dataset synchronously. Under load, other, unrelated requests to this same server start timing out during that computation, even though they don't touch reports at all. Explain why, and describe a fix.\n\n```js\napp.get(\"/reports/:id\", (req, res) => {\n  const data = loadDatasetSync(req.params.id); // fast, just a DB read\n  const report = computeExpensiveReportSync(data); // CPU-heavy, takes ~2 seconds\n  res.json(report);\n});\n```",
+          hint:
+            "Node runs your JavaScript on a single main thread. What happens to every other pending request — including ones for completely different routes — while one synchronous, CPU-heavy function is running on that same thread?",
+          solution:
+            "`computeExpensiveReportSync` runs on the main thread and doesn't yield at all for its full ~2 seconds — non-blocking I/O only helps with waiting on things like disk or network, it does nothing for actual computation. While that function runs, the event loop can't process anything else: no other request's callback runs, no other response gets sent, regardless of which route they hit. Fix: move the CPU-heavy computation off the main thread with worker_threads, so it doesn't block other requests while it runs.\n\n```js\nconst { Worker } = require(\"worker_threads\");\n\napp.get(\"/reports/:id\", async (req, res) => {\n  const data = await loadDataset(req.params.id); // non-blocking read\n  const report = await new Promise((resolve, reject) => {\n    const worker = new Worker(\"./compute-report-worker.js\", { workerData: data });\n    worker.on(\"message\", resolve);\n    worker.on(\"error\", reject);\n  });\n  res.json(report);\n});\n```\nKey decision: the fix isn't to make the computation \"async\" with a plain Promise wrapper — that doesn't help, since the computation itself would still run synchronously on the main thread inside that promise. It genuinely needs to run on a different thread to stop blocking everything else.",
+        },
+        {
+          kind: "practice",
+          heading: "2. A request that crashes the whole server, not just itself",
+          prompt:
+            "One flaky downstream API occasionally times out. When it does, this entire Node process crashes, taking down every other in-flight request along with it. Find the missing piece.\n\n```js\napp.get(\"/profile/:id\", async (req, res) => {\n  const user = await db.user.findUnique({ where: { id: req.params.id } });\n  const enrichment = await fetchFromFlakyPartnerApi(user.email); // sometimes rejects\n  res.json({ ...user, enrichment });\n});\n```",
+          hint:
+            "What happens, by default, to a rejected promise inside an async function when nothing catches it? In a server handling many requests concurrently, whose problem does an unhandled rejection actually become?",
+          solution:
+            "The await on `fetchFromFlakyPartnerApi` has no try/catch, so when that call rejects, the rejection propagates out of the route handler unhandled — depending on the framework and Node version, this can crash the entire process, not just fail this one request. Every other request already in flight goes down with it. Fix: wrap the failure-prone call in try/catch and respond with an error for just that request.\n\n```js\napp.get(\"/profile/:id\", async (req, res) => {\n  const user = await db.user.findUnique({ where: { id: req.params.id } });\n  try {\n    const enrichment = await fetchFromFlakyPartnerApi(user.email);\n    res.json({ ...user, enrichment });\n  } catch (err) {\n    console.error(\"Partner API failed, returning profile without enrichment\", err);\n    res.json({ ...user, enrichment: null });\n  }\n});\n```\nKey decision: the fix contains the failure to the one request that hit it — a flaky partner API degrades that one profile response (missing enrichment data) instead of taking the entire server offline for everyone. Worth noting too: this fix handles a call that *rejects*. If the partner API instead hung indefinitely without ever resolving or rejecting, the try/catch alone wouldn't save this request — that needs an explicit timeout, covered in the previous lesson.",
+        },
+        {
+          kind: "practice",
+          heading: "3. A dashboard that fails completely over one flaky piece",
+          prompt:
+            "This endpoint aggregates three independent pieces of data for a dashboard. The recommendations service is known to be flaky. When it fails, the entire endpoint returns a 500 — even though the profile and orders data both loaded successfully. Diagnose why, and fix it so a flaky recommendations service degrades gracefully instead of taking down the whole response.\n\n```js\napp.get(\"/dashboard/:id\", async (req, res) => {\n  const [profile, orders, recs] = await Promise.all([\n    getProfile(req.params.id),\n    getOrders(req.params.id),\n    getRecommendations(req.params.id),\n  ]);\n  res.json({ profile, orders, recommendations: recs });\n});\n```",
+          hint:
+            "Promise.all has a specific, documented behavior the moment any one of its promises rejects — what happens to the results of the other two, even the ones that already succeeded?",
+          solution:
+            "Promise.all rejects as a whole the instant any single promise it's tracking rejects, discarding the results of everything else still in flight or already settled — so when `getRecommendations` fails, the successful `profile` and `orders` results are thrown away too, and the whole request fails even though two-thirds of the data was fine. Fix: use Promise.allSettled instead, which always resolves with every result, success or failure, so one flaky piece doesn't sink the other two.\n\n```js\napp.get(\"/dashboard/:id\", async (req, res) => {\n  const results = await Promise.allSettled([\n    getProfile(req.params.id),\n    getOrders(req.params.id),\n    getRecommendations(req.params.id),\n  ]);\n  const [profile, orders, recs] = results.map((r) =>\n    r.status === \"fulfilled\" ? r.value : null\n  );\n  res.json({ profile, orders, recommendations: recs });\n});\n```\nKey decision: Promise.all is still the right tool when every piece is genuinely required for the response to make sense at all — the bug here isn't using Promise.all in general, it's using it for three pieces where two are essential and one is optional. Recognizing which category a given piece of data falls into is what actually decides which of the two to reach for.",
+        },
+        {
+          kind: "practice",
+          heading: "4. A scheduled job that fires ten seconds late, then thirty",
+          prompt:
+            "A background job uses `setTimeout(runCleanup, 60_000)` to run a cleanup task every minute, and re-schedules itself with the same call at the end of `runCleanup`. Under normal load it fires almost exactly on time. Under heavy request traffic, it starts firing 10, then 20, then 30+ seconds late — the delay keeps growing the busier the server gets. Explain why, using what this course covered about how timers actually work in Node, and say whether this is a bug to fix or expected behavior to plan around.",
+          hint: "Revisit what this course said a timer's delay actually guarantees — and what the main thread is doing during that growing gap on a busy server.",
+          solution:
+            "This is expected behavior, not a bug in the traditional sense — a direct consequence of the single-threaded model. `setTimeout(fn, 60_000)` schedules fn to run no sooner than 60 seconds from now, not exactly at 60 seconds; if the main thread is busy handling other work (a growing volume of requests) when that time arrives, the callback waits until the thread is actually free, and a busier server means a longer wait. This isn't something to 'fix' in the sense of finding a bug in the cleanup code — it's an inherent property of relying on a single thread for both request handling and scheduled work. If the cleanup job genuinely needs to run close to on schedule regardless of request load, the real fix is architectural: run it in a separate process (a dedicated worker, a cron-triggered Lambda, a queue consumer) that isn't competing with the request-handling thread for the same event loop, rather than trying to make setTimeout more precise on an already-busy thread.",
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "Recognizing the difference between I/O-bound waiting (which non-blocking I/O handles well) and CPU-bound computation (which still blocks the single main thread completely).",
+            "Knowing that offloading real work requires an actual separate thread or process (worker_threads), not just wrapping synchronous work in a Promise.",
+            "Treating every await that can fail as something that needs its own error handling, because an unhandled rejection in a server context can take down every other in-flight request, not just the one that failed.",
+            "Choosing Promise.allSettled over Promise.all when only some of several concurrent results are actually essential to a valid response.",
+            "Understanding a timer's delay as a floor, not a guarantee — and recognizing when a scheduling problem needs an architectural fix rather than a code tweak.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 6,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — testing whether Node's actual execution model stuck, not lesson-by-lesson recall.",
+        },
+        {
+          kind: "quiz",
+          heading: "What non-blocking I/O actually buys you",
+          question:
+            "A request handler does `const result = sortHugeArraySynchronously(data)`, a computation that takes 3 real seconds with no I/O at all. Does Node's non-blocking I/O model help here?",
+          options: [
+            "Yes — Node automatically moves any expensive operation off the main thread to keep the server responsive.",
+            "No — non-blocking I/O only helps with waiting on things like disk, network, or timers; a synchronous CPU-bound computation still runs entirely on, and blocks, the single main thread.",
+            "Yes, but only if the function is wrapped in a Promise first.",
+            "No — Node has no way to run CPU-heavy work faster than a synchronous language would.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Node's whole non-blocking model is about handing I/O operations off elsewhere so the main thread isn't stuck waiting on them. It does nothing for a genuinely long computation — that still runs synchronously on the one main thread and blocks every other pending request the entire time it runs, exactly like the blocking fs.readFileSync example from earlier in the course.",
+        },
+        {
+          kind: "quiz",
+          heading: "Modules",
+          question:
+            "A file named `utils.js` sits in a project whose package.json has no \"type\" field at all. It contains `import { helper } from \"./helper.js\"`. What happens?",
+          options: [
+            "It works fine — import/export always works in any .js file in modern Node.",
+            "Node treats it as CommonJS by default (no \"type\": \"module\" set), and `import` at the top level of a CommonJS file throws a syntax/module error.",
+            "Node automatically detects the import statement and switches that one file to ESM mode.",
+            "It works, but only if the project also has a .mjs file somewhere else in the same folder.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Without \"type\": \"module\" in the nearest package.json, plain .js files default to CommonJS, where the module syntax is require/module.exports, not import/export. Using import in that file produces exactly the kind of \"Cannot use import statement outside a module\" error the course flagged as a common, recognizable symptom of a module-system mismatch — the fix is either renaming to .mjs, or adding \"type\": \"module\" to package.json.",
+        },
+        {
+          kind: "quiz",
+          heading: "Error handling in a server context",
+          question:
+            "Why does the course treat unguarded awaits as a bigger deal in a Node server than in a one-off script?",
+          options: [
+            "Because await is slower inside an HTTP handler than in a plain script.",
+            "Because a server process handles many concurrent requests, so an unhandled rejection in one request's handler can crash the whole process and take down every other in-flight request with it.",
+            "Because scripts don't support try/catch the way server handlers do.",
+            "Because only server code is compiled by V8, while scripts are interpreted directly.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "A script that crashes only affects itself. A server process is shared across many concurrent requests, so an unguarded await that rejects can, depending on the framework and Node version, crash the entire process — every other request in flight goes down too, not just the one that hit the failure. That's why real error handling around awaited calls is a reliability requirement in server code, not a style preference.",
+        },
+        {
+          kind: "quiz",
+          heading: "cluster and shared state",
+          question:
+            "A team puts a simple in-memory rate limiter (a plain JavaScript object counting requests per IP) into their Express app, then deploys it behind cluster with 4 workers. What's the actual effect?",
+          options: [
+            "The rate limiter works exactly the same as with one process, since cluster shares memory transparently across workers.",
+            "Each of the 4 worker processes keeps its own separate copy of the counter object, so a client can effectively get up to 4x the intended limit depending on which worker handles each request.",
+            "cluster automatically detects in-memory state and moves it to a shared location.",
+            "The app crashes on startup because in-memory state isn't allowed under cluster.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Each cluster worker is a fully separate OS process with its own memory — nothing is shared automatically. A rate limiter's counts, or any other in-memory state, ends up siloed per worker, so a client bounced across workers can exceed the intended limit. Shared state across worker processes needs an explicit shared store, like Redis, the same requirement that applies to horizontal scaling generally.",
+        },
+        {
+          kind: "quiz",
+          heading: "package.json fundamentals",
+          question:
+            "A package is listed under devDependencies instead of dependencies. What's the practical consequence?",
+          options: [
+            "It won't be installed at all when someone runs npm install.",
+            "It's understood to be needed only for development/testing (a linter, test runner, type checker) and isn't expected to be required by the running application in production.",
+            "It gets installed with a different, incompatible version resolution algorithm than regular dependencies.",
+            "It's automatically excluded from package-lock.json.",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Both dependencies and devDependencies are installed by a plain `npm install` and both are recorded in package-lock.json — the distinction is about intent and, in some deployment setups, about what actually gets installed in a production build (`npm install --omit=dev` skips devDependencies). Putting a package meant for local development or CI into dependencies instead just misrepresents what the running app actually needs to function.",
+        },
+        {
+          kind: "summary",
+          heading: "Course takeaways",
+          bullets: [
+            "Node is a runtime (V8 plus system-level APIs), not a new language — the same JavaScript, running with different capabilities in a different environment.",
+            "Non-blocking I/O keeps one thread free while waiting on slow operations; it does nothing for CPU-heavy computation, which still blocks that same thread completely.",
+            "CommonJS and ESM are two real, non-interchangeable module systems in active use — file extension and package.json's \"type\" field determine which one applies.",
+            "async/await is the standard control flow for async code, but every await that can fail needs real error handling — an unhandled rejection can take down a whole server process.",
+            "worker_threads and cluster (or multiple processes generally) are how you use more than one CPU core — and neither shares memory automatically, so cross-process state needs a deliberate shared store.",
           ],
         },
       ],

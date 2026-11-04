@@ -693,6 +693,28 @@ async function seedCourses() {
   console.log(`Seeded ${COURSES.length} courses with ${lessonCount} lessons.`);
 }
 
+const CIRCLES = [
+  { slug: "software-engineering", name: "Software Engineering", category: "Tech", description: "Talk shop with other engineers — code reviews, system design, interview prep, and career moves." },
+  { slug: "product-management", name: "Product Management", category: "Tech", description: "PMs sharing roadmaps, stakeholder war stories, and how to break into the field." },
+  { slug: "data-and-ai", name: "Data & AI", category: "Tech", description: "Data scientists, ML engineers, and analysts trading notes on tools, models, and the job market." },
+  { slug: "sales-and-marketing", name: "Sales & Marketing", category: "Business", description: "Quota talk, GTM strategy, and personal branding for sales and marketing professionals." },
+  { slug: "finance-and-accounting", name: "Finance & Accounting", category: "Business", description: "From FP&A to public accounting — career paths, certifications, and industry moves." },
+  { slug: "career-changers", name: "Career Changers", category: "Community", description: "Making a pivot into a new field? Share your journey and get advice from people who've done it." },
+  { slug: "new-grads", name: "New Grads", category: "Community", description: "First job search, negotiating your first offer, and navigating your first year at work." },
+  { slug: "remote-work", name: "Remote Work", category: "Community", description: "Finding, landing, and thriving in remote roles — tools, routines, and honest company reviews." },
+];
+
+async function seedCircles() {
+  for (const circle of CIRCLES) {
+    await prisma.circle.upsert({
+      where: { slug: circle.slug },
+      update: { name: circle.name, description: circle.description, category: circle.category },
+      create: circle,
+    });
+  }
+  console.log(`Seeded ${CIRCLES.length} circles.`);
+}
+
 async function main() {
   for (const skill of SKILLS) {
     await prisma.skill.upsert({
@@ -705,6 +727,7 @@ async function main() {
 
   await seedCompaniesAndJobs();
   await seedCourses();
+  await seedCircles();
 }
 
 main()

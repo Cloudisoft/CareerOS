@@ -11,6 +11,10 @@ export function apiOk<T>(data: T, status = 200) {
 
 /** Normalizes any thrown error into a safe JSON response — never leaks internals. */
 export function apiCatch(error: unknown) {
+  // A request body that isn't valid JSON is the caller's mistake, not a server error.
+  if (error instanceof SyntaxError) {
+    return apiError("The request body isn't valid JSON.", 400, "INVALID_JSON");
+  }
   if (error instanceof ZodError) {
     return apiError(error.issues[0]?.message ?? "Invalid input", 422, "VALIDATION_ERROR");
   }
@@ -40,6 +44,10 @@ export function apiCatch(error: unknown) {
       PROVIDER_FAILED: 502,
       LOCKED: 403,
       NEEDS_EMPLOYER: 409,
+      NOT_A_MEMBER: 403,
+      NOT_VISIBLE: 403,
+      ALREADY_EXISTS: 409,
+      INVALID_TARGET: 400,
     };
     return apiError(err.message, statusByCode[err.code] ?? 400, err.code);
   }

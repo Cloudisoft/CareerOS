@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { loginSchema } from "@/lib/validations/auth";
-import { authenticateUser } from "@/lib/auth/service";
+import { authenticateUser, sendNewSignInAlert } from "@/lib/auth/service";
 import { createSession } from "@/lib/auth/session";
 import { apiCatch, apiOk } from "@/lib/api-response";
 import { rateLimit, ipFromRequest } from "@/lib/rate-limit";
@@ -16,6 +16,11 @@ export async function POST(req: NextRequest) {
     const input = loginSchema.parse(body);
     const user = await authenticateUser(input);
     await createSession(user.id);
+    // Not awaited: the alert email must never slow down or block signing in.
+    void sendNewSignInAlert(user, {
+      ipAddress: ipFromRequest(req),
+      userAgent: req.headers.get("user-agent"),
+    });
 
     return apiOk({
       user: { id: user.id, firstName: user.firstName, role: user.role },

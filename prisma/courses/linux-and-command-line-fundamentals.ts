@@ -57,10 +57,70 @@ pwd
           ],
         },
         {
+          kind: "terminal",
+          heading: "Putting the shortcuts to use",
+          description: "cd ~ jumps home, cd - jumps right back, and ls -la shows what's actually in the directory you land in.",
+          lines: [
+            { text: "pwd" },
+            { text: "/home/alice/projects/src", output: true },
+            { text: "cd ~" },
+            { text: "pwd" },
+            { text: "/home/alice", output: true },
+            { text: "cd -" },
+            { text: "/home/alice/projects/src", output: true },
+            { text: "ls -la" },
+            { text: "drwxr-xr-x  4 alice alice  128 Mar 14 10:02 .", output: true },
+            { text: "drwxr-xr-x  6 alice alice  192 Mar 14 09:40 ..", output: true },
+            { text: "-rw-r--r--  1 alice alice   45 Mar 14 09:55 .env", output: true },
+            { text: "-rw-r--r--  1 alice alice 1.2K Mar 14 10:02 index.js", output: true },
+          ],
+        },
+        {
           kind: "callout",
           tone: "tip",
           heading: "Tab completion is not optional",
           body: "Typing cd /ho then pressing Tab completes it to /home/ automatically, and does the same for filenames, commands, and options. It's the single biggest speed and accuracy improvement available in any shell, and it also prevents typos in long paths.",
+        },
+        {
+          kind: "text",
+          heading: "Where things live: the standard layout",
+          body: [
+            "Every Linux distribution follows roughly the same top-level layout, called the Filesystem Hierarchy Standard, so once you know it, an unfamiliar server stops feeling like a totally new place. /etc holds system-wide configuration files. /var holds data that changes while the system runs — logs in /var/log, spool files, caches. /usr holds installed software and libraries, not personal data despite the name; /home holds the actual home directories for each user, and /tmp holds temporary files that are typically cleared on reboot.",
+            "/bin and /usr/bin hold the executable programs behind the most common commands, /opt is where third-party software that doesn't fit the standard layout often gets installed, and /root is the home directory for the root superuser — kept separate from /home so a full /home partition can't lock an administrator out of their own system.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few paths worth recognizing on sight",
+          bullets: [
+            "/etc/hosts maps hostnames to IP addresses locally, and /etc/passwd lists every user account on the system — both plain text, both worth being able to open and read without hesitation.",
+            "/var/log is where most application and system logs land by default — it's usually the first place to look when something has gone wrong.",
+            "/proc is a virtual filesystem, not real files on disk — it exposes live kernel and process information, so cat /proc/cpuinfo or cat /proc/meminfo reads current system state directly, no separate monitoring tool required.",
+            "~/.bashrc (or ~/.zshrc) runs every time you open a new shell — it's where personal aliases, environment variables, and prompt customizations usually live, and editing it is one of the first things people do to make a new machine feel like home.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Checking how full the disk actually is",
+          description: "df -h summarizes every mounted filesystem; du -sh totals the size of one specific directory — the two commands people reach for once \"the disk is full\" becomes somebody's actual problem.",
+          lines: [
+            { text: "df -h" },
+            { text: "Filesystem      Size  Used Avail Use% Mounted on", output: true },
+            { text: "/dev/sda1        50G   32G   16G  67% /", output: true },
+            { text: "/dev/sdb1       200G  180G   10G  95% /data", output: true },
+            { text: "du -sh /var/log" },
+            { text: "1.2G    /var/log", output: true },
+            { text: "du -sh /var/log/*  | sort -rh | head -3" },
+            { text: "980M    /var/log/myapp", output: true },
+            { text: "150M    /var/log/nginx", output: true },
+            { text: "40M     /var/log/journal", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Absolute paths in scripts, always",
+          body: "Relative paths are fine to type interactively, but inside a script or a cron job they're a common bug source — the working directory a script runs from isn't guaranteed, so a script that does cd config/ or reads ./settings.json can break the moment it's invoked from somewhere else. Production scripts almost always use absolute paths, or compute their own directory explicitly at the top rather than trusting where they happened to be launched from.",
         },
         {
           kind: "summary",
@@ -124,6 +184,43 @@ rm -r old-project/                # delete a directory and everything in it`,
           ],
         },
         {
+          kind: "text",
+          heading: "Symbolic links: a file that points to another file",
+          body: [
+            "ln -s target linkname creates a symbolic link — a small file that just points at another path, similar to a shortcut on Windows or an alias on macOS. Opening, reading, or running the link transparently follows it through to the real target, and ls -l shows the arrow explicitly: linkname -> target.",
+            "Symlinks are everywhere in real systems. /usr/bin/python often just links to one specific installed version, and version managers like nvm switch Node versions by repointing a single symlink rather than moving any actual files. Delete the link and the target file is completely untouched; delete or move the target and the link becomes \"broken,\" pointing at nothing — which is exactly the failure mode in the terminal example below.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "A symlink, and what happens when its target moves",
+          description: "The link itself never changes — it just stops resolving to anything once the path it points at is gone.",
+          lines: [
+            { text: "ln -s /opt/app/current/server.js server.js" },
+            { text: "ls -l server.js" },
+            { text: "lrwxrwxrwx 1 alice alice 29 Mar 14 10:20 server.js -> /opt/app/current/server.js", output: true },
+            { text: "mv /opt/app/current /opt/app/old" },
+            { text: "cat server.js" },
+            { text: "cat: server.js: No such file or directory", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few more file-operation patterns worth having ready",
+          bullets: [
+            "cp -a preserves permissions, timestamps, and symlinks exactly as they are — the flag to reach for when copying something like a full backup or a cloned repository, rather than plain cp -r, which can quietly normalize some of that.",
+            "touch filename.txt creates an empty file if it doesn't exist, or just updates its modification timestamp if it does — commonly used to create placeholder files, or to force a build step that only checks file timestamps to think something changed.",
+            "mkdir -p a/b/c creates all three nested directories in one call even though none of them exist yet — without -p, mkdir fails immediately at the first missing parent instead of creating the whole chain.",
+            "Wildcards expand before a command ever runs: rm *.log matches every file ending in .log in the current directory. That's powerful, and it's exactly why a stray unquoted * sitting next to rm deserves a second look before you press enter.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "Why cp and rm both require -r for directories",
+          body: "Neither command touches a directory's contents by default, because operating on a directory and everything nested inside it is a meaningfully bigger, riskier action than operating on a single file — the shell won't silently do that unless you explicitly opt in with -r (or -R). It's a small design choice that prevents an entire class of \"I only meant to touch one file\" accidents.",
+        },
+        {
           kind: "summary",
           heading: "File operations, briefly",
           bullets: [
@@ -179,6 +276,18 @@ chmod 754 deploy.sh             # owner: rwx(7), group: r-x(5), others: r--(4)
 chown alice:engineering deploy.sh   # change owner and group`,
         },
         {
+          kind: "terminal",
+          heading: "Watching chmod change the string",
+          description: "The same file, before and after — the permissions string in ls -l is exactly what chmod edits.",
+          lines: [
+            { text: "ls -l deploy.sh" },
+            { text: "-rw-r--r-- 1 alice engineering 812 Mar 14 deploy.sh", output: true },
+            { text: "chmod +x deploy.sh" },
+            { text: "ls -l deploy.sh" },
+            { text: "-rwxr-xr-x 1 alice engineering 812 Mar 14 deploy.sh", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Why execute matters differently for directories",
           intro: "The execute bit means something distinct on a directory versus a file — a common source of confusion.",
@@ -187,6 +296,43 @@ chown alice:engineering deploy.sh   # change owner and group`,
             "On a directory, execute (x) means: can you enter it and access files inside by name — without it, even a directory you can \"read\" (list) may not let you cd into it or open a specific file inside.",
             "This is why a directory with permissions like r--r--r-- (no execute) can be frustratingly listable but not actually usable.",
           ],
+        },
+        {
+          kind: "text",
+          heading: "Special permission bits: setuid, setgid, and the sticky bit",
+          body: [
+            "Beyond the basic nine bits, three special permissions handle less common but important cases. setuid on an executable makes it run with the file's owner's privileges rather than the invoking user's — it's how passwd lets an ordinary user change their own password despite that requiring write access to a root-owned file. setgid on a directory makes new files created inside it inherit the directory's group automatically, instead of the creating user's default group, which is useful for a shared team directory where everyone's files need the same group.",
+            "The sticky bit, set on a directory like /tmp, means users can create files there but can only delete or rename their own files — even though everyone technically has write access to the directory itself. All three show up in ls -l as an s or t in place of an x: drwxrwxrwt on /tmp is the sticky bit in action, and -rwsr-xr-x is setuid.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Setting the special bits",
+          body: "Symbolic mode handles these the same way as the basic bits, just with u+s, g+s, or +t.",
+          language: "bash",
+          code: `chmod u+s /usr/bin/passwd     # setuid — runs as the file's owner (root)
+chmod g+s shared-project/     # setgid — new files inherit the directory's group
+chmod +t /tmp                 # sticky bit — users can only delete their own files
+
+ls -l /usr/bin/passwd
+# -rwsr-xr-x 1 root root 68208 ... /usr/bin/passwd
+#     ^ s here means setuid is active`,
+        },
+        {
+          kind: "bullets",
+          heading: "Permissions problems you'll actually run into",
+          bullets: [
+            "\"Permission denied\" on a script you just made executable almost always means you forgot chmod +x, or you're running it as ./script.sh (which needs execute) instead of via an interpreter like bash script.sh (which only needs read).",
+            "A file owned by root that you can't edit as a normal user needs either sudo for a one-off edit, or — better long-term — a chown handing ownership to the right user or group, instead of routing every future edit through sudo.",
+            "Web servers commonly refuse to serve a file with overly permissive permissions like 777 on purpose — some configurations treat a world-writable file as a security red flag and reject it outright rather than serve it.",
+            "chmod -R applies a change recursively through an entire directory tree — powerful, and worth double-checking the target path on, the same way you'd double-check an rm -r before running it.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "chmod 777 is not a fix, it's a workaround",
+          body: "Setting a file or directory to 777 (read/write/execute for everyone) makes a permissions error go away, but it also means any user or process on the system can modify or execute it — including a compromised process running as a different, less trusted user. It's a common shortcut under deadline pressure, and a common finding in a security review. The better fix is almost always figuring out which specific owner or group actually needs the access, and granting just that.",
         },
         {
           kind: "summary",
@@ -240,6 +386,16 @@ ls -la | sort -k5 -n
 # lists files, then sorts that listing numerically by size (column 5)`,
         },
         {
+          kind: "terminal",
+          heading: "What that pipeline actually prints",
+          description: "ps aux | grep node in a real terminal — note that grep even matches its own process line, a common first surprise.",
+          lines: [
+            { text: "ps aux | grep node" },
+            { text: "alice     1821  0.3  1.2  912344  98212 ?  Sl  09:41   0:12 node server.js", output: true },
+            { text: "alice     2290  0.0  0.0    6408     712 pts/0  S+  10:15   0:00 grep --color=auto node", output: true },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "A few patterns worth having ready",
           bullets: [
@@ -254,6 +410,48 @@ ls -la | sort -k5 -n
           tone: "tip",
           heading: "Build a pipe chain one stage at a time",
           body: "When a long pipeline isn't giving the expected result, run it one command at a time from the left, checking the output at each stage before adding the next |. It's much faster to find which single stage is wrong than to debug the whole chain at once.",
+        },
+        {
+          kind: "example",
+          heading: "Input redirection and here-strings",
+          body: "< feeds a file in as input instead of the keyboard; a here-string feeds a variable's value in directly, without needing a separate file at all.",
+          language: "bash",
+          code: `sort < unsorted-names.txt           # read input FROM a file instead of typing it
+wc -l < access.log                  # count lines, reading directly from the file
+
+mysql mydb < schema.sql             # common pattern: feed a whole script file into a program
+grep "ERROR" <<< "$LOG_LINE"        # here-string: feed a variable's value in directly`,
+        },
+        {
+          kind: "text",
+          heading: "tee: writing to a file and the screen at the same time",
+          body: [
+            "Piping output into a file with > means you no longer see it on screen — often fine, but sometimes you want both: to watch a long command run live and also keep a permanent record of what it printed. tee sits in the middle of a pipeline and does exactly that, writing its input to a file while also passing it straight through, unchanged, to whatever comes next in the chain.",
+            "npm run build | tee build.log runs the build, shows the output as it happens, and saves that same output to build.log at the same time — a pattern worth knowing before the first time you need to debug a build that already finished and scrolled off the screen five minutes ago.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few more redirection details worth having",
+          bullets: [
+            "/dev/null is a special file that discards anything written to it — command > /dev/null 2>&1 silences a command's normal output and its errors completely, useful in scripts and cron jobs where you only care whether it succeeded.",
+            "Order matters with 2>&1: command > file.txt 2>&1 sends both streams into the file, while command 2>&1 > file.txt only sends stdout there, because stderr was redirected to wherever stdout was pointing (the screen) before stdout itself got moved to the file.",
+            "xargs turns a list of lines into arguments for another command. find . -name \"*.log\" | xargs rm behaves differently from piping straight into rm, because rm doesn't read filenames from standard input at all — it only accepts arguments, which is exactly the gap xargs fills.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Three numbered streams, not just \"output\"",
+          body: [
+            "Every process starts with three open file descriptors already connected: 0 is standard input (stdin), 1 is standard output (stdout), and 2 is standard error (stderr) — the numbers behind the > and 2> syntax used throughout this lesson aren't arbitrary, they're literally which stream you're redirecting. Plain > is shorthand for 1>, which is why redirecting errors specifically always needs the explicit 2.",
+            "Splitting output into two separate streams instead of one is deliberate: it lets a script's real output go one place (a file, the next command in a pipe) while its diagnostic messages go somewhere else entirely, and it's why command | grep \"foo\" doesn't see anything the command printed as an error — grep only receives stdout by default, not stderr, unless you explicitly merge them first with 2>&1.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Command substitution feeds one command's output directly into another as text",
+          body: "$(command) runs command and substitutes its output right into the surrounding line, as if you'd typed the result yourself — echo \"Today is $(date)\" or files=$(find . -name \"*.log\") both lean on this. It's a different mechanism from a pipe: a pipe streams one command's output into another command's input live, while command substitution captures the output first, as a single block of text, then splices it into a different command's arguments. Backticks (`command`) do the same thing and predate $(...), but $(...) nests more cleanly and is the version worth defaulting to.",
         },
         {
           kind: "summary",
@@ -319,10 +517,69 @@ nohup long-running-task.sh &
 # keeps running even if the terminal session itself closes`,
         },
         {
+          kind: "diagram",
+          heading: "What kill and kill -9 actually do",
+          description: "A plain kill asks; SIGKILL doesn't — this is why one is the default and the other is a last resort.",
+          steps: [
+            { label: "kill <PID>", detail: "Sends SIGTERM — a polite request" },
+            { label: "Process handles it", detail: "Closes files, saves state, exits cleanly (if it chooses to)" },
+            { label: "Still running?", detail: "If it ignored SIGTERM, escalate" },
+            { label: "kill -9 <PID>", detail: "Sends SIGKILL — the kernel stops it immediately, no cleanup" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "warning",
           heading: "kill -9 is a blunt instrument",
           body: "SIGKILL doesn't give a process any chance to close open files, save state, or clean up gracefully — it's stopped mid-instruction. Reach for a plain kill first, and only escalate to -9 if the process genuinely isn't responding, since an abruptly killed process can occasionally leave things (a lock file, a partial write) in a bad state.",
+        },
+        {
+          kind: "text",
+          heading: "Process states, and what a runaway process looks like",
+          body: [
+            "Every process is in one of a handful of states at any moment: running (actively using the CPU right now), sleeping (waiting on something — input, a timer, a lock — the state most idle processes sit in), stopped (paused, usually by a signal), or a zombie (finished, but its exit status hasn't been collected yet by its parent process). Both ps and top show this in a STAT column, and it's often the first thing worth checking when a process seems stuck.",
+            "A single process pinned near 100% CPU for an extended stretch, or one whose memory usage keeps climbing without ever leveling off, is usually the sign something's actually wrong — a runaway loop, a memory leak, or a process stuck retrying something that keeps failing. Neither is normal for a healthy, idle service.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Spotting a runaway process in top",
+          description: "Sorted by CPU (top's default), the offender is usually obvious within a few seconds of the view refreshing.",
+          lines: [
+            { text: "top" },
+            { text: "Tasks: 212 total,   2 running, 209 sleeping,   1 zombie", output: true },
+            { text: "%Cpu(s): 91.2 us,  2.1 sy,  0.0 ni,  6.0 id", output: true },
+            { text: "MiB Mem :  7891.4 total,   340.1 free", output: true },
+            { text: "" },
+            { text: "  PID USER   %CPU  %MEM  COMMAND", output: true },
+            { text: " 1821 alice  87.3  12.1  node worker.js", output: true },
+            { text: " 1902 alice   2.0   3.4  nginx: worker process", output: true },
+            { text: "    1 root    0.0   0.1  /sbin/init", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "A few more process commands worth knowing",
+          bullets: [
+            "pgrep node finds PIDs by process name without going through ps and grep yourself — it's what pkill uses internally, and it's handy on its own when you just need the number.",
+            "renice lets you lower a background process's scheduling priority so it doesn't compete as aggressively for CPU with whatever you're actively doing — useful for a long compression or backup job running alongside real work.",
+            "kill -l lists every signal name kill can send, not just SIGTERM and SIGKILL — SIGHUP and SIGSTOP are two others you'll occasionally see referenced in service configuration or documentation.",
+            "A process's parent PID (PPID) matters too: killing a parent process can also terminate or orphan its children, which is often the actual cause of a service that mysteriously stops when an unrelated-looking process is killed.",
+          ],
+        },
+        {
+          kind: "text",
+          heading: "Why a well-behaved service listens for SIGTERM specifically",
+          body: [
+            "A plain kill sends SIGTERM by default, and a well-written server or background worker installs a handler for it that does real cleanup before exiting — finishing an in-flight request instead of dropping it, closing a database connection cleanly, flushing a buffer to disk. This is what \"graceful shutdown\" means in practice, and it's the entire reason kill defaults to SIGTERM rather than the unconditional SIGKILL: it gives well-behaved code a chance to leave things in a consistent state.",
+            "This matters beyond the terminal, too — deployment tools and container orchestrators (Docker, Kubernetes) send SIGTERM to a process when they want it to stop, wait a configured grace period, and only escalate to SIGKILL if the process hasn't exited by then. A service that ignores SIGTERM entirely, or takes far longer than that grace period to actually clean up and exit, ends up getting SIGKILLed on every single deploy — which is a very common, very avoidable cause of dropped in-flight requests during otherwise routine deployments.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "disown and setsid go a step further than nohup",
+          body: "nohup keeps a background process alive after the terminal closes by making it ignore SIGHUP, but the shell can still track it as a job. disown %1 removes an already-running background job from the shell's own job table entirely, so closing the terminal genuinely can't affect it through the shell at all. setsid command detaches a process into its own session from the moment it starts, rather than merely surviving a hangup after the fact — the standard choice for a long-running daemon that should have no relationship whatsoever to the terminal that launched it.",
         },
         {
           kind: "summary",
@@ -350,6 +607,20 @@ nohup long-running-task.sh &
           heading: "A realistic scenario",
           body: [
             "A web application's log file is growing suspiciously fast, and a teammate reports the site feels slow. Nothing here is a single command — it's a short sequence of the tools from this course used in order.",
+          ],
+        },
+        {
+          kind: "chart",
+          heading: "Why it got everyone's attention",
+          description: "access.log's size over the last few hours — the growth rate alone was enough to start digging.",
+          chartType: "line",
+          unit: " MB",
+          data: [
+            { label: "9am", value: 40 },
+            { label: "10am", value: 52 },
+            { label: "11am", value: 70 },
+            { label: "12pm", value: 410 },
+            { label: "1pm", value: 960 },
           ],
         },
         {
@@ -385,6 +656,50 @@ ps aux | grep myapp`,
           ],
         },
         {
+          kind: "text",
+          heading: "A second scenario: \"permission denied\" out of nowhere",
+          body: [
+            "A deploy script that's run the same way for months suddenly fails with Permission denied, right after a teammate copied the project to a new server using a plain file transfer instead of git. Nothing about the script's own content changed — so the cause has to be something about how the new server's copy of it got there.",
+            "The fix itself — chmod +x — takes about two seconds once you know it's needed. Getting to the point of knowing that's the fix takes a couple of read-only checks first, and that ordering isn't incidental: it's what keeps a troubleshooting session from turning into changing things at random and hoping one of them helps.",
+          ],
+        },
+        {
+          kind: "terminal",
+          heading: "Diagnosing it in three commands",
+          description: "whoami confirms who you're actually running as; ls -l shows what the file allows; chmod fixes the specific gap once it's identified.",
+          lines: [
+            { text: "whoami" },
+            { text: "deploy", output: true },
+            { text: "ls -l deploy.sh" },
+            { text: "-rw-r--r-- 1 deploy deploy 812 Mar 14 deploy.sh", output: true },
+            { text: "chmod +x deploy.sh" },
+            { text: "./deploy.sh" },
+            { text: "Deploying build 4821...", output: true },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "The pattern underneath both scenarios",
+          bullets: [
+            "Neither problem was solved by memorizing a fix — it was solved by checking one small, specific thing at a time until the actual cause was visible, not guessed at.",
+            "A plain file copy doesn't preserve execute permissions the same way git does for a file already tracked as executable — which is exactly why the second scenario surfaced only after switching how the project got onto the new server.",
+            "In both cases the very first diagnostic step was read-only: du, tail, ls -l, whoami. None of that risks making things worse, which is exactly why it comes before anything that changes state.",
+            "The last step in both scenarios — kill or chmod — is also the smallest one. Nearly all of the real work in troubleshooting is narrowing down what's actually wrong; fixing it, once you know that, is often one line.",
+          ],
+        },
+        {
+          kind: "diagram",
+          heading: "A general shape for troubleshooting anything",
+          description: "The same five steps apply whether the symptom is a full disk, a slow site, or a script that suddenly won't run.",
+          steps: [
+            { label: "Observe", detail: "What's the actual symptom — slow, failing, growing, silent?" },
+            { label: "Look, don't act", detail: "pwd, ls, tail, du, ps — read-only commands that cost nothing to run" },
+            { label: "Narrow it down", detail: "grep, wc -l, ls -l — turn a vague symptom into a specific fact" },
+            { label: "Make the smallest safe change", detail: "kill, chmod, mv — the actual fix, informed by everything above it" },
+            { label: "Confirm it worked", detail: "Re-run the same read-only check from step 2 and see the number change" },
+          ],
+        },
+        {
           kind: "callout",
           tone: "insight",
           heading: "The real skill isn't memorizing commands",
@@ -399,6 +714,404 @@ ps aux | grep myapp`,
             "Understand permissions as three access types across three groups, adjustable with chmod and chown.",
             "Combine small commands with pipes (|) and redirect output with > and >>.",
             "Inspect and control running processes with ps, top, kill, and background jobs.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Finding Things: find, locate, and grep -r",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Finding Things: find, locate, and grep -r",
+          subheading:
+            "Piping, from the last lesson, filters text you already have in front of you. This is the other half — actually locating files and content across a filesystem you're not already looking at.",
+        },
+        {
+          kind: "example",
+          heading: "find searches by name, type, and recency",
+          body: "find walks a directory tree and matches files against whatever conditions you give it — starting from wherever you point it.",
+          language: "bash",
+          code: `find . -name "*.log"
+# recursively finds files ending in .log, starting from the current directory
+
+find /var/log -name "*.log" -mtime -1
+# same, but only files modified in the last day
+
+find . -type d -name "node_modules"
+# find directories (-type d) specifically named node_modules`,
+        },
+        {
+          kind: "example",
+          heading: "Combining find with an action",
+          body: "find can act on every match directly — with real caution, since -delete has no confirmation prompt.",
+          language: "bash",
+          code: `find . -type f -size +100M
+# regular files (-type f) larger than 100 megabytes
+
+find . -name "*.tmp" -delete
+# finds AND deletes every match in one command
+
+find . -name "*.log" -exec rm {} \\;
+# runs rm on each match individually; {} is replaced with the matched filename`,
+        },
+        {
+          kind: "bullets",
+          heading: "find vs. locate vs. grep -r",
+          bullets: [
+            "find searches the live filesystem right now, by name, type, size, or modification time — slower per run, but always current.",
+            "locate searches a prebuilt index instead of the live filesystem — much faster, but can miss a file created moments ago until the index (usually rebuilt daily via updatedb) catches up.",
+            "grep -r \"TODO\" . searches inside file contents recursively, rather than searching filenames — find locates files by metadata, grep -r locates files by what's written inside them.",
+            "grep -rl \"TODO\" . adds -l to print just the matching filenames instead of every matching line — useful when you only need to know which files, not where.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Combine find with xargs for real power",
+          body: "find . -name \"*.log\" | xargs rm removes every matching file in one line, and find . -name \"*.test.ts\" | xargs grep -l \"skip\" finds every test file that mentions \"skip\". Piping find's output into another command is one of the most common real-world patterns for anything that needs to act on many files at once.",
+        },
+        {
+          kind: "text",
+          heading: "grep's real power: patterns, not just plain text",
+          body: [
+            "grep's search term is a regular expression by default, not just a literal string. grep \"^ERROR\" matches lines starting with ERROR, grep \"[0-9]\\{3\\}\" matches any three consecutive digits, and grep -E turns on extended regular expression syntax so patterns like (ERROR|WARN) work without needing to escape every parenthesis and pipe individually.",
+            "That regex support is what makes grep -r so much more than a plain text search — it's a pattern search across every file in a tree, and a well-built pattern can pull exactly the lines worth seeing out of a codebase with thousands of files, in well under a second.",
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "grep flags worth memorizing",
+          bullets: [
+            "-i makes the search case-insensitive — grep -i \"error\" matches ERROR, Error, and error alike, which is the default you usually want unless case is actually meaningful.",
+            "-n prints the line number alongside each match, so you can jump straight to it in an editor instead of searching the file again by hand.",
+            "-c prints a count of matching lines per file instead of the lines themselves — useful for a quick \"how many places\" before diving in.",
+            "-v inverts the match, printing every line that does NOT contain the pattern — handy for filtering noise out of a log before reading what's left.",
+            "-A 3 and -B 3 print 3 lines of context after and before each match — often the difference between seeing an error and actually understanding it.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Combining find's conditions with logic",
+          body: "find's conditions combine with -and (the default), -or, and -not, and case-insensitive name matching uses -iname instead of -name.",
+          language: "bash",
+          code: `find . -iname "*.LOG"                                # case-insensitive name match
+find . -name "*.js" -not -path "*/node_modules/*"    # exclude a whole directory
+find . -type f \\( -name "*.jpg" -or -name "*.png" \\)   # match either extension
+find . -newer reference-file.txt                     # modified more recently than reference-file.txt`,
+        },
+        {
+          kind: "bullets",
+          heading: "When to reach for find, grep -r, or both together",
+          bullets: [
+            "Looking for a file you know exists somewhere, but can't remember where — find is the tool, searching by name or type.",
+            "Looking for a specific string across a codebase you don't have memorized — grep -r is the tool, searching by content.",
+            "Looking for a specific string, but only within a certain kind of file — combine them: find . -name \"*.py\" | xargs grep -l \"import requests\" narrows by file type first, then by content.",
+            "Not sure the file even still exists, only that something like it existed recently — find . -mtime -3 narrows by recency first, before you've even decided what to search inside it for.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Both commands will happily crawl into directories you don't want",
+          body: "Run grep -r or find without excluding anything inside a real project, and both will crawl into .git, node_modules, or a vendor directory holding tens of thousands of files — slow, and full of irrelevant matches. grep -r --exclude-dir=node_modules and find . -path \"*/node_modules\" -prune -o -print are the patterns worth having ready, and tools like ripgrep (rg) skip directories like these by default for exactly this reason.",
+        },
+        {
+          kind: "terminal",
+          heading: "A realistic search session",
+          description: "Narrowing from \"somewhere in this codebase\" to one exact line, two commands in.",
+          lines: [
+            { text: "grep -rc \"TODO\" src/" },
+            { text: "src/api/routes.js:4", output: true },
+            { text: "src/utils/format.js:1", output: true },
+            { text: "grep -rn \"TODO\" src/api/routes.js" },
+            { text: "src/api/routes.js:22:  // TODO: paginate this response", output: true },
+            { text: "src/api/routes.js:41:  // TODO: validate input shape", output: true },
+            { text: "src/api/routes.js:58:  // TODO: rate limit this endpoint", output: true },
+            { text: "src/api/routes.js:63:  // TODO: add auth check", output: true },
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "What to carry forward",
+          bullets: [
+            "find searches the live filesystem by name, type, size, or modification time; locate searches a fast but possibly-stale prebuilt index.",
+            "grep -r searches inside file contents recursively — a different job from find, and often chained right after it.",
+            "-exec and piping into xargs both let you run another command against everything find turns up, instead of handling matches one by one by hand.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Locating Files and Content",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Locating Files and Content",
+          subheading:
+            "Nine exercises with find, grep -r, locate, and xargs — narrowing by name and recency, checking before deleting, searching file contents instead of filenames, and chaining several of them into real multi-step searches.",
+        },
+        {
+          kind: "text",
+          heading: "Before you start",
+          body: [
+            "Real search tasks rarely have exactly one right command — these nine exercises build from a single find flag up through combining find, grep -r, and xargs into the kind of multi-step search you'd actually run against a real codebase or a production server. Work through the hint before looking at the solution: the goal here is building the instinct for which tool answers which question, not memorizing nine specific commands.",
+          ],
+        },
+        {
+          kind: "practice",
+          heading: "Find Recently Modified Files by Extension",
+          prompt:
+            "Write a single command to find every .py file inside the scripts/ directory that was modified in the last 7 days.",
+          hint: "-name filters by filename pattern; -mtime -7 means modified less than 7 days ago (the minus sign means \"less than\").",
+          solution: `find scripts/ -name "*.py" -mtime -7`,
+        },
+        {
+          kind: "practice",
+          heading: "Check Before You Delete",
+          prompt:
+            "Find every file under /tmp/build larger than 500MB. Write the command to list them first, then the separate command you'd only run after confirming that list looks right, to actually delete them.",
+          hint: "Run the search alone first to see what matches, then add -delete as a second step — the same \"look before you act\" habit that applies to any destructive command.",
+          solution: `# Step 1: see what would match
+find /tmp/build -type f -size +500M
+
+# Step 2: only after confirming the list is what you expect
+find /tmp/build -type f -size +500M -delete`,
+        },
+        {
+          kind: "practice",
+          heading: "Search File Contents, Not Filenames",
+          prompt:
+            "Search every file under src/ for the text \"DEPRECATED\", and print only the filenames that contain it — not every matching line.",
+          hint: "grep -r searches recursively through file contents; add -l to print matching filenames only, instead of the matching lines themselves.",
+          solution: `grep -rl "DEPRECATED" src/`,
+        },
+        {
+          kind: "practice",
+          heading: "Exclude a Noisy Directory",
+          prompt:
+            "You want every .ts file under a project, but the project also has a node_modules directory containing thousands of matching files you don't care about, plus a dist/ build output directory in the same state. Write a single find command that searches for *.ts files while excluding anything under node_modules or dist.",
+          hint: "-not -path excludes a path pattern from matching; you can repeat it for more than one excluded directory, and it combines with -name using find's implicit AND.",
+          solution: `find . -name "*.ts" -not -path "*/node_modules/*" -not -path "*/dist/*"`,
+        },
+        {
+          kind: "practice",
+          heading: "Find Files by Content, Not Name, Case-Insensitively",
+          prompt:
+            "Search every file under config/ for any spelling of the word \"password\" — Password, PASSWORD, password, or PaSsWoRd — and print both the filename and the line number for every match, so you can jump straight to each one in an editor.",
+          hint: "grep -i ignores case entirely; -n adds line numbers to the output. Both combine with -r, which makes the search recursive through every file under the directory.",
+          solution: `grep -rni "password" config/`,
+        },
+        {
+          kind: "practice",
+          heading: "Narrow By Recency, Then Search Inside",
+          prompt:
+            "Of every file modified in the last 2 days anywhere under /var/log, find only the ones that actually contain the text \"CRITICAL\". Do this as a single pipeline, rather than eyeballing a list of recent files and opening each one by hand.",
+          hint: "find can filter by -mtime to get the recent files first; piping that list into xargs grep -l then searches inside only those specific files, instead of the entire log directory.",
+          solution: `find /var/log -mtime -2 -type f | xargs grep -l "CRITICAL"`,
+        },
+        {
+          kind: "practice",
+          heading: "locate vs. find for a File Created Seconds Ago",
+          prompt:
+            "A teammate just ran touch new-config.yaml and is confused that locate new-config.yaml finds nothing, even though the file is sitting right there in ls. Explain what's actually happening, and write the command that would find the file reliably right now, without waiting.",
+          hint: "locate searches a prebuilt index, not the live filesystem — a file created after the last index build (usually run once a day via updatedb) simply isn't in that index yet, even though it genuinely exists on disk.",
+          solution: `# locate searches a prebuilt index (rebuilt roughly once a day via updatedb),
+# not the live filesystem — a file created seconds ago isn't in that index yet,
+# even though "ls" proves it's really there.
+#
+# find always walks the live filesystem, so it finds it immediately:
+find . -name "new-config.yaml"`,
+        },
+        {
+          kind: "practice",
+          heading: "Find the Largest Offenders in a Directory Tree",
+          prompt:
+            "A deploy pipeline is failing because a build artifact directory has ballooned in size, and nobody knows which files are responsible. Write a command that finds every file over 50MB anywhere under build/, and prints them sorted from largest to smallest with a human-readable size.",
+          hint: "find's -size filters by size, but doesn't sort. Pipe matches into du -h, then into sort -rh (reverse, human-numeric) to get them ordered largest first.",
+          solution: `find build/ -type f -size +50M -exec du -h {} \\; | sort -rh`,
+        },
+        {
+          kind: "practice",
+          heading: "Turn a Multi-Step Investigation Into One Pipeline",
+          prompt:
+            "You suspect a specific deploy broke something: every file under src/ that was both modified in the last 24 hours AND still contains a leftover console.log statement. Write one command that finds exactly those files.",
+          hint: "Chain two filters: find narrows to recently modified files first, then pipe that list into xargs grep -l to keep only the ones that still contain the pattern.",
+          solution: `find src/ -mtime -1 -name "*.js" | xargs grep -l "console.log"`,
+        },
+        {
+          kind: "practice",
+          heading: "Search Content While Ignoring Binary Files",
+          prompt:
+            "A recursive grep -r \"config\" . against a project that includes a few compiled binaries and images is printing garbled, unreadable lines mixed in with the real text matches. Write a version of the search that skips binary files and reports only that a binary file matched, instead of dumping its raw bytes to the terminal.",
+          hint: "grep has a flag specifically for this: -I skips binary files entirely, and -l alone (without -I) would still open and scan them, just suppressing the unreadable output — -I is the one that avoids reading them at all.",
+          solution: `grep -rI "config" .
+# -I tells grep to treat binary files as if they had no matching text at all,
+# instead of scanning their raw bytes and printing whatever garbage happens
+# to look like a match. Combine with -l if you only want the filenames:
+grep -rIl "config" .`,
+        },
+        {
+          kind: "practice",
+          heading: "Find Empty Directories Left Behind by a Cleanup Script",
+          prompt:
+            "A cleanup job deletes old report files but leaves the now-empty directories behind, and over months they've accumulated by the hundreds under archive/. Write a command that finds every empty directory under archive/ so they can be reviewed before removal.",
+          hint: "find has a dedicated -empty flag that matches files or directories with no contents — combine it with -type d to match only directories, not empty files.",
+          solution: `find archive/ -type d -empty
+# review the list first, then remove them once you're confident it's safe:
+find archive/ -type d -empty -delete`,
+        },
+        {
+          kind: "bullets",
+          heading: "Mistakes worth avoiding in real search tasks",
+          bullets: [
+            "Forgetting to exclude node_modules, .git, or a build output directory turns a two-second search into a slow, noisy one — get in the habit of excluding them by default in any project-wide search.",
+            "Running -delete or -exec rm on a find command before running the same find without it first, just to see what would actually match — the review step costs nothing and prevents almost every accidental deletion.",
+            "Reaching for locate on a system where updatedb hasn't run recently (or at all, in a fresh container) and concluding the file doesn't exist, when find would have found it immediately.",
+            "Writing a grep pattern that's technically correct but too broad — grep \"error\" without -i will silently skip every Error and ERROR, giving false confidence that a codebase is cleaner than it actually is.",
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "What a correct solution demonstrates",
+          bullets: [
+            "-name, -mtime, and -size are find's everyday filters, and they combine — narrowing by name and recency together is a common, realistic search.",
+            "Running a search once to review matches before adding -delete is the same look-before-you-act habit that applies to any destructive command, like rm -rf.",
+            "grep -r searches file contents, not filenames; -l narrows its output to just the matching files when you don't need to see every line that matched, and -i and -n make it case-insensitive and line-numbered respectively.",
+            "find and xargs (or -exec) combine to turn a search into an action — sorting by size, searching inside only the files that match a prior filter, or chaining recency and content together in one pipeline.",
+            "locate is fast but reads from a stale index; find is slower but always current — for anything created or changed moments ago, find is the one that won't lie to you.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — navigation, permissions, redirection, processes, and the search tools you just covered.",
+        },
+        {
+          kind: "quiz",
+          heading: "Relative Paths",
+          question: "From /home/alice/projects, what does cd ../shared/docs actually move you to?",
+          options: ["/home/alice/shared/docs", "/home/alice/projects/shared/docs", "/home/shared/docs", "It causes an error — relative paths can't use .."],
+          correctIndex: 0,
+          explanation:
+            ".. moves up one level, from /home/alice/projects to /home/alice, and then shared/docs is read from there — landing at /home/alice/shared/docs. Relative paths are always resolved from your current directory, and .. is a completely normal part of one.",
+        },
+        {
+          kind: "quiz",
+          heading: "Execute on a Directory",
+          question: "A directory has permissions r--r--r-- (read-only, no execute, for everyone). What happens when a user tries to cd into it?",
+          options: [
+            "It works normally, since read access is enough to enter a directory",
+            "It works, but only the owner can see the file names inside",
+            "Directories ignore the execute bit entirely; only files use it",
+            "It fails — without execute, you can't enter the directory or access files inside it by name, even though you can list it",
+          ],
+          correctIndex: 3,
+          explanation:
+            "Execute means something different on a directory than on a file — there, it controls whether you can enter it and reach files inside by name. Read alone lets you list what's in a directory, but not cd into it or open a specific file inside.",
+        },
+        {
+          kind: "quiz",
+          heading: "Redirection Operators",
+          question: "What's the difference between command > file.txt and command >> file.txt?",
+          options: [
+            "> appends, >> overwrites",
+            "> overwrites the file's contents, >> appends without erasing what's there",
+            "They're identical; >> is just an older alias for >",
+            "> only works with text files, >> works with any file type",
+          ],
+          correctIndex: 1,
+          explanation:
+            "> always replaces the file's entire contents with the command's output. >> adds the new output to the end of whatever is already there — the one to reach for when you don't want to lose an existing log or file.",
+        },
+        {
+          kind: "quiz",
+          heading: "kill vs. kill -9",
+          question: "Why would you use kill -9 instead of a plain kill?",
+          options: [
+            "kill -9 is the default and safest way to stop any process",
+            "kill -9 only works on background jobs started with &",
+            "kill -9 (SIGKILL) is a last resort, unconditional stop for a process that isn't responding to a normal termination request — it skips any cleanup the process would otherwise do",
+            "kill -9 pauses a process instead of stopping it",
+          ],
+          correctIndex: 2,
+          explanation:
+            "A plain kill sends SIGTERM, a polite request the process can catch and respond to by cleaning up before exiting. kill -9 sends SIGKILL, which the process cannot intercept or ignore — appropriate only once a normal kill has failed to stop something unresponsive.",
+        },
+        {
+          kind: "quiz",
+          heading: "find vs. grep -r",
+          question: "You want every file under logs/ whose name contains \"error\" — not the lines inside files that mention it. Which command actually answers that?",
+          options: [
+            "find logs/ -name \"*error*\"",
+            "grep -r \"error\" logs/",
+            "ps aux | grep error",
+            "cat logs/* | grep error",
+          ],
+          correctIndex: 0,
+          explanation:
+            "find matches on file metadata like the name itself — -name \"*error*\" finds files whose filename contains that text. grep -r searches inside file contents instead, which answers a different question: which files mention \"error\" somewhere in their text, regardless of what they're named.",
+        },
+        {
+          kind: "quiz",
+          heading: "Numeric chmod",
+          question: "chmod 640 file.txt sets which permissions?",
+          options: [
+            "owner: rwx, group: rwx, others: rwx",
+            "owner: rw-, group: r--, others: ---",
+            "owner: r--, group: rw-, others: r--",
+            "owner: rwx, group: r--, others: ---",
+          ],
+          correctIndex: 1,
+          explanation:
+            "6 = 4+2 = read+write for the owner, 4 = read only for the group, and 0 = nothing at all for others. Numeric chmod is just the sum of read(4), write(2), and execute(1), applied per group in owner-group-others order — 640 reads as owner rw-, group r--, others ---.",
+        },
+        {
+          kind: "quiz",
+          heading: "tee vs. Plain Redirection",
+          question: "You need to watch a long build's output live in your terminal AND save the same output to build.log. Which command actually does both?",
+          options: [
+            "npm run build > build.log",
+            "npm run build | tee build.log",
+            "npm run build >> build.log 2>&1",
+            "npm run build < build.log",
+          ],
+          correctIndex: 1,
+          explanation:
+            "> and >> both send output only to the file, hiding it from the screen entirely. tee sits in the middle of a pipeline, writing its input to a file while also passing it straight through, unchanged, to the terminal — exactly the \"both at once\" behavior this needs.",
+        },
+        {
+          kind: "quiz",
+          heading: "Excluding node_modules from a Search",
+          question: "grep -r \"TODO\" . is crawling into node_modules and returning thousands of irrelevant matches from installed packages. Which change fixes that without switching to a different tool entirely?",
+          options: [
+            "Nothing can be done — grep -r always searches every subdirectory",
+            "grep -r \"TODO\" . --exclude-dir=node_modules",
+            "Switch -r to -R, which behaves identically but skips dependency folders",
+            "Add -i to the command to ignore installed packages",
+          ],
+          correctIndex: 1,
+          explanation:
+            "--exclude-dir names a specific directory (by basename) to skip entirely during the recursive walk, and it can be repeated for more than one directory. -R and -r are functionally the same recursive flag, and -i only affects case sensitivity — neither has anything to do with which directories get searched.",
+        },
+        {
+          kind: "summary",
+          heading: "Course recap",
+          bullets: [
+            "One filesystem tree rooted at /; pwd, ls, and cd are the everyday navigation trio, and absolute paths always start with /.",
+            "mkdir, cp, mv, and rm handle everyday file management — rm has no undo, so treat rm -rf with real caution.",
+            "Permissions are three types (read/write/execute) across three groups (owner/group/others); execute on a directory means \"can enter it,\" not \"can run it.\"",
+            "| chains small commands together; > and >> redirect output to a file, overwriting or appending respectively.",
+            "ps, top, and kill inspect and control running processes; find and grep -r locate files by metadata and by content, respectively.",
           ],
         },
       ],

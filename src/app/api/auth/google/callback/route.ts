@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/google";
 import { createSession } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/audit/log";
+import { sendNewSignInAlert } from "@/lib/auth/service";
 import { ipFromRequest } from "@/lib/rate-limit";
 import { safeNext } from "@/lib/safe-next";
 
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
     const { user, created } = await completeGoogleSignIn(profile, st.type);
     await createSession(user.id);
     await writeAuditLog({ userId: user.id, action: created ? "auth.google.signup" : "auth.google.login", ipAddress: ipFromRequest(req) });
+    if (!created) void sendNewSignInAlert(user, { ipAddress: ipFromRequest(req), userAgent: req.headers.get("user-agent") });
 
     let dest = safeNext(st.next, "");
     if (!dest || (created && !dest.startsWith("/extension-connect"))) {

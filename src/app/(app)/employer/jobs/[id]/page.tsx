@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, MapPin, DollarSign, Briefcase } from "lucide-react";
+import { Loader2, MapPin, DollarSign, Briefcase, Share2, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatSalaryRange, initials } from "@/lib/utils";
@@ -49,6 +50,8 @@ export default function EmployerJobDetailPage() {
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   async function load() {
     const [jobRes, appsRes] = await Promise.all([
@@ -76,6 +79,13 @@ export default function EmployerJobDetailPage() {
     });
     setStatusSaving(false);
     load();
+  }
+
+  async function postToFeed() {
+    setSharing(true);
+    const res = await fetch(`/api/employer/jobs/${params.id}/post-to-feed`, { method: "POST" });
+    setSharing(false);
+    if (res.ok) setShared(true);
   }
 
   async function changeApplicationStatus(applicationId: string, status: string) {
@@ -130,18 +140,24 @@ export default function EmployerJobDetailPage() {
                 ))}
               </div>
             </div>
-            <Select value={job.status} onValueChange={changeJobStatus} disabled={statusSaving}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {JOB_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col items-end gap-2">
+              <Select value={job.status} onValueChange={changeJobStatus} disabled={statusSaving}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {JOB_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={postToFeed} disabled={sharing || shared}>
+                {shared ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+                {shared ? "Shared to feed" : sharing ? "Sharing…" : "Share to Network feed"}
+              </Button>
+            </div>
           </div>
           <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground">{job.description}</p>
         </CardContent>

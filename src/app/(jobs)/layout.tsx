@@ -4,6 +4,7 @@ import { allowedRolesFor } from "@/lib/auth/multi-role";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { IdleLogoutGuard } from "@/components/auth/idle-logout-guard";
 import { MarketingNavbar } from "@/components/marketing/navbar";
 import { MarketingFooter } from "@/components/marketing/footer";
 
@@ -24,6 +25,7 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
     const viewRoles = base ? await allowedRolesFor(base) : [];
     return (
       <div className="flex min-h-screen bg-background">
+        <IdleLogoutGuard />
         <Sidebar role={user.role} careersPublisher={careersPublisher} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar user={user} careersPublisher={careersPublisher} viewRoles={viewRoles} />

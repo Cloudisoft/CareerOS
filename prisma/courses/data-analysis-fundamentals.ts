@@ -53,6 +53,48 @@ export const course: CourseSeed = {
           body: "A team that jumps straight into a dashboard often produces an answer to a question nobody asked, presented confidently enough that it gets acted on anyway. Fifteen minutes spent writing the actual question down first is cheap insurance against that.",
         },
         {
+          kind: "bullets",
+          heading: "A common mistake: writing the question after seeing the answer",
+          intro:
+            "This one is subtle because it doesn't feel dishonest while it's happening.",
+          bullets: [
+            "It's called HARKing (Hypothesizing After the Results are Known) — you explore the data first, notice something that looks interesting, then write up a question as if that had been the plan all along.",
+            "The problem isn't the exploring — noticing patterns is normal and useful. The problem is presenting a pattern found by browsing as if it had been predicted in advance, which makes it look far more solid than it is.",
+            "With enough columns to scan, some pattern will look real by pure chance — a hypothesis written down before looking is what lets you tell a genuine signal from something you'd have found in random noise too.",
+            "A practical fix: if you do explore first and find something promising, say so explicitly (\"this emerged from exploratory analysis and needs a follow-up test to confirm\") rather than writing it up as if it were the original, pre-registered question.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Turning a vague topic into a workable question, step by step",
+          body: "The gap between these usually closes with three questions: what metric, compared to what, over what window.",
+          code: `Starting point: "How's the new checkout flow doing?"
+
++ What metric?          -> cart abandonment rate
++ Compared to what?     -> the old checkout flow
++ Over what window?     -> the 4 weeks since rollout
+
+Workable question: "Is cart abandonment lower on the new
+checkout flow than the old one, measured over the 4 weeks
+since rollout, for the same traffic mix?"
+
+That last clause — "for the same traffic mix" — matters too:
+if the new flow launched during a holiday sale, a lower
+abandonment rate might just reflect more motivated shoppers,
+not a better flow.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Scoping the data before you commit to the question",
+          intro:
+            "A workable question can still fail if the data to answer it doesn't actually exist, or exists at the wrong grain — worth a quick check before investing real time.",
+          bullets: [
+            "Does the data exist at all, at the level of detail the question needs? \"Did onboarding reduce churn\" needs a record of who completed onboarding and when, not just an aggregate completion rate for the whole product.",
+            "Is the time window long enough to answer the question? A churn question needs enough elapsed time for churn to have actually happened — measuring 90-day churn on customers who signed up three weeks ago isn't possible yet, no matter how good the data is.",
+            "Is the sample size realistic? A workable question about a rare event (say, a feature used by 40 people total) may need a different, more modest question — or a longer collection window — before it can be answered with any real confidence.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Before you open the data",
           bullets: [
@@ -103,6 +145,18 @@ customer_state | order_total | order_date
 (missing state row flagged for follow-up, not silently dropped)`,
         },
         {
+          kind: "diagram",
+          heading: "The cleaning pipeline for the export above",
+          description: "Each stage is a deliberate decision, not a blind delete.",
+          steps: [
+            { label: "Raw export", detail: "Inconsistent casing, a duplicate row, an ambiguous date format" },
+            { label: "Standardize formats", detail: "Unify state codes and date formats" },
+            { label: "Remove true duplicates", detail: "Confirmed via a real unique ID, not just appearance" },
+            { label: "Resolve missing values", detail: "Investigate before dropping — check if missingness is random" },
+            { label: "Clean dataset", detail: "Ready for calculation" },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Deciding what to do with missing values",
           intro: "There's no single right answer — the right choice depends on why the data is missing.",
@@ -117,6 +171,41 @@ customer_state | order_total | order_date
           tone: "warning",
           heading: "The mistake that's easy to make under time pressure",
           body: "Silently dropping every row with any issue is the fastest way to clean data and one of the easiest ways to bias it — if the rows with problems aren't random (say, they're disproportionately from one region's data feed), you've quietly changed what the remaining data represents.",
+        },
+        {
+          kind: "bullets",
+          heading: "A quieter version of the same mistake: a placeholder value that looks real",
+          intro:
+            "Blank cells get noticed. A placeholder disguised as a real number usually doesn't — until it's already dragged a calculation off.",
+          bullets: [
+            "A legacy system exporting \"-1\" for an unknown age, or \"0\" for an unrecorded order total, will happily average into your \"mean order value\" as if it were a real $0 order — quietly dragging the average down without any obvious error appearing.",
+            "The tell is usually a suspicious spike at one exact value — a histogram with an odd cluster at exactly 0, exactly -1, or exactly 9999 is a strong signal that value is a stand-in for missing, not a real measurement.",
+            "Before running any summary statistic on a numeric column, check its minimum, maximum, and the frequency of its most common value — a placeholder disguised as data usually reveals itself in that first look.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "How one placeholder value moves a real number",
+          body: "12 orders, one of them a \"0\" that actually means \"total wasn't recorded,\" not \"a free order.\"",
+          code: `Order totals: 42, 38, 55, 61, 47, 0, 50, 44, 39, 58, 46, 41
+
+Mean including the placeholder:    $43.4
+Mean after excluding the "0" row:  $47.4
+
+A 9% swing in "average order value" from a single miscoded
+row — small enough to not look obviously wrong on a dashboard,
+large enough to change which region looks like it's underperforming.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Schema drift: when the same column means different things over time",
+          intro:
+            "A subtler cleaning problem than a single messy row: a dataset collected over months or years can quietly change what a column even represents.",
+          bullets: [
+            "A \"status\" field with values \"active,\" \"inactive,\" and \"churned\" for the first year, then a fourth value \"paused\" added later, means any historical analysis grouping by status needs to know when \"paused\" started existing — treating its absence in early data as \"there were no paused customers back then\" versus \"this category didn't exist yet\" leads to two very different conclusions.",
+            "The same risk applies to units and definitions changing silently — a \"revenue\" column that switched from gross to net partway through, or a currency field that started including a new region's local currency without a clear marker, both look like perfectly normal numeric columns while actually meaning two different things across the same table.",
+            "The practical defense is checking a column's distinct values and their date ranges before trusting a long-running dataset — a value that only appears after a specific date is a strong signal something changed in how the data was collected, not just in what happened.",
+          ],
         },
         {
           kind: "summary",
@@ -161,6 +250,25 @@ The median is a far better description of a "typical" household
 here — the mean is distorted by a single outlier.`,
         },
         {
+          kind: "chart",
+          heading: "The 9 household incomes",
+          description:
+            "One household ($620k) towers over the other eight — that single value is what drags the mean up to $116.7k while the median stays at $55k.",
+          chartType: "bar",
+          unit: "$k",
+          data: [
+            { label: "House 1", value: 45 },
+            { label: "House 2", value: 48 },
+            { label: "House 3", value: 50 },
+            { label: "House 4", value: 52 },
+            { label: "House 5", value: 55 },
+            { label: "House 6", value: 58 },
+            { label: "House 7", value: 60 },
+            { label: "House 8", value: 62 },
+            { label: "House 9", value: 620 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "When each one is the right choice",
           bullets: [
@@ -183,6 +291,43 @@ here — the mean is distorted by a single outlier.`,
           tone: "tip",
           heading: "A habit worth building",
           body: "Whenever you report a single summary number — a mean, a median, an average conversion rate — ask whether the underlying data has a long tail or unusual spread that the single number is hiding. If you're not sure, look at the distribution before presenting the summary.",
+        },
+        {
+          kind: "bullets",
+          heading: "Percentiles: a sharper tool than mean or median alone",
+          intro:
+            "The median is technically the 50th percentile — percentiles more broadly let you describe any point in the distribution, not just the middle.",
+          bullets: [
+            "The 90th percentile (\"p90\") response time of 800ms means 90% of requests were faster than that and 10% were slower — this is why engineering teams track p95 or p99 latency instead of average latency: the average can look fine while a meaningful slice of real users have a genuinely bad experience.",
+            "The interquartile range (IQR) — the gap between the 25th and 75th percentiles — describes the spread of the \"typical middle\" of the data while deliberately ignoring extreme values at both ends, making it a more robust spread measure than standard deviation when outliers are present.",
+            "A common outlier-detection rule of thumb: flag any value more than 1.5×IQR beyond the 25th or 75th percentile as worth a second look — not necessarily wrong, but worth checking before it's included in a summary uncritically.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Average latency hides what p95 reveals",
+          body: "Same 10 page-load times — the average looks perfectly fine while one in ten users had a genuinely slow experience.",
+          code: `Load times (ms): 180, 190, 200, 195, 210, 185, 205, 190, 200, 2100
+
+Mean = 445ms   (dragged way up by the one 2,100ms load)
+p50 (median) = 197.5ms
+p90 = 205ms   (90% of loads were at or below this)
+
+Reporting only the mean (445ms) makes the page look
+consistently slow. Reporting only the median (197.5ms) hides
+that roughly 1 in 10 loads took over 2 seconds — the real
+story needs both the typical case and the tail.`,
+        },
+        {
+          kind: "bullets",
+          heading: "Mode, and when it's the only statistic that makes sense",
+          intro:
+            "Mean and median both assume a meaningful order to the values — mode (the most frequent value) is the only one of the three that also works on data with no natural numeric order at all.",
+          bullets: [
+            "For a categorical column like \"which plan did the customer sign up for,\" mean and median are meaningless (there's no numeric average of \"Basic\" and \"Premium\"), but the mode — the most common plan — is a real, useful summary.",
+            "For numeric data, mode is less commonly the headline statistic, but it's genuinely useful for spotting a specific recurring value worth investigating — a mode of exactly $0 in an order-total column is exactly the kind of placeholder-value signal covered in the cleaning lesson.",
+            "A distribution can have more than one mode (bimodal, or multimodal) — two distinct peaks usually means the data is actually a mix of two different underlying groups (e.g., new users and power users) that would be more honestly analyzed separately than blended into one summary.",
+          ],
         },
         {
           kind: "summary",
@@ -246,6 +391,22 @@ Misleading:  y-axis 50% to 54%
           body: "Before finalizing a chart, ask: could someone glancing at this for five seconds walk away with a wrong impression, even though every number on it is technically correct? If the honest answer is yes, the chart — not the data — needs to change.",
         },
         {
+          kind: "bullets",
+          heading: "Two chart types worth knowing beyond the basics",
+          intro: "Bar, line, and scatter cover most cases, but two more situations come up often enough to name specifically.",
+          bullets: [
+            "Showing the shape of a distribution (not a comparison between categories) → a histogram, which groups continuous values into bins and shows how many fall in each — this is what actually reveals a long tail or a skew, something a single mean or median number can't show on its own.",
+            "A stacked bar chart can compare totals across categories and show composition at once, but it's genuinely hard to compare the size of a middle segment across bars — only the bottom segment and the overall total are easy to read accurately, because everything else floats on a shifting baseline.",
+            "When the comparison that actually matters is between one specific segment across categories (not the totals), a grouped (side-by-side) bar chart or small multiples usually communicates it more honestly than a stacked one.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "tip",
+          heading: "Color should encode meaning, not just decorate",
+          body: "A common habit is coloring bars or lines differently purely to make a chart \"more visual\" — but every color used should answer a real question for the reader. Use color to distinguish categories (each series its own consistent color across a whole report), to highlight one specific value that matters (everything else gray, the one bar that matters in color), or to encode a scale (a heatmap running light to dark). Color applied inconsistently — the same category shown in different colors on different charts in the same report — costs a reader real time re-learning the legend on every single chart.",
+        },
+        {
           kind: "summary",
           heading: "Chart choice, in short",
           bullets: [
@@ -289,6 +450,22 @@ Actual driver: a third variable — summer weather —
 raises both independently.`,
         },
         {
+          kind: "chart",
+          heading: "Both curves move together, month by month",
+          description:
+            "Neither metric causes the other — both simply rise and fall with a third factor (summer weather) that drives them at the same time.",
+          chartType: "bar",
+          unit: "index (0-100)",
+          data: [
+            { label: "Ice cream — Jan", value: 20 },
+            { label: "Drowning — Jan", value: 2 },
+            { label: "Ice cream — Jun", value: 70 },
+            { label: "Drowning — Jun", value: 18 },
+            { label: "Ice cream — Aug", value: 95 },
+            { label: "Drowning — Aug", value: 25 },
+          ],
+        },
+        {
           kind: "bullets",
           heading: "Common shapes this trap takes at work",
           intro: "The ice cream example is obvious; the workplace version is usually much subtler.",
@@ -312,6 +489,57 @@ raises both independently.`,
           tone: "insight",
           heading: "The honest phrasing to use in practice",
           body: "When you find a real correlation without solid causal evidence, say exactly that: X and Y are correlated; we haven't established that changing X would change Y. That sentence is more useful — and more honest — than an overconfident causal claim that turns out to be wrong once acted on.",
+        },
+        {
+          kind: "example",
+          heading: "Simpson's paradox: when the trend flips depending on how you group it",
+          body: "A drug's overall recovery rate can look worse than a placebo's, while it's actually better in every single patient subgroup — the trap here isn't a confounder pulling in an obvious direction, it's aggregation itself hiding the real pattern.",
+          code: `Overall:
+  Drug:     78% recovery   (78 of 100 patients)
+  Placebo:  83% recovery   (83 of 100 patients)
+  -> Drug looks worse
+
+By severity:
+  Mild cases —  Drug: 93% (of 15)   Placebo: 87% (of 85)
+  Severe cases — Drug: 73% (of 85)  Placebo: 40% (of 15)
+  -> Drug wins in BOTH subgroups
+
+The drug was given to more severe cases (where recovery is
+harder regardless of treatment), which dragged its overall
+average down even though it outperformed within each group.`,
+        },
+        {
+          kind: "bullets",
+          heading: "A practical framework: the questions worth asking before believing a causal story",
+          intro: "None of these prove causation on their own, but running through them systematically catches most of the traps above before they make it into a recommendation.",
+          bullets: [
+            "Temporal order — did the proposed cause actually happen before the proposed effect? A correlation between two things measured at the same moment can't tell you which came first, if either.",
+            "Dose-response — if more of the cause tends to produce more of the effect (more onboarding steps completed correlating with progressively lower churn, not just a single on/off difference), that's modestly stronger evidence than a simple two-group comparison alone.",
+            "Consistency across contexts — does the same relationship show up across different segments, time periods, or datasets, or does it only appear in one specific slice? A pattern that only holds in one region or one quarter is more likely to be a coincidence or a local confounder than a real underlying effect.",
+            "Ruling out the obvious alternative explanations — reverse causation and the most likely confounding variable specifically, not every theoretically possible one — before treating a correlation as actionable.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Reverse causation, traced through a real metric",
+          body: "The same correlation, two opposite causal stories — and only one of them justifies the recommendation someone was about to make.",
+          code: `Observed: customers who contact support 3+ times in a month
+churn at a much higher rate than customers who contact
+support 0-1 times.
+
+Story A (the one that got proposed): "Support quality is bad,
+so heavy support contact is causing churn. Fix: improve support
+response time."
+
+Story B (reverse causation, equally consistent with the same
+data): "Customers already frustrated with the product for
+unrelated reasons churn more AND contact support more, because
+frustration drives both behaviors independently."
+
+Under Story A, faster support responses should reduce churn.
+Under Story B, they might not move churn at all — the real
+fix would target whatever's frustrating customers in the first
+place. The correlation alone can't tell these two stories apart.`,
         },
         {
           kind: "summary",
@@ -367,6 +595,62 @@ controlled test to confirm load time is the actual cause."`,
           body: "Most audiences want the conclusion first, with the methodology available if someone asks, not the other way around. A report that opens with here's what we found and what we'd do about it gets read and acted on far more often than one that opens with here's how we approached the data.",
         },
         {
+          kind: "bullets",
+          heading: "Matching your confidence in the finding to your confidence in the recommendation",
+          intro:
+            "Not every finding deserves the same weight of action, and pretending otherwise is its own kind of dishonesty.",
+          bullets: [
+            "A finding from a controlled A/B test with a clear statistically significant result supports a confident recommendation — \"ship this.\"",
+            "A finding from a correlational analysis on a modest sample supports a hedged recommendation — \"this is promising, worth a small controlled test before a full rollout,\" not an immediate company-wide change.",
+            "A common failure mode goes the other direction too: burying a solid, well-supported finding under so many caveats that a reader can't tell it apart from a shaky one — caveats should be proportional to actual uncertainty, not a reflexive hedge added to every sentence out of caution.",
+            "One practical habit: state your confidence level explicitly (\"high confidence,\" \"moderate, worth validating further,\" \"early signal only\") rather than leaving the reader to infer it from tone.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Same underlying finding, calibrated two different ways",
+          body: "The words \"significant\" and \"promising\" are doing real work here — swapping them would misrepresent how solid each finding actually is.",
+          code: `High confidence (controlled A/B test, 50,000 users, p < 0.01):
+"The new onboarding flow reduced 30-day churn by 4 points.
+Recommendation: roll out to 100% of new signups."
+
+Lower confidence (correlational, 400 users, no controlled test):
+"Customers who attended a live demo show 4 points lower
+30-day churn than those who didn't. This is promising but
+correlational — demo attendees may simply be more engaged
+already. Recommendation: run a proper test before investing
+in scaling live demos."`,
+        },
+        {
+          kind: "diagram",
+          heading: "The shape of a decision-ready write-up",
+          description:
+            "The order matters as much as the content — each piece answers a question the reader hasn't asked yet, in the order they'd naturally ask it.",
+          steps: [
+            { label: "1. Answer", detail: "The plain-language result, in one or two sentences — before any methodology" },
+            { label: "2. Recommendation", detail: "What to do about it, scaled to how solid the evidence actually is" },
+            { label: "3. Confidence level", detail: "High / moderate / early-signal, stated explicitly rather than implied by tone" },
+            { label: "4. Caveats", detail: "Sample size, time window, confounders — named, not buried" },
+            { label: "5. Supporting detail", detail: "Methodology, full numbers, charts — available for whoever wants to dig in, not required reading" },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The overreach mistake: recommending more than the data supports",
+          body: "It's tempting to match the confidence of your recommendation to how interesting the finding is, rather than to how strong the evidence actually is — a surprising correlational result on 300 users can feel like it deserves a bold \"let's roll this out\" simply because it's exciting. It doesn't. A recommendation that outruns its evidence is the single fastest way to lose a stakeholder's trust in your next analysis, even if this particular guess happens to pay off — the fix isn't to undersell real findings, it's to keep the recommendation's boldness pinned to the actual strength of the evidence behind it, every time.",
+        },
+        {
+          kind: "bullets",
+          heading: "The same finding, presented for two different audiences",
+          intro: "The underlying finding doesn't change based on who's reading it — but how much of the supporting detail belongs in the main message does.",
+          bullets: [
+            "A leadership audience wants the answer, the recommendation, and the confidence level — three sentences, no jargon, no methodology, with the option to ask for more.",
+            "A fellow analyst reviewing your work wants the methodology, the sample size, the exact statistical test used, and any assumptions you made — leaving these out isn't concise, it's unreviewable.",
+            "The practical fix isn't writing two different findings — it's writing one decision-ready summary up top, with the full methodology available right below it or in an appendix, so either audience gets exactly what they came for without the other audience's needs crowding it out.",
+          ],
+        },
+        {
           kind: "summary",
           heading: "Closing the loop on the fundamentals",
           bullets: [
@@ -374,6 +658,322 @@ controlled test to confirm load time is the actual cause."`,
             "Clean deliberately and document what you did, rather than silently dropping anything messy.",
             "Choose the right summary statistic and chart for the actual shape of your data.",
             "Keep correlation and causation separate, and end with a plain-language answer and recommendation, not just a number.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Statistical Significance and Sample Size: How Confident Should You Be?",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Statistical Significance and Sample Size: How Confident Should You Be?",
+          subheading:
+            "Version B beat version A in your A/B test. Before you ship B, there's one more question: could this difference just be noise?",
+        },
+        {
+          kind: "text",
+          heading: "What \"statistically significant\" actually means",
+          body: [
+            "A difference between two groups is statistically significant when it's unlikely to have happened by chance alone, given how much natural variation you'd expect from random sampling. It does not mean the difference is large, or important, or guaranteed to be real — only that random noise is an unlikely explanation for it.",
+            "The two numbers that drive this judgment are the size of the observed difference and the sample size behind it. The same 2-point difference can be meaningless noise with 200 visitors and a rock-solid signal with 200,000.",
+          ],
+        },
+        {
+          kind: "example",
+          heading: "Working through a real A/B test",
+          body: "Version A converts 500 of 10,000 visitors (5.0%). Version B converts 560 of 10,000 (5.6%). Is that 0.6-point lift real, or noise?",
+          code: `Pooled conversion rate = (500 + 560) / (10,000 + 10,000) = 5.3%
+
+Standard error = sqrt(0.053 * 0.947 * (1/10,000 + 1/10,000))
+              ≈ 0.32 percentage points
+
+z-score = (5.6% - 5.0%) / 0.32%  ≈ 1.9
+
+A z-score above ~1.96 is the common threshold for
+"significant at 95% confidence." 1.9 falls just short of it —
+close, but not quite there.`,
+        },
+        {
+          kind: "chart",
+          heading: "Version A vs. Version B conversion rate",
+          description: "A real-looking 0.6-point lift — the z-score above is what decides whether that's signal or noise.",
+          chartType: "bar",
+          unit: "%",
+          data: [
+            { label: "Version A", value: 5.0 },
+            { label: "Version B", value: 5.6 },
+          ],
+        },
+        {
+          kind: "bullets",
+          heading: "What this result actually tells you",
+          bullets: [
+            "A z-score of 1.9 doesn't mean \"no effect\" — it means the current data can't yet rule out chance as the explanation, at the usual 95% bar. The honest read is \"promising, not yet proven.\"",
+            "The fix for a borderline result like this is almost always more data, not a different formula — running the test longer (or on more traffic) narrows the standard error and makes a real effect easier to detect.",
+            "Sample size cuts both ways: with a large enough sample, even a genuinely trivial difference (a 0.1-point lift nobody would care about) can become \"statistically significant\" — significance is not the same question as whether an effect is worth acting on.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "Peeking early inflates false positives",
+          body: "Checking a test's results every day and stopping as soon as it looks significant is one of the most common ways teams fool themselves — random noise will cross a significance threshold temporarily just by chance if you check often enough. Decide the sample size (or run time) needed before starting, and don't act on the result until you get there.",
+        },
+        {
+          kind: "bullets",
+          heading: "Confidence intervals: a more honest way to report the result",
+          intro:
+            "A single number (\"5.6% conversion\") implies more precision than a sample actually gives you — a confidence interval reports the range instead.",
+          bullets: [
+            "A 95% confidence interval of [5.0%, 6.2%] around Version B's 5.6% conversion rate means: if you re-ran this exact test many times, about 95% of the intervals you'd calculate would contain the true underlying conversion rate.",
+            "If Version A's rate (5.0%) falls inside Version B's confidence interval, that's another way of seeing the same thing the z-score showed — the two results overlap enough that chance is a plausible explanation for the difference.",
+            "Reporting a range instead of a single point is more honest about how much the sample size actually constrains what you know — a wide interval is itself useful information, not something to round away.",
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "warning",
+          heading: "The multiple-comparisons trap",
+          body: "Testing 20 independent metrics at once at the standard 95% confidence bar means, on average, about 1 of them will look \"significant\" purely by chance even if nothing real changed — that's what a 5% false-positive rate implies when you run enough comparisons. Running an A/B test and then scanning dozens of sub-segments (by region, device, age group...) for one that shows significance is a common, tempting version of this mistake — with enough slices, one will look significant by luck alone. The fix is deciding your key metric before the test starts, or using a stricter significance bar when deliberately checking many segments.",
+        },
+        {
+          kind: "bullets",
+          heading: "Statistical significance vs. practical significance",
+          intro:
+            "A result can be statistically significant and still not matter — these are two genuinely separate questions, and treating them as one is a common way a technically correct analysis leads to a bad decision.",
+          bullets: [
+            "Statistical significance asks: is this difference unlikely to be pure chance? Practical significance asks: is this difference big enough to actually care about, given the cost of acting on it?",
+            "A version B that lifts conversion from 5.00% to 5.02%, measured across 2 million visitors, can easily clear the 95% significance bar — the sample is large enough to detect even a tiny, real effect — while still being too small to justify the engineering cost of shipping and maintaining it.",
+            "The reverse also happens: a promising-looking 3-point lift on a small sample can fail to reach significance purely because the sample is too small to confirm it yet, even though the underlying effect (if real) would clearly be worth acting on — this is exactly the \"promising, not yet proven\" case, and the right response is more data, not abandoning the idea.",
+            "In practice, decide the minimum effect size worth caring about before running the test, not after — that number, not just the significance threshold, is what should actually drive the ship/don't-ship decision.",
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "Significance, briefly",
+          bullets: [
+            "Statistical significance asks whether chance is a plausible explanation for a difference — not whether the difference is large or worth acting on.",
+            "A bigger sample narrows the noise band around your estimate, which is why small tests produce inconclusive results even when a real effect exists.",
+            "Decide your sample size up front and don't stop a test early just because it briefly looks significant.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Practice: Turning Raw Numbers Into a Decision-Ready Finding",
+      durationMinutes: 12,
+      slides: [
+        {
+          kind: "title",
+          heading: "Practice: Turning Raw Numbers Into a Decision-Ready Finding",
+          subheading:
+            "Three exercises spanning cleaning, summarizing, and communicating — the same arc as a real analysis.",
+        },
+        {
+          kind: "practice",
+          heading: "Spot the cleaning issues",
+          prompt: `You're handed this raw export of support tickets:
+
+ticket_id | customer_email  | priority | opened_date
+1001      | j.lee@acme.com  | HIGH     | 2026-02-11
+1002      | J.LEE@ACME.COM  | High     | 11/02/2026
+1003      |                 | high     | 2026-02-12
+1004      | j.lee@acme.com  | HIGH     | 2026-02-11
+
+List every data quality issue you see, and for each one say what you'd do about it before analyzing ticket volume by customer.`,
+          hint: "Look row by row for anything that would make the same real-world entity look like different values, plus anything ambiguous.",
+          solution:
+            "Issues: (1) \"j.lee@acme.com\" and \"J.LEE@ACME.COM\" are the same email in different casing — without standardizing case, this customer would be undercounted as two different customers; fix by lowercasing all emails before grouping. (2) Priority values \"HIGH\" and \"High\" are the same category in inconsistent casing — standardize casing here too. (3) Row 1003 has a missing email — decide whether to investigate the source ticket rather than silently dropping it, since a missing identifier could bias a per-customer analysis if the missingness isn't random. (4) The date format switches between 2026-02-11 (ISO) and 11/02/2026 (ambiguous — could be Nov 2 or Feb 11) — this needs to be resolved by checking the source system's actual format, not guessed, since reading 11/02 the wrong way silently corrupts every date-based analysis. (5) Rows 1001 and 1004 look like an exact duplicate (same email, priority, and date) — check the ticket IDs against a real unique identifier before deciding whether it's a true duplicate or two genuinely separate tickets that happen to share these values.",
+        },
+        {
+          kind: "practice",
+          heading: "Mean, median, or both?",
+          prompt:
+            "Customer support resolution times (in hours) for 8 recent tickets: 2, 3, 3, 4, 4, 5, 6, 41. The 41-hour ticket was a legitimate but unusually complex case, not a data error. Calculate the mean and median, and decide which one (or both) you'd report to leadership as \"typical resolution time,\" with reasoning.",
+          hint: "Calculate both first, then think about what a single very large but real value does to each.",
+          solution:
+            "Mean = (2+3+3+4+4+5+6+41)/8 = 68/8 = 8.5 hours. Median (sorted: 2,3,3,4,4,5,6,41 — average of the 4th and 5th values) = (4+4)/2 = 4 hours. Report the median (4 hours) as \"typical\" — the mean is pulled far upward by the single 41-hour outlier and would badly overstate what a normal ticket actually looks like. But don't report only the median: mention the mean and the outlier alongside it (e.g., \"typical resolution time is 4 hours; one complex case took 41 hours and pulled the average up to 8.5\"), since dropping the outlier from the story entirely would hide a real, legitimate case that leadership may want visibility into.",
+        },
+        {
+          kind: "chart",
+          heading: "The 8 resolution times",
+          description: "One ticket (41 hours) dwarfs the rest — that's why the mean (8.5h) overstates a typical case far more than the median (4h) does.",
+          chartType: "bar",
+          unit: "hours",
+          data: [
+            { label: "Ticket 1", value: 2 },
+            { label: "Ticket 2", value: 3 },
+            { label: "Ticket 3", value: 3 },
+            { label: "Ticket 4", value: 4 },
+            { label: "Ticket 5", value: 4 },
+            { label: "Ticket 6", value: 5 },
+            { label: "Ticket 7", value: 6 },
+            { label: "Ticket 8", value: 41 },
+          ],
+        },
+        {
+          kind: "practice",
+          heading: "Write the decision-ready version",
+          prompt:
+            "Raw finding: \"Customers who used live chat support had a 12% 90-day churn rate versus 19% for customers who only used email support, based on 6,000 customers over the last two quarters. We have not run a controlled experiment.\" Turn this into a decision-ready finding: a plain-language answer, a recommendation, and an honest caveat.",
+          hint: "Lead with the answer in plain terms, then recommend an action proportional to how solid the evidence actually is, then name what could be confounding it.",
+          solution:
+            "Answer: Customers who used live chat churned at roughly two-thirds the rate of email-only customers (12% vs. 19%) over the last two quarters. Recommendation: given this is correlational, not yet proven causal, the right next step is a controlled test — offer live chat proactively to a random subset of customers and compare churn, rather than immediately assuming chat access itself reduces churn and rolling it out company-wide. Caveat: customers who proactively seek out live chat may simply be more engaged or higher-intent to begin with (a confounding variable) — that alone could produce this gap even if chat access changes nothing. This finding justifies running the experiment; it doesn't yet justify skipping straight to a company-wide rollout.",
+        },
+        {
+          kind: "practice",
+          heading: "Is the lift real, or could it be noise?",
+          prompt:
+            "A follow-up controlled test actually runs: 8,000 customers get proactive live chat offers, 8,000 don't. 90-day churn is 13.5% in the chat group vs. 15.0% in the control group. The pooled rate is 14.25%, and the calculated standard error works out to about 0.55 percentage points. Compute the z-score for this 1.5-point gap, decide whether it clears the standard 95% confidence bar (z of roughly 1.96 or higher), and write one sentence on what you'd recommend next either way.",
+          hint: "z-score = observed difference / standard error. Compare the result to the 1.96 threshold used earlier in this course.",
+          solution:
+            "z = 1.5 / 0.55 ≈ 2.73, which clears the 1.96 threshold comfortably — this result is statistically significant at the standard 95% confidence bar, meaning chance alone is an unlikely explanation for a gap this size on a sample this large. Recommendation: this is now strong enough evidence to support a confident recommendation — roll out proactive live chat offers more broadly — rather than the hedged \"run a test first\" language from the correlational version. The difference between this exercise and the previous one is exactly the difference a controlled test with a clear result makes to how much weight a recommendation can carry.",
+        },
+        {
+          kind: "terminal",
+          heading: "Sanity-checking the z-score in a quick REPL",
+          description: "Before trusting hand arithmetic on a result you're about to act on, it's worth confirming it in code — the kind of five-second habit that catches an arithmetic slip before it reaches a recommendation.",
+          lines: [
+            { text: "python3" },
+            { text: ">>> pooled = (8000*0.135 + 8000*0.15) / (8000 + 8000)", output: true },
+            { text: ">>> pooled", output: true },
+            { text: "0.1425", output: true },
+            { text: ">>> import math", output: true },
+            { text: ">>> se = math.sqrt(pooled * (1 - pooled) * (1/8000 + 1/8000))", output: true },
+            { text: ">>> se", output: true },
+            { text: "0.005514...", output: true },
+            { text: ">>> z = (0.15 - 0.135) / se", output: true },
+            { text: ">>> z", output: true },
+            { text: "2.7207...", output: true },
+          ],
+        },
+        {
+          kind: "callout",
+          tone: "insight",
+          heading: "What a z-score just short of significant is really telling you",
+          body: "A result that lands at z = 1.7 or 1.8 — close to but under the 1.96 bar — is not the same thing as \"no effect.\" It means the sample size isn't yet large enough to distinguish a real, modest effect from chance with confidence. Two honest responses exist: run the test longer to narrow the standard error, or explicitly report it as inconclusive rather than quietly rounding it up to \"significant\" because the number is close. Treating a near-miss as a win is the same overreach mistake covered earlier in this course, just wearing statistical clothing instead of prose — the underlying discipline (match your confidence to the strength of the evidence, not to how much you want the result to be true) is identical either way, whether the evidence is a shaky correlation or a z-score that just barely misses the standard threshold.",
+        },
+        {
+          kind: "diagram",
+          heading: "The full arc, start to finish",
+          description: "Every exercise in this practice lesson maps onto one step of the same underlying workflow — the same one this whole course has been building toward.",
+          steps: [
+            { label: "Frame the question", detail: "Specific metric, comparison, time window — before touching data" },
+            { label: "Clean deliberately", detail: "Standardize casing, resolve ambiguous dates, check real duplicates" },
+            { label: "Summarize honestly", detail: "Mean vs. median chosen for the data's actual shape, not habit" },
+            { label: "Test the claim", detail: "z-score / significance — is the gap signal, or could it be noise, given the sample size actually collected?" },
+            { label: "Communicate the decision", detail: "Answer, recommendation, confidence level, caveat — in that order, so the reader gets the conclusion first and the full methodology only if they go looking for it" },
+          ],
+        },
+        {
+          kind: "summary",
+          heading: "What this practice demonstrates",
+          bullets: [
+            "Catching formatting inconsistencies, ambiguous dates, and possible duplicates before they quietly bias a per-customer analysis.",
+            "Choosing median over mean (or reporting both) when a real but extreme value would otherwise distort the \"typical\" story.",
+            "Writing a finding that leads with the answer, recommends a proportional next step, and names the honest limitation — rather than presenting a correlation as if it were already proven causal.",
+            "Recognizing when a result clears the bar for a confident recommendation versus when it only supports running a further test — and checking the arithmetic behind that judgment rather than trusting it by eye, since a small hand-calculation slip can flip a recommendation entirely and nobody downstream is likely to re-derive it themselves.",
+          ],
+        },
+      ],
+    },
+    {
+      title: "Knowledge Check",
+      durationMinutes: 7,
+      slides: [
+        {
+          kind: "title",
+          heading: "Knowledge Check",
+          subheading:
+            "Five questions across the whole course — the kind of understanding that should survive being asked a different way than the lesson asked it.",
+        },
+        {
+          kind: "quiz",
+          heading: "Framing a question",
+          question:
+            "Which of these is the most \"workable\" analysis question, in the sense this course defines it?",
+          options: [
+            "\"How is the business doing overall?\"",
+            "\"Are customers happy with the product?\"",
+            "\"Did customers who completed onboarding have lower 90-day churn than those who didn't, over the last two quarters?\"",
+            "\"What's interesting in the customer data?\"",
+          ],
+          correctIndex: 2,
+          explanation:
+            "A workable question names a specific metric (churn), a specific comparison group (completed onboarding vs. not), and a specific time window (last two quarters) — which tells you exactly what data you need and what result would prove the idea wrong. The others are topics, not falsifiable questions.",
+        },
+        {
+          kind: "quiz",
+          heading: "Missing data",
+          question:
+            "A dataset has a column that's missing for roughly 40% of rows — and those missing rows turn out to be almost entirely customers who signed up in the last 3 months. What's the risk of simply dropping every row with a missing value in that column?",
+          options: [
+            "There's no risk — dropping incomplete rows is always safe",
+            "It would bias the analysis toward older customers, since newer customers are disproportionately being removed",
+            "It would bias the analysis toward newer customers",
+            "It only matters if more than 50% of rows are affected",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Because the missingness isn't random — it's concentrated in newer signups — dropping those rows quietly skews the remaining data toward older customers. Missing-data decisions need to account for whether the missingness itself is random or systematic, not just how much of it there is.",
+        },
+        {
+          kind: "quiz",
+          heading: "Mean vs. median",
+          question:
+            "A dataset of home sale prices in a neighborhood is heavily skewed by a few very expensive mansions. Which statistic best describes a \"typical\" home price there?",
+          options: [
+            "The mean, because it uses every data point",
+            "The median, because it isn't dragged by the few extreme values",
+            "Neither — only the standard deviation is meaningful here",
+            "The mean and median will be nearly identical either way",
+          ],
+          correctIndex: 1,
+          explanation:
+            "The mean is sensitive to every value, so a handful of very expensive mansions pull it well above what a typical home actually costs. The median only depends on the middle-ranked value, so it stays representative even with a skewed, long-tailed distribution like home prices.",
+        },
+        {
+          kind: "quiz",
+          heading: "Reading a chart honestly",
+          question:
+            "A bar chart shows a jump from 51% to 53% with a y-axis running from 50% to 54%. What's the most accurate description of this chart?",
+          options: [
+            "It's dishonest because the underlying numbers must be wrong",
+            "It's technically accurate but visually exaggerates a modest 2-point change",
+            "It's the correct way to display any percentage comparison",
+            "It's misleading only if the bars are colored differently",
+          ],
+          correctIndex: 1,
+          explanation:
+            "Every number on the chart can be correct while the visual impression is still distorted — cropping the y-axis to a narrow range makes a small, real difference look dramatic. The fix is showing the full 0-100% range (or clearly labeling the cropped axis), not changing the underlying data.",
+        },
+        {
+          kind: "quiz",
+          heading: "Correlation vs. causation",
+          question:
+            "Stores with more sales staff also have higher sales. Someone concludes \"hiring more staff increases sales.\" What's the most important thing to check before accepting that conclusion?",
+          options: [
+            "Whether the correlation coefficient is above 0.5",
+            "Whether busier, already-higher-revenue stores might simply be the ones getting more staffing budget in the first place",
+            "Whether the data covers a full calendar year",
+            "Whether the stores are in the same country",
+          ],
+          correctIndex: 1,
+          explanation:
+            "This is a classic confounding-variable risk: it's just as plausible that higher-revenue stores are allocated more staff (the reverse of the assumed direction), not that staffing causes the sales. Without a controlled experiment or a check that accounts for store size and traffic, the causal claim isn't justified by the correlation alone.",
+        },
+        {
+          kind: "summary",
+          heading: "The course's core takeaways",
+          bullets: [
+            "Start with a specific, falsifiable question before touching any data.",
+            "Clean deliberately — standardize formats, check real duplicates, and think about whether missing data is random before dropping it.",
+            "Match your summary statistic (mean vs. median) and chart type to the actual shape of the data, not habit.",
+            "A correlation is a starting point for investigation, not proof of causation — watch for confounders and reverse causation.",
+            "Statistical significance tells you whether chance is a plausible explanation, not whether an effect is large or worth acting on.",
+            "End every analysis with a plain-language answer, a proportional recommendation, and an honest caveat.",
           ],
         },
       ],
