@@ -64,7 +64,8 @@
 
   $('startRun').onclick = async () => {
     const res = await cmd('start');
-    if (res && res.state && res.state.lastError && !res.state.running) note(res.state.lastError);
+    if (!res || !res.ok) note((res && res.error) || 'Could not start.');
+    else if (res.state && res.state.lastError && !res.state.running) note(res.state.lastError);
     refresh();
   };
 
@@ -93,13 +94,13 @@
     $('runState').dataset.on = s.running ? 'running' : '';
     $('runState').textContent = s.running ? 'Running' : 'Idle';
     $('startRun').hidden = s.running;
-    $('startRun').disabled = !s.queue.length;
     $('stopRun').hidden = !s.running;
 
     $('cQueued').textContent = s.queue.filter((j) => j.state === 'queued').length;
     $('cApplied').textContent = s.stats.applied;
     $('cAssisted').textContent = s.stats.assisted;
-    $('cSkipped').textContent = s.stats.skipped;
+    // Waiting in a tab for the person, plus anything left for them.
+    $('cSkipped').textContent = s.stats.skipped + s.queue.filter((j) => j.state === 'waiting').length;
     $('cFailed').textContent = s.stats.failed;
 
     if (s.lastError && !s.running) note(s.lastError);
@@ -135,6 +136,7 @@
     return {
       queued: 'Queued',
       running: 'Applying',
+      waiting: 'Needs you',
       submitted: 'Submitted',
       assisted: 'Filled',
       skipped: 'Needs you',

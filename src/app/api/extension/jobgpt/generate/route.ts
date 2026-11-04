@@ -18,7 +18,8 @@ const schema = z.object({
   posting: z
     .object({ title: z.string().optional(), company: z.string().optional(), description: z.string().optional() })
     .optional(),
-  question: z.string().optional(),
+  question: z.string().max(2000).optional(),
+  options: z.array(z.string().max(300)).max(30).optional(),
   text: z.string().optional(),
   matchedSkills: z.array(z.string()).optional(),
 });
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const input = schema.parse(await req.json());
 
-    const careerContext = input.kind === "parseResume" ? "" : await buildCareerContext(user.id);
+    const careerContext = input.kind === "parseResume" ? "" : await buildCareerContext(user.id, { forApplication: true });
     const prompt = buildExtensionPrompt(input, careerContext);
     if (!prompt) return extError("Nothing to write", 400);
 

@@ -17,17 +17,41 @@
 (function (root) {
   'use strict';
 
-  const { Storage, Profile, Matcher, Policy, Discovery, Api } = root.CareerOS;
+  const { Storage, Profile, Matcher, Policy, Discovery, Api, SearchUrls } = root.CareerOS;
 
   const STATE_KEY = 'careeros.engine';
   const JOB_TIMEOUT_MS = 180000;
+  const STAGGER_MS = 4000;     // 4–8 s between opening two tabs
 
+  const TABS_KEY = 'careeros.tabs';
+  let addLock = Promise.resolve();
   const runtime = {
-    tabs: new Map(),        // tabId -> { job, resolve, timer }
-    gateUntil: new Map(),   // ats -> earliest timestamp for the next job
+    tabs: new Map(),        // tabId -> { job, resolve, timer, deadline, waiting }
+    gateUntil: new Map(),   // gateKey(job) -> earliest timestamp for the next job there
     pregen: new Map(),      // externalId -> generated text
     loopRunning: false
   };
+
+  /* The open application tabs, mirrored to session storage: the service worker sleeps while an application
+     waits for the person, and must still know that tab when they finish. */
+  const tabsReady = (async () => {
+    try {
+      const saved = (await chrome.storage.session.get(TABS_KEY))[TABS_KEY] || {};
+      for (const [id, e] of Object.entries(saved)) {
+        if (!runtime.tabs.has(Number(id))) runtime.tabs.set(Number(id), Object.assign({}, e));
+      }
+    } catch (err) { /* no session storage (tests) */ }
+  })();
+  function saveTabs() {
+    const out = {};
+    for (const [id, e] of runtime.tabs) out[id] = { job: e.job, windowId: e.windowId, deadline: e.deadline, waiting: !!e.waiting, handoff: !!e.handoff, expectTabAt: e.expectTabAt || 0, submitPressed: !!e.submitPressed };
+    try { return chrome.storage.session.set({ [TABS_KEY]: out }); } catch (err) { return Promise.resolve(); }
+  }
+  function armTimer(tabId, entry) {
+    clearTimeout(entry.timer);
+    entry.deadline = Date.now() + timeoutFor(entry.job.ats);
+    entry.timer = setTimeout(() => Engine.handleResult(tabId, { outcome: 'failed', detail: 'Timed out' }), timeoutFor(entry.job.ats));
+  }
 
   const Engine = {
     async getState() {
@@ -58,6 +82,13 @@
           skipped: next.stats.skipped,
           failed: next.stats.failed,
           lastError: next.lastError || undefined,
+          waiting: next.queue.filter((j) => j.state === 'waiting').slice(0, 50).map((j) => ({
+            title: String(j.title || '').slice(0, 200),
+            company: String(j.company || '').slice(0, 200),
+            url: String(j.url || '').slice(0, 2000),
+            reason: j.waitReason || 'questions',
+            message: String(j.detail || '').slice(0, 500)
+          })),
         }).catch(() => {});
       }
       return next;
@@ -166,12 +197,24 @@
         stats: Object.assign({}, prior.stats, { queued: queued.length })
       });
 
+      // LinkedIn and Indeed come in from the person's own search pages, in the background: the run starts
+      // on what is already queued and picks these up as they arrive.
+      searchJobBoards(activeProfile, settings);
+
       return { queued: queued.length, found: jobs.length, errors };
     },
 
     /* Jobs harvested from a results page. They arrive without a description,
        so they get scored again in the tab once the posting has loaded. */
-    async add(jobs) {
+    add(jobs) {
+      // Serialised: the background board search and an open search page both add at once, and two
+      // overlapping read-modify-writes of the queue would drop one side's jobs.
+      const run = addLock.then(() => Engine.addNow(jobs));
+      addLock = run.catch(() => {});
+      return run;
+    },
+
+    async addNow(jobs) {
       const state = await Engine.getState();
       const settings = await Storage.getSettings();
       const profilesData = await Storage.getProfiles();
@@ -251,6 +294,10 @@
         });
       }
 
+      // A queue left over from earlier skips build(), so the LinkedIn / Indeed search starts here too.
+      const profiles = await Storage.getProfiles();
+      searchJobBoards(Profile.hydrate(profiles.profiles[profiles.activeId]), await Storage.getSettings());
+
       await Engine.setState({
         running: true,
         startedAt: Date.now(),
@@ -265,8 +312,14 @@
     async stop(reason) {
       await Engine.setState({ running: false, lastError: reason || null });
       chrome.alarms.clear('careeros:tick');
-      for (const [tabId] of runtime.tabs) closeTab(tabId);
-      runtime.tabs.clear();
+      // Applications waiting for the person stay open: closing them would throw their answers away.
+      for (const [tabId, e] of runtime.tabs) {
+        if (e.waiting) continue;
+        clearTimeout(e.timer);
+        closeTab(tabId);
+        runtime.tabs.delete(tabId);
+      }
+      saveTabs();
       return Engine.getState();
     },
 
@@ -275,6 +328,11 @@
     async loop() {
       if (runtime.loopRunning) return;
       runtime.loopRunning = true;
+      await tabsReady;
+      // After the worker slept, in-memory timers are gone: apply any deadline that passed.
+      for (const [tabId, e] of runtime.tabs) {
+        if (!e.waiting && e.deadline && Date.now() > e.deadline) Engine.handleResult(tabId, { outcome: 'failed', detail: 'Timed out' });
+      }
 
       try {
         while (true) {
@@ -284,14 +342,23 @@
           const settings = await Storage.getSettings();
           const usedToday = await Storage.appliedToday();
           if (usedToday >= settings.dailyLimit) {
-            await Engine.stop(`Daily cap of ${settings.dailyLimit} reached`);
+            await Engine.stop(`Daily limit of ${settings.dailyLimit} applications reached. It resets at midnight.`);
             notify('CareerOS is done for today', `${usedToday} applications went out.`);
             break;
+          }
+          // The plan's monthly cap, counted across every browser at the last sync plus what went out here since.
+          if (settings.monthlyLimit != null && settings.monthlyLimit !== '') {
+            const apps = await Storage.getApplications();
+            const since = apps.filter((a) => a.status === 'submitted' && (a.submittedAt || a.at || 0) > (settings.syncedAt || 0)).length;
+            if ((settings.appliedThisMonth || 0) + since >= Number(settings.monthlyLimit)) {
+              await Engine.stop(`This month's limit of ${settings.monthlyLimit} applications on your plan is reached.`);
+              break;
+            }
           }
 
           const next = pickNext(state.queue, settings, await getBlockedSites());
           if (!next) {
-            if (!runtime.tabs.size) {
+            if (!runtime.boardSearch && (!runtime.tabs.size || [...runtime.tabs.values()].every((t) => t.waiting))) {
               await Engine.stop('Queue finished');
               notify('Run finished', summarize(await Engine.getState()));
               break;
@@ -300,9 +367,11 @@
             continue;
           }
 
+          // An application waiting for the person doesn't hold a slot: the rest of the run carries on.
+          const working = [...runtime.tabs.values()].filter((t) => !t.waiting);
           const cap = Policy.concurrencyCap(next.ats, settings);
-          const openOnPlatform = [...runtime.tabs.values()].filter((t) => t.job.ats === next.ats).length;
-          if (openOnPlatform >= cap || runtime.tabs.size >= Math.max(cap, Number(settings.concurrency) || 3)) {
+          const openOnPlatform = working.filter((t) => t.job.ats === next.ats).length;
+          if (openOnPlatform >= cap || working.length >= Math.max(cap, Number(settings.concurrency) || 3)) {
             await sleep(1500);
             continue;
           }
@@ -310,7 +379,9 @@
           // Jitter the gap so a run doesn't tick like a metronome. Restricted
           // platforms watch session shape, and a perfectly regular cadence is
           // the most obvious signal there is.
-          runtime.gateUntil.set(next.ats, Date.now() + Policy.jitter(next.ats, settings));
+          runtime.gateUntil.set(gateKey(next), Date.now() + Policy.jitter(next.ats, settings));
+          // Tabs open one after another rather than all at once.
+          runtime.gateUntil.set('*', Date.now() + STAGGER_MS + Math.round(Math.random() * STAGGER_MS));
           await mark(next.id, 'running');
           pregenerateAhead(state.queue, settings);
 
@@ -330,9 +401,13 @@
     },
 
     /* Called by the worker when a content script announces itself. */
-    async handleReady(tabId) {
+    async handleReady(tabId, url) {
+      await tabsReady;
       const entry = runtime.tabs.get(tabId);
       if (!entry) return null;
+      // The application moved to the employer's site (LinkedIn "Apply on company website", Indeed Apply):
+      // that page is now the job to fill.
+      if (entry.handoff && url && !/linkedin\.com|indeed\.com/i.test(url)) retarget(entry, url);
       const settings = await Storage.getSettings();
       const permission = Policy.canAutoSubmit(entry.job.ats, settings);
 
@@ -359,6 +434,7 @@
       return {
         job: entry.job,
         directive: {
+          submitPressed: !!entry.submitPressed,
           autoSubmit: permission.allowed,
           policyNote: permission.reason,
           maxSteps: stepsFor(entry.job.ats),
@@ -372,10 +448,12 @@
     },
 
     async handleResult(tabId, result) {
+      await tabsReady;
       const entry = runtime.tabs.get(tabId);
       if (!entry) return;
       clearTimeout(entry.timer);
       runtime.tabs.delete(tabId);
+      saveTabs();
       runtime.pregen.delete(entry.job.id);
       // A login wall needs the person in that exact tab (and stops the run,
       // see settle()), so it stays open and focused. A filled application
@@ -394,6 +472,112 @@
       }
       await settle(entry.job, result);
       if (entry.resolve) entry.resolve(result);
+    },
+
+    /* The application needs the person (a question only they can answer, a visible CAPTCHA, a sign-in).
+       Its tab stays open and stops counting against the time limit; the rest of the run carries on. */
+    async handleNeedsYou(tabId, info) {
+      await tabsReady;
+      const entry = runtime.tabs.get(tabId);
+      if (!entry) return;
+      clearTimeout(entry.timer);
+      const first = !entry.waiting;
+      entry.waiting = true;
+      entry.deadline = 0;
+      saveTabs();
+      const message = String((info && info.message) || 'Needs your answer').slice(0, 300);
+      await mark(entry.job.id, 'waiting', message, { waitReason: String((info && info.reason) || 'questions').slice(0, 40) });
+      if (first) {
+        chrome.notifications.create(`careeros:tab:${tabId}`, {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+          title: `${entry.job.title || 'An application'} needs you`,
+          message: `${entry.job.company ? entry.job.company + ': ' : ''}${message} CareerOS continues by itself once you're done.`,
+          priority: 2
+        });
+      }
+      Engine.loop();
+    },
+
+    async handleResumed(tabId) {
+      await tabsReady;
+      const entry = runtime.tabs.get(tabId);
+      if (!entry || !entry.waiting) return;
+      entry.waiting = false;
+      armTimer(tabId, entry);
+      saveTabs();
+      chrome.notifications.clear(`careeros:tab:${tabId}`);
+      await mark(entry.job.id, 'running', null);
+    },
+
+    /* Submit is being pressed: a reload onto the confirmation page must be recognised, never retried. */
+    async handleSubmitting(tabId) {
+      await tabsReady;
+      const entry = runtime.tabs.get(tabId);
+      if (!entry) return;
+      entry.submitPressed = true;
+      saveTabs();
+    },
+
+    /* LinkedIn "Apply on company website": the run follows the link to the employer's own form. */
+    async handleHandoff(tabId) {
+      await tabsReady;
+      const entry = runtime.tabs.get(tabId);
+      if (!entry) return;
+      entry.handoff = true;
+      entry.expectTabAt = Date.now();
+      armTimer(tabId, entry);
+      saveTabs();
+    },
+
+    /* Indeed Apply (and some employers' links) open the form in a new tab. */
+    async handleExpectTab(tabId) {
+      await tabsReady;
+      const entry = runtime.tabs.get(tabId);
+      if (!entry) return;
+      entry.expectTabAt = Date.now();
+      saveTabs();
+    },
+
+    /* A tab opened by an application tab (or right after one announced it) continues that application. */
+    async adoptTab(openerTabId, tab) {
+      await tabsReady;
+      let fromId = openerTabId != null && runtime.tabs.has(openerTabId) ? openerTabId : null;
+      if (fromId == null) {
+        for (const [id, e] of runtime.tabs) {
+          if (e.expectTabAt && Date.now() - e.expectTabAt < 15000) { fromId = id; break; }
+        }
+      }
+      if (fromId == null || fromId === tab.id) return;
+      const entry = runtime.tabs.get(fromId);
+      runtime.tabs.delete(fromId);
+      entry.handoff = true;
+      entry.expectTabAt = 0;
+      runtime.tabs.set(tab.id, entry);
+      armTimer(tab.id, entry);
+      if (tab.pendingUrl || tab.url) retarget(entry, tab.pendingUrl || tab.url);
+      saveTabs();
+      setTimeout(() => closeTab(fromId), 1500);
+    },
+
+    async focusTab(tabId) {
+      try {
+        const tab = await chrome.tabs.update(tabId, { active: true });
+        if (tab && tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
+        return true;
+      } catch (err) { return false; }
+    },
+
+    /* An application tab was closed by the person: that application is left to them. */
+    async handleTabClosed(tabId) {
+      await tabsReady;
+      const entry = runtime.tabs.get(tabId);
+      if (!entry) return;
+      clearTimeout(entry.timer);
+      runtime.tabs.delete(tabId);
+      saveTabs();
+      if (entry.submitPressed) await settle(entry.job, { outcome: 'submitted', detail: 'submitted; the tab closed on the confirmation' });
+      else await settle(entry.job, { outcome: 'skipped', detail: 'you closed its tab' });
     },
 
     /* Step-level progress from a content script mid-run, so the dashboard can
@@ -431,15 +615,97 @@
     return JOB_TIMEOUT_MS;
   }
 
+  /* LinkedIn and Indeed have no job API anyone may use, so their jobs come from the person's own search,
+     read the way CareerOS reads it when they browse it themselves (Harvest): one search per target title
+     opens in a background tab, its results are queued, and the tab closes. Only with the "Job boards"
+     permission, and only for boards whose mode lets jobs be queued. Easy Apply / Indeed Apply jobs then
+     fill like any other (submitted by the person unless they turned on full automation for that board). */
+  const BOARD_SEARCH_MS = 60000;
+  const BOARD_SEARCH_EVERY_MS = 20 * 60 * 1000;
+  function searchJobBoards(profile, settings) {
+    if (runtime.boardSearch || settings.searchJobBoards === false || !SearchUrls) return runtime.boardSearch;
+    if (Date.now() - (runtime.boardSearchedAt || 0) < BOARD_SEARCH_EVERY_MS) return null;
+    runtime.boardSearchedAt = Date.now();
+    runtime.boardSearch = (async () => {
+      const notes = [];
+      let added = 0;
+      try {
+        const allowed = await chrome.permissions.contains({ origins: ['https://*.linkedin.com/*', 'https://*.indeed.com/*'] }).catch(() => false);
+        if (!allowed) {
+          notes.push('Allow "Job boards" in CareerOS settings so a run can search LinkedIn and Indeed for you');
+        } else {
+          const titles = ((profile.targeting || {}).titles || []).filter(Boolean).slice(0, 2);
+          for (const board of ['linkedin', 'indeed']) {
+            if (!Policy.canQueue(board, settings)) continue;
+            for (const title of titles.length ? titles : ['']) {
+              const url = SearchUrls[board](profile, settings, title ? { title } : undefined);
+              added += await harvestSearch(url).catch(() => 0);
+            }
+          }
+        }
+      } finally {
+        runtime.boardSearch = null;
+      }
+      if (notes.length) {
+        const state = await Engine.getState();
+        if (!String(state.lastError || '').includes(notes[0])) {
+          await Engine.setState({ lastError: [state.lastError, ...notes].filter(Boolean).join(' · ') });
+        }
+      }
+      return added;
+    })();
+    return runtime.boardSearch;
+  }
+
+  /* One search page: let it load and scroll (the content script's auto-harvest does that), take what it
+     shows until nothing new appears, then close it. */
+  async function harvestSearch(url) {
+    const tab = await chrome.tabs.create({ url, active: false });
+    const seen = new Set();
+    let added = 0;
+    let quiet = 0;
+    const end = Date.now() + BOARD_SEARCH_MS;
+    try {
+      await sleep(5000);
+      while (Date.now() < end && quiet < 3) {
+        const page = await chrome.tabs.sendMessage(tab.id, { type: 'careeros:harvest' }).catch(() => null);
+        const fresh = ((page && page.jobs) || []).filter((j) => j && j.id && !seen.has(j.id));
+        fresh.forEach((j) => seen.add(j.id));
+        if (fresh.length) {
+          quiet = 0;
+          added += (await Engine.add(fresh)).added;
+        } else {
+          quiet += 1;
+        }
+        await sleep(4000);
+      }
+    } finally {
+      chrome.tabs.remove(tab.id).catch(() => {});
+    }
+    return added;
+  }
+
   function pickNext(queue, settings, blocked) {
     const now = Date.now();
     return queue.find((j) => {
       if (j.state !== 'queued') return false;
       if (blocked && isBlockedJob(j, blocked)) return false;
       if (!Policy.canQueue(j.ats, settings)) return false;
-      const gate = runtime.gateUntil.get(j.ats) || 0;
-      return now >= gate;
+      const gate = runtime.gateUntil.get(gateKey(j)) || 0;
+      return now >= gate && now >= (runtime.gateUntil.get('*') || 0);
     });
+  }
+
+  /* Where the pacing gap applies. LinkedIn, Indeed and the other job boards watch one account's
+     whole session, so the gap is for the whole board. An employer ATS is a different site for every
+     company: a gap per platform there made every Greenhouse job wait minutes after the previous
+     Greenhouse job at another company, and every job on an unknown site (most aggregator links) wait
+     up to nine minutes, so a run looked stuck after its first application. */
+  function gateKey(job) {
+    if (Policy.isRestricted(job.ats)) return job.ats;
+    let host = '';
+    try { host = new URL(job.url).hostname; } catch (_) { /* no usable URL: the company name decides */ }
+    return `${job.ats}:${normalizeKey(job.company) || host}`;
   }
 
   async function applyTo(job) {
@@ -462,11 +728,10 @@
     }
 
     return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        Engine.handleResult(tab.id, { outcome: 'failed', detail: 'Timed out' });
-      }, timeoutFor(job.ats));
-
-      runtime.tabs.set(tab.id, { job, resolve, timer, windowId, progress: null });
+      const entry = { job, resolve, windowId, progress: null };
+      armTimer(tab.id, entry);
+      runtime.tabs.set(tab.id, entry);
+      saveTabs();
     });
   }
 
@@ -511,6 +776,7 @@
 
       await Storage.logApplication({
         url: job.url,
+        viaUrl: job.viaUrl || undefined, // the LinkedIn / Indeed listing it came from, so it isn't queued again
         title: job.title,
         company: job.company,
         ats: job.ats,
@@ -588,11 +854,24 @@
     );
   }
 
-  async function mark(id, state) {
+  async function mark(id, state, detail, extra) {
     const s = await Engine.getState();
     await Engine.setState({
-      queue: s.queue.map((j) => (j.id === id ? Object.assign({}, j, { state }) : j))
+      queue: s.queue.map((j) => (j.id === id ? Object.assign({}, j, { state }, detail !== undefined ? { detail } : {}, extra || {}) : j))
     });
+  }
+
+  /* The job continues on another page (the employer's form): fill and record that page. */
+  function retarget(entry, url) {
+    try {
+      const u = new URL(url);
+      if (!/^https?:$/.test(u.protocol)) return;
+      entry.job = Object.assign({}, entry.job, {
+        viaUrl: entry.job.viaUrl || entry.job.url,
+        url: u.href,
+        ats: (Discovery.classifyUrl && Discovery.classifyUrl(u.href)) || entry.job.ats
+      });
+    } catch (err) { /* not a URL */ }
   }
 
   /* Write the next few cover letters while the current job is being filled. */

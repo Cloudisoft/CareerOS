@@ -16,7 +16,7 @@
     linkedin: {
       test: () => /linkedin\.com\/jobs/.test(location.href),
       cards: () => document.querySelectorAll(
-        '.jobs-search-results__list-item, .job-card-container, li[data-occludable-job-id]'
+        '.jobs-search-results__list-item, .job-card-container, li[data-occludable-job-id], [data-job-id]'
       ),
       read(card) {
         const link = bestLink(card, 'a.job-card-list__title, a.job-card-container__link, a[href*="/jobs/view/"]');
@@ -24,7 +24,8 @@
         const id = (link.getAttribute('href') || '').match(/\/jobs\/view\/(\d+)/);
         return {
           id: id ? `linkedin:${id[1]}` : null,
-          title: text(link),
+          // The title link repeats its text for screen readers; the <strong> (or aria-label) holds it once.
+          title: text(link.querySelector('strong')) || (link.getAttribute('aria-label') || '').replace(/\s+with verification$/i, '').trim() || text(link),
           company: text(card.querySelector('.job-card-container__primary-description, .artdeco-entity-lockup__subtitle, [class*="subtitle"]')),
           location: text(card.querySelector('.job-card-container__metadata-item, [class*="metadata"]')),
           url: id ? `https://www.linkedin.com/jobs/view/${id[1]}/` : absolute(link.getAttribute('href')),

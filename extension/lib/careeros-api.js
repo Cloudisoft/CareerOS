@@ -72,6 +72,7 @@
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error((body && body.error) || `Pairing failed (${res.status})`);
 
+      await Storage.set('careeros.serverCopy', null);
       await Storage.saveSettings({
         deviceToken: body.token,
         pairedAs: body.email || body.name || '',
@@ -119,6 +120,7 @@
         if (!body) continue;
 
         if (body.status === 'approved' && body.token) {
+          await Storage.set('careeros.serverCopy', null);
           await Storage.saveSettings({
             deviceToken: body.token,
             pairedAs: body.email || body.name || '',
@@ -134,8 +136,26 @@
       return { ok: false, error: 'Timed out waiting for approval.' };
     },
 
+    /* Disconnect: end this browser's session on the server too (where the server supports it), then forget it here. */
     async unpair() {
+      await request('/disconnect', { method: 'POST' }).catch(() => {});
       await Storage.saveSettings({ deviceToken: '', pairedAs: '', pairedAt: null });
+    },
+
+    /* Run settings changed in the options page, so the Auto Apply page and other browsers show them. */
+    async saveSettings(patch) {
+      return request('/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+    },
+
+    /* Profile fields changed in the options page, written to the Career Profile. */
+    async saveProfile(patch) {
+      return request('/profile', { method: 'PATCH', body: JSON.stringify(patch) });
+    },
+
+    /* Answers the person typed into forms: saved to their CareerOS account so every browser reuses them. */
+    async saveAnswers(answers) {
+      if (!answers || !answers.length) return null;
+      return request('/answers', { method: 'POST', body: JSON.stringify({ answers: answers.slice(0, 60) }) });
     },
 
     async isPaired() {
@@ -203,6 +223,11 @@
 
     async logApplication(entry) {
       return request('/application', { method: 'POST', body: JSON.stringify(entry) });
+    },
+
+    /* Start / Stop pressed on the Auto Apply page in CareerOS. */
+    async control() {
+      return request('/control');
     },
 
     async heartbeat(run) {

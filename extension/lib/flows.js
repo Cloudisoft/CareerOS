@@ -90,16 +90,20 @@
     /* Only Easy Apply can be completed in place. Anything else sends the
        candidate to the employer's own site, where CareerOS picks it up again. */
     async open() {
-      const applyBtn = deepQuery('.jobs-apply-button, button[data-live-test-job-apply-button]')
+      // Already open (the person pressed Easy Apply, or a step reloaded).
+      const open = easyApplyModal();
+      if (open) return { root: open };
+
+      const applyBtn = deepQuery('.jobs-apply-button, button[data-live-test-job-apply-button], [data-view-name="job-apply-button"] button, button[data-view-name="job-apply-button"], a[data-view-name="job-apply-button"]')
         || byText(['easy apply']);
       if (!applyBtn) return { error: 'no_apply_button' };
 
       const label = (applyBtn.getAttribute('aria-label') || applyBtn.innerText || '').toLowerCase();
-      if (!/easy apply/.test(label)) return { error: 'external_apply' };
+      // "Apply" (not Easy Apply) goes to the employer's own site.
+      if (!/easy apply/.test(label)) return { error: 'external_apply', button: applyBtn, href: applyBtn.getAttribute('href') || null };
 
       await press(applyBtn);
-      const modal = await waitFor(() =>
-        document.querySelector('.jobs-easy-apply-modal, [data-test-modal][role="dialog"]'), 10000);
+      const modal = await waitFor(easyApplyModal, 10000);
       return modal ? { root: modal } : { error: 'modal_did_not_open' };
     },
 
@@ -123,6 +127,10 @@
       return meter.getAttribute('value') || meter.value || null;
     },
 
+    isOpen() {
+      return !!easyApplyModal();
+    },
+
     /* An abandoned modal blocks the next job in the same tab. */
     async close() {
       const dismiss = document.querySelector('button[aria-label="Dismiss"], button[aria-label="Cancel"]');
@@ -136,9 +144,14 @@
 
     isDone() {
       const text = (document.body.innerText || '').slice(0, 4000);
-      return /your application was sent|application sent|premium.*applicant|done applying/i.test(text);
+      return /your application was sent|application sent|application submitted|premium.*applicant|done applying/i.test(text);
     }
   };
+
+  function easyApplyModal() {
+    const m = document.querySelector('.jobs-easy-apply-modal, [data-test-modal][role="dialog"], div[role="dialog"][aria-labelledby*="jobs-apply"], .artdeco-modal[role="dialog"]');
+    return m && visible(m) && m.querySelector('input, select, textarea, button') ? m : null;
+  }
 
   /* ================= Indeed ================= */
 
@@ -149,12 +162,13 @@
       // Already inside the apply SPA.
       if (/smartapply|\/applystart|indeedapply/i.test(location.href)) return { root: document.body };
 
-      const btn = deepQuery('#indeedApplyButton, .ia-IndeedApplyButton, [id*="indeedApplyButton"]')
+      const btn = deepQuery('#indeedApplyButton, .ia-IndeedApplyButton, [id*="indeedApplyButton"], button[data-testid*="indeedApply" i], #applyButtonLinkContainer a, #applyButtonLinkContainer button')
         || byText(['apply now', 'easily apply', 'apply on company site']);
       if (!btn) return { error: 'no_apply_button' };
 
-      const label = (btn.innerText || btn.textContent || '').toLowerCase();
-      if (/company site/.test(label)) return { error: 'external_apply' };
+      const label = (btn.getAttribute('aria-label') || btn.innerText || btn.textContent || '').toLowerCase();
+      // "Apply on company site" goes to the employer's own application form.
+      if (/company site/.test(label)) return { error: 'external_apply', button: btn, href: btn.getAttribute('href') || null };
 
       await press(btn);
       const ready = await waitFor(() =>
@@ -168,12 +182,15 @@
       return {
         submit: byText(['submit your application', 'submit application'], s),
         review: byText(['review your application'], s),
-        next: s.querySelector('.ia-continueButton') || byText(['continue', 'next'], s)
+        next: s.querySelector('[data-testid="continue-button"], .ia-continueButton') || byText(['continue', 'next'], s)
       };
     },
 
     progress() { return null; },
     async close() {},
+    isOpen() {
+      return /smartapply|\/applystart|indeedapply/i.test(location.href);
+    },
 
     isDone() {
       return /your application has been submitted|application submitted|thanks for applying/i

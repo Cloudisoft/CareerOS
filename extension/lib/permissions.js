@@ -144,6 +144,7 @@
             'lib/careeros-api.js',
             'lib/flows.js',
             'lib/harvest.js',
+            'lib/answers.js',
             'lib/filler.js',
             'lib/coach.js',
             'content/careeros.js',

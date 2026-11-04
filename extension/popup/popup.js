@@ -346,7 +346,7 @@
   }
 
   function stateLabel(s) {
-    return { submitted: 'Sent', assisted: 'Filled', skipped: 'Skipped', failed: 'Failed', running: 'Applying' }[s] || s;
+    return { submitted: 'Sent', assisted: 'Filled', skipped: 'Skipped', failed: 'Failed', running: 'Applying', waiting: 'Needs you' }[s] || s;
   }
 
   function readableDetail(d) {

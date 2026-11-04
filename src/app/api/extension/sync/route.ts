@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getEntitlements } from "@/lib/billing/entitlements";
 import { getOrCreateSettings, countAppliedThisMonth, listAppliedUrls } from "@/lib/autoapply/service";
 import { getProfileForExtensionSync, buildExtensionProfile } from "@/lib/autoapply/adapter";
+import { listAnswers } from "@/lib/autoapply/answers";
 import { extCatch, extOk } from "@/lib/extension/response";
 
 export async function GET(req: NextRequest) {
@@ -23,12 +24,14 @@ export async function GET(req: NextRequest) {
       return extOk({ entitled: false, message: "Finish your Career Profile in Career OS before running Auto Apply." });
     }
 
-    const [settings, appliedThisMonth, appliedUrls, fullProfile] = await Promise.all([
+    const [settings, appliedThisMonth, appliedUrls, fullProfile, answers] = await Promise.all([
       getOrCreateSettings(candidateProfile.id),
       countAppliedThisMonth(candidateProfile.id),
       listAppliedUrls(candidateProfile.id),
       getProfileForExtensionSync(candidateProfile.id),
+      listAnswers(candidateProfile.id),
     ]);
+    const monthlyLimit = Math.min(settings.monthlyLimit, entitlements.monthlyApplicationLimit);
 
     return extOk({
       entitled: true,
@@ -37,7 +40,9 @@ export async function GET(req: NextRequest) {
         // Field name kept as `dailyLimit` for the extension's existing wire
         // contract (careeros-api.js/service-worker.js read this exact key) —
         // the value it carries is now this calendar month's application cap.
-        dailyLimit: Math.min(settings.monthlyLimit, entitlements.monthlyApplicationLimit),
+        // Older extensions read this; current ones use monthlyLimit / appliedThisMonth below.
+        dailyLimit: monthlyLimit,
+        monthlyLimit: Number.isFinite(monthlyLimit) ? monthlyLimit : null,
         pacingSeconds: settings.pacingSeconds,
         concurrency: settings.concurrency,
         autoSubmit: settings.autoSubmit,
@@ -45,7 +50,9 @@ export async function GET(req: NextRequest) {
       },
       resume: { data: buildExtensionProfile(user, fullProfile) },
       appliedToday: appliedThisMonth,
+      appliedThisMonth,
       appliedUrls,
+      answers: answers.map((a) => ({ key: a.questionKey, question: a.question, answer: a.answer, source: a.source })),
     });
   } catch (error) {
     return extCatch(error);

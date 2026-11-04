@@ -73,6 +73,7 @@ beforeAll(() => {
 
   loadLib('lib/profile.js');
   loadLib('lib/ats.js');
+  loadLib('lib/answers.js');
   loadLib('lib/filler.js');
 });
 
@@ -120,10 +121,8 @@ describe('Filler against a select/radio/checkbox Lever-style form', () => {
     expect(report.filled.length).toBe(4);
   });
 
-  it('leaves the work-auth radio unset and flags it when neither option\'s text actually matches', async () => {
-    // Sanity check on the matcher, not just the happy path: when the
-    // resolved value ("Yes"/"No") doesn't textually match either option, the
-    // filler must report it as needing the person rather than guessing.
+  it('answers a yes/no question by meaning when the options are worded as sentences', async () => {
+    // "Yes" from the profile maps to "I am authorized…", never to "I am not authorized…".
     const form = loadFixture('lever-select-radio.html');
     form.querySelectorAll('input[name="work_auth"]').forEach((radio) => {
       radio.closest('label').lastChild.textContent = radio.value === 'yes'
@@ -132,10 +131,20 @@ describe('Filler against a select/radio/checkbox Lever-style form', () => {
     });
     const profile = baseProfile();
 
-    const report = await window.CareerOS.Filler.fillForm(form, profile, noopContext());
-    const skippedAuth = report.skipped.find((s) => /authorized/i.test(s.label));
-    expect(skippedAuth).toBeDefined();
+    await window.CareerOS.Filler.fillForm(form, profile, noopContext());
+    const picked = form.querySelector('input[name="work_auth"]:checked');
+    expect(picked).not.toBeNull();
+    expect(picked.value).toBe(profile.workAuth.needsSponsorship ? 'no' : 'yes');
+  });
+
+  it('leaves a choice unset and flags it when no option means the answer', async () => {
+    const form = loadFixture('lever-select-radio.html');
+    form.querySelectorAll('input[name="work_auth"]').forEach((radio) => {
+      radio.closest('label').lastChild.textContent = radio.value === 'yes' ? ' Option A' : ' Option B';
+    });
+    const report = await window.CareerOS.Filler.fillForm(form, baseProfile(), noopContext());
     expect(form.querySelector('input[name="work_auth"]:checked')).toBeNull();
+    expect(report.skipped.find((s) => /author|work/i.test(s.label))).toBeDefined();
   });
 });
 

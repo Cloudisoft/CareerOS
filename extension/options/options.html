@@ -325,6 +325,7 @@
         <label class="check"><input type="checkbox" data-setting="tailorCoverLetter"> Write a cover letter for each application</label>
         <label class="check"><input type="checkbox" data-setting="tailorScreeningAnswers"> Answer screening questions</label>
         <label class="check"><input type="checkbox" data-setting="autoHarvest"> Automatically collect job cards while browsing search results<small>Scrolls and collects for you on LinkedIn, Indeed, ZipRecruiter, Dice and Glassdoor, without needing the Queue button. Turn off to only collect when you press it yourself.</small></label>
+        <label class="check"><input type="checkbox" data-setting="searchJobBoards"> Search LinkedIn and Indeed when a run starts<small>Opens your own LinkedIn and Indeed search for your target roles in a background tab, queues the Easy Apply jobs it shows, and closes it. Needs "Job boards" allowed under Platforms.</small></label>
         <label class="check"><input type="checkbox" data-setting="showApplyTabs"> Show applications happening<small>Opens each apply in a small visible window instead of a fully hidden background tab, so you can watch a form get filled. Slightly slower and more visible; off by default.</small></label>
         <label class="check danger"><input type="checkbox" data-setting="autoSubmit"> Submit without asking me first</label>
       </div>
@@ -351,7 +352,7 @@
       <p class="note">Generation runs through the CareerOS backend, which holds the model key server-side. A provider key placed in a browser extension is readable by anyone who installs it, so the direct path is developer-only and refuses to run unless you turn it on below.</p>
       <div class="grid">
         <label class="wide">API base<input data-setting="apiBase"></label>
-        <label class="wide">Token<input data-setting="apiToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
+        <label class="wide">Token<input data-setting="deviceToken" type="password" placeholder="cos_..."><small>Your CareerOS token. Stored locally in this browser only.</small></label>
         <label class="check danger wide"><input type="checkbox" data-setting="allowDirectKey"> Developer mode: allow a provider key to be used directly from this browser<small>Also needs the dev manifest — run <code>./build.sh dev</code>. The shipped build does not permit it.</small></label>
       </div>
 
@@ -367,6 +368,7 @@
   <script src="../lib/profile.js"></script>
   <script src="../lib/policy.js"></script>
   <script src="../lib/careeros-api.js"></script>
+  <script src="../lib/sync.js"></script>
   <script src="../lib/permissions.js"></script>
   <script src="options.js"></script>
 </body>

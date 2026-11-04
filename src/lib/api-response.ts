@@ -16,7 +16,13 @@ export function apiCatch(error: unknown) {
   }
   if (error && typeof error === "object" && "code" in error && "message" in error) {
     const err = error as { code: string; message: string };
+    // Database errors (Prisma P2002, P2025, …) also carry code+message; never show those to users.
+    if (/^P\d{4}$/.test(String(err.code))) {
+      console.error(error);
+      return apiError("Something went wrong. Please try again.", 500, "INTERNAL_ERROR");
+    }
     const statusByCode: Record<string, number> = {
+      AI_NOT_CONFIGURED: 503,
       UNAUTHENTICATED: 401,
       FORBIDDEN: 403,
       NOT_FOUND: 404,

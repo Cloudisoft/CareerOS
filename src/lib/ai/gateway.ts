@@ -188,7 +188,7 @@ function buildProvider(name: AiProviderName): AiProvider | null {
   switch (name) {
     case "anthropic": {
       const apiKey = process.env.ANTHROPIC_API_KEY;
-      return apiKey ? new AnthropicAiProvider(apiKey, process.env.AI_MODEL || "claude-opus-5") : null;
+      return apiKey ? new AnthropicAiProvider(apiKey, process.env.AI_MODEL || "claude-opus-5-5") : null;
     }
     case "openrouter": {
       const apiKey = process.env.OPENROUTER_API_KEY;
@@ -212,8 +212,24 @@ function buildProvider(name: AiProviderName): AiProvider | null {
 let cachedPrimary: AiProvider | null | undefined;
 let cachedFallback: AiProvider | null | undefined;
 
+export class AiNotConfiguredError extends Error {
+  code = "AI_NOT_CONFIGURED";
+  constructor() {
+    super("AI isn't configured on this server yet, so this answer couldn't be generated.");
+  }
+}
+
+/**
+ * The placeholder provider is for development only. In production a missing key must fail loudly:
+ * otherwise "[DEV MODE …]" text ends up in cover letters and answers sent to real employers.
+ */
+function mockOrFail(): AiProvider {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_MOCK_AI !== "true") throw new AiNotConfiguredError();
+  return new MockAiProvider();
+}
+
 function getPrimaryProvider(): AiProvider {
-  if (cachedPrimary !== undefined) return cachedPrimary ?? new MockAiProvider();
+  if (cachedPrimary !== undefined) return cachedPrimary ?? mockOrFail();
 
   const requested = process.env.AI_PROVIDER as AiProviderName | undefined;
   const resolutionOrder: AiProviderName[] = requested
@@ -228,7 +244,7 @@ function getPrimaryProvider(): AiProvider {
       break;
     }
   }
-  return cachedPrimary ?? new MockAiProvider();
+  return cachedPrimary ?? mockOrFail();
 }
 
 /**
