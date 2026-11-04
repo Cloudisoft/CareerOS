@@ -69,6 +69,7 @@ export interface EnterpriseOverview {
   canManageBilling: boolean;
   status: "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED" | "FREE";
   plan: "STARTER" | "PROFESSIONAL" | null;
+  complimentary: boolean;
   entitlements: Entitlements;
   trial: { eligible: boolean; endsAt: string | null; days: number };
   intro: { eligible: boolean; priceCents: number; active: boolean };
@@ -163,7 +164,7 @@ export function EnterpriseShell({ children }: { children: React.ReactNode }) {
               {overview.plan && overview.status !== "FREE" && overview.status !== "EXPIRED"
                 ? `${overview.plan === "STARTER" ? "Starter" : "Professional"} · `
                 : ""}
-              {STATUS_LABEL[overview.status]}
+              {overview.complimentary ? "Complimentary" : STATUS_LABEL[overview.status]}
             </p>
           </div>
         </div>

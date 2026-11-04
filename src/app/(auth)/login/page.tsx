@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { safeNext } from "@/lib/safe-next";
+import { GoogleButton, OrDivider } from "@/components/auth/google-button";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(searchParams.get("error"));
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -51,6 +52,9 @@ function LoginForm() {
         <CardDescription>Log in to your Career OS account.</CardDescription>
       </CardHeader>
       <CardContent>
+        <GoogleButton next={searchParams.get("next")} />
+        <OrDivider />
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>

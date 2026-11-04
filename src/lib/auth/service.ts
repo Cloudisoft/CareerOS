@@ -86,7 +86,8 @@ export async function authenticateUser(input: LoginInput): Promise<User> {
     throw new AppAuthError("Invalid email or password.", "INVALID_CREDENTIALS");
   }
 
-  const valid = await verifyPassword(input.password, user.passwordHash);
+  // Google-only accounts have no password; they sign in with Google or set one via "Forgot password".
+  const valid = user.passwordHash ? await verifyPassword(input.password, user.passwordHash) : false;
   if (!valid) {
     throw new AppAuthError("Invalid email or password.", "INVALID_CREDENTIALS");
   }
