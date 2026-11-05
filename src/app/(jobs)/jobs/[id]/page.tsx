@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { formatSalaryRange } from "@/lib/utils";
+import { BackButton } from "@/components/layout/back-button";
 
 interface ResumeOption {
   id: string;
@@ -166,6 +167,8 @@ export default function JobDetailPage() {
     return (
       <Card className="mx-auto max-w-2xl">
         <CardContent className="p-8 text-center text-sm text-muted-foreground">
+          <BackButton fallback="/jobs" label="Back to jobs" className="mb-3" />
+          <br />
           This job could not be found. It may have closed.
         </CardContent>
       </Card>
@@ -173,7 +176,9 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="mx-auto max-w-5xl">
+    <BackButton fallback="/jobs" label="Back to jobs" className="-ml-2.5 mb-3" />
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div>
         <Card>
           <CardContent className="p-6">
@@ -461,6 +466,7 @@ export default function JobDetailPage() {
           </Card>
         </div>
       )}
+    </div>
     </div>
   );
 }

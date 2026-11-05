@@ -93,6 +93,17 @@ async function applyLifecycle(account: EnterpriseAccount): Promise<EnterpriseAcc
     }
     return { ...account, status: "FREE" };
   }
+  // A plan an admin granted for a set time ends on its own (no PayPal subscription to cancel).
+  if (account.status === "ACTIVE" && !account.paypalSubscriptionId && account.currentPeriodEnd && account.currentPeriodEnd <= now) {
+    const updated = await prisma.enterpriseAccount.updateMany({
+      where: { id: account.id, status: "ACTIVE", paypalSubscriptionId: null },
+      data: { status: "EXPIRED" },
+    });
+    if (updated.count) {
+      await recordEvent(prisma, account.id, { type: "COMPLIMENTARY_EXPIRED", fromStatus: "ACTIVE", toStatus: "EXPIRED", plan: account.plan });
+    }
+    return { ...account, status: "EXPIRED" };
+  }
   if (account.status === "CANCELLED" && (!account.currentPeriodEnd || account.currentPeriodEnd <= now)) {
     const updated = await prisma.enterpriseAccount.updateMany({
       where: { id: account.id, status: "CANCELLED" },

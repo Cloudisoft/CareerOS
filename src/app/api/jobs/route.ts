@@ -16,6 +16,9 @@ import { COUNTRIES, isCountryCode } from "@/lib/jobs/countries";
 const PAGE_SIZE = 20;
 const SOURCES = ["greenhouse", "lever", "ashby", "workday", "adzuna", "jsearch", "careeros"];
 const DEFAULT_RADIUS_MILES = 25;
+const HOUR = 3_600_000;
+/** "Date posted" filter windows. */
+const POSTED_WITHIN: Record<string, number> = { "1h": HOUR, "24h": 24 * HOUR, "3d": 72 * HOUR, "7d": 168 * HOUR, "14d": 336 * HOUR, "30d": 720 * HOUR };
 type JobRow = Prisma.JobGetPayload<{ include: { company: true; skills: { include: { skill: true } } } }>;
 
 export async function GET(req: NextRequest) {
@@ -37,6 +40,7 @@ export async function GET(req: NextRequest) {
     const studentsOnly = params.get("opt") === "1";
     const openToAll = params.get("open") === "1";
     const country = params.get("country");
+    const postedWithin = POSTED_WITHIN[params.get("posted") ?? ""];
     const radiusMiles = Math.max(1, Number(params.get("radius")) || DEFAULT_RADIUS_MILES);
     // A US zip code gets a real radius search; any other text matches the job's location.
     const zipSearch = location && isUsZipCode(location) ? resolveZip(location) : null;
@@ -68,6 +72,7 @@ export async function GET(req: NextRequest) {
       ...(careerLevels?.length ? { careerLevel: { in: careerLevels as never[] } } : {}),
       ...(minSalary ? { salaryMax: { gte: minSalary } } : {}),
       ...(sources?.length ? { source: { in: sources } } : {}),
+      ...(postedWithin ? { createdAt: { gte: new Date(Date.now() - postedWithin) } } : {}),
       ...(closingSoon ? { expiresAt: { gte: new Date(), lte: new Date(Date.now() + 7 * 86_400_000) } } : {}),
     };
     const extra: Prisma.JobWhereInput[] = [];

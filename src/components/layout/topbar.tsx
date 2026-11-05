@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell, Search, LogOut, CreditCard, Laptop, User as UserIcon, Repeat } from "lucide-react";
@@ -17,6 +17,10 @@ import {
 import { initials } from "@/lib/utils";
 import { Logo } from "@/components/brand/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { BackButton, NavHistoryTracker } from "@/components/layout/back-button";
+
+/** Pages that are a starting point (Home, Admin overview) don't need a Back button. */
+const NO_BACK = new Set(["/dashboard", "/admin"]);
 import type { UserRole } from "@prisma/client";
 
 interface TopbarProps {
@@ -74,10 +78,15 @@ export function Topbar({ user, careersPublisher, viewRoles = [] }: TopbarProps) 
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur-md sm:px-6">
+      <Suspense fallback={null}>
+        <NavHistoryTracker />
+      </Suspense>
       <div className="flex items-center gap-2 lg:hidden">
         <MobileNav role={user.role} careersPublisher={careersPublisher} viewRoles={viewRoles} />
         <Logo />
       </div>
+      {/* Job pages carry their own "Back to jobs". */}
+      {!NO_BACK.has(pathname) && !/^\/jobs\/(?!swipe$)[^/]+$/.test(pathname) && <BackButton className="-ml-2 hidden sm:inline-flex" />}
       {(user.role ?? "CANDIDATE") === "CANDIDATE" && !pathname.startsWith("/jobs") && (
         <form
           role="search"

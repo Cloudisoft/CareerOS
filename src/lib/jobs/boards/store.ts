@@ -34,9 +34,11 @@ export async function saveDiscoveredJobs(jobs: DiscoveredJob[]): Promise<number>
         externalId: job.externalId,
         source: job.ats,
       };
+      // The employer's own posting date drives "Date posted"; never a future date.
+      const posted = job.postedAt && job.postedAt < Date.now() ? new Date(job.postedAt) : undefined;
       await prisma.job.upsert({
         where: { source_externalId: { source: job.ats, externalId: job.externalId } },
-        create: data,
+        create: { ...data, ...(posted ? { createdAt: posted } : {}) },
         update: data,
       });
       saved += 1;

@@ -8,8 +8,9 @@ import { EnterpriseError, recordEvent } from "./account";
 /**
  * Complimentary Enterprise plans, granted by a platform admin. A
  * complimentary account is ACTIVE on a plan with no PayPal subscription:
- * nothing is ever charged, it never expires, and its credits reset every
- * calendar month (UTC), like a paid plan's do every billing period.
+ * nothing is ever charged, and its credits reset every calendar month (UTC),
+ * like a paid plan's do every billing period. It runs until an admin ends it,
+ * or until currentPeriodEnd when the grant was for a set time.
  */
 export function isComplimentary(account: Pick<EnterpriseAccount, "status" | "plan" | "paypalSubscriptionId"> | null | undefined) {
   return Boolean(account && account.status === "ACTIVE" && account.plan && !account.paypalSubscriptionId);
@@ -24,6 +25,8 @@ export interface GrantInput {
   companyName?: string;
   /** Full-access accounts reach the employer area through the view switcher, whatever their own role. */
   allowAnyRole?: boolean;
+  /** When the plan ends. Omitted means no end date. */
+  endsAt?: Date;
 }
 
 export async function grantComplimentaryPlan(adminUserId: string, input: GrantInput) {
@@ -68,7 +71,7 @@ export async function grantComplimentaryPlan(adminUserId: string, input: GrantIn
       status: "ACTIVE" as const,
       paypalSubscriptionId: null,
       currentPeriodStart: null,
-      currentPeriodEnd: null,
+      currentPeriodEnd: input.endsAt ?? null,
       cancelAtPeriodEnd: false,
       introActive: false,
     };
@@ -82,12 +85,12 @@ export async function grantComplimentaryPlan(adminUserId: string, input: GrantIn
       plan: input.plan,
       amountCents: 0,
       actorUserId: adminUserId,
-      detail: "Complimentary plan — no charge, no expiry",
+      detail: input.endsAt ? `Complimentary plan — no charge, until ${input.endsAt.toISOString().slice(0, 10)}` : "Complimentary plan — no charge, no expiry",
     });
     return acc;
   });
 
-  await writeAuditLog({ userId: adminUserId, action: "admin.enterprise.complimentary_granted", targetType: "company", targetId: company.id, metadata: { plan: input.plan, email: user.email } });
+  await writeAuditLog({ userId: adminUserId, action: "admin.enterprise.complimentary_granted", targetType: "company", targetId: company.id, metadata: { plan: input.plan, email: user.email, endsAt: input.endsAt?.toISOString() ?? null } });
   return { account, company: { id: company.id, name: company.name }, user: { id: user.id, email: user.email } };
 }
 
