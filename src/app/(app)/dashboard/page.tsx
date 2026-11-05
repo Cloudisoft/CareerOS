@@ -22,6 +22,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { getCompanyForUser, getCompanyDashboardStats } from "@/lib/company/service";
 import { getEntitlements } from "@/lib/billing/entitlements";
+import { enrichCompanyBrands } from "@/lib/company/branding";
 import { applicationSummary, companiesHiring, followUpsDue, recommendedJobs } from "@/lib/dashboard/candidate";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Progress } from "@/components/ui/progress";
@@ -96,6 +97,7 @@ export default async function DashboardPage() {
     followUpsDue(profileId),
   ]);
   const next = getNextBestAction(profile);
+  enrichCompanyBrands([...companies.filter((c) => !c.logoUrl).map((c) => c.id), ...jobs.filter((j) => !j.company.logoUrl).map((j) => j.company.id)]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

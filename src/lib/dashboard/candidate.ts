@@ -12,7 +12,7 @@ export interface DashboardJob {
   salaryCurrency: string;
   createdAt: Date;
   matchScore: number | null;
-  company: { name: string; slug: string; logoUrl: string | null };
+  company: { id: string; name: string; slug: string; logoUrl: string | null };
 }
 
 const JOB_SELECT = {
@@ -25,7 +25,7 @@ const JOB_SELECT = {
   salaryMax: true,
   salaryCurrency: true,
   createdAt: true,
-  company: { select: { name: true, slug: true, logoUrl: true } },
+  company: { select: { id: true, name: true, slug: true, logoUrl: true } },
 } as const;
 
 /**

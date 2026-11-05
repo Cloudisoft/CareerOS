@@ -12,6 +12,7 @@ import { resolveCity, haversineMiles } from "@/lib/geo/distance";
 import type { Prisma } from "@prisma/client";
 import { CITIZENS_ONLY, VISA_NEGATIVE, VISA_POSITIVE, closingInDays } from "@/lib/jobs/signals";
 import { COUNTRIES, isCountryCode } from "@/lib/jobs/countries";
+import { enrichCompanyBrands } from "@/lib/company/branding";
 
 const PAGE_SIZE = 20;
 const SOURCES = ["greenhouse", "lever", "ashby", "workday", "adzuna", "jsearch", "careeros"];
@@ -173,6 +174,9 @@ export async function GET(req: NextRequest) {
       // Promoted jobs stay first; the rest are ordered by fit.
       jobs.sort((a, b) => Number(promotedIds.has(b.id)) - Number(promotedIds.has(a.id)) || (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0));
     }
+
+    // Companies without a logo get one looked up in the background for next time.
+    enrichCompanyBrands(jobs.filter((j) => !j.company.logoUrl && !j.company.brandCheckedAt).map((j) => j.company.id));
 
     return apiOk({
       jobs: jobs.map((job) => ({

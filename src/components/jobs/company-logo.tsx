@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const TILE_COLORS = [
@@ -20,7 +23,9 @@ function hash(text: string) {
 /** The company's logo, or a coloured monogram tile when it has none. */
 export function CompanyLogo({ name, logoUrl, size = 44, className }: { name: string; logoUrl?: string | null; size?: number; className?: string }) {
   const style = { width: size, height: size };
-  if (logoUrl) {
+  // A logo that fails to load falls back to the monogram instead of a broken image.
+  const [failed, setFailed] = useState(false);
+  if (logoUrl && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -30,6 +35,8 @@ export function CompanyLogo({ name, logoUrl, size = 44, className }: { name: str
         height={size}
         loading="lazy"
         decoding="async"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
         style={style}
         className={cn("shrink-0 rounded-lg border border-border bg-white object-contain p-0.5", className)}
       />
