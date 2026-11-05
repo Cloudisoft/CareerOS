@@ -2,7 +2,9 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { SITE_URL } from "@/config/brand";
 
-export const revalidate = 3600;
+// Built on request: at build time the database isn't reachable, so a prebuilt
+// sitemap would list only the fixed pages and none of the jobs or companies.
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pages: MetadataRoute.Sitemap = [
