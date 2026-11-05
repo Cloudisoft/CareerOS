@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { SidebarNav, UpgradeCard } from "@/components/layout/sidebar";
+import { ViewSwitcher } from "@/components/layout/view-switcher";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@prisma/client";
 
@@ -15,7 +16,7 @@ import type { UserRole } from "@prisma/client";
  * tablets had no way to reach Interview AI, Learning, Resume Studio, etc.
  * A menu button in the top bar opens it as a slide-out drawer.
  */
-export function MobileNav({ role, careersPublisher }: { role?: UserRole; careersPublisher?: boolean }) {
+export function MobileNav({ role, careersPublisher, viewRoles = [] }: { role?: UserRole; careersPublisher?: boolean; viewRoles?: UserRole[] }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -86,6 +87,7 @@ export function MobileNav({ role, careersPublisher }: { role?: UserRole; careers
                 <X className="h-5 w-5" />
               </button>
             </div>
+            <ViewSwitcher role={role} viewRoles={viewRoles} />
             <SidebarNav role={role} careersPublisher={careersPublisher} onNavigate={() => setOpen(false)} />
             <UpgradeCard role={role} onNavigate={() => setOpen(false)} />
           </aside>

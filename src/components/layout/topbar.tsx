@@ -28,7 +28,7 @@ interface TopbarProps {
 
 const VIEW_LABEL: Partial<Record<UserRole, string>> = {
   CANDIDATE: "Job seeker",
-  EMPLOYER: "Employer & Recruiter Suite",
+  EMPLOYER: "Recruiter",
   PLATFORM_ADMIN: "Platform admin",
 };
 
@@ -74,7 +74,7 @@ export function Topbar({ user, careersPublisher, viewRoles = [] }: TopbarProps) 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
       <div className="flex items-center gap-2 lg:hidden">
-        <MobileNav role={user.role} careersPublisher={careersPublisher} />
+        <MobileNav role={user.role} careersPublisher={careersPublisher} viewRoles={viewRoles} />
         <Logo />
       </div>
       <div className="ml-auto flex items-center gap-2">
@@ -119,7 +119,7 @@ export function Topbar({ user, careersPublisher, viewRoles = [] }: TopbarProps) 
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Switch view</DropdownMenuLabel>
-                {viewRoles.map((r) => {
+                {(["CANDIDATE", "EMPLOYER", "PLATFORM_ADMIN"] as UserRole[]).filter((r) => viewRoles.includes(r)).map((r) => {
                   const current = r === user.role || (r === "EMPLOYER" && user.role === "COMPANY_ADMIN");
                   return (
                     <DropdownMenuItem key={r} disabled={current} onSelect={() => switchView(r)}>
