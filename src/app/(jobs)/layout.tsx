@@ -26,7 +26,7 @@ export default async function JobsLayout({ children }: { children: React.ReactNo
     return (
       <div className="flex min-h-screen bg-background">
         <IdleLogoutGuard />
-        <Sidebar role={user.role} careersPublisher={careersPublisher} />
+        <Sidebar role={user.role} careersPublisher={careersPublisher} viewRoles={viewRoles} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar user={user} careersPublisher={careersPublisher} viewRoles={viewRoles} />
           <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
