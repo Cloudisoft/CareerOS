@@ -79,9 +79,12 @@ function dedupe(skills: string[]) {
   });
 }
 
+/** The link set in Admin → AI Work, else the MICRO1_REFERRAL_URL environment variable. */
 export async function getReferralUrl(): Promise<string | null> {
   const row = await prisma.appSetting.findUnique({ where: { key: REFERRAL_KEY } });
-  return row?.value || null;
+  if (row?.value) return row.value;
+  const fromEnv = process.env.MICRO1_REFERRAL_URL?.trim();
+  return fromEnv && httpsUrl.safeParse(fromEnv).success ? fromEnv : null;
 }
 
 export async function setReferralUrl(url: string | null) {

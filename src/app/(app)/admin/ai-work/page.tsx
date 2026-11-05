@@ -189,6 +189,7 @@ export default function AdminAiWorkPage() {
           </button>
         </div>
         {!referralSaved && <p className="mt-2 text-xs text-muted-foreground">Not set: Apply buttons go to micro1&apos;s opportunities page.</p>}
+        <p className="mt-2 text-xs text-muted-foreground">Clearing this falls back to the MICRO1_REFERRAL_URL server setting, when one is set.</p>
       </form>
 
       {showForm && (
