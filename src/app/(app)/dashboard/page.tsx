@@ -5,6 +5,7 @@ import {
   Bot,
   Briefcase,
   CalendarCheck,
+  Cpu,
   FileText,
   Globe2,
   GraduationCap,
@@ -247,6 +248,19 @@ export default async function DashboardPage() {
               </Link>
             </div>
           </div>
+
+          <Link
+            href="/ai-work"
+            className="group block rounded-xl border border-border bg-surface p-5 transition-colors hover:border-primary/40"
+          >
+            <p className="flex items-center gap-2 font-semibold text-foreground">
+              <Cpu className="h-4 w-4 text-primary" /> Get paid to train AI
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">Remote, hourly AI-training work with micro1, using the skills you already have.</p>
+            <span className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-foreground group-hover:text-primary">
+              See AI roles <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+          </Link>
 
           {followUps.length > 0 && (
             <div className="rounded-xl border border-border bg-surface p-5">

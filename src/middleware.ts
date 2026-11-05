@@ -3,7 +3,7 @@ import { SESSION_COOKIE } from "@/lib/auth/constants";
 
 // "/jobs" is intentionally public — browsing the marketplace doesn't require an
 // account, only applying/saving does (enforced at the API layer, not here).
-const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/applications", "/auto-apply", "/resume-studio", "/cover-letter-studio", "/ats-scanner", "/job-gpt", "/interview-ai", "/learning", "/network", "/messages", "/profile", "/notifications", "/employer", "/admin", "/settings", "/extension-connect", "/checkout"];
+const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/applications", "/auto-apply", "/resume-studio", "/cover-letter-studio", "/ats-scanner", "/job-gpt", "/interview-ai", "/learning", "/network", "/messages", "/profile", "/notifications", "/employer", "/admin", "/settings", "/extension-connect", "/checkout", "/ai-work"];
 /**
  * The Chrome extension calls /api/extension/* from its own chrome-extension:// origin with a bearer
  * token (never cookies), so any extension origin may read the responses. Without these headers a

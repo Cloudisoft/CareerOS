@@ -17,6 +17,7 @@ import {
   Sparkles,
   Globe,
   Activity,
+  Cpu,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const CANDIDATE_NAV: NavItem[] = [
   { href: "/jobs", label: "Jobs", icon: Briefcase, available: true },
   { href: "/applications", label: "Applications", icon: ClipboardList, available: true },
   { href: "/messages", label: "Messages", icon: MessageCircle, available: true },
+  { href: "/ai-work", label: "AI Work", icon: Cpu, available: true, section: "Earn" },
   { href: "/network", label: "Network", icon: Users, available: true, section: "Connect" },
   { href: "/careers", label: "Career OS Careers", icon: Globe, available: true, section: "Connect" },
   { href: "/job-gpt", label: "Job GPT", icon: Bot, available: true, section: "AI tools" },
@@ -60,5 +62,6 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/insights", label: "Insights", icon: Activity, available: true },
   { href: "/admin/users", label: "Users", icon: Users2, available: true },
   { href: "/admin/enterprise", label: "Enterprise & Careers", icon: Sparkles, available: true },
+  { href: "/admin/ai-work", label: "AI Work", icon: Cpu, available: true },
   { href: "/careers", label: "Career OS Careers", icon: Globe, available: true },
 ];

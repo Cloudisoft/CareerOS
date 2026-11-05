@@ -1012,6 +1012,10 @@ model InterviewSession {
   jobId     String?
   job       Job?             @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
+  /// Set when the practice is for a paid AI-work role (see AiWorkRole).
+  aiWorkRoleId String?
+  aiWorkRole   AiWorkRole? @relation(fields: [aiWorkRoleId], references: [id], onDelete: SetNull)
+
   type         InterviewType          @default(MIXED)
   status       InterviewSessionStatus @default(IN_PROGRESS)
   overallScore Int?
@@ -2201,4 +2205,41 @@ model OutreachDraft {
 
   @@index([profileId])
   @@map("outreach_drafts")
+}
+
+// ============================================================
+// AI WORK — paid AI-training roles from partners (micro1), added by
+// platform admins. People apply on the partner's site and are paid by the
+// partner; Career OS only lists the roles and helps people prepare.
+// ============================================================
+
+enum AiWorkRoleStatus {
+  ACTIVE
+  CLOSED
+}
+
+model AiWorkRole {
+  id          String           @id @default(cuid())
+  partner     String           @default("micro1")
+  title       String
+  category    String
+  description String
+  skills      String[]
+  minYears    Int?
+  /// Hourly pay range in whole units of payCurrency.
+  payMin      Int?
+  payMax      Int?
+  payCurrency String           @default("USD")
+  /// The role's page on the partner's site (a referral link when there is one).
+  applyUrl    String?
+  status      AiWorkRoleStatus @default(ACTIVE)
+  createdById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  interviewSessions InterviewSession[]
+
+  @@index([status, createdAt])
+  @@map("ai_work_roles")
 }
