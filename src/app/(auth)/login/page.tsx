@@ -15,7 +15,11 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
-  const [error, setError] = useState<string | null>(searchParams.get("error"));
+  const [error, setError] = useState<string | null>(() => {
+    const e = searchParams.get("error");
+    if (e === "idle_timeout") return "You were signed out after 30 minutes of inactivity. Please log in again.";
+    return e;
+  });
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {

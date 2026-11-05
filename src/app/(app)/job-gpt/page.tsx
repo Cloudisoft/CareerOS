@@ -83,6 +83,10 @@ export default function JobGptPage() {
   }
 
   async function removeConversation(id: string) {
+    // Deleting the conversation a reply is currently being generated for
+    // would orphan that reply mid-write on the server — block it here
+    // rather than letting the request race the delete.
+    if (sending && activeId === id) return;
     await fetch(`/api/job-gpt/conversations/${id}`, { method: "DELETE" });
     if (activeId === id) {
       setActiveId(null);
@@ -113,16 +117,55 @@ export default function JobGptPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: content }),
     });
-    const json = await res.json();
-    setSending(false);
 
-    if (res.ok) {
-      setMessages((prev) => [...prev, json.data.message]);
-    } else {
+    // Entitlement/rate-limit failures return a normal JSON error before any
+    // streaming starts; a real reply comes back as an SSE body instead.
+    if (!res.ok || !res.body) {
+      const json = await res.json().catch(() => null);
       setMessages((prev) => [
         ...prev,
-        { id: `error-${Date.now()}`, role: "ASSISTANT", content: json.error?.message ?? "Something went wrong." },
+        { id: `error-${Date.now()}`, role: "ASSISTANT", content: json?.error?.message ?? "Something went wrong." },
       ]);
+      setSending(false);
+      return;
+    }
+
+    const assistantId = `streaming-${Date.now()}`;
+    setMessages((prev) => [...prev, { id: assistantId, role: "ASSISTANT", content: "" }]);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const rawEvent of events) {
+          const line = rawEvent.trim();
+          if (!line.startsWith("data:")) continue;
+          let event: { delta?: string; done?: boolean; id?: string; error?: string };
+          try {
+            event = JSON.parse(line.slice(5).trim());
+          } catch {
+            continue;
+          }
+          if (event.delta) {
+            const delta = event.delta;
+            setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m)));
+          } else if (event.error) {
+            const message = event.error;
+            setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: message } : m)));
+          } else if (event.done && event.id) {
+            const finalId = event.id;
+            setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, id: finalId } : m)));
+          }
+        }
+      }
+    } finally {
+      setSending(false);
     }
   }
 
@@ -151,9 +194,14 @@ export default function JobGptPage() {
                   {c.title || "New chat"}
                 </button>
                 <button
-                  className="opacity-0 group-hover:opacity-100"
+                  className={cn(
+                    "opacity-0 group-hover:opacity-100",
+                    sending && activeId === c.id && "cursor-not-allowed opacity-30 group-hover:opacity-30"
+                  )}
                   onClick={() => removeConversation(c.id)}
+                  disabled={sending && activeId === c.id}
                   aria-label="Delete conversation"
+                  title={sending && activeId === c.id ? "Wait for the current reply to finish" : "Delete conversation"}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

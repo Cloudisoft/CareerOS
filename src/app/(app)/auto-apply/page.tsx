@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { UpgradeRequired } from "@/components/billing/upgrade-required";
+import { sourceLabel } from "@/lib/jobs/source-labels";
 
 interface Settings {
   minMatchScore: number;
@@ -49,7 +50,7 @@ interface ApplicationRow {
   status: string;
   appliedAt: string;
   matchScoreAtApply: number | null;
-  job: { title: string; company: { name: string } };
+  job: { title: string; source: string; company: { name: string } };
 }
 
 interface DeviceSession {
@@ -317,7 +318,13 @@ export default function AutoApplyPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Settings</CardTitle>
-            <CardDescription>Synced to the extension the next time it runs.</CardDescription>
+            <CardDescription>
+              Synced to the extension the next time it runs. Desired locations and search radius are set on your{" "}
+              <Link href="/profile" className="underline">
+                Career Profile
+              </Link>
+              .
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -395,6 +402,11 @@ export default function AutoApplyPage() {
 
       <div>
         <h2 className="mb-3 text-lg font-semibold text-foreground">Recent Auto Apply activity</h2>
+        {applications.length > 0 && (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Working: {Array.from(new Set(applications.map((a) => sourceLabel(a.job.source)))).join(", ")}
+          </p>
+        )}
         {applications.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No applications submitted by the extension yet. Pair a browser and start a run to see activity here.
@@ -413,7 +425,10 @@ export default function AutoApplyPage() {
                       {a.matchScoreAtApply != null ? ` · matched ${a.matchScoreAtApply}%` : ""}
                     </p>
                   </div>
-                  <Badge variant="outline">{a.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{sourceLabel(a.job.source)}</Badge>
+                    <Badge variant="outline">{a.status}</Badge>
+                  </div>
                 </CardContent>
               </Card>
             ))}

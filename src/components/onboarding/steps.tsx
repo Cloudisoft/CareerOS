@@ -192,6 +192,25 @@ export function PreferencesStep({ data, update }: StepProps) {
           onChange={(desiredLocations) => update({ desiredLocations })}
           placeholder="New York, Remote…"
         />
+        {data.desiredLocations.length > 0 && (
+          <div className="flex items-center gap-2 pt-1">
+            <Label htmlFor="radiusMiles" className="text-xs font-normal text-muted-foreground">
+              Search radius around &ldquo;{data.desiredLocations[0]}&rdquo; (miles)
+            </Label>
+            <Input
+              id="radiusMiles"
+              type="number"
+              min={1}
+              max={500}
+              className="w-24"
+              value={data.desiredLocationRadiusMiles ?? ""}
+              onChange={(e) =>
+                update({ desiredLocationRadiusMiles: e.target.value ? Number(e.target.value) : null })
+              }
+              placeholder="e.g. 25"
+            />
+          </div>
+        )}
       </div>
       <div className="space-y-1.5">
         <Label>Desired industries</Label>

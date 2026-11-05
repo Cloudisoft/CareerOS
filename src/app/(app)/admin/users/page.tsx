@@ -15,6 +15,7 @@ interface UserRow {
   role: string;
   status: string;
   createdAt: string;
+  lastSignInAt: string | null;
 }
 
 const STATUS_VARIANT: Record<string, "success" | "destructive" | "outline"> = {
@@ -99,7 +100,8 @@ export default function AdminUsersPage() {
                       <Badge variant={STATUS_VARIANT[u.status] ?? "outline"}>{u.status}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {u.email} · joined {new Date(u.createdAt).toLocaleDateString()}
+                      {u.email} · joined {new Date(u.createdAt).toLocaleDateString()} · last signed in{" "}
+                      {u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString() : "never"}
                     </p>
                   </div>
                   {u.status !== "DEACTIVATED" && (

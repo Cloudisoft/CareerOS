@@ -10,6 +10,7 @@ function profile(overrides: Partial<MatchProfileInput> = {}): MatchProfileInput 
     careerLevel: "SENIOR",
     workplaceTypes: ["REMOTE"],
     desiredLocations: ["Austin, TX"],
+    desiredLocationRadiusMiles: null,
     desiredSalaryMin: 130000,
     desiredSalaryMax: 170000,
     skillNames: ["Python", "SQL", "AWS"],
@@ -63,6 +64,27 @@ describe("computeMatch", () => {
     const result = computeMatch(
       profile({ workplaceTypes: ["REMOTE"], desiredLocations: [] }),
       job({ workplaceType: "REMOTE", location: null })
+    );
+    expect(result.locationScore).toBe(100);
+  });
+
+  it("scores location by real distance when a radius is set and both cities resolve", () => {
+    const nearby = computeMatch(
+      profile({ workplaceTypes: [], desiredLocations: ["Dallas, TX"], desiredLocationRadiusMiles: 50 }),
+      job({ workplaceType: "ONSITE", location: "Fort Worth, TX" }) // ~30 miles from Dallas
+    );
+    const farAway = computeMatch(
+      profile({ workplaceTypes: [], desiredLocations: ["Dallas, TX"], desiredLocationRadiusMiles: 50 }),
+      job({ workplaceType: "ONSITE", location: "Seattle, WA" }) // ~1700 miles from Dallas
+    );
+    expect(nearby.locationScore).toBe(100);
+    expect(farAway.locationScore).toBeLessThan(nearby.locationScore);
+  });
+
+  it("falls back to substring location matching when a city doesn't resolve in the bundled lookup", () => {
+    const result = computeMatch(
+      profile({ workplaceTypes: [], desiredLocations: ["Smalltown, XX"], desiredLocationRadiusMiles: 25 }),
+      job({ workplaceType: "ONSITE", location: "Smalltown, XX" })
     );
     expect(result.locationScore).toBe(100);
   });

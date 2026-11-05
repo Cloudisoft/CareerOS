@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { PLANS, getPlan, type Entitlements, type AddOnKey } from "@/lib/billing/plans";
+import { downgradeExpiredSubscriptions } from "@/lib/billing/lifecycle";
 
 const FREE_ENTITLEMENTS: Entitlements = getPlan("FREE").entitlements;
 
@@ -29,6 +30,8 @@ export async function getEntitlements(userId: string): Promise<UserEntitlements>
       return { ...devPlan.entitlements, planKey: devPlan.key, addOns: ["RESUME_STUDIO", "INTERVIEW_AI"] };
     }
   }
+
+  await downgradeExpiredSubscriptions(userId);
 
   const [subscription, addOnSubs] = await Promise.all([
     prisma.subscription.findUnique({ where: { userId } }),

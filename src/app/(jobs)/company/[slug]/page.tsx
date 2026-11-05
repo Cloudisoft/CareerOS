@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, MapPin, Globe, Link2, Briefcase } from "lucide-react";
+import { Loader2, MapPin, Globe, Link2, Briefcase, Check, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatSalaryRange } from "@/lib/utils";
 
 interface CompanyJob {
@@ -32,6 +33,7 @@ interface CompanyDetail {
   location: string | null;
   website: string | null;
   linkedinUrl: string | null;
+  isFollowing: boolean;
   jobs: CompanyJob[];
 }
 
@@ -39,6 +41,7 @@ export default function CompanyPublicPage() {
   const params = useParams<{ slug: string }>();
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [followBusy, setFollowBusy] = useState(false);
 
   useEffect(() => {
     fetch(`/api/companies/${params.slug}`)
@@ -46,6 +49,15 @@ export default function CompanyPublicPage() {
       .then((json) => setCompany(json.data?.company ?? null))
       .finally(() => setLoading(false));
   }, [params.slug]);
+
+  async function toggleFollow() {
+    if (!company) return;
+    setFollowBusy(true);
+    const nextFollowing = !company.isFollowing;
+    setCompany({ ...company, isFollowing: nextFollowing });
+    await fetch(`/api/companies/${params.slug}/follow`, { method: nextFollowing ? "POST" : "DELETE" });
+    setFollowBusy(false);
+  }
 
   if (loading) {
     return (
@@ -72,8 +84,14 @@ export default function CompanyPublicPage() {
           {company.logoUrl && <AvatarImage src={company.logoUrl} />}
           <AvatarFallback className="text-lg">{company.name.slice(0, 2).toUpperCase()}</AvatarFallback>
         </Avatar>
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">{company.name}</h1>
+        <div className="flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold text-foreground">{company.name}</h1>
+            <Button size="sm" variant={company.isFollowing ? "outline" : "primary"} onClick={toggleFollow} disabled={followBusy}>
+              {company.isFollowing ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {company.isFollowing ? "Following" : "Follow"}
+            </Button>
+          </div>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {company.industry && <span>{company.industry}</span>}
             {company.size && <span>{company.size}</span>}

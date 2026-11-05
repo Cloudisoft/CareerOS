@@ -13,6 +13,13 @@ export default async function ResumeEditorPage({ params }: { params: { id: strin
 
   const { profile } = await requireCandidate();
   await closeExpiredJobs();
+
+  const header = {
+    name: `${user.firstName} ${user.lastName}`.trim(),
+    email: user.email,
+    phone: user.phone ?? "",
+    location: profile.location ?? "",
+  };
   const resume = await getResume(profile.id, params.id).catch(() => null);
   if (!resume) redirect("/resume-studio");
 
@@ -31,6 +38,7 @@ export default async function ResumeEditorPage({ params }: { params: { id: strin
       initialIsPrimary={resume.isPrimary}
       initialContent={content}
       initialTargetJob={initialTargetJob}
+      header={header}
     />
   );
 }

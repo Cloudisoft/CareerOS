@@ -27,6 +27,7 @@ export default async function OnboardingPage() {
     desiredTitles: profile.desiredTitles,
     desiredIndustries: profile.desiredIndustries,
     desiredLocations: profile.desiredLocations,
+    desiredLocationRadiusMiles: profile.desiredLocationRadiusMiles,
     workplaceTypes: profile.workplaceTypes,
     employmentTypes: profile.employmentTypes,
     desiredSalaryMin: profile.desiredSalaryMin,

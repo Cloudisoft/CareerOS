@@ -30,6 +30,7 @@ export interface OnboardingData {
   desiredTitles: string[];
   desiredIndustries: string[];
   desiredLocations: string[];
+  desiredLocationRadiusMiles: number | null;
   workplaceTypes: (typeof WORKPLACE_TYPES)[number][];
   employmentTypes: (typeof EMPLOYMENT_TYPES)[number][];
   desiredSalaryMin: number | null;
@@ -47,7 +48,7 @@ export const ONBOARDING_STEPS = [
   { title: "Identity", subtitle: "Tell us who you are.", Component: IdentityStep, endpoint: "/api/onboarding/identity", pick: (d: OnboardingData) => ({ location: d.location, phone: d.phone, headline: d.headline, bio: d.bio }) },
   { title: "Professional background", subtitle: "Where are you in your career today?", Component: ProfessionalStep, endpoint: "/api/onboarding/professional", pick: (d: OnboardingData) => ({ currentTitle: d.currentTitle, currentCompany: d.currentCompany, totalExperienceYears: d.totalExperienceYears, careerLevel: d.careerLevel, industry: d.industry }) },
   { title: "Skills", subtitle: "What are you good at?", Component: SkillsStep, endpoint: "/api/onboarding/skills", pick: (d: OnboardingData) => ({ skills: d.skills, languages: d.languages }) },
-  { title: "Job preferences", subtitle: "What are you looking for?", Component: PreferencesStep, endpoint: "/api/onboarding/preferences", pick: (d: OnboardingData) => ({ desiredTitles: d.desiredTitles, desiredIndustries: d.desiredIndustries, desiredLocations: d.desiredLocations, workplaceTypes: d.workplaceTypes, employmentTypes: d.employmentTypes, desiredSalaryMin: d.desiredSalaryMin, desiredSalaryMax: d.desiredSalaryMax, noticePeriodDays: d.noticePeriodDays }) },
+  { title: "Job preferences", subtitle: "What are you looking for?", Component: PreferencesStep, endpoint: "/api/onboarding/preferences", pick: (d: OnboardingData) => ({ desiredTitles: d.desiredTitles, desiredIndustries: d.desiredIndustries, desiredLocations: d.desiredLocations, desiredLocationRadiusMiles: d.desiredLocationRadiusMiles, workplaceTypes: d.workplaceTypes, employmentTypes: d.employmentTypes, desiredSalaryMin: d.desiredSalaryMin, desiredSalaryMax: d.desiredSalaryMax, noticePeriodDays: d.noticePeriodDays }) },
   { title: "Work authorization", subtitle: "So Career OS never guesses at this.", Component: WorkAuthStep, endpoint: "/api/onboarding/work-auth", pick: (d: OnboardingData) => ({ workAuthorization: d.workAuthorization, sponsorshipStatus: d.sponsorshipStatus, willingToRelocate: d.willingToRelocate }) },
   { title: "Career goals", subtitle: "Where do you want to go?", Component: GoalsStep, endpoint: "/api/onboarding/goals", pick: (d: OnboardingData) => ({ targetTitles: d.targetTitles, targetCompanies: d.targetCompanies, careerGoals: d.careerGoals }) },
 ] as const;
