@@ -46,8 +46,8 @@ export function MarketingFooter() {
           <div className="col-span-2 sm:col-span-3 lg:col-span-2">
             <Logo href={null} />
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
-              Your career. One operating system. Discover, match, apply, interview, learn, and
-              grow — all connected.
+              CareerOS by Silver Springs Staffing. Your career, one operating system: discover, match,
+              apply, interview, learn, and grow — all connected.
             </p>
           </div>
           {COLUMNS.map((col) => (
@@ -71,7 +71,13 @@ export function MarketingFooter() {
           ))}
         </div>
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 text-xs text-muted-foreground sm:flex-row">
-          <span>© {new Date().getFullYear()} Career OS. All rights reserved.</span>
+          <span>
+            © {new Date().getFullYear()} CareerOS by{" "}
+            <a href="https://silverspringstaffing.com" className="font-medium text-foreground hover:text-primary">
+              Silver Springs Staffing
+            </a>
+            . All rights reserved.
+          </span>
         </div>
       </div>
     </footer>

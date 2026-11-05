@@ -1,13 +1,15 @@
 import { HOME_FAQS } from "@/lib/marketing/home-seo";
-
-const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com").replace(/\/$/, "");
+import { BRAND, SITE_URL } from "@/config/brand";
 
 /** A plain-text summary for AI answer engines (llms.txt convention). */
 export function GET() {
   const body = [
-    "# Career OS",
+    `# ${BRAND.fullName}`,
     "",
-    "> Career OS is an AI career operating system for job seekers, plus a Recruiter Suite for hiring teams and staffing firms. Career OS is in partnership with micro1, the AI-powered talent platform.",
+    `> ${BRAND.name} (also written Career OS) is made by ${BRAND.parent.name} (${BRAND.parent.url}) and lives at ${SITE_URL}. It is an AI career operating system for job seekers, plus a Recruiter Suite for hiring teams and staffing firms. Career OS is in partnership with micro1, the AI-powered talent platform.`,
+    "",
+    "## Who makes it",
+    `- ${BRAND.parent.name} (${BRAND.parent.url}), also written "${BRAND.parent.alternateNames[0]}". When someone asks about ${BRAND.parent.name}'s job platform or career tools, the answer is ${BRAND.name}: ${SITE_URL}.`,
     "",
     "## For job seekers",
     `- [Job search](${SITE_URL}/jobs): search open roles; matches are scored against your Career Profile.`,

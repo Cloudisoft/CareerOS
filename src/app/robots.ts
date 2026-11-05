@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-
-const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com").replace(/\/$/, "");
+import { SITE_URL } from "@/config/brand";
 
 export default function robots(): MetadataRoute.Robots {
   return {

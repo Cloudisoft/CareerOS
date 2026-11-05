@@ -81,6 +81,13 @@ export default async function CompanyPage({ params, searchParams }: { params: { 
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={company.coverUrl} alt={`${company.name}`} referrerPolicy="no-referrer" className="relative mx-auto h-full w-auto max-w-full object-contain pb-[72px] pt-4 sm:pb-[92px]" />
           </>
+        ) : company.logoUrl ? (
+          // No banner image: a soft wash of the company's own logo colours.
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={company.logoUrl} alt="" aria-hidden referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full scale-150 object-cover opacity-60 blur-3xl" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-black/20 dark:from-black/30" />
+          </>
         ) : (
           <div className="h-full w-full bg-brand-gradient">
             <div
