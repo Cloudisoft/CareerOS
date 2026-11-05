@@ -41,7 +41,7 @@ export default async function CompanyPage({ params, searchParams }: { params: { 
   if (!company) notFound();
   const tab = TABS.some((t) => t.key === searchParams.tab) ? (searchParams.tab as (typeof TABS)[number]["key"]) : "overview";
 
-  if (!company.logoUrl) enrichCompanyBrands([company.id]);
+  if (!company.logoUrl || !company.coverUrl) enrichCompanyBrands([company.id]);
   const user = await getSessionUser();
   const [following, jobs, posts] = await Promise.all([
     user ? prisma.companyFollower.findUnique({ where: { companyId_userId: { companyId: company.id, userId: user.id } }, select: { id: true } }) : null,

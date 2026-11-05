@@ -77,9 +77,14 @@ function attr(tag: string, name: string) {
   return tag.match(new RegExp(`${name}\\s*=\\s*["']([^"']+)["']`, "i"))?.[1] ?? null;
 }
 
-/** Reads the homepage: title, best icon and share image. */
+/** Reads the homepage: title, best icon and share image. Follows one meta-refresh redirect. */
 async function readSite(domain: string) {
-  for (const url of [`https://${domain}`, `https://www.${domain}`]) {
+  const tried = new Set<string>();
+  const queue = [`https://${domain}`, `https://www.${domain}`];
+  while (queue.length) {
+    const url = queue.shift()!;
+    if (tried.has(url) || tried.size > 3) continue;
+    tried.add(url);
     try {
       const res = await fetch(url, { headers: { "user-agent": UA, accept: "text/html" }, redirect: "follow", signal: AbortSignal.timeout(6000) });
       if (!res.ok || !(res.headers.get("content-type") ?? "").includes("html")) continue;
@@ -88,7 +93,7 @@ async function readSite(domain: string) {
       const abs = (href: string | null) => {
         if (!href) return null;
         try {
-          const u = new URL(href, base);
+          const u = new URL(href.replace(/&amp;/g, "&"), base);
           return u.protocol === "https:" ? u.toString() : null;
         } catch {
           return null;
@@ -99,10 +104,18 @@ async function readSite(domain: string) {
         const m = metas.find((t) => new RegExp(`(property|name)\\s*=\\s*["']${key}["']`, "i").test(t));
         return m ? attr(m, "content") : null;
       };
+      const htmlTitle = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1];
+      // Pages that only bounce you onward (<meta http-equiv="refresh" content="0;url=/us/en">).
+      const refresh = metas.find((t) => /http-equiv\s*=\s*["']refresh["']/i.test(t));
+      const next = refresh ? abs(attr(refresh, "content")?.split(/url=/i)[1]?.trim() ?? null) : null;
+      if (!htmlTitle && next) {
+        queue.unshift(next);
+        continue;
+      }
       const links = html.match(/<link\b[^>]*>/gi) ?? [];
       const touch = links.find((l) => /rel\s*=\s*["'][^"']*apple-touch-icon/i.test(l));
-      const title = [html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1], meta("og:site_name"), meta("og:title")].filter(Boolean).join(" | ");
-      return { title, icon: abs(touch ? attr(touch, "href") : null), image: abs(meta("og:image")), finalHost: new URL(base).hostname };
+      const title = [htmlTitle, meta("og:site_name"), meta("og:title")].filter(Boolean).join(" | ");
+      return { title, icon: abs(touch ? attr(touch, "href") : null), image: abs(meta("og:image") ?? meta("twitter:image")), finalHost: new URL(base).hostname };
     } catch {
       // try the next form of the address
     }
@@ -110,32 +123,138 @@ async function readSite(domain: string) {
   return null;
 }
 
+const WIKI_UA = { "user-agent": "CareerOSBot/1.0 (https://careeros.silverspringstaffing.com)" };
+const COMPANYISH = /(company|corporation|business|firm|bank|retail|provider|manufacturer|developer|maker|startup|agency|organi[sz]ation|group|conglomerate|brand|platform|service|network|insur|chain|health|software|technolog|consult|staffing|media|publisher|airline|operator|holding|enterprise|studio|lab)/i;
+const commonsFile = (file: string, width: number) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, "_"))}?width=${width}`;
+
+/**
+ * Wikidata (the open data behind Wikipedia): an entry whose name is exactly
+ * the company's name, that describes a business and lists an official
+ * website. Gives the website, often the logo, and a photo for the banner.
+ */
+async function fromWikidata(name: string) {
+  try {
+    const q = new URLSearchParams({ action: "wbsearchentities", search: name, language: "en", type: "item", limit: "5", format: "json" });
+    const found = (await (await fetch(`https://www.wikidata.org/w/api.php?${q}`, { headers: WIKI_UA, signal: AbortSignal.timeout(6000) })).json()) as { search?: { id: string }[] };
+    const ids = (found.search ?? []).map((r) => r.id).slice(0, 5);
+    if (!ids.length) return null;
+    const g = new URLSearchParams({ action: "wbgetentities", ids: ids.join("|"), props: "labels|aliases|descriptions|claims", languages: "en", format: "json" });
+    const data = (await (await fetch(`https://www.wikidata.org/w/api.php?${g}`, { headers: WIKI_UA, signal: AbortSignal.timeout(6000) })).json()) as {
+      entities?: Record<string, { labels?: { en?: { value: string } }; aliases?: { en?: { value: string }[] }; descriptions?: { en?: { value: string } }; claims?: Record<string, { mainsnak?: { datavalue?: { value?: unknown } } }[]> }>;
+    };
+    const want = coreName(name);
+    for (const id of ids) {
+      const e = data.entities?.[id];
+      if (!e) continue;
+      const names = [e.labels?.en?.value, ...(e.aliases?.en ?? []).map((a) => a.value)].filter(Boolean) as string[];
+      if (!names.some((n) => coreName(n) === want)) continue;
+      if (!COMPANYISH.test(e.descriptions?.en?.value ?? "")) continue;
+      const claim = (p: string) => e.claims?.[p]?.[0]?.mainsnak?.datavalue?.value;
+      const website = claim("P856");
+      const host = typeof website === "string" ? hostOf(website) : null;
+      if (!host) continue;
+      const logo = claim("P154");
+      const image = claim("P18");
+      return {
+        domain: rootDomain(host),
+        logo: typeof logo === "string" ? commonsFile(logo, 256) : null,
+        cover: typeof image === "string" ? commonsFile(image, 1600) : null,
+      };
+    }
+  } catch {
+    // Wikidata unreachable: other sources still apply
+  }
+  return null;
+}
+
+/** Clearbit's public company search: only an exact name match counts. */
+async function fromClearbit(name: string) {
+  try {
+    const res = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(name)}`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const list = (await res.json()) as { name: string; domain: string }[];
+    const want = coreName(name);
+    const hit = list.find((c) => coreName(c.name) === want && c.domain);
+    return hit ? { domain: rootDomain(hit.domain) } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Google's favicon for a domain, only when Google actually has one (it answers 404 otherwise). */
+async function googleIcon(domain: string) {
+  const url = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    return res.ok ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+const RECHECK_MS = 14 * 24 * 60 * 60 * 1000;
+
 async function enrich(companyId: string) {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
     select: { id: true, name: true, website: true, logoUrl: true, coverUrl: true, brandCheckedAt: true, jobs: { select: { externalUrl: true }, where: { externalUrl: { not: null } }, take: 5 } },
   });
-  if (!company || company.logoUrl || company.brandCheckedAt) return;
+  if (!company || (company.logoUrl && company.coverUrl)) return;
+  if (company.brandCheckedAt && Date.now() - company.brandCheckedAt.getTime() < RECHECK_MS) return;
   // Mark first, so a slow site is never looked up twice at once.
   await prisma.company.update({ where: { id: company.id }, data: { brandCheckedAt: new Date() } });
 
-  for (const { domain, trusted } of candidateDomains(company.name, company.website, company.jobs.map((j) => j.externalUrl!))) {
-    const site = await readSite(domain);
-    if (!site) continue;
-    const root = rootDomain(site.finalHost);
-    // A guess must stay on its own domain (no redirect to another company) and name the company in its title.
-    if (!trusted && (root !== domain || !titleMatches(company.name, site.title))) continue;
-    const logoUrl = site.icon ?? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(root)}&sz=128`;
-    await prisma.company.update({
-      where: { id: company.id },
-      data: {
-        logoUrl,
-        ...(company.coverUrl || !site.image ? {} : { coverUrl: site.image }),
-        ...(company.website ? {} : { website: `https://${root}` }),
-      },
-    });
-    return;
+  // Sources, most trustworthy first. Trusted ones are known to be this company's own website.
+  type Source = { domain: string; trusted: boolean; logo?: string | null; cover?: string | null };
+  const sources: Source[] = [];
+  const push = (s: Source) => {
+    if (!sources.some((x) => x.domain === s.domain) && !ATS_HOSTS.some((a) => s.domain.includes(a))) sources.push(s);
+  };
+  const guesses = candidateDomains(company.name, company.website, company.jobs.map((j) => j.externalUrl!));
+  if (company.website) {
+    guesses.forEach(push);
+  } else {
+    const [wiki, clearbit] = await Promise.all([fromWikidata(company.name), fromClearbit(company.name)]);
+    if (wiki) push({ domain: wiki.domain, trusted: true, logo: wiki.logo, cover: wiki.cover });
+    if (clearbit) push({ domain: clearbit.domain, trusted: true });
+    guesses.forEach(push);
   }
+
+  let logoUrl = company.logoUrl;
+  let coverUrl = company.coverUrl;
+  let website = company.website;
+  for (const src of sources) {
+    const site = await readSite(src.domain);
+    if (!src.trusted) {
+      // A guess must stay on its own domain (no redirect to another company) and name the company in its title.
+      if (!site || rootDomain(site.finalHost) !== src.domain || !titleMatches(company.name, site.title)) continue;
+    }
+    const root = site ? rootDomain(site.finalHost) : src.domain;
+    logoUrl ||= src.logo ?? site?.icon ?? (await googleIcon(root));
+    coverUrl ||= site?.image ?? src.cover ?? null;
+    website ||= `https://${root}`;
+    if (logoUrl) break;
+  }
+  if (logoUrl !== company.logoUrl || coverUrl !== company.coverUrl || website !== company.website) {
+    await prisma.company.update({ where: { id: company.id }, data: { logoUrl, coverUrl, website } });
+  }
+}
+
+const needsBrand = () => ({
+  deletedAt: null,
+  OR: [{ logoUrl: null }, { coverUrl: null }],
+  AND: [{ OR: [{ brandCheckedAt: null }, { brandCheckedAt: { lt: new Date(Date.now() - RECHECK_MS) } }] }],
+});
+
+let lastSweep = 0;
+/** Works through every company still missing a logo or banner, a few at a time, at most every few minutes. */
+export function sweepCompanyBrands(batch = 8) {
+  if (Date.now() - lastSweep < 5 * 60 * 1000) return;
+  lastSweep = Date.now();
+  void prisma.company
+    .findMany({ where: needsBrand(), select: { id: true }, take: batch, orderBy: { createdAt: "desc" } })
+    .then((rows) => enrichCompanyBrands(rows.map((r) => r.id)))
+    .catch(() => {});
 }
 
 /** Looks up logos for these companies in the background (never blocks a page). */
@@ -149,10 +268,19 @@ export function enrichCompanyBrands(companyIds: string[]) {
   }
 }
 
-/** Waits for a batch (admin "find logos now"). */
+/** Waits for a batch (Admin "Find logos now"); returns what's still missing overall. */
 export async function enrichCompanyBrandsNow(limit = 25) {
-  const companies = await prisma.company.findMany({ where: { logoUrl: null, brandCheckedAt: null, deletedAt: null }, select: { id: true }, take: limit, orderBy: { createdAt: "desc" } });
-  for (const c of companies) await enrich(c.id).catch(() => {});
-  const found = await prisma.company.count({ where: { id: { in: companies.map((c) => c.id) }, logoUrl: { not: null } } });
-  return { checked: companies.length, found };
+  const companies = await prisma.company.findMany({ where: needsBrand(), select: { id: true }, take: limit, orderBy: { createdAt: "desc" } });
+  for (let i = 0; i < companies.length; i += 5) await Promise.all(companies.slice(i, i + 5).map((c) => enrich(c.id).catch(() => {})));
+  return brandCoverage(companies.length);
+}
+
+export async function brandCoverage(checked = 0) {
+  const [total, withLogo, withCover, pending] = await Promise.all([
+    prisma.company.count({ where: { deletedAt: null } }),
+    prisma.company.count({ where: { deletedAt: null, logoUrl: { not: null } } }),
+    prisma.company.count({ where: { deletedAt: null, coverUrl: { not: null } } }),
+    prisma.company.count({ where: needsBrand() }),
+  ]);
+  return { checked, total, withLogo, withCover, pending };
 }

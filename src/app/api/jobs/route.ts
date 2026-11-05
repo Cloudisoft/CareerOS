@@ -12,7 +12,7 @@ import { resolveCity, haversineMiles } from "@/lib/geo/distance";
 import type { Prisma } from "@prisma/client";
 import { CITIZENS_ONLY, VISA_NEGATIVE, VISA_POSITIVE, closingInDays } from "@/lib/jobs/signals";
 import { COUNTRIES, isCountryCode } from "@/lib/jobs/countries";
-import { enrichCompanyBrands } from "@/lib/company/branding";
+import { enrichCompanyBrands, sweepCompanyBrands } from "@/lib/company/branding";
 
 const PAGE_SIZE = 20;
 const SOURCES = ["greenhouse", "lever", "ashby", "workday", "adzuna", "jsearch", "careeros"];
@@ -176,7 +176,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Companies without a logo get one looked up in the background for next time.
-    enrichCompanyBrands(jobs.filter((j) => !j.company.logoUrl && !j.company.brandCheckedAt).map((j) => j.company.id));
+    enrichCompanyBrands(jobs.filter((j) => !j.company.logoUrl || !j.company.coverUrl).map((j) => j.company.id));
+    sweepCompanyBrands();
 
     return apiOk({
       jobs: jobs.map((job) => ({

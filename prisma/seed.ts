@@ -715,6 +715,25 @@ async function seedCircles() {
   console.log(`Seeded ${CIRCLES.length} circles.`);
 }
 
+/**
+ * Deletes the sample companies (and, through them, their sample jobs). Only
+ * records that match a sample exactly — same slug and the sample's
+ * ".example" website — are touched; real companies never are.
+ */
+async function removeSampleCompanies() {
+  const samples = await prisma.company.findMany({
+    where: { OR: COMPANIES.map((c) => ({ slug: c.slug, website: c.website })) },
+    select: { id: true, name: true, _count: { select: { jobs: true } } },
+  });
+  if (!samples.length) return;
+  const ids = samples.map((c) => c.id);
+  const applications = await prisma.application.count({ where: { job: { companyId: { in: ids } } } });
+  await prisma.company.deleteMany({ where: { id: { in: ids } } });
+  console.log(
+    `Removed ${samples.length} sample companies (${samples.reduce((n, c) => n + c._count.jobs, 0)} sample jobs, ${applications} applications to them): ${samples.map((c) => c.name).join(", ")}`
+  );
+}
+
 async function main() {
   for (const skill of SKILLS) {
     await prisma.skill.upsert({
@@ -725,7 +744,12 @@ async function main() {
   }
   console.log(`Seeded ${SKILLS.length} skills.`);
 
-  await seedCompaniesAndJobs();
+  // The sample companies are for local development only. On the live site
+  // (Railway, or NODE_ENV=production) they're removed instead, so real users
+  // only see real companies. SEED_SAMPLE_COMPANIES=1 keeps them anywhere.
+  const live = process.env.NODE_ENV === "production" || Boolean(process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT);
+  if (process.env.SEED_SAMPLE_COMPANIES === "1" || !live) await seedCompaniesAndJobs();
+  else await removeSampleCompanies();
   await seedCourses();
   await seedCircles();
 }
