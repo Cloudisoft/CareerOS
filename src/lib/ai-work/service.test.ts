@@ -16,10 +16,13 @@ describe("skillMatch", () => {
 });
 
 describe("applyUrlFor", () => {
-  it("prefers the role's link, then the referral link, then micro1's page", () => {
-    expect(applyUrlFor({ applyUrl: "https://a.example/role" }, "https://ref.example")).toBe("https://a.example/role");
-    expect(applyUrlFor({ applyUrl: null }, "https://ref.example")).toBe("https://ref.example");
-    expect(applyUrlFor({ applyUrl: null }, null)).toBe(MICRO1_OPPORTUNITIES_URL);
+  it("always uses the server referral link when one is set", () => {
+    expect(applyUrlFor({ applyUrl: "https://a.example/role" }, "https://ref.example", "https://refer.micro1.ai/x")).toBe("https://refer.micro1.ai/x");
+  });
+  it("otherwise prefers the role's link, then the admin link, then micro1's page", () => {
+    expect(applyUrlFor({ applyUrl: "https://a.example/role" }, "https://ref.example", null)).toBe("https://a.example/role");
+    expect(applyUrlFor({ applyUrl: null }, "https://ref.example", null)).toBe("https://ref.example");
+    expect(applyUrlFor({ applyUrl: null }, null, null)).toBe(MICRO1_OPPORTUNITIES_URL);
   });
 });
 

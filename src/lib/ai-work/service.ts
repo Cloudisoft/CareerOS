@@ -79,12 +79,22 @@ function dedupe(skills: string[]) {
   });
 }
 
-/** The link set in Admin → AI Work, else the MICRO1_REFERRAL_URL environment variable. */
-export async function getReferralUrl(): Promise<string | null> {
-  const row = await prisma.appSetting.findUnique({ where: { key: REFERRAL_KEY } });
-  if (row?.value) return row.value;
+/**
+ * Career OS's own micro1 referral link (MICRO1_REFERRAL_URL). When set it is
+ * the single source of truth: every Apply button uses it, whatever is saved
+ * in Admin or on a role.
+ */
+export function lockedReferralUrl(): string | null {
   const fromEnv = process.env.MICRO1_REFERRAL_URL?.trim();
   return fromEnv && httpsUrl.safeParse(fromEnv).success ? fromEnv : null;
+}
+
+/** The referral link in force: the server's link, else the one saved in Admin → AI Work. */
+export async function getReferralUrl(): Promise<string | null> {
+  const locked = lockedReferralUrl();
+  if (locked) return locked;
+  const row = await prisma.appSetting.findUnique({ where: { key: REFERRAL_KEY } });
+  return row?.value || null;
 }
 
 export async function setReferralUrl(url: string | null) {
@@ -97,9 +107,12 @@ export async function setReferralUrl(url: string | null) {
   return value;
 }
 
-/** Where "Apply" goes: the role's own link, else the referral link, else micro1's opportunities page. */
-export function applyUrlFor(role: Pick<AiWorkRole, "applyUrl">, referralUrl: string | null) {
-  return role.applyUrl || referralUrl || MICRO1_OPPORTUNITIES_URL;
+/**
+ * Where "Apply" goes: the server referral link when set (always), else the
+ * role's own link, else the Admin referral link, else micro1's opportunities page.
+ */
+export function applyUrlFor(role: Pick<AiWorkRole, "applyUrl">, referralUrl: string | null, locked: string | null = lockedReferralUrl()) {
+  return locked || role.applyUrl || referralUrl || MICRO1_OPPORTUNITIES_URL;
 }
 
 function norm(s: string) {

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requirePlatformAdmin } from "@/lib/auth/guards";
-import { aiWorkRoleSchema, createRole, getReferralUrl, listRoles } from "@/lib/ai-work/service";
+import { aiWorkRoleSchema, createRole, getReferralUrl, listRoles, lockedReferralUrl } from "@/lib/ai-work/service";
 import { writeAuditLog } from "@/lib/audit/log";
 import { apiCatch, apiOk } from "@/lib/api-response";
 
@@ -8,7 +8,7 @@ export async function GET() {
   try {
     await requirePlatformAdmin();
     const [roles, referralUrl] = await Promise.all([listRoles({ includeClosed: true }), getReferralUrl()]);
-    return apiOk({ roles, referralUrl });
+    return apiOk({ roles, referralUrl, referralLocked: Boolean(lockedReferralUrl()) });
   } catch (error) {
     return apiCatch(error);
   }
