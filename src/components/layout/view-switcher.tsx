@@ -6,10 +6,10 @@ import type { UserRole } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 /** Fixed order: job seeker, recruiter, then platform admin last. */
-const VIEWS: { role: UserRole; label: string; icon: typeof UserRound }[] = [
-  { role: "CANDIDATE", label: "Job seeker", icon: UserRound },
-  { role: "EMPLOYER", label: "Recruiter", icon: Briefcase },
-  { role: "PLATFORM_ADMIN", label: "Platform admin", icon: ShieldCheck },
+const VIEWS: { role: UserRole; label: string; short: string; icon: typeof UserRound }[] = [
+  { role: "CANDIDATE", label: "Job seeker", short: "Seeker", icon: UserRound },
+  { role: "EMPLOYER", label: "Recruiter", short: "Recruiter", icon: Briefcase },
+  { role: "PLATFORM_ADMIN", label: "Platform admin", short: "Admin", icon: ShieldCheck },
 ];
 
 /**
@@ -48,9 +48,10 @@ export function ViewSwitcher({ role, viewRoles }: { role?: UserRole; viewRoles: 
               role="radio"
               aria-checked={active}
               title={v.label}
+              aria-label={`${v.label}${active ? " (current)" : ""}`}
               onClick={() => switchTo(v.role)}
               className={cn(
-                "flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px] font-medium leading-tight transition-colors",
+                "flex min-w-0 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px] font-medium leading-tight transition-colors",
                 active ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -59,8 +60,9 @@ export function ViewSwitcher({ role, viewRoles }: { role?: UserRole; viewRoles: 
               ) : (
                 <v.icon className={cn("h-4 w-4", active && "text-primary")} />
               )}
-              <span className="truncate">{v.label}</span>
-              {active && <span className="sr-only">Current</span>}
+              <span className="w-full truncate text-center" aria-hidden>
+                {v.short}
+              </span>
             </button>
           );
         })}

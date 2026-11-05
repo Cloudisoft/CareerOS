@@ -41,6 +41,7 @@ export default function AdminAiWorkPage() {
   const [roles, setRoles] = useState<Role[] | null>(null);
   const [referral, setReferral] = useState("");
   const [referralSaved, setReferralSaved] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
   const [form, setForm] = useState<Form>(EMPTY);
   const [editing, setEditing] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -54,6 +55,7 @@ export default function AdminAiWorkPage() {
       setRoles(json.data.roles);
       setReferral(json.data.referralUrl ?? "");
       setReferralSaved(json.data.referralUrl ?? null);
+      setLocked(Boolean(json.data.referralLocked));
     } else setMsg({ ok: false, text: json?.error?.message ?? "Couldn't load roles." });
   }, []);
 
@@ -177,20 +179,28 @@ export default function AdminAiWorkPage() {
         </p>
       )}
 
-      <form onSubmit={saveReferral} className="rounded-xl border border-border bg-surface p-5">
-        <label htmlFor="referral" className="font-semibold text-foreground">
-          micro1 referral link
-        </label>
-        <p className="mt-0.5 text-sm text-muted-foreground">Used by every Apply button that has no role-specific link, so Career OS gets referral credit.</p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input id="referral" className={input} placeholder="https://…" value={referral} onChange={(e) => setReferral(e.target.value)} />
-          <button type="submit" className="h-10 shrink-0 rounded-lg border border-border px-4 text-sm font-semibold text-foreground hover:bg-surface-raised">
-            Save link
-          </button>
+      {locked ? (
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <p className="font-semibold text-foreground">micro1 referral link</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Every Apply button uses Career OS&apos;s referral link (set on the server), including roles that have their own link.</p>
+          <p className="mt-2 break-all rounded-lg bg-surface-raised px-3 py-2 font-mono text-xs text-foreground">{referralSaved}</p>
         </div>
-        {!referralSaved && <p className="mt-2 text-xs text-muted-foreground">Not set: Apply buttons go to micro1&apos;s opportunities page.</p>}
-        <p className="mt-2 text-xs text-muted-foreground">Clearing this falls back to the MICRO1_REFERRAL_URL server setting, when one is set.</p>
-      </form>
+      ) : (
+      <form onSubmit={saveReferral} className="rounded-xl border border-border bg-surface p-5">
+          <label htmlFor="referral" className="font-semibold text-foreground">
+            micro1 referral link
+          </label>
+          <p className="mt-0.5 text-sm text-muted-foreground">Used by every Apply button that has no role-specific link, so Career OS gets referral credit.</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input id="referral" className={input} placeholder="https://…" value={referral} onChange={(e) => setReferral(e.target.value)} />
+            <button type="submit" className="h-10 shrink-0 rounded-lg border border-border px-4 text-sm font-semibold text-foreground hover:bg-surface-raised">
+              Save link
+            </button>
+          </div>
+          {!referralSaved && <p className="mt-2 text-xs text-muted-foreground">Not set: Apply buttons go to micro1&apos;s opportunities page.</p>}
+          <p className="mt-2 text-xs text-muted-foreground">Clearing this falls back to the MICRO1_REFERRAL_URL server setting, when one is set.</p>
+        </form>
+      )}
 
       {showForm && (
         <form onSubmit={save} className="space-y-4 rounded-xl border border-primary/30 bg-surface p-5">
@@ -231,7 +241,7 @@ export default function AdminAiWorkPage() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </Field>
-          <Field label="Link to this role on micro1 (optional; overrides the referral link)">
+          <Field label={locked ? "Link to this role on micro1 (kept for reference; Apply always uses the referral link)" : "Link to this role on micro1 (optional; overrides the referral link)"}>
             <input className={input} value={form.applyUrl} onChange={(e) => setForm({ ...form, applyUrl: e.target.value })} placeholder="https://www.micro1.ai/…" />
           </Field>
           <div className="flex gap-2">

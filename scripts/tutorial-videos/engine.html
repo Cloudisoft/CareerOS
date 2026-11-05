@@ -1,0 +1,324 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: Geist; src: url("../../src/app/fonts/GeistVF.woff") format("woff"); font-weight: 100 900; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; background: #fff; }
+  body { font-family: Geist, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  #stage { position: relative; width: 1280px; height: 720px; overflow: hidden; }
+  .scene { position: absolute; inset: 0; overflow: hidden; }
+  .abs { position: absolute; }
+  .bg-cream { background: #fff8f1; }
+  .bg-white { background: #f7f8fa; }
+  .bg-plum { background: #0d0711; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(60px); }
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(15,23,42,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,.045) 1px, transparent 1px); background-size: 40px 40px; }
+  .bg-plum .grid { background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px); }
+  .kicker { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; font-size: 17px; font-weight: 600; color: #fff; background: linear-gradient(135deg,#EF862D,#DF4C2C); box-shadow: 0 8px 24px -8px rgba(223,76,44,.6); white-space: nowrap; }
+  .title { font-weight: 800; letter-spacing: -0.03em; line-height: 1.02; color: #0b1220; }
+  .scene.dark .title, .scene.dark .body, .scene.dark .li { color: #fff; } .scene.dark .body { color: #d6cfd9; }
+  .grad { background: linear-gradient(135deg,#EF862D,#DF4C2C); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .body { font-size: 24px; line-height: 1.4; color: #475569; }
+  .frame { position: absolute; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 40px 80px -30px rgba(15,23,42,.45), 0 0 0 1px rgba(15,23,42,.08); }
+  .frame .bar { height: 30px; background: #f1f3f6; display: flex; align-items: center; gap: 7px; padding: 0 12px; border-bottom: 1px solid #e5e7eb; }
+  .frame .bar i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+  .frame .url { margin-left: 12px; flex: 1; height: 18px; border-radius: 6px; background: #fff; border: 1px solid #e5e7eb; font-size: 11px; color: #64748b; display: flex; align-items: center; padding: 0 8px; }
+  .frame .view { position: relative; overflow: hidden; }
+  .frame img { position: absolute; display: block; max-width: none; }
+  .callout { display: inline-flex; align-items: center; gap: 10px; padding: 11px 18px; border-radius: 14px; background: #0b1220; color: #fff; font-size: 19px; font-weight: 600; box-shadow: 0 16px 36px -12px rgba(15,23,42,.55); white-space: nowrap; }
+  .callout b { width: 10px; height: 10px; border-radius: 50%; background: #EF862D; box-shadow: 0 0 0 5px rgba(239,134,45,.25); }
+  .callout.light { background: #fff; color: #0b1220; box-shadow: 0 16px 36px -12px rgba(15,23,42,.35), 0 0 0 1px rgba(15,23,42,.06); }
+  .hl { border: 3px solid #EF862D; border-radius: 14px; box-shadow: 0 0 0 6px rgba(239,134,45,.18); }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; background: #fff; border: 1.5px solid #e5e7eb; font-size: 21px; font-weight: 600; color: #0b1220; box-shadow: 0 10px 24px -14px rgba(15,23,42,.4); white-space: nowrap; }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .search { display: flex; align-items: center; gap: 14px; background: #fff; border: 2px solid #e5e7eb; border-radius: 22px; padding: 0 12px 0 24px; box-shadow: 0 24px 60px -24px rgba(239,134,45,.55); }
+  .search .txt { flex: 1; font-size: 28px; color: #0b1220; white-space: nowrap; overflow: hidden; }
+  .search .ph { color: #94a3b8; }
+  .search .go { width: 58px; height: 58px; border-radius: 16px; background: linear-gradient(135deg,#EF862D,#DF4C2C); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; font-weight: 700; }
+  .caret { display: inline-block; width: 2px; height: 30px; background: #EF862D; vertical-align: -5px; margin-left: 2px; }
+  .card { position: absolute; background: #fff; border-radius: 20px; box-shadow: 0 30px 70px -30px rgba(15,23,42,.45), 0 0 0 1px rgba(15,23,42,.06); padding: 26px 28px; }
+  .bg-plum .card { background: #1a1120; box-shadow: 0 0 0 1px rgba(255,255,255,.08); color: #fff; }
+  .label { font-size: 15px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #EF862D; }
+  .muted { color: #64748b; }
+  .barrow { display: flex; align-items: center; gap: 14px; font-size: 20px; color: #0b1220; }
+  .track { flex: 1; height: 12px; border-radius: 99px; background: #eef0f3; overflow: hidden; }
+  .fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#EF862D,#DF4C2C); }
+  .node { position: absolute; width: 190px; text-align: center; }
+  .node .ic { width: 74px; height: 74px; margin: 0 auto; border-radius: 22px; display: flex; align-items: center; justify-content: center; font-size: 34px; background: #fff; box-shadow: 0 16px 34px -14px rgba(15,23,42,.45), 0 0 0 1px rgba(15,23,42,.06); }
+  .node .ic.on { background: linear-gradient(135deg,#EF862D,#DF4C2C); color: #fff; }
+  .node p { margin-top: 14px; font-size: 21px; font-weight: 700; color: #0b1220; }
+  .node small { display: block; margin-top: 4px; font-size: 15px; color: #64748b; font-weight: 500; }
+  .bubble { position: absolute; max-width: 640px; padding: 16px 20px; border-radius: 20px; font-size: 21px; line-height: 1.45; }
+  .bubble.me { background: linear-gradient(135deg,#EF862D,#DF4C2C); color: #fff; border-bottom-right-radius: 6px; }
+  .bubble.ai { background: #fff; color: #0b1220; border-bottom-left-radius: 6px; box-shadow: 0 16px 34px -18px rgba(15,23,42,.45), 0 0 0 1px rgba(15,23,42,.06); }
+  .tick { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; align-items: center; justify-content: center; background: #16a34a; color: #fff; font-size: 18px; font-weight: 800; flex-shrink: 0; }
+  .li { display: flex; align-items: center; gap: 16px; font-size: 27px; font-weight: 600; color: #0b1220; }
+  .bg-plum .li { color: #fff; }
+  .wm { position: absolute; left: 30px; top: 24px; }
+  .prog { position: absolute; left: 0; bottom: 0; height: 5px; background: linear-gradient(90deg,#EF862D,#DF4C2C); }
+  .strike { position: relative; }
+  .strike::after { content: ""; position: absolute; left: 0; top: 52%; height: 3px; background: #ef4444; width: var(--w, 0%); }
+  .kw { position: absolute; padding: 8px 14px; border-radius: 10px; background: #fff3e8; color: #c2410c; font-weight: 700; font-size: 18px; border: 1.5px solid #fdba74; white-space: nowrap; }
+  .docline { height: 11px; border-radius: 6px; background: #e5e7eb; margin: 9px 0; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const ICON = "../../public/brand/icon-transparent.png";
+/** Icon + live wordmark, like the app's Logo component, so it reads on light and dark. */
+const logoHTML = (h, dark) => `<span style="display:inline-flex;align-items:center;gap:${h * 0.28}px"><img src="${ICON}" style="height:${h}px;width:${h}px"><span style="font-weight:800;letter-spacing:-.02em;font-size:${h * 0.72}px;color:${dark ? "#fff" : "#0b1220"}">career<span class="grad">OS</span></span></span>`;
+const SHOTS = "shots/"; // real Career OS screens from capture.cjs (not committed)
+const IW = 2880, IH = 1800;
+
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const prog = (t, a, b) => clamp((t - a) / Math.max(0.0001, b - a));
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const place = (e, o) => { e.classList.add("abs"); for (const k of ["left", "top", "width", "height", "right", "bottom"]) if (o[k] != null) e.style[k] = typeof o[k] === "number" ? o[k] + "px" : o[k]; return e; };
+
+/** Entrance (fade + rise) at `at`, optional exit before scene end. */
+function appear(e, lt, sd, at = 0, dur = 0.55, rise = 24, exit = true) {
+  const k = easeOut(prog(lt, at, at + dur));
+  const out = exit ? 1 - easeInOut(prog(lt, sd - 0.35, sd)) : 1;
+  e.style.opacity = k * out;
+  e.style.transform = `translateY(${(1 - k) * rise}px)`;
+}
+
+// ---------- item factories: each returns { el, update(lt, sd) } ----------
+const I = {
+  kicker(text, o = {}) {
+    const e = place(el("div", "kicker", text), { left: o.x ?? 80, top: o.y ?? 210 });
+    if (o.center) { e.style.left = "50%"; e.style.marginLeft = "0"; }
+    return { el: e, update: (lt, sd) => { appear(e, lt, sd, o.at ?? 0.1); if (o.center) e.style.transform += " translateX(-50%)"; } };
+  },
+  title(html, o = {}) {
+    const e = place(el("div", "title", html), { left: o.x ?? 80, top: o.y ?? 260, width: o.w ?? 1120 });
+    e.style.fontSize = (o.size ?? 72) + "px";
+    if (o.center) e.style.textAlign = "center";
+    return { el: e, update: (lt, sd) => appear(e, lt, sd, o.at ?? 0.25, 0.7, 34) };
+  },
+  body(html, o = {}) {
+    const e = place(el("div", "body", html), { left: o.x ?? 80, top: o.y ?? 470, width: o.w ?? 900 });
+    if (o.size) e.style.fontSize = o.size + "px";
+    if (o.center) e.style.textAlign = "center";
+    return { el: e, update: (lt, sd) => appear(e, lt, sd, o.at ?? 0.55) };
+  },
+  /** A browser-framed real screenshot with a Ken Burns move between two crops (fractions of the image). */
+  screen(file, o) {
+    const fw = o.w ?? 1000, fh = o.h ?? Math.round(fw * 0.5625);
+    const f = place(el("div", "frame"), { left: o.x ?? (1280 - fw) / 2, top: o.y ?? 92, width: fw, height: fh + 30 });
+    const bar = el("div", "bar", `<i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><div class="url">careeros.silverspringstaffing.com${o.path ?? ""}</div>`);
+    const view = el("div", "view"); view.style.height = fh + "px"; view.style.width = fw + "px";
+    const img = el("img"); img.src = SHOTS + file + ".jpg"; view.appendChild(img); f.append(bar, view);
+    const from = o.from ?? { x: 0, y: 0, w: 1 }, to = o.to ?? from;
+    return {
+      el: f,
+      update: (lt, sd) => {
+        const k = easeInOut(prog(lt, o.moveAt ?? 0.6, o.moveEnd ?? sd - 0.4));
+        const cx = lerp(from.x, to.x, k), cy = lerp(from.y, to.y, k), cw = lerp(from.w, to.w, k);
+        const imgW = fw / cw, imgH = imgW * (IH / IW);
+        img.style.width = imgW + "px"; img.style.height = imgH + "px";
+        img.style.left = -cx * imgW + "px"; img.style.top = -cy * imgH + "px";
+        const a = easeOut(prog(lt, o.at ?? 0, (o.at ?? 0) + 0.7));
+        const out = 1 - easeInOut(prog(lt, sd - 0.35, sd));
+        f.style.opacity = a * out;
+        f.style.transform = `translateY(${(1 - a) * 40}px) scale(${0.96 + 0.04 * a})`;
+      },
+    };
+  },
+  callout(text, o) {
+    const e = place(el("div", "callout" + (o.light ? " light" : ""), `<b></b>${text}`), { left: o.x, top: o.y });
+    return { el: e, update: (lt, sd) => { const k = easeOut(prog(lt, o.at, o.at + 0.45)); const out = 1 - easeInOut(prog(lt, (o.until ?? sd) - 0.3, o.until ?? sd)); e.style.opacity = k * out; e.style.transform = `translateX(${(1 - k) * (o.from === "right" ? 30 : -30)}px)`; } };
+  },
+  highlight(o) {
+    const e = place(el("div", "hl"), { left: o.x, top: o.y, width: o.w, height: o.h });
+    return { el: e, update: (lt, sd) => { const k = easeOut(prog(lt, o.at, o.at + 0.4)); const out = 1 - easeInOut(prog(lt, (o.until ?? sd) - 0.3, o.until ?? sd)); const pulse = 1 + 0.02 * Math.sin((lt - o.at) * 5); e.style.opacity = k * out; e.style.transform = `scale(${(0.9 + 0.1 * k) * pulse})`; } };
+  },
+  cursor(o) {
+    const e = place(el("div", "", `<svg width="34" height="34" viewBox="0 0 24 24"><path d="M4 2l16 10-7 1.5L9.5 21z" fill="#0b1220" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>`), { left: 0, top: 0 });
+    const ring = place(el("div"), { left: 0, top: 0, width: 46, height: 46 }); ring.style.borderRadius = "50%"; ring.style.border = "3px solid #EF862D";
+    const wrap = el("div"); wrap.append(ring, e);
+    return {
+      el: wrap,
+      update: (lt, sd) => {
+        const pts = o.path; let x = pts[0][1], y = pts[0][2];
+        for (let i = 0; i < pts.length - 1; i++) { const [t0, x0, y0] = pts[i], [t1, x1, y1] = pts[i + 1]; if (lt >= t0) { const k = easeInOut(prog(lt, t0, t1)); x = lerp(x0, x1, k); y = lerp(y0, y1, k); } }
+        const vis = easeOut(prog(lt, pts[0][0] - 0.3, pts[0][0])) * (1 - prog(lt, sd - 0.4, sd));
+        e.style.opacity = vis; e.style.transform = `translate(${x}px, ${y}px)`;
+        let r = 0, ro = 0;
+        for (const c of o.clicks ?? []) { const k = prog(lt, c, c + 0.5); if (k > 0 && k < 1) { r = k; ro = 1 - k; } }
+        ring.style.opacity = ro; ring.style.transform = `translate(${x - 18}px, ${y - 18}px) scale(${0.4 + r})`;
+      },
+    };
+  },
+  typing(text, o) {
+    const e = place(el("div", "search"), { left: o.x ?? 240, top: o.y ?? 330, width: o.w ?? 800, height: o.h ?? 82 });
+    const t = el("div", "txt"); const go = el("div", "go", "↑"); e.append(t, go);
+    return {
+      el: e,
+      update: (lt, sd) => {
+        appear(e, lt, sd, o.at ?? 0, 0.5, 20);
+        const n = Math.floor(clamp((lt - (o.typeAt ?? 0.8)) * (o.cps ?? 16), 0, text.length));
+        const blink = Math.floor(lt * 2.2) % 2 === 0;
+        t.innerHTML = n === 0 ? `<span class="ph">${o.placeholder ?? "Describe a job you want"}</span>` : text.slice(0, n) + (blink ? '<span class="caret"></span>' : '<span class="caret" style="opacity:0"></span>');
+        const press = o.pressAt != null ? prog(lt, o.pressAt, o.pressAt + 0.25) : 0;
+        go.style.transform = `scale(${1 - 0.12 * Math.sin(Math.PI * press)})`;
+      },
+    };
+  },
+  chips(items, o) {
+    const wrap = place(el("div"), { left: o.x ?? 80, top: o.y ?? 420, width: o.w ?? 1120 }); wrap.style.display = "flex"; wrap.style.flexWrap = "wrap"; wrap.style.gap = "14px"; if (o.center) wrap.style.justifyContent = "center";
+    const colors = ["#16a34a", "#0284c7", "#7c3aed", "#2563eb", "#0d9488", "#d97706", "#db2777", "#EF862D"];
+    const chips = items.map((txt, i) => { const c = el("div", "chip", `<span class="dot" style="background:${colors[i % colors.length]}"></span>${txt}`); wrap.appendChild(c); return c; });
+    return { el: wrap, update: (lt, sd) => chips.forEach((c, i) => { const a = (o.at ?? 0.4) + i * (o.stagger ?? 0.18); const k = easeOut(prog(lt, a, a + 0.4)); const out = 1 - easeInOut(prog(lt, sd - 0.35, sd)); c.style.opacity = k * out; c.style.transform = `translateY(${(1 - k) * 18}px) scale(${0.85 + 0.15 * k})`; if (o.activate != null && i === o.activate && lt > o.activateAt) { c.style.borderColor = "#EF862D"; c.style.background = "#fff3e8"; c.style.color = "#c2410c"; } }) };
+  },
+  counter(o) {
+    const e = place(el("div", "card"), { left: o.x, top: o.y, width: o.w ?? 300 });
+    e.innerHTML = `<div class="label">${o.label}</div><div style="font-size:${o.size ?? 84}px;font-weight:800;letter-spacing:-.03em;margin-top:6px" class="num"></div>${o.note ? `<div class="muted" style="font-size:17px;margin-top:4px">${o.note}</div>` : ""}`;
+    const num = e.querySelector(".num");
+    return { el: e, update: (lt, sd) => { appear(e, lt, sd, o.at ?? 0.3); const k = easeOut(prog(lt, o.countAt ?? 0.8, (o.countAt ?? 0.8) + (o.dur ?? 1.6))); num.textContent = Math.round(lerp(o.from, o.to, k)) + (o.suffix ?? ""); num.style.color = k > 0.98 && o.good ? "#16a34a" : "inherit"; } };
+  },
+  ring(o) {
+    const size = o.size ?? 260, r = size / 2 - 16, C = 2 * Math.PI * r;
+    const e = place(el("div"), { left: o.x, top: o.y, width: size, height: size });
+    e.innerHTML = `<svg width="${size}" height="${size}"><defs><linearGradient id="g${o.x}" x1="0" x2="1"><stop offset="0" stop-color="#EF862D"/><stop offset="1" stop-color="#DF4C2C"/></linearGradient></defs><circle cx="${size / 2}" cy="${size / 2}" r="${r}" stroke="#eef0f3" stroke-width="22" fill="none"/><circle class="arc" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke="url(#g${o.x})" stroke-width="22" fill="none" stroke-linecap="round" transform="rotate(-90 ${size / 2} ${size / 2})" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="v" style="font-size:${size * 0.27}px;font-weight:800;letter-spacing:-.03em;color:#0b1220"></div><div style="font-size:18px;font-weight:600;color:#64748b">${o.label ?? ""}</div></div>`;
+    const arc = e.querySelector(".arc"), v = e.querySelector(".v");
+    return { el: e, update: (lt, sd) => { appear(e, lt, sd, o.at ?? 0.2); const k = easeOut(prog(lt, o.fillAt ?? 0.7, (o.fillAt ?? 0.7) + 1.8)); const val = lerp(o.from ?? 0, o.value, k); arc.setAttribute("stroke-dashoffset", C * (1 - val / 100)); v.textContent = Math.round(val) + (o.suffix ?? ""); } };
+  },
+  bars(rows, o) {
+    const e = place(el("div", "card"), { left: o.x, top: o.y, width: o.w ?? 520 });
+    e.innerHTML = (o.label ? `<div class="label" style="margin-bottom:14px">${o.label}</div>` : "") + rows.map(([n]) => `<div class="barrow" style="margin:16px 0"><span style="width:130px;font-weight:600">${n}</span><div class="track"><div class="fill" style="width:0"></div></div><span class="pv" style="width:44px;text-align:right;font-weight:700">0</span></div>`).join("");
+    const fills = [...e.querySelectorAll(".fill")], pvs = [...e.querySelectorAll(".pv")];
+    return { el: e, update: (lt, sd) => { appear(e, lt, sd, o.at ?? 0.2); rows.forEach(([, v], i) => { const a = (o.fillAt ?? 0.6) + i * 0.25; const k = easeOut(prog(lt, a, a + 1.1)); fills[i].style.width = v * k + "%"; pvs[i].textContent = Math.round(v * k); }); } };
+  },
+  steps(items, o) {
+    const wrap = place(el("div"), { left: 0, top: o.y ?? 300, width: 1280, height: 220 });
+    const n = items.length, gap = (o.span ?? 1000) / (n - 1), x0 = (1280 - (o.span ?? 1000)) / 2;
+    const line = place(el("div"), { left: x0, top: 37, height: 4, width: 0 }); line.style.background = "linear-gradient(90deg,#EF862D,#DF4C2C)"; line.style.borderRadius = "4px";
+    const base = place(el("div"), { left: x0, top: 37, height: 4, width: o.span ?? 1000 }); base.style.background = "#e5e7eb"; base.style.borderRadius = "4px";
+    wrap.append(base, line);
+    const nodes = items.map(([ic, t, s], i) => { const nd = place(el("div", "node", `<div class="ic">${ic}</div><p>${t}</p>${s ? `<small>${s}</small>` : ""}`), { left: x0 + i * gap - 95, top: 0 }); wrap.appendChild(nd); return nd; });
+    return { el: wrap, update: (lt, sd) => { const out = 1 - easeInOut(prog(lt, sd - 0.35, sd)); wrap.style.opacity = out; const st = o.stagger ?? 1.1; line.style.width = (o.span ?? 1000) * clamp((lt - (o.at ?? 0.4)) / (st * (n - 1))) + "px"; nodes.forEach((nd, i) => { const a = (o.at ?? 0.4) + i * st; const k = easeOut(prog(lt, a - 0.2, a + 0.3)); nd.style.opacity = k; nd.style.transform = `translateY(${(1 - k) * 16}px)`; nd.querySelector(".ic").classList.toggle("on", lt >= a); }); } };
+  },
+  list(items, o) {
+    const wrap = place(el("div"), { left: o.x ?? 80, top: o.y ?? 280, width: o.w ?? 900 });
+    const rows = items.map((t) => { const r = el("div", "li", `<span class="tick">✓</span><span>${t}</span>`); r.style.margin = (o.gap ?? 22) + "px 0"; wrap.appendChild(r); return r; });
+    return { el: wrap, update: (lt, sd) => rows.forEach((r, i) => appear(r, lt, sd, (o.at ?? 0.5) + i * (o.stagger ?? 0.7), 0.5, 18)) };
+  },
+  bubble(text, o) {
+    const e = place(el("div", "bubble " + (o.me ? "me" : "ai")), { left: o.x, top: o.y, width: o.w }); if (o.right) { e.style.left = "auto"; e.style.right = o.right + "px"; }
+    return { el: e, update: (lt, sd) => { appear(e, lt, sd, o.at, 0.4, 14); const n = o.typeAt != null ? Math.floor(clamp((lt - o.typeAt) * (o.cps ?? 40), 0, text.length)) : text.length; e.innerHTML = (o.tag ? `<div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65;margin-bottom:6px">${o.tag}</div>` : "") + text.slice(0, n); } };
+  },
+  card(html, o) {
+    const e = place(el("div", "card", html), { left: o.x, top: o.y, width: o.w, height: o.h });
+    return { el: e, update: (lt, sd) => appear(e, lt, sd, o.at ?? 0.3, 0.55, o.rise ?? 26, o.exit !== false) };
+  },
+  typedCard(title, text, o) {
+    const e = place(el("div", "card"), { left: o.x, top: o.y, width: o.w });
+    e.innerHTML = `<div class="label">${title}</div><div class="tx" style="font-size:${o.size ?? 24}px;line-height:1.5;margin-top:12px;color:#0b1220;min-height:${o.minH ?? 120}px;white-space:pre-wrap"></div>`;
+    const tx = e.querySelector(".tx");
+    return { el: e, update: (lt, sd) => { appear(e, lt, sd, o.at ?? 0.2); const n = Math.floor(clamp((lt - (o.typeAt ?? 0.8)) * (o.cps ?? 28), 0, text.length)); tx.innerHTML = text.slice(0, n) + (n < text.length ? '<span class="caret" style="height:24px"></span>' : ""); } };
+  },
+  beforeAfter(before, after, o) {
+    const e = place(el("div", "card"), { left: o.x ?? 140, top: o.y ?? 230, width: o.w ?? 1000 });
+    e.innerHTML = `<div class="label" style="color:#94a3b8">Before</div><div class="strike b" style="font-size:27px;margin-top:10px;color:#94a3b8;display:inline-block">${before}</div><div class="label" style="margin-top:30px">After · AI rewrite</div><div class="a" style="font-size:29px;line-height:1.45;margin-top:10px;font-weight:600;color:#0b1220;min-height:84px"></div>`;
+    const b = e.querySelector(".b"), a = e.querySelector(".a");
+    return { el: e, update: (lt, sd) => { appear(e, lt, sd, o.at ?? 0.2); b.style.setProperty("--w", 100 * easeOut(prog(lt, o.strikeAt ?? 1.2, (o.strikeAt ?? 1.2) + 0.6)) + "%"); const n = Math.floor(clamp((lt - (o.typeAt ?? 2)) * 34, 0, after.length)); a.innerHTML = after.slice(0, n) + (n < after.length && n > 0 ? '<span class="caret" style="height:26px"></span>' : ""); } };
+  },
+  /** L1: a resume whose keywords lift off into a "job match" box. */
+  parse(o) {
+    const wrap = place(el("div"), { left: 0, top: 0, width: 1280, height: 720 });
+    const doc = place(el("div", "card"), { left: 110, top: 120, width: 400, height: 500 });
+    doc.innerHTML = `<div style="font-size:22px;font-weight:800;color:#0b1220">Maya Patel</div><div class="muted" style="font-size:14px">Data Analyst · Austin, TX</div>` + [70, 95, 88, 60, 92, 80, 45, 90, 76, 85, 66, 94, 58].map((w) => `<div class="docline" style="width:${w}%"></div>`).join("");
+    const sweep = place(el("div"), { left: 110, top: 120, width: 400, height: 40 }); sweep.style.background = "linear-gradient(180deg, rgba(239,134,45,0), rgba(239,134,45,.25), rgba(239,134,45,0))"; sweep.style.borderRadius = "14px";
+    const box = place(el("div", "card"), { left: 760, top: 160, width: 410, height: 420 });
+    box.innerHTML = `<div class="label">Job description match</div><div class="muted" style="font-size:16px;margin-top:6px">Keywords the ATS looks for</div>`;
+    wrap.append(doc, sweep, box);
+    const kws = (o.keywords ?? []).map((k, i) => { const c = el("div", "kw", k); c.dataset.i = i; wrap.appendChild(c); return c; });
+    return { el: wrap, update: (lt, sd) => {
+      appear(doc, lt, sd, 0.1); appear(box, lt, sd, 0.4);
+      const sk = prog(lt, 0.9, 4.2); sweep.style.opacity = sk > 0 && sk < 1 ? 1 : 0; sweep.style.transform = `translateY(${sk * 460}px)`;
+      kws.forEach((c, i) => { const a = 1.2 + i * 0.45; const k = easeInOut(prog(lt, a, a + 0.9)); const sx = 150 + (i % 2) * 150, sy = 210 + i * 46; const tx = 790 + (i % 2) * 190, ty = 250 + Math.floor(i / 2) * 64; c.style.left = lerp(sx, tx, k) + "px"; c.style.top = lerp(sy, ty, k) + "px"; c.style.opacity = easeOut(prog(lt, a - 0.2, a + 0.1)) * (1 - easeInOut(prog(lt, sd - 0.35, sd))); c.style.transform = `scale(${1 + 0.15 * Math.sin(Math.PI * k)})`; });
+    } };
+  },
+  globe(regions, o) {
+    const wrap = place(el("div"), { left: 0, top: 0, width: 1280, height: 720 });
+    const g = place(el("div"), { left: 490, top: 210, width: 300, height: 300 });
+    g.innerHTML = `<svg width="300" height="300" viewBox="0 0 100 100"><defs><linearGradient id="gg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#EF862D"/><stop offset="1" stop-color="#DF4C2C"/></linearGradient></defs><circle cx="50" cy="50" r="46" fill="url(#gg)" opacity=".12"/><circle cx="50" cy="50" r="46" fill="none" stroke="#EF862D" stroke-width="1.4"/><ellipse class="m" cx="50" cy="50" rx="20" ry="46" fill="none" stroke="#EF862D" stroke-width="1"/><ellipse class="m2" cx="50" cy="50" rx="36" ry="46" fill="none" stroke="#EF862D" stroke-width=".8" opacity=".6"/><line x1="4" y1="50" x2="96" y2="50" stroke="#EF862D" stroke-width=".8"/><ellipse cx="50" cy="30" rx="40" ry="6" fill="none" stroke="#EF862D" stroke-width=".6" opacity=".6"/><ellipse cx="50" cy="70" rx="40" ry="6" fill="none" stroke="#EF862D" stroke-width=".6" opacity=".6"/></svg>`;
+    wrap.appendChild(g);
+    const m = g.querySelector(".m"), m2 = g.querySelector(".m2");
+    const chips = regions.map((r, i) => { const c = el("div", "chip", `<span class="dot" style="background:#EF862D"></span>${r}`); c.style.position = "absolute"; wrap.appendChild(c); return c; });
+    return { el: wrap, update: (lt, sd) => {
+      appear(g, lt, sd, 0.1, 0.6, 0);
+      m.setAttribute("rx", 4 + 30 * Math.abs(Math.sin(lt * 0.9))); m2.setAttribute("rx", 4 + 40 * Math.abs(Math.cos(lt * 0.9)));
+      chips.forEach((c, i) => { const ang = (i / chips.length) * Math.PI * 2 - Math.PI / 2; const a = 0.6 + i * 0.3; const k = easeOut(prog(lt, a, a + 0.6)); const R = lerp(60, 300, k), Ry = lerp(40, 230, k); c.style.left = 640 + Math.cos(ang) * R - 70 + "px"; c.style.top = 360 + Math.sin(ang) * Ry - 26 + "px"; c.style.opacity = k * (1 - easeInOut(prog(lt, sd - 0.35, sd))); });
+    } };
+  },
+  endcard(o) {
+    const wrap = place(el("div"), { left: 0, top: 0, width: 1280, height: 720 });
+    const logo = place(el("div", "", logoHTML(84)), { left: 0, top: 190, width: 1280 }); logo.style.textAlign = "center";
+    const tag = place(el("div", "title", o.tagline), { left: 0, top: 330, width: 1280 }); tag.style.textAlign = "center"; tag.style.fontSize = "54px";
+    const url = place(el("div", "callout light", "<b></b>careeros.silverspringstaffing.com"), { left: 0, top: 450 }); url.style.left = "50%";
+    wrap.append(logo, tag, url);
+    return { el: wrap, update: (lt, sd) => { appear(logo, lt, sd, 0.1, 0.6, 16, false); appear(tag, lt, sd, 0.35, 0.6, 22, false); appear(url, lt, sd, 0.7, 0.5, 14, false); url.style.transform += " translateX(-50%)"; } };
+  },
+};
+
+// ---------- backgrounds ----------
+function background(kind) {
+  const bg = el("div", "abs bg-" + kind); bg.style.inset = "0";
+  bg.appendChild(el("div", "grid"));
+  const b1 = el("div", "blob"), b2 = el("div", "blob");
+  const c1 = kind === "plum" ? "rgba(239,134,45,.35)" : "rgba(239,134,45,.30)", c2 = kind === "plum" ? "rgba(223,76,44,.30)" : "rgba(223,76,44,.22)";
+  Object.assign(b1.style, { width: "520px", height: "520px", background: `radial-gradient(circle, ${c1}, transparent 70%)` });
+  Object.assign(b2.style, { width: "560px", height: "560px", background: `radial-gradient(circle, ${c2}, transparent 70%)` });
+  bg.append(b1, b2);
+  return { el: bg, update: (t) => { b1.style.left = -160 + 60 * Math.sin(t * 0.35) + "px"; b1.style.top = -140 + 40 * Math.cos(t * 0.3) + "px"; b2.style.left = 900 + 50 * Math.cos(t * 0.28) + "px"; b2.style.top = 300 + 50 * Math.sin(t * 0.32) + "px"; } };
+}
+
+// ---------- timeline ----------
+let SCENES = [], TOTAL = 0, wm, bar;
+function build(video) {
+  const stage = document.getElementById("stage"); stage.innerHTML = "";
+  SCENES = []; let t = 0;
+  for (const s of video.scenes) {
+    const node = el("div", "scene" + ((s.bg ?? "cream") === "plum" ? " dark" : "")); const bg = background(s.bg ?? "cream"); node.appendChild(bg.el);
+    const items = s.items.map((it) => { node.appendChild(it.el); return it; });
+    stage.appendChild(node);
+    SCENES.push({ node, bg, items, t0: t, d: s.d, end: !!s.end });
+    t += s.d;
+  }
+  TOTAL = t;
+  wm = el("div", "wm"); stage.appendChild(wm);
+  bar = el("div", "prog"); stage.appendChild(bar);
+  return TOTAL;
+}
+const FADE = 0.35;
+function render(t) {
+  for (const s of SCENES) {
+    const lt = t - s.t0;
+    const on = lt >= -FADE && lt <= s.d + FADE;
+    s.node.style.display = on ? "block" : "none";
+    if (!on) continue;
+    s.node.style.opacity = clamp((lt + FADE) / FADE) * (s === SCENES[SCENES.length - 1] ? 1 : clamp((s.d + FADE - lt) / FADE));
+    s.bg.update(t);
+    const lc = clamp(lt, 0, s.d);
+    for (const it of s.items) it.update(lc, s.d);
+  }
+  const cur = SCENES.find((s) => t >= s.t0 && t < s.t0 + s.d) ?? SCENES[SCENES.length - 1];
+  const dark = cur.node.classList.contains("dark");
+  if (wm.dataset.dark !== String(dark)) { wm.innerHTML = logoHTML(30, dark); wm.dataset.dark = String(dark); }
+  wm.style.opacity = cur.end ? 0 : 0.95;
+  bar.style.width = (t / TOTAL) * 100 + "%";
+}
+window.__build = (name) => build(window.VIDEOS[name](I));
+window.__render = render;
+</script>
+<script src="stories.js"></script>
+</body>
+</html>
