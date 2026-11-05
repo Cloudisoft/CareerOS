@@ -7,6 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { UpgradeRequired } from "@/components/billing/upgrade-required";
 import { cn } from "@/lib/utils";
+import { VideoGallery } from "@/components/tutorials/video-gallery";
+import { LEARNING_TUTORIALS } from "@/config/tutorial-videos";
+import { PlayCircle } from "lucide-react";
+
+/** Short video tutorials, open to every plan. */
+function TutorialsSection() {
+  return (
+    <section aria-labelledby="tutorials-heading">
+      <div className="mb-3 flex items-center gap-2">
+        <PlayCircle className="h-4 w-4 text-primary" />
+        <h2 id="tutorials-heading" className="text-sm font-semibold text-foreground">
+          Video tutorials
+        </h2>
+      </div>
+      <VideoGallery videos={LEARNING_TUTORIALS} compact />
+    </section>
+  );
+}
 
 interface CourseSummary {
   id: string;
@@ -115,7 +133,10 @@ export default function LearningHubPage() {
     return (
       <div className="mx-auto max-w-2xl">
         <h1 className="mb-6 text-2xl font-semibold text-foreground">Learning Hub</h1>
-        <UpgradeRequired feature="The Learning Hub" />
+        <TutorialsSection />
+        <div className="mt-8">
+          <UpgradeRequired feature="The Learning Hub courses" />
+        </div>
       </div>
     );
   }
@@ -129,6 +150,8 @@ export default function LearningHubPage() {
           someone else's site.
         </p>
       </div>
+
+      <TutorialsSection />
 
       {recommended.length > 0 && (
         <div>

@@ -1,3 +1,4 @@
+import { HOME_TUTORIALS, posterSrc, videoSrc } from "@/config/tutorial-videos";
 /**
  * Homepage FAQ (rendered on the page and mirrored in FAQPage structured
  * data — the two must match) and the site's structured data.
@@ -69,5 +70,16 @@ export function homeStructuredData(baseUrl: string) {
       "@type": "FAQPage",
       mainEntity: HOME_FAQS.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
     },
+    ...HOME_TUTORIALS.map((v) => ({
+      "@context": "https://schema.org",
+      "@type": "VideoObject",
+      name: v.title,
+      description: v.description,
+      thumbnailUrl: `${url}${posterSrc(v.slug)}`,
+      contentUrl: `${url}${videoSrc(v.slug)}`,
+      uploadDate: "2026-11-05",
+      duration: `PT${Math.round(v.duration)}S`,
+      publisher: { "@id": `${url}/#organization` },
+    })),
   ];
 }

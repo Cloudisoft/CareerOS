@@ -25,6 +25,8 @@ import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
 import { ResumeShowcase } from "@/components/marketing/resume-showcase";
 import { HeroExplode } from "@/components/marketing/hero-explode";
 import { HeroSearch } from "@/components/marketing/hero-search";
+import { VideoGallery } from "@/components/tutorials/video-gallery";
+import { HOME_TUTORIALS } from "@/config/tutorial-videos";
 import { getSessionUser } from "@/lib/auth/session";
 import { AutoApplySteps, AutoApplyAgentCard } from "@/components/marketing/auto-apply-showcase";
 import { Micro1Partnership } from "@/components/marketing/micro1-partnership";
@@ -365,6 +367,15 @@ export default async function MarketingHomePage() {
               <source src="/videos/product-demo.mp4" type="video/mp4" />
             </video>
           </Reveal>
+        </div>
+        <div className="mx-auto mt-16 max-w-7xl px-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="text-2xl font-bold text-foreground">Quick tutorials</h3>
+              <p className="mt-1 text-muted-foreground">Under 40 seconds each: how to use AI in your job search with Career OS.</p>
+            </div>
+          </div>
+          <VideoGallery videos={HOME_TUTORIALS} className="mt-6" />
         </div>
       </section>
 
