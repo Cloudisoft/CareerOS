@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 interface CircularProgressProps {
@@ -22,7 +23,12 @@ export function CircularProgress({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
-  const gradientId = "career-readiness-gradient";
+  // Unique per ring, so several rings on one page don't share (or lose) a gradient.
+  const gradientId = `career-readiness-${useId().replace(/:/g, "")}`;
+  // The number scales with the ring so it always fits inside it (a fixed size overflowed small rings).
+  const inner = size - strokeWidth * 2;
+  const numberPx = Math.round(inner * (label ? 0.27 : 0.3));
+  const labelPx = Math.max(10, Math.round(inner * 0.1));
 
   return (
     <div className={cn("relative inline-flex items-center justify-center", className)} style={{ width: size, height: size }}>
@@ -53,9 +59,16 @@ export function CircularProgress({
           style={{ transition: "stroke-dashoffset 800ms cubic-bezier(0.16, 1, 0.3, 1)" }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold text-foreground">{Math.round(clamped)}%</span>
-        {label ? <span className="text-xs text-muted-foreground">{label}</span> : null}
+      <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ padding: strokeWidth }}>
+        <span className="font-bold leading-none tracking-tight text-foreground tabular-nums" style={{ fontSize: numberPx }}>
+          {Math.round(clamped)}
+          <span style={{ fontSize: "0.55em" }} className="ml-px align-top font-semibold">%</span>
+        </span>
+        {label ? (
+          <span className="mt-1 max-w-full truncate text-center leading-tight text-muted-foreground" style={{ fontSize: labelPx }}>
+            {label}
+          </span>
+        ) : null}
       </div>
     </div>
   );

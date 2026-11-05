@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { getSessionUser } from "@/lib/auth/session";
 
@@ -19,6 +21,13 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         className="pointer-events-none fixed -right-32 bottom-0 h-96 w-96 animate-float rounded-full blur-3xl"
         style={{ animationDelay: "3s", background: "radial-gradient(circle, rgba(223,76,44,0.14), transparent 70%)" }}
       />
+      <Link
+        href="/"
+        className="absolute left-4 top-4 z-10 inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground sm:left-6 sm:top-6"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to home
+      </Link>
       <div className="relative w-full max-w-sm">
         <div className="mb-8 flex justify-center">
           <Logo priority />

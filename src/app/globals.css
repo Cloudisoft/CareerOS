@@ -10,6 +10,10 @@
 */
 
 :root {
+  /* Native controls (scrollbars, form widgets) follow the theme. */
+  color-scheme: dark;
+  --scrollbar: 295 12% 26%;
+  --scrollbar-hover: 295 12% 36%;
   --background: 276 42% 5%; /* #0D0711 deep plum */
   --surface: 295 33% 6%; /* #150B16 */
   --surface-raised: 295 28% 9%;
@@ -34,6 +38,9 @@
 
 html.light {
   /* Clean white workspace; the orange brand carries the colour. */
+  color-scheme: light;
+  --scrollbar: 220 10% 78%;
+  --scrollbar-hover: 220 10% 64%;
   --background: 220 20% 98%;
   --surface: 0 0% 100%;
   --surface-raised: 220 14% 95%;
@@ -60,6 +67,31 @@ html.light {
   border-color: hsl(var(--border));
 }
 
+/* Slim, rounded scrollbars in the theme's colours instead of the system's
+   chunky grey ones; the track is invisible. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--scrollbar)) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: hsl(var(--scrollbar)) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--scrollbar-hover)) padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 body {
   color: hsl(var(--foreground));
   background: hsl(var(--background));
@@ -84,6 +116,20 @@ body {
 
   .scrollbar-thin {
     scrollbar-width: thin;
+  }
+
+  /* Rows that scroll sideways (filter chips): swipe or shift-scroll, no bar. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Soft fade at the right edge hints there's more to scroll to. */
+  .fade-right {
+    mask-image: linear-gradient(90deg, black calc(100% - 48px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, black calc(100% - 48px), transparent);
   }
 
   .bg-grid-pattern {

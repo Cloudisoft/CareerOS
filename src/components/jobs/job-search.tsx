@@ -365,7 +365,7 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
               )}
             </form>
 
-            <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 sm:-mx-6 sm:px-6 lg:mx-0 lg:overflow-visible lg:px-0 lg:pb-0">
+            <div className="scrollbar-none -mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 sm:-mx-6 sm:px-6 lg:mx-0 lg:overflow-visible lg:px-0 lg:pb-0">
               <Popover>
                 <PopoverTrigger className={cn(PILL, "shrink-0 gap-1.5 px-4", (params.get("location") || params.get("country")) && ACTIVE_PILL)}>
                   <MapPin className="h-4 w-4" />
@@ -530,7 +530,7 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
             </div>
           </div>
 
-          <div className="-mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 sm:-mx-6 sm:px-6">
+          <div className="scrollbar-none fade-right -mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 sm:-mx-6 sm:px-6">
             <span className="shrink-0 text-[13px] text-muted-foreground">Suggested</span>
             {SUGGESTED.map((s) => {
               const active = (params.get(s.key)?.split(",") ?? []).includes(s.value);
