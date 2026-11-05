@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { PLANS, ADD_ONS } from "@/lib/billing/plans";
 import { PricingCta } from "@/components/billing/pricing-cta";
 import { EnterprisePricingCta } from "@/components/billing/enterprise-pricing-cta";
+import { PricingAudienceToggle } from "@/components/billing/pricing-audience-toggle";
 import { ENTERPRISE_PLANS, INTRO_PRICE_CENTS, TRIAL_DAYS, formatUsd, type EnterprisePlan } from "@/lib/enterprise/plans";
 import { PageHero } from "@/components/marketing/page-hero";
 import { RevealGroup, RevealItem } from "@/components/marketing/reveal";
@@ -43,16 +44,11 @@ export default function PricingPage() {
         description="Start free with your Career Profile. Upgrade when you're ready for automation. Hiring? The Recruiter Suite is below."
       />
 
-      <nav aria-label="Pricing for" className="mx-auto -mt-4 flex w-fit gap-1 rounded-full border border-border bg-surface p-1 text-sm font-semibold shadow-sm">
-        <a href="#job-seekers" className="rounded-full px-4 py-2 text-foreground hover:bg-surface-raised">
-          Job seekers
-        </a>
-        <a href="#employers" className="rounded-full bg-foreground px-4 py-2 text-background hover:opacity-90">
-          Employers
-        </a>
-      </nav>
+      <div className="mt-10">
+        <PricingAudienceToggle />
+      </div>
 
-      <div id="job-seekers" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-16">
+      <div id="job-seekers" className="mx-auto max-w-6xl scroll-mt-28 px-6 pb-16 pt-10">
         <h2 className="mb-8 text-center text-2xl font-semibold text-foreground">For job seekers</h2>
         <RevealGroup className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5" stagger={0.06}>
           {PLANS.map((plan) => (
@@ -130,7 +126,7 @@ export default function PricingPage() {
         </div>
       </div>
 
-      <section id="employers" aria-labelledby="employers-title" className="scroll-mt-24 border-t border-border bg-surface/50">
+      <section id="employers" aria-labelledby="employers-title" className="scroll-mt-20 border-t border-border bg-surface/50">
         <div className="mx-auto max-w-5xl px-6 py-20">
           <div className="text-center">
             <Badge variant="outline" className="mx-auto">Recruiter Suite</Badge>
