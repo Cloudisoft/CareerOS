@@ -164,7 +164,7 @@ export default async function CompanyPage({ params, searchParams }: { params: { 
 
         <div className="mt-6">
           {tab === "overview" && (
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
               <div>
                 {company.description ? (
                   <p className="whitespace-pre-line leading-relaxed text-foreground/90">{company.description}</p>
@@ -200,7 +200,7 @@ export default async function CompanyPage({ params, searchParams }: { params: { 
 
           {tab === "jobs" &&
             (jobRows.length ? (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {jobRows.map((j) => (
                   <JobRowLink key={j.id} job={j} />
                 ))}

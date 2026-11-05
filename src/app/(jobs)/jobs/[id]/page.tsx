@@ -178,7 +178,7 @@ export default function JobDetailPage() {
   return (
     <div className="mx-auto max-w-5xl">
     <BackButton fallback="/jobs" label="Back to jobs" className="-ml-2.5 mb-3" />
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div>
         <Card>
           <CardContent className="p-6">

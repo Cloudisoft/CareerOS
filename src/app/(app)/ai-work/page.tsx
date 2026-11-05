@@ -129,7 +129,7 @@ export default async function AiWorkPage() {
         )}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div>
           <h2 className="text-xl font-semibold text-foreground">Questions</h2>
           <div className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">

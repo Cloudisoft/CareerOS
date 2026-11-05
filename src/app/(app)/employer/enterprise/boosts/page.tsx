@@ -143,7 +143,7 @@ export default function BoostsPage() {
       {error && <ErrorBanner message={error} />}
       {notice && <SuccessBanner message={notice} />}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base"><Megaphone className="h-4 w-4" /> New job announcement</CardTitle>

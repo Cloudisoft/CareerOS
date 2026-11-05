@@ -165,7 +165,7 @@ export default function EmployerJobDetailPage() {
 
       <h2 className="mb-3 text-lg font-semibold text-foreground">Applicants ({applications.length})</h2>
 
-      <div className="grid gap-4 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-6">
         {COLUMNS.map((column) => {
           const items = applications.filter((a) => a.status === column);
           return (

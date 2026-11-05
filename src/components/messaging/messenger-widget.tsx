@@ -103,13 +103,14 @@ export function MessengerWidget() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-lg transition-transform hover:scale-105"
+        // On phones it's a small round icon tucked in the corner so it doesn't cover what's underneath.
+        className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center gap-2 rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 sm:bottom-5 sm:right-5 sm:h-auto sm:w-auto sm:px-4 sm:py-3"
         aria-label="Open messaging"
       >
         <MessageCircle className="h-5 w-5" />
-        <span className="text-sm font-medium">Messaging</span>
+        <span className="hidden text-sm font-medium sm:inline">Messaging</span>
         {unreadCount > 0 && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground sm:static">
             {unreadCount}
           </span>
         )}
@@ -118,7 +119,7 @@ export function MessengerWidget() {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex h-[420px] w-80 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
+    <div className="fixed bottom-4 right-4 z-40 flex h-[min(420px,calc(100dvh-6rem))] w-[min(20rem,calc(100vw-2rem))] flex-col sm:bottom-5 sm:right-5 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
       <div className="flex items-center justify-between border-b border-border bg-surface-raised px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           {active && (

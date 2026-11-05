@@ -165,21 +165,21 @@ export default async function DashboardPage() {
         ))}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section aria-labelledby="jobs-for-you">
-          <div className="mb-3 flex items-end justify-between">
-            <div>
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div className="min-w-0">
               <h2 id="jobs-for-you" className="text-lg font-semibold text-foreground">
                 Jobs for you
               </h2>
               <p className="text-sm text-muted-foreground">Picked from your profile, newest roles included.</p>
             </div>
-            <Link href="/jobs" className="flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+            <Link href="/jobs" className="flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-medium text-primary hover:underline">
               See all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
           {jobs.length ? (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {jobs.map((job) => (
                 <JobRowLink key={job.id} job={job} />
               ))}
