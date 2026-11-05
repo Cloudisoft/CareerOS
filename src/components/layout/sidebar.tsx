@@ -31,48 +31,59 @@ function isActive(pathname: string, href: string) {
 export function SidebarNav({ role, careersPublisher, onNavigate }: { role?: UserRole; careersPublisher?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   const items = navItemsFor(role, careersPublisher);
+  // Consecutive items with the same section form one group.
+  const groups: { section?: string; items: NavItem[] }[] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.section === item.section) last.items.push(item);
+    else groups.push({ section: item.section, items: [item] });
+  }
 
   return (
-    <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-      {items.map((item) => {
-        const active = isActive(pathname, item.href);
-        if (!item.available) {
-          return (
-            <div
-              key={item.href}
-              className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm text-muted-foreground/50"
-            >
-              <span className="flex items-center gap-3">
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </span>
-              <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-                Soon
-              </span>
-            </div>
-          );
-        }
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-              active
-                ? "bg-brand-gradient text-white shadow-[0_2px_12px_rgba(239,134,45,0.3)]"
-                : "text-muted-foreground hover:translate-x-0.5 hover:bg-surface-raised hover:text-foreground"
-            )}
-          >
-            {active && (
-              <span className="absolute -left-4 h-5 w-1 rounded-r-full bg-brand-gradient" aria-hidden />
-            )}
-            <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main">
+      {groups.map((group, gi) => (
+        <div key={group.section ?? `g${gi}`} className={cn(gi > 0 && "mt-3 border-t border-border pt-3")}>
+          {group.section && (
+            <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">{group.section}</p>
+          )}
+          <div className="space-y-0.5">
+            {group.items.map((item) => {
+              const active = isActive(pathname, item.href);
+              if (!item.available) {
+                return (
+                  <div key={item.href} className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground/50">
+                    <span className="flex items-center gap-3">
+                      <item.icon className="h-[18px] w-[18px]" />
+                      {item.label}
+                    </span>
+                    <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide">Soon</span>
+                  </div>
+                );
+              }
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                    active
+                      ? "bg-surface-raised font-semibold text-foreground"
+                      : "font-medium text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
+                  )}
+                >
+                  <item.icon
+                    className={cn("h-[18px] w-[18px] shrink-0", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")}
+                    strokeWidth={active ? 2.25 : 1.75}
+                  />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 }
@@ -81,7 +92,7 @@ export function UpgradeCard({ onNavigate, role }: { onNavigate?: () => void; rol
   const employer = role === "EMPLOYER" || role === "COMPANY_ADMIN";
   if (role === "PLATFORM_ADMIN") return null;
   return (
-    <div className="border-t border-border p-4">
+    <div className="border-t border-border p-3">
       <Link
         href={employer ? "/employer/enterprise/billing" : "/pricing"}
         onClick={onNavigate}
@@ -118,8 +129,8 @@ export function Sidebar({
   viewRoles?: UserRole[];
 }) {
   return (
-    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-surface lg:flex">
-      <div className="flex h-16 items-center border-b border-border px-6">
+    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-surface lg:flex">
+      <div className="flex h-14 items-center px-5">
         <Logo />
       </div>
       <ViewSwitcher role={role} viewRoles={viewRoles} />

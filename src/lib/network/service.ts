@@ -274,6 +274,16 @@ export async function getFeed(userId: string) {
 
 /** Clicking the same reaction again removes it; clicking a different one
     switches it — mirrors how every social feed's reaction picker behaves. */
+/** Posts by a company's team (hiring announcements and updates), newest first, for its public page. */
+export async function getCompanyPosts(companyId: string, take = 20) {
+  const where = { deletedAt: null, circleId: null, author: { companyMemberships: { some: { companyId } } } };
+  const [rows, total] = await Promise.all([
+    prisma.post.findMany({ where, include: POST_INCLUDE, orderBy: { createdAt: "desc" }, take }),
+    prisma.post.count({ where }),
+  ]);
+  return { posts: rows.map((p) => shapePost(p)), total };
+}
+
 export async function toggleReaction(userId: string, postId: string, type: ReactionType = "LIKE") {
   const existing = await prisma.reaction.findUnique({ where: { postId_userId: { postId, userId } } });
   if (existing) {

@@ -5,11 +5,23 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /** "Continue with Google". `type` decides the account type for a new account; omit it on the log-in page. */
-export function GoogleButton({ type, next, label = "Continue with Google" }: { type?: "CANDIDATE" | "EMPLOYER"; next?: string | null; label?: string }) {
+export function GoogleButton({
+  type,
+  next,
+  from,
+  label = "Continue with Google",
+}: {
+  type?: "CANDIDATE" | "EMPLOYER";
+  next?: string | null;
+  /** Which page to return to if something goes wrong. */
+  from?: "login" | "signup";
+  label?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const params = new URLSearchParams();
   if (type) params.set("type", type);
   if (next) params.set("next", next);
+  if (from) params.set("from", from);
   return (
     <Button asChild variant="secondary" className="w-full" onClick={() => setBusy(true)}>
       <a href={`/api/auth/google/start?${params}`} aria-label={label}>

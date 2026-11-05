@@ -20,9 +20,10 @@ export async function GET(req: NextRequest) {
   } catch {
     st = null;
   }
-  const fail = (message: string, toSignup = Boolean(st?.type)) => {
+  const fail = (message: string, toSignup = st?.from ? st.from === "signup" : Boolean(st?.type)) => {
     const url = new URL(toSignup ? "/signup" : "/login", req.url);
     url.searchParams.set("error", message);
+    if (st?.type) url.searchParams.set("as", st.type);
     if (st?.next) url.searchParams.set("next", st.next);
     const res = NextResponse.redirect(url);
     res.cookies.delete({ name: GOOGLE_STATE_COOKIE, path: "/api/auth/google" });

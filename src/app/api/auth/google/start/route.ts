@@ -9,7 +9,9 @@ export async function GET(req: NextRequest) {
   const typeParam = params.get("type");
   const type = typeParam === "CANDIDATE" || typeParam === "EMPLOYER" ? typeParam : null;
   const next = safeNext(params.get("next"), "");
-  const back = new URL(type ? "/signup" : "/login", req.url);
+  const from = params.get("from") === "login" ? "/login" : params.get("from") === "signup" ? "/signup" : type ? "/signup" : "/login";
+  const back = new URL(from, req.url);
+  if (type) back.searchParams.set("as", type);
 
   if (!isGoogleConfigured()) {
     back.searchParams.set("error", "Google sign-in isn't set up yet. Use email and password for now.");
@@ -20,7 +22,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(back);
   }
 
-  const { url, cookie } = startGoogleAuth(req.nextUrl.origin, type, next);
+  const { url, cookie } = startGoogleAuth(req.nextUrl.origin, type, next, from === "/login" ? "login" : "signup");
   const res = NextResponse.redirect(url);
   res.cookies.set(GOOGLE_STATE_COOKIE, cookie, {
     httpOnly: true,

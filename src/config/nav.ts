@@ -26,31 +26,33 @@ export interface NavItem {
   icon: LucideIcon;
   /** Flips to true as each phase ships the real page behind this link. */
   available: boolean;
+  /** Items sharing a section are grouped under that heading in the sidebar. */
+  section?: string;
 }
 
 export const CANDIDATE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, available: true },
   { href: "/jobs", label: "Jobs", icon: Briefcase, available: true },
   { href: "/applications", label: "Applications", icon: ClipboardList, available: true },
-  { href: "/job-gpt", label: "Job GPT", icon: Bot, available: true },
-  { href: "/auto-apply", label: "Auto Apply", icon: Send, available: true },
-  { href: "/resume-studio", label: "Resume", icon: FileText, available: true },
-  { href: "/cover-letter-studio", label: "Cover Letters", icon: Mail, available: true },
-  { href: "/interview-ai", label: "Interview", icon: MessageSquare, available: true },
-  { href: "/learning", label: "Learning", icon: GraduationCap, available: true },
-  { href: "/network", label: "Network", icon: Users, available: true },
   { href: "/messages", label: "Messages", icon: MessageCircle, available: true },
-  { href: "/careers", label: "Career OS Careers", icon: Globe, available: true },
+  { href: "/network", label: "Network", icon: Users, available: true, section: "Connect" },
+  { href: "/careers", label: "Career OS Careers", icon: Globe, available: true, section: "Connect" },
+  { href: "/job-gpt", label: "Job GPT", icon: Bot, available: true, section: "AI tools" },
+  { href: "/auto-apply", label: "Auto Apply", icon: Send, available: true, section: "AI tools" },
+  { href: "/resume-studio", label: "Resume", icon: FileText, available: true, section: "AI tools" },
+  { href: "/cover-letter-studio", label: "Cover Letters", icon: Mail, available: true, section: "AI tools" },
+  { href: "/interview-ai", label: "Interview", icon: MessageSquare, available: true, section: "AI tools" },
+  { href: "/learning", label: "Learning", icon: GraduationCap, available: true, section: "AI tools" },
 ];
 
 export const EMPLOYER_NAV: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, available: true },
   { href: "/employer/jobs", label: "Jobs", icon: Briefcase, available: true },
   { href: "/employer/talent", label: "Talent Search", icon: Search, available: true },
-  { href: "/employer/enterprise", label: "Recruiter Suite", icon: Sparkles, available: true },
-  { href: "/employer/company", label: "Company", icon: Building2, available: true },
   { href: "/messages", label: "Messages", icon: MessageCircle, available: true },
-  { href: "/careers", label: "Career OS Careers", icon: Globe, available: true },
+  { href: "/employer/enterprise", label: "Recruiter Suite", icon: Sparkles, available: true, section: "Grow" },
+  { href: "/employer/company", label: "Company", icon: Building2, available: true, section: "Grow" },
+  { href: "/careers", label: "Career OS Careers", icon: Globe, available: true, section: "Grow" },
 ];
 
 export const ADMIN_NAV: NavItem[] = [

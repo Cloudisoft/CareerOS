@@ -4,16 +4,16 @@ import { getSessionUser } from "@/lib/auth/session";
 import { getEntitlements } from "@/lib/billing/entitlements";
 import { scoreJobsForProfile } from "@/lib/matching/service";
 import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
-import { refreshBoardJobs } from "@/lib/jobs/boards/store";
+import { refreshBoardJobs, isBoardScanRunning } from "@/lib/jobs/boards/store";
 import { apiCatch, apiOk } from "@/lib/api-response";
 import { activeCampaignJobIds } from "@/lib/enterprise/boosts";
 import { isUsZipCode, resolveZip, resolveLocationCoords } from "@/lib/geo/zip";
 import { resolveCity, haversineMiles } from "@/lib/geo/distance";
 import type { Prisma } from "@prisma/client";
+import { CITIZENS_ONLY, VISA_NEGATIVE, VISA_POSITIVE, closingInDays } from "@/lib/jobs/signals";
+import { COUNTRIES, isCountryCode } from "@/lib/jobs/countries";
 
 const PAGE_SIZE = 20;
-/** How long the first page waits for a candidate's employer-board scan before answering with what is stored. */
-const BOARD_SCAN_WAIT_MS = 8000;
 const SOURCES = ["greenhouse", "lever", "ashby", "workday", "adzuna", "jsearch", "careeros"];
 const DEFAULT_RADIUS_MILES = 25;
 type JobRow = Prisma.JobGetPayload<{ include: { company: true; skills: { include: { skill: true } } } }>;
@@ -31,15 +31,24 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, Number(params.get("page")) || 1);
     const sources = params.get("source")?.split(",").filter((x) => SOURCES.includes(x));
     const sort = params.get("sort");
+    const visaOnly = params.get("visa") === "1";
+    const closingSoon = params.get("closing") === "1";
+    const noExperience = params.get("experience") === "none";
+    const studentsOnly = params.get("opt") === "1";
+    const openToAll = params.get("open") === "1";
+    const country = params.get("country");
     const radiusMiles = Math.max(1, Number(params.get("radius")) || DEFAULT_RADIUS_MILES);
     // A US zip code gets a real radius search; any other text matches the job's location.
     const zipSearch = location && isUsZipCode(location) ? resolveZip(location) : null;
 
     // Greenhouse, Lever, Ashby and Workday postings that fit the candidate join the Adzuna listings here.
-    // The scan runs at most every few hours per person; a slow one finishes in the background.
+    // The scan runs at most every few hours per person, always in the background, so search answers
+    // straight away from what is stored; `refreshing` tells the page to quietly reload once it lands.
     const user = await getSessionUser();
+    let refreshing = false;
     if (user && user.role === "CANDIDATE" && page === 1) {
-      await Promise.race([refreshBoardJobs(user.id), new Promise((r) => setTimeout(r, BOARD_SCAN_WAIT_MS))]);
+      void refreshBoardJobs(user.id);
+      refreshing = isBoardScanRunning(user.id);
     }
 
     const where: Prisma.JobWhereInput = {
@@ -59,7 +68,35 @@ export async function GET(req: NextRequest) {
       ...(careerLevels?.length ? { careerLevel: { in: careerLevels as never[] } } : {}),
       ...(minSalary ? { salaryMax: { gte: minSalary } } : {}),
       ...(sources?.length ? { source: { in: sources } } : {}),
+      ...(closingSoon ? { expiresAt: { gte: new Date(), lte: new Date(Date.now() + 7 * 86_400_000) } } : {}),
     };
+    const extra: Prisma.JobWhereInput[] = [];
+    if (visaOnly) {
+      // Postings that offer sponsorship and don't also refuse it (same vocabulary as the detail pane).
+      extra.push({ OR: VISA_POSITIVE.map((k) => ({ description: { contains: k, mode: "insensitive" as const } })) });
+      for (const k of VISA_NEGATIVE) extra.push({ NOT: { description: { contains: k, mode: "insensitive" } } });
+    }
+    if (studentsOnly) {
+      extra.push({ OR: ["opt/cpt", "cpt/opt", "stem opt", " opt ", "cpt", "f-1", "student visa", "graduate visa", "post-study work"].map((k) => ({ description: { contains: k, mode: "insensitive" as const } })) });
+    }
+    if (openToAll) {
+      for (const k of CITIZENS_ONLY) extra.push({ NOT: { description: { contains: k, mode: "insensitive" } } });
+    }
+    if (isCountryCode(country)) {
+      // Remote roles are open across countries, so they stay in.
+      extra.push({ OR: [{ workplaceType: "REMOTE" }, ...COUNTRIES[country].match.map((k) => ({ location: { contains: k, mode: "insensitive" as const } }))] });
+    }
+    if (noExperience) {
+      extra.push({
+        OR: [
+          { careerLevel: "ENTRY" },
+          { employmentType: "INTERNSHIP" },
+          ...["no experience", "entry level", "entry-level", "new grad", "recent graduate"].map((k) => ({ description: { contains: k, mode: "insensitive" as const } })),
+          ...["junior", "entry level", "graduate", "intern"].map((k) => ({ title: { contains: k, mode: "insensitive" as const } })),
+        ],
+      });
+    }
+    if (extra.length) where.AND = extra;
 
     let profileId: string | null = null;
     if (user && user.role === "CANDIDATE") {
@@ -122,6 +159,11 @@ export async function GET(req: NextRequest) {
       const entitlements = await getEntitlements(user.id);
       if (entitlements.matchInsights) scores = await scoreJobsForProfile(profileId, jobs.map((j) => j.id));
     }
+    const savedIds = new Set<string>();
+    if (profileId && jobs.length) {
+      const saved = await prisma.savedJob.findMany({ where: { profileId, jobId: { in: jobs.map((j) => j.id) } }, select: { jobId: true } });
+      saved.forEach((s) => savedIds.add(s.jobId));
+    }
     if (sort === "match" && scores.size) {
       // Promoted jobs stay first; the rest are ordered by fit.
       jobs.sort((a, b) => Number(promotedIds.has(b.id)) - Number(promotedIds.has(a.id)) || (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0));
@@ -139,6 +181,8 @@ export async function GET(req: NextRequest) {
         salaryMax: job.salaryMax,
         salaryCurrency: job.salaryCurrency,
         createdAt: job.createdAt,
+        closingInDays: closingInDays(job.expiresAt),
+        saved: savedIds.has(job.id),
         company: { id: job.company.id, name: job.company.name, slug: job.company.slug, logoUrl: job.company.logoUrl },
         skills: job.skills.map((s) => s.skill.name),
         matchScore: scores.get(job.id) ?? null,
@@ -150,6 +194,7 @@ export async function GET(req: NextRequest) {
       page,
       pageSize: PAGE_SIZE,
       totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+      refreshing,
     });
   } catch (error) {
     return apiCatch(error);

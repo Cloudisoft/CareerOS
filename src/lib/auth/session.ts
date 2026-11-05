@@ -1,4 +1,5 @@
 import "server-only";
+import { requestCache as cache } from "@/lib/request-cache";
 import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { generateToken, hashToken } from "@/lib/auth/crypto";
@@ -55,7 +56,14 @@ export async function destroySession() {
   cookieStore.delete(VIEW_AS_COOKIE);
 }
 
-export async function getSessionUser(): Promise<User | null> {
+/**
+ * The signed-in user for this request. Wrapped in React's cache so the
+ * layout, the page and any server component share one database lookup per
+ * render instead of repeating it.
+ */
+export const getSessionUser = cache(loadSessionUser);
+
+async function loadSessionUser(): Promise<User | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
