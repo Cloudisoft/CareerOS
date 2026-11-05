@@ -64,16 +64,17 @@ export function MarketingNavbar({ user = null }: MarketingNavbarProps) {
     <header className="sticky top-0 z-50 h-[72px] px-3 sm:px-4">
       <div
         className={cn(
-          "mx-auto flex items-center justify-between transition-all duration-300 ease-out motion-reduce:transition-none",
+          // A slow, eased glide from the full-width bar into the floating one (a quick fade when animations are turned off).
+          "mx-auto flex items-center justify-between transition-all duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-150",
           floating
             ? "mt-2.5 h-[56px] max-w-6xl rounded-2xl border border-border bg-surface/90 px-3 shadow-[0_12px_40px_-16px_rgba(15,23,42,0.35)] backdrop-blur-md sm:px-4"
-            : "mt-0 h-[72px] max-w-7xl rounded-none border border-transparent bg-transparent px-3 sm:px-6"
+            : "mt-0 h-[72px] max-w-[2400px] rounded-none border border-transparent bg-transparent px-3 shadow-none sm:px-8"
         )}
       >
         <Link href="/" className="inline-flex shrink-0 items-center gap-2" aria-label="Career OS home">
           <span
             className={cn(
-              "flex items-center justify-center rounded-xl transition-all duration-300 motion-reduce:transition-none",
+              "flex items-center justify-center rounded-xl transition-all duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-150",
               floating ? "h-10 w-10 bg-primary/10" : "h-8 w-8 bg-transparent"
             )}
           >
@@ -81,7 +82,7 @@ export function MarketingNavbar({ user = null }: MarketingNavbarProps) {
           </span>
           <span
             className={cn(
-              "overflow-hidden whitespace-nowrap text-xl font-bold tracking-tight text-foreground transition-all duration-300 motion-reduce:transition-none",
+              "overflow-hidden whitespace-nowrap text-xl font-bold tracking-tight text-foreground transition-all duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-150",
               floating ? "max-w-0 opacity-0" : "max-w-[120px] opacity-100"
             )}
           >
@@ -136,7 +137,7 @@ export function MarketingNavbar({ user = null }: MarketingNavbarProps) {
               <Link
                 href="/signup"
                 className={cn(
-                  "inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold transition-all duration-300 motion-reduce:transition-none",
+                  "inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold transition-all duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-150",
                   floating ? "bg-foreground text-background hover:opacity-90" : "bg-brand-gradient text-white shadow-[0_6px_20px_-8px_rgba(223,76,44,0.7)] hover:opacity-95"
                 )}
               >
