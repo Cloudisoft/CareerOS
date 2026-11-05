@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Briefcase, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +45,16 @@ export default function EnterpriseOverviewPage() {
   useEffect(() => {
     api<Stats>("/api/enterprise/stats").then((r) => (r.ok ? setStats(r.data) : setError(r.error)));
   }, []);
+
+  // Arriving from "Start 3-day free trial" on the Pricing page (?trial=1): start it straight away when the company can.
+  // A ref, not state: it's set before the request goes out, so the trial is only ever requested once.
+  const trialRequested = useRef(false);
+  useEffect(() => {
+    if (!overview || trialRequested.current || new URLSearchParams(window.location.search).get("trial") !== "1") return;
+    trialRequested.current = true;
+    if (overview.trial.eligible && overview.canManageBilling && overview.status !== "TRIAL") void startTrial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overview]);
 
   if (!overview) return null;
   const o = overview;

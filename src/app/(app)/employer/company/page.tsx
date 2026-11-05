@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Building2 } from "lucide-react";
+import { safeNext } from "@/lib/safe-next";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,12 @@ export default function EmployerCompanyPage() {
     }
     setSlug(json.data.company.slug);
     setSaved(true);
+    // First company setup from the Recruiter Suite (e.g. after "Pay now" on Pricing): carry on where they were going.
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (!slug && next) {
+      router.push(safeNext(next, "/employer/enterprise"));
+      return;
+    }
     router.refresh();
   }
 

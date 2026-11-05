@@ -115,6 +115,8 @@ export function EnterpriseShell({ children }: { children: React.ReactNode }) {
   const [overview, setOverview] = useState<EnterpriseOverview | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "needs-company" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [returnTo, setReturnTo] = useState(pathname);
+  useEffect(() => setReturnTo(window.location.pathname + window.location.search), [pathname]);
 
   const refresh = useCallback(async () => {
     const res = await api<EnterpriseOverview>("/api/enterprise/state");
@@ -145,7 +147,8 @@ export function EnterpriseShell({ children }: { children: React.ReactNode }) {
           <p className="font-medium text-foreground">Create your company profile first</p>
           <p className="mt-1 text-sm text-muted-foreground">The Recruiter Suite belongs to your company, so every recruiter on your team shares the plan.</p>
           <Button asChild className="mt-4">
-            <Link href="/employer/company">Set up company</Link>
+            {/* Comes back here afterwards, so a plan picked on the Pricing page still opens checkout. */}
+            <Link href={`/employer/company?next=${encodeURIComponent(returnTo)}`}>Set up company</Link>
           </Button>
         </CardContent>
       </Card>

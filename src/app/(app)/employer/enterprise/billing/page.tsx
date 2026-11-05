@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,10 +49,24 @@ function BillingInner() {
   const [notice, setNotice] = useState<string | null>(params.get("downgrade") ? "Plan change approved in PayPal. It takes effect at your next renewal." : null);
   const [busy, setBusy] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  // A ref, not state: set before the request goes out, so checkout is only started once.
+  const autoStarted = useRef(false);
 
   useEffect(() => {
     api<{ events: Invoice[] }>("/api/enterprise/usage").then((r) => r.ok && setInvoices(r.data!.events.filter((e) => e.type === "PAYMENT" || e.type === "BOOST_PURCHASED")));
   }, []);
+
+  // Arriving from "Pay now" on the Pricing page (?plan=STARTER): open PayPal checkout for that plan straight away.
+  const wanted = params.get("plan");
+  useEffect(() => {
+    if (!overview || autoStarted.current || (wanted !== "STARTER" && wanted !== "PROFESSIONAL")) return;
+    const o = overview;
+    const active = o.plan && (o.status === "ACTIVE" || o.status === "PAST_DUE");
+    if (!o.canManageBilling || o.complimentary || active) return;
+    autoStarted.current = true;
+    void startCheckout(wanted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overview, wanted]);
 
   if (!overview) return null;
   const o = overview;
