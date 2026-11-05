@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   try {
     const { user, profile } = await requireCandidate();
     const entitlements = await requireEntitlement(user.id, "interviewAi");
-    const { type, jobId } = startInterviewSchema.parse(await req.json());
+    const { type, jobId, aiWorkRoleId } = startInterviewSchema.parse(await req.json());
 
     if (jobId && !entitlements.companyInterviewPrep) {
       return apiError(
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const session = await startSession(user.id, profile.id, type, jobId || undefined);
+    const session = await startSession(user.id, profile.id, type, jobId || undefined, aiWorkRoleId || undefined);
     return apiOk({ session });
   } catch (error) {
     return apiCatch(error);

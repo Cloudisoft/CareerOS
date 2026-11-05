@@ -5,6 +5,8 @@ export const INTERVIEW_TYPES = ["BEHAVIORAL", "TECHNICAL", "MIXED"] as const;
 export const startInterviewSchema = z.object({
   type: z.enum(INTERVIEW_TYPES).default("MIXED"),
   jobId: z.string().trim().optional().or(z.literal("")),
+  /** Practise for a paid AI-work role instead of a job. */
+  aiWorkRoleId: z.string().trim().max(40).optional().or(z.literal("")),
 });
 
 export const submitAnswerSchema = z.object({

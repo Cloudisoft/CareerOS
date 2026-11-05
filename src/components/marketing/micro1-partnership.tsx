@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowUpRight, BadgeCheck, Bot, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
@@ -57,7 +58,10 @@ export function Micro1Partnership() {
             </RevealItem>
           ))}
         </RevealGroup>
-        <Reveal className="mt-10 flex justify-center">
+        <Reveal className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Button asChild>
+            <Link href="/signup?next=%2Fai-work">Get paid to train AI</Link>
+          </Button>
           <Button asChild variant="outline">
             <a href={MICRO1_URL} target="_blank" rel="noopener">
               Explore micro1 <ArrowUpRight className="h-4 w-4" />

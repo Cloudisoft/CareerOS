@@ -1,4 +1,5 @@
 import "server-only";
+import { roleInterviewContext } from "@/lib/ai-work/service";
 import { prisma } from "@/lib/prisma";
 import { generateText } from "@/lib/ai/gateway";
 import { buildCareerContext } from "@/lib/ai/job-gpt/context";
@@ -198,8 +199,9 @@ export async function getSession(profileId: string, sessionId: string) {
   return session;
 }
 
-export async function startSession(userId: string, profileId: string, type: InterviewType, jobId?: string) {
-  const { context: jobContext, validId: validJobId } = await loadJobContext(jobId);
+export async function startSession(userId: string, profileId: string, type: InterviewType, jobId?: string, aiWorkRoleId?: string) {
+  const role = await roleInterviewContext(aiWorkRoleId);
+  const { context: jobContext, validId: validJobId } = role ? { context: role.context, validId: undefined } : await loadJobContext(jobId);
   const careerContext = await buildCareerContext(userId);
   const first = await generateQuestion(type, careerContext, jobContext, [], 1);
 
@@ -207,6 +209,7 @@ export async function startSession(userId: string, profileId: string, type: Inte
     data: {
       profileId,
       jobId: validJobId,
+      aiWorkRoleId: role?.id,
       type,
       questions: { create: [{ order: 0, category: first.category, question: first.question }] },
     },
@@ -245,7 +248,9 @@ export async function submitAnswer(userId: string, profileId: string, sessionId:
       { category: question.category, question: question.question, answer },
     ];
 
-    const { context: jobContext } = await loadJobContext(session.jobId);
+    const { context: jobContext } = session.aiWorkRoleId
+      ? { context: (await roleInterviewContext(session.aiWorkRoleId))?.context ?? null }
+      : await loadJobContext(session.jobId);
     const careerContext = await buildCareerContext(userId);
     const next = await generateQuestion(session.type, careerContext, jobContext, history, nextOrder + 1);
 
