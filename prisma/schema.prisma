@@ -475,6 +475,8 @@ model Company {
   location    String?
   website     String?
   linkedinUrl String?
+  /// When Career OS last looked up this company's logo and banner from its website.
+  brandCheckedAt DateTime?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

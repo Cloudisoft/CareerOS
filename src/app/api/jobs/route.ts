@@ -12,10 +12,14 @@ import { resolveCity, haversineMiles } from "@/lib/geo/distance";
 import type { Prisma } from "@prisma/client";
 import { CITIZENS_ONLY, VISA_NEGATIVE, VISA_POSITIVE, closingInDays } from "@/lib/jobs/signals";
 import { COUNTRIES, isCountryCode } from "@/lib/jobs/countries";
+import { enrichCompanyBrands, sweepCompanyBrands } from "@/lib/company/branding";
 
 const PAGE_SIZE = 20;
 const SOURCES = ["greenhouse", "lever", "ashby", "workday", "adzuna", "jsearch", "careeros"];
 const DEFAULT_RADIUS_MILES = 25;
+const HOUR = 3_600_000;
+/** "Date posted" filter windows. */
+const POSTED_WITHIN: Record<string, number> = { "1h": HOUR, "24h": 24 * HOUR, "3d": 72 * HOUR, "7d": 168 * HOUR, "14d": 336 * HOUR, "30d": 720 * HOUR };
 type JobRow = Prisma.JobGetPayload<{ include: { company: true; skills: { include: { skill: true } } } }>;
 
 export async function GET(req: NextRequest) {
@@ -37,6 +41,7 @@ export async function GET(req: NextRequest) {
     const studentsOnly = params.get("opt") === "1";
     const openToAll = params.get("open") === "1";
     const country = params.get("country");
+    const postedWithin = POSTED_WITHIN[params.get("posted") ?? ""];
     const radiusMiles = Math.max(1, Number(params.get("radius")) || DEFAULT_RADIUS_MILES);
     // A US zip code gets a real radius search; any other text matches the job's location.
     const zipSearch = location && isUsZipCode(location) ? resolveZip(location) : null;
@@ -68,6 +73,7 @@ export async function GET(req: NextRequest) {
       ...(careerLevels?.length ? { careerLevel: { in: careerLevels as never[] } } : {}),
       ...(minSalary ? { salaryMax: { gte: minSalary } } : {}),
       ...(sources?.length ? { source: { in: sources } } : {}),
+      ...(postedWithin ? { createdAt: { gte: new Date(Date.now() - postedWithin) } } : {}),
       ...(closingSoon ? { expiresAt: { gte: new Date(), lte: new Date(Date.now() + 7 * 86_400_000) } } : {}),
     };
     const extra: Prisma.JobWhereInput[] = [];
@@ -168,6 +174,10 @@ export async function GET(req: NextRequest) {
       // Promoted jobs stay first; the rest are ordered by fit.
       jobs.sort((a, b) => Number(promotedIds.has(b.id)) - Number(promotedIds.has(a.id)) || (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0));
     }
+
+    // Companies without a logo get one looked up in the background for next time.
+    enrichCompanyBrands(jobs.filter((j) => !j.company.logoUrl || !j.company.coverUrl).map((j) => j.company.id));
+    sweepCompanyBrands();
 
     return apiOk({
       jobs: jobs.map((job) => ({

@@ -102,6 +102,9 @@ export default function BillingPage() {
               {PLANS.find((p) => p.key === currentPlan)?.name ?? "Free"}
               {status?.subscription?.status ? ` · ${status.subscription.status}` : ""}
               {status?.subscription?.cancelAtPeriodEnd ? " · canceling at period end" : ""}
+              {status?.subscription?.currentPeriodEnd && !status.subscription.cancelAtPeriodEnd
+                ? ` · active until ${new Date(status.subscription.currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                : ""}
             </CardDescription>
           </div>
           {status?.subscription && !status.subscription.cancelAtPeriodEnd && (

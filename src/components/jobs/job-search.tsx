@@ -91,7 +91,16 @@ function Count({ n }: { n: number }) {
   return <span className="rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground">{n}</span>;
 }
 
-const FILTER_KEYS = ["q", "location", "radius", "country", "employmentType", "workplaceType", "careerLevel", "minSalary", "source", "visa", "opt", "open", "closing", "experience", "sort"];
+const POSTED = [
+  ["1h", "Past hour"],
+  ["24h", "Past 24 hours"],
+  ["3d", "Past 3 days"],
+  ["7d", "Past week"],
+  ["14d", "Past 2 weeks"],
+  ["30d", "Past month"],
+] as const;
+
+const FILTER_KEYS = ["q", "location", "radius", "country", "posted", "employmentType", "workplaceType", "careerLevel", "minSalary", "source", "visa", "opt", "open", "closing", "experience", "sort"];
 
 // List responses kept for the visit, so back/forward and repeated filters are instant.
 const listCache = new Map<string, ListResponse>();
@@ -412,6 +421,34 @@ export function JobSearchExperience({ brandName = "Jobs", tagline }: JobSearchEx
                           className={cn("rounded-lg px-2.5 py-1.5 text-left text-sm", active ? "bg-primary/10 font-semibold text-primary" : "text-foreground hover:bg-surface-raised")}
                         >
                           {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger className={cn(PILL, "shrink-0 gap-1.5 px-4", params.get("posted") && ACTIVE_PILL)}>
+                  <Clock className="h-4 w-4" />
+                  {POSTED.find(([v]) => v === params.get("posted"))?.[1] ?? "Date posted"}
+                  <ChevronDown className="h-4 w-4 opacity-60" />
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-56 p-2">
+                  <div role="radiogroup" aria-label="Date posted">
+                    {[["", "Any time"] as const, ...POSTED].map(([v, l]) => {
+                      const active = (params.get("posted") ?? "") === v;
+                      return (
+                        <button
+                          key={v || "any"}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => setParams({ posted: v || null, job: null })}
+                          className={cn("flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm", active ? "bg-primary/10 font-semibold text-primary" : "text-foreground hover:bg-surface-raised")}
+                        >
+                          {l}
+                          {active && <span aria-hidden>✓</span>}
                         </button>
                       );
                     })}

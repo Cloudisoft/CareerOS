@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanyBrandsCard } from "@/components/admin/company-brands-card";
 import { useEffect, useState } from "react";
 import { Loader2, Users, Building2, Briefcase, FileText, Bot, UserPlus, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -157,6 +158,8 @@ export default function AdminOverviewPage() {
         <StatCard icon={FileText} label="Applications" value={stats.applicationCount} />
         <StatCard icon={Bot} label="Interview sessions" value={stats.interviewSessionCount} />
       </div>
+
+      <CompanyBrandsCard />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>

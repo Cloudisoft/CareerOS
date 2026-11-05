@@ -18,6 +18,7 @@ import {
   Globe,
   Activity,
   Cpu,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,6 +62,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "Overview", icon: ShieldCheck, available: true },
   { href: "/admin/insights", label: "Insights", icon: Activity, available: true },
   { href: "/admin/users", label: "Users", icon: Users2, available: true },
+  { href: "/admin/accounts", label: "Accounts & plans", icon: UserPlus, available: true },
   { href: "/admin/enterprise", label: "Enterprise & Careers", icon: Sparkles, available: true },
   { href: "/admin/ai-work", label: "AI Work", icon: Cpu, available: true },
   { href: "/careers", label: "Career OS Careers", icon: Globe, available: true },

@@ -116,9 +116,11 @@ function BillingInner() {
             </p>
             {o.status === "TRIAL" && <p className="text-sm text-muted-foreground">Trial ends {fmtDate(o.trial.endsAt)}, then you move to the free tier.</p>}
             {o.complimentary && (
-              <p className="text-sm text-muted-foreground">Complimentary plan from Career OS — no charge, no renewal date. Credits reset on the 1st of each month (UTC).</p>
+              <p className="text-sm text-muted-foreground">
+                Complimentary plan from Career OS — no charge{o.period.end ? `, active until ${fmtDate(o.period.end)}` : ", no end date"}. Credits reset on the 1st of each month (UTC).
+              </p>
             )}
-            {o.status === "ACTIVE" && o.period.end && (
+            {o.status === "ACTIVE" && o.period.end && !o.complimentary && (
               <p className="text-sm text-muted-foreground">
                 {o.intro.active ? `This month billed at the ${usd(o.intro.priceCents)} intro price. ` : ""}
                 Renews {fmtDate(o.period.end)} at {usd(currentPrice)}/month.

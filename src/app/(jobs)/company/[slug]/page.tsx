@@ -5,6 +5,7 @@ import { Building2, Globe, Link2, MapPin, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth/session";
 import { getCompanyPosts } from "@/lib/network/service";
+import { enrichCompanyBrands } from "@/lib/company/branding";
 import { CompanyLogo } from "@/components/jobs/company-logo";
 import { JobRowLink } from "@/components/jobs/job-row";
 import { FollowButton } from "@/components/company/follow-button";
@@ -40,6 +41,7 @@ export default async function CompanyPage({ params, searchParams }: { params: { 
   if (!company) notFound();
   const tab = TABS.some((t) => t.key === searchParams.tab) ? (searchParams.tab as (typeof TABS)[number]["key"]) : "overview";
 
+  if (!company.logoUrl || !company.coverUrl) enrichCompanyBrands([company.id]);
   const user = await getSessionUser();
   const [following, jobs, posts] = await Promise.all([
     user ? prisma.companyFollower.findUnique({ where: { companyId_userId: { companyId: company.id, userId: user.id } }, select: { id: true } }) : null,
@@ -71,8 +73,14 @@ export default async function CompanyPage({ params, searchParams }: { params: { 
       {/* Banner */}
       <div className="relative h-40 overflow-hidden sm:h-56">
         {company.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={company.coverUrl} alt="" className="h-full w-full object-cover" />
+          // Shown whole over a blurred fill of itself, so share images of any shape (often a wordmark) look intentional.
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={company.coverUrl} alt="" aria-hidden referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-2xl" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/20" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={company.coverUrl} alt={`${company.name}`} referrerPolicy="no-referrer" className="relative mx-auto h-full w-auto max-w-full object-contain pb-[72px] pt-4 sm:pb-[92px]" />
+          </>
         ) : (
           <div className="h-full w-full bg-brand-gradient">
             <div
