@@ -149,7 +149,7 @@ function BillingInner() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {o.plans.map((p) => {
           const current = o.plan === p.key && hasAccess && o.status !== "CANCELLED";
           const isUpgrade = hasAccess && o.status !== "CANCELLED" && p.priceCents > currentPrice;

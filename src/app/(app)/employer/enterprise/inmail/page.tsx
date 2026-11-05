@@ -186,7 +186,7 @@ export default function InMailPage() {
           ) : (
             <>
               <p className="mb-2 text-sm text-muted-foreground">{leadTotal} lead{leadTotal === 1 ? "" : "s"}</p>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {leads.map((l) => (
                   <Card key={l.userId}>
                     <CardContent className="flex items-start gap-3 p-4">
@@ -229,7 +229,7 @@ export default function InMailPage() {
           ) : accounts.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">No companies match.</CardContent></Card>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {accounts.map((a) => (
                 <Card key={a.id}>
                   <CardContent className="flex items-start justify-between gap-3 p-4">

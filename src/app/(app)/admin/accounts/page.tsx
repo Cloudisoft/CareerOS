@@ -152,7 +152,7 @@ export default function AdminAccountsPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <form onSubmit={createAccount} className="space-y-4 rounded-xl border border-border bg-surface p-5">
           <p className="flex items-center gap-2 font-semibold text-foreground">
             <UserPlus className="h-4 w-4 text-primary" /> Create an account
