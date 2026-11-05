@@ -1,9 +1,14 @@
 import { HOME_TUTORIALS, posterSrc, videoSrc } from "@/config/tutorial-videos";
+import { BRAND } from "@/config/brand";
 /**
  * Homepage FAQ (rendered on the page and mirrored in FAQPage structured
  * data — the two must match) and the site's structured data.
  */
 export const HOME_FAQS = [
+  {
+    q: "What is CareerOS by Silver Springs Staffing?",
+    a: "CareerOS is the AI career platform from Silver Springs Staffing (silverspringstaffing.com), found at careeros.silverspringstaffing.com. Job seekers use it to find jobs, tailor resumes and practise interviews; recruiters and staffing firms use its Recruiter Suite to post jobs, search resumes and screen candidates.",
+  },
   {
     q: "What is Career OS?",
     a: "Career OS is a career operating system: one place to find jobs, build and tailor resumes, check them against applicant tracking systems, apply automatically with Auto Apply, practise with Interview AI, learn new skills and grow your network.",
@@ -32,19 +37,37 @@ export function homeStructuredData(baseUrl: string) {
     {
       "@context": "https://schema.org",
       "@type": "Organization",
+      "@id": `${BRAND.parent.url}/#organization`,
+      name: BRAND.parent.name,
+      alternateName: BRAND.parent.alternateNames,
+      url: BRAND.parent.url,
+      sameAs: [BRAND.parent.url],
+      subOrganization: { "@id": `${url}/#organization` },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
       "@id": `${url}/#organization`,
-      name: "Career OS",
+      name: BRAND.name,
+      legalName: BRAND.fullName,
+      alternateName: BRAND.alternateNames,
       url,
       logo: `${url}/brand/icon-512.png`,
-      description: "Career OS is a career operating system for job seekers and a Recruiter Suite for hiring teams.",
-      knowsAbout: ["job search", "resume writing", "applicant tracking systems", "interview preparation", "recruiting"],
+      image: `${url}/brand/logo-full-dark.png`,
+      slogan: BRAND.tagline,
+      description: "CareerOS by Silver Springs Staffing is an AI career operating system for job seekers and a Recruiter Suite for hiring teams and staffing firms.",
+      parentOrganization: { "@id": `${BRAND.parent.url}/#organization` },
+      sameAs: [BRAND.parent.url],
+      knowsAbout: ["job search", "resume writing", "applicant tracking systems", "interview preparation", "recruiting", "staffing"],
     },
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
       "@id": `${url}/#website`,
-      name: "Career OS",
+      name: BRAND.fullName,
+      alternateName: BRAND.alternateNames,
       url,
+      inLanguage: "en",
       publisher: { "@id": `${url}/#organization` },
       potentialAction: {
         "@type": "SearchAction",
@@ -55,7 +78,9 @@ export function homeStructuredData(baseUrl: string) {
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      name: "Career OS",
+      name: BRAND.fullName,
+      alternateName: BRAND.alternateNames,
+      publisher: { "@id": `${url}/#organization` },
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web, Chrome",
       url,

@@ -43,6 +43,26 @@ function coreName(name: string) {
   return name.toLowerCase().replace(/&/g, " and ").replace(SUFFIXES, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/** The name to search directories with: no legal ending or trademark sign ("SHD Composite Materials Inc" → "SHD Composite Materials"). */
+export function searchName(name: string) {
+  return name
+    .replace(/[™®©]/g, "")
+    .replace(/[,\s]+\b(inc|llc|l\.l\.c|ltd|limited|corp|corporation|plc|gmbh|co|lp|llp|pvt|private limited|s\.a|ag|bv|nv)\b\.?\s*$/i, "")
+    .replace(/[,\s]+\b(inc|llc|ltd|corp|co)\b\.?\s*$/i, "")
+    .trim();
+}
+
+/**
+ * The brand inside a subsidiary's name, for a second try when the full name
+ * finds nothing: "Amazon.com Services LLC" → "Amazon". Only generic words are
+ * removed, and the result still has to match a directory entry exactly.
+ */
+const GENERIC = /\b(services?|solutions|usa|us|america|north america|international|global|worldwide|operations|com|net)\b/g;
+export function brandName(name: string) {
+  const core = coreName(name).replace(GENERIC, " ").replace(/\s+/g, " ").trim();
+  return core.replace(/ /g, "").length >= 3 && core !== coreName(name) ? core : null;
+}
+
 /** Website domains worth trying, most trusted first. `trusted` ones need no title check. */
 export function candidateDomains(name: string, website: string | null, jobUrls: string[]): { domain: string; trusted: boolean }[] {
   const out: { domain: string; trusted: boolean }[] = [];
@@ -132,17 +152,16 @@ const commonsFile = (file: string, width: number) => `https://commons.wikimedia.
  * the company's name, that describes a business and lists an official
  * website. Gives the website, often the logo, and a photo for the banner.
  */
-async function fromWikidata(name: string) {
+async function fromWikidata(name: string, want = coreName(name)) {
   try {
-    const q = new URLSearchParams({ action: "wbsearchentities", search: name, language: "en", type: "item", limit: "5", format: "json" });
+    const q = new URLSearchParams({ action: "wbsearchentities", search: searchName(name), language: "en", type: "item", limit: "5", format: "json" });
     const found = (await (await fetch(`https://www.wikidata.org/w/api.php?${q}`, { headers: WIKI_UA, signal: AbortSignal.timeout(6000) })).json()) as { search?: { id: string }[] };
     const ids = (found.search ?? []).map((r) => r.id).slice(0, 5);
     if (!ids.length) return null;
     const g = new URLSearchParams({ action: "wbgetentities", ids: ids.join("|"), props: "labels|aliases|descriptions|claims", languages: "en", format: "json" });
     const data = (await (await fetch(`https://www.wikidata.org/w/api.php?${g}`, { headers: WIKI_UA, signal: AbortSignal.timeout(6000) })).json()) as {
-      entities?: Record<string, { labels?: { en?: { value: string } }; aliases?: { en?: { value: string }[] }; descriptions?: { en?: { value: string } }; claims?: Record<string, { mainsnak?: { datavalue?: { value?: unknown } } }[]> }>;
+      entities?: Record<string, { labels?: { en?: { value: string } }; aliases?: { en?: { value: string }[] }; descriptions?: { en?: { value: string } }; claims?: Record<string, { rank?: string; mainsnak?: { datavalue?: { value?: unknown } } }[]> }>;
     };
-    const want = coreName(name);
     for (const id of ids) {
       const e = data.entities?.[id];
       if (!e) continue;
@@ -150,15 +169,20 @@ async function fromWikidata(name: string) {
       if (!names.some((n) => coreName(n) === want)) continue;
       if (!COMPANYISH.test(e.descriptions?.en?.value ?? "")) continue;
       const claim = (p: string) => e.claims?.[p]?.[0]?.mainsnak?.datavalue?.value;
-      const website = claim("P856");
-      const host = typeof website === "string" ? hostOf(website) : null;
+      // Of several official websites (often one per country), the preferred one, else a .com, else the first.
+      const sites = (e.claims?.P856 ?? [])
+        .map((c) => ({ url: c.mainsnak?.datavalue?.value, preferred: c.rank === "preferred" }))
+        .filter((c): c is { url: string; preferred: boolean } => typeof c.url === "string");
+      const website = (sites.find((c) => c.preferred) ?? sites.find((c) => /\.com$/.test(hostOf(c.url) ?? "")) ?? sites[0])?.url;
+      const host = website ? hostOf(website) : null;
       if (!host) continue;
       const logo = claim("P154");
       const image = claim("P18");
       return {
         domain: rootDomain(host),
         logo: typeof logo === "string" ? commonsFile(logo, 256) : null,
-        cover: typeof image === "string" ? commonsFile(image, 1600) : null,
+        // A photo for the banner; else the logo drawn large (the banner shows it whole over a soft fill).
+        cover: typeof image === "string" ? commonsFile(image, 1600) : typeof logo === "string" ? commonsFile(logo, 1200) : null,
       };
     }
   } catch {
@@ -168,12 +192,11 @@ async function fromWikidata(name: string) {
 }
 
 /** Clearbit's public company search: only an exact name match counts. */
-async function fromClearbit(name: string) {
+async function fromClearbit(name: string, want = coreName(name)) {
   try {
-    const res = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(name)}`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(searchName(name))}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return null;
     const list = (await res.json()) as { name: string; domain: string }[];
-    const want = coreName(name);
     const hit = list.find((c) => coreName(c.name) === want && c.domain);
     return hit ? { domain: rootDomain(hit.domain) } : null;
   } catch {
@@ -193,6 +216,17 @@ async function googleIcon(domain: string) {
 }
 
 const RECHECK_MS = 14 * 24 * 60 * 60 * 1000;
+/** When the lookup last got better: companies checked before this get one more try. */
+const LOOKUP_IMPROVED_AT = new Date("2026-11-05T10:00:00Z").getTime();
+const recheckBefore = () => new Date(Math.max(Date.now() - RECHECK_MS, LOOKUP_IMPROVED_AT));
+
+/** Both directories, by full name and then by the brand inside a subsidiary's name. */
+async function lookUp(name: string) {
+  let [wiki, clearbit] = await Promise.all([fromWikidata(name), fromClearbit(name)]);
+  const brand = !wiki && !clearbit ? brandName(name) : null;
+  if (brand) [wiki, clearbit] = await Promise.all([fromWikidata(brand, brand), fromClearbit(brand, brand)]);
+  return { wiki, clearbit };
+}
 
 async function enrich(companyId: string) {
   const company = await prisma.company.findUnique({
@@ -200,7 +234,7 @@ async function enrich(companyId: string) {
     select: { id: true, name: true, website: true, logoUrl: true, coverUrl: true, brandCheckedAt: true, jobs: { select: { externalUrl: true }, where: { externalUrl: { not: null } }, take: 5 } },
   });
   if (!company || (company.logoUrl && company.coverUrl)) return;
-  if (company.brandCheckedAt && Date.now() - company.brandCheckedAt.getTime() < RECHECK_MS) return;
+  if (company.brandCheckedAt && company.brandCheckedAt >= recheckBefore()) return;
   // Mark first, so a slow site is never looked up twice at once.
   await prisma.company.update({ where: { id: company.id }, data: { brandCheckedAt: new Date() } });
 
@@ -211,10 +245,10 @@ async function enrich(companyId: string) {
     if (!sources.some((x) => x.domain === s.domain) && !ATS_HOSTS.some((a) => s.domain.includes(a))) sources.push(s);
   };
   const guesses = candidateDomains(company.name, company.website, company.jobs.map((j) => j.externalUrl!));
+  const { wiki, clearbit } = await lookUp(company.name);
   if (company.website) {
     guesses.forEach(push);
   } else {
-    const [wiki, clearbit] = await Promise.all([fromWikidata(company.name), fromClearbit(company.name)]);
     if (wiki) push({ domain: wiki.domain, trusted: true, logo: wiki.logo, cover: wiki.cover });
     if (clearbit) push({ domain: clearbit.domain, trusted: true });
     guesses.forEach(push);
@@ -230,8 +264,10 @@ async function enrich(companyId: string) {
       if (!site || rootDomain(site.finalHost) !== src.domain || !titleMatches(company.name, site.title)) continue;
     }
     const root = site ? rootDomain(site.finalHost) : src.domain;
-    logoUrl ||= src.logo ?? site?.icon ?? (await googleIcon(root));
-    coverUrl ||= site?.image ?? src.cover ?? null;
+    // The directory's images are used only for the website it names.
+    const wikiHere = wiki && (wiki.domain === root || wiki.domain === src.domain) ? wiki : null;
+    logoUrl ||= src.logo ?? wikiHere?.logo ?? site?.icon ?? (await googleIcon(root));
+    coverUrl ||= site?.image ?? src.cover ?? wikiHere?.cover ?? null;
     website ||= `https://${root}`;
     if (logoUrl) break;
   }
@@ -243,7 +279,7 @@ async function enrich(companyId: string) {
 const needsBrand = () => ({
   deletedAt: null,
   OR: [{ logoUrl: null }, { coverUrl: null }],
-  AND: [{ OR: [{ brandCheckedAt: null }, { brandCheckedAt: { lt: new Date(Date.now() - RECHECK_MS) } }] }],
+  AND: [{ OR: [{ brandCheckedAt: null }, { brandCheckedAt: { lt: recheckBefore() } }] }],
 });
 
 let lastSweep = 0;

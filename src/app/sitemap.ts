@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
-
-const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com").replace(/\/$/, "");
+import { SITE_URL } from "@/config/brand";
 
 export const revalidate = 3600;
 
@@ -27,6 +26,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       take: 1000,
     });
     pages.push(...listings.map((l) => ({ url: `${SITE_URL}/careers/${l.id}`, lastModified: l.updatedAt, changeFrequency: "weekly" as const, priority: 0.6 })));
+    // Every open job and every company with a public page.
+    const [jobs, companies] = await Promise.all([
+      prisma.job.findMany({ where: { status: "OPEN", deletedAt: null }, select: { id: true, updatedAt: true }, orderBy: { createdAt: "desc" }, take: 20000 }),
+      prisma.company.findMany({ where: { deletedAt: null, jobs: { some: { status: "OPEN", deletedAt: null } } }, select: { slug: true, updatedAt: true }, take: 10000 }),
+    ]);
+    pages.push(...jobs.map((j) => ({ url: `${SITE_URL}/jobs/${j.id}`, lastModified: j.updatedAt, changeFrequency: "daily" as const, priority: 0.7 })));
+    pages.push(...companies.map((c) => ({ url: `${SITE_URL}/company/${c.slug}`, lastModified: c.updatedAt, changeFrequency: "weekly" as const, priority: 0.6 })));
   } catch {
     // The static pages are still worth serving if the database is unreachable at build time.
   }

@@ -34,3 +34,19 @@ describe("titleMatches", () => {
     expect(titleMatches("AB", "AB testing tools")).toBe(false);
   });
 });
+
+describe("directory names", () => {
+  it("drops legal endings and trademark signs for searching", async () => {
+    const { searchName } = await import("./branding");
+    expect(searchName("SHD Composite Materials Inc")).toBe("SHD Composite Materials");
+    expect(searchName("Plus500™")).toBe("Plus500");
+    expect(searchName("CrowdStrike, Inc.")).toBe("CrowdStrike");
+    expect(searchName("Johnson & Johnson")).toBe("Johnson & Johnson");
+  });
+  it("finds the brand inside a subsidiary's name, only by removing generic words", async () => {
+    const { brandName } = await import("./branding");
+    expect(brandName("Amazon.com Services LLC")).toBe("amazon");
+    expect(brandName("Regal Rexnord")).toBeNull();
+    expect(brandName("US Services")).toBeNull();
+  });
+});

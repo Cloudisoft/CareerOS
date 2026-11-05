@@ -36,10 +36,16 @@ import { HOME_FAQS, homeStructuredData } from "@/lib/marketing/home-seo";
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com";
 
 export const metadata: Metadata = {
-  title: { absolute: "Career OS — AI Job Search, Auto Apply, Resume Builder & Recruiter Suite" },
+  title: { absolute: "CareerOS by Silver Springs Staffing — AI Job Search, Auto Apply, Resume Builder & Recruiter Suite" },
   description:
-    "Career OS is the AI career operating system: find jobs, tailor ATS-ready resumes, auto-apply safely, practise with Interview AI, and hire with the Recruiter Suite. In partnership with micro1. Free to start.",
+    "CareerOS by Silver Springs Staffing is the AI career operating system: find jobs, tailor ATS-ready resumes, auto-apply safely, practise with Interview AI, and hire with the Recruiter Suite. In partnership with micro1. Free to start.",
   keywords: [
+    "CareerOS",
+    "Career OS",
+    "CareerOS by Silver Springs Staffing",
+    "Silver Springs Staffing",
+    "Silver Spring Staffing",
+    "Silver Springs Staffing jobs",
     "AI job search",
     "auto apply jobs",
     "AI resume builder",
@@ -55,15 +61,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "/",
-    siteName: "Career OS",
-    title: "Career OS — Your career. One operating system.",
+    siteName: "CareerOS by Silver Springs Staffing",
+    title: "CareerOS by Silver Springs Staffing — Your career. One operating system.",
     description:
       "Find jobs, tailor ATS-ready resumes, auto-apply safely, practise interviews with AI, and hire with the Recruiter Suite. In partnership with micro1.",
-    images: [{ url: "/brand/logo-full-dark.png", alt: "Career OS" }],
+    images: [{ url: "/brand/logo-full-dark.png", alt: "CareerOS by Silver Springs Staffing" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Career OS — Your career. One operating system.",
+    title: "CareerOS by Silver Springs Staffing — Your career. One operating system.",
     description: "AI job search, Auto Apply, resumes, Interview AI and a Recruiter Suite — in partnership with micro1.",
     images: ["/brand/logo-full-dark.png"],
   },
@@ -176,7 +182,7 @@ export default async function MarketingHomePage() {
         <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-14 text-center sm:pt-24">
           <Badge variant="brand" className="mx-auto gap-1.5 py-1">
             <Sparkles className="h-3 w-3" />
-            The Career Operating System
+            CareerOS by Silver Springs Staffing
           </Badge>
 
           <h1 className="mt-6 text-balance text-5xl font-extrabold tracking-tight text-foreground sm:text-7xl md:text-[5.5rem] md:leading-[0.95]">
