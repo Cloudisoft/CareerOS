@@ -10,11 +10,22 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { safeNext } from "@/lib/safe-next";
 import { GoogleButton, OrDivider } from "@/components/auth/google-button";
+import { AccountTypeTabs, accountTypeFrom, type AccountType } from "@/components/auth/account-type-tabs";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
+  const [accountType, setAccountType] = useState<AccountType>(() => accountTypeFrom(searchParams.get("as")));
+  const next = searchParams.get("next");
+  const fromSearch = searchParams.get("from") === "search";
+  const searchedFor = (() => {
+    try {
+      return next ? new URL(next, "http://x").searchParams.get("q") : null;
+    } catch {
+      return null;
+    }
+  })();
   const [error, setError] = useState<string | null>(() => {
     const e = searchParams.get("error");
     if (e === "idle_timeout") return "You were signed out after 30 minutes of inactivity. Please log in again.";
@@ -52,11 +63,23 @@ function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Welcome back</CardTitle>
-        <CardDescription>Log in to your Career OS account.</CardDescription>
+        <CardTitle>{fromSearch ? "Log in to see your results" : "Welcome back"}</CardTitle>
+        <CardDescription>
+          {fromSearch
+            ? searchedFor
+              ? `Your search for “${searchedFor}” is ready. Log in or create a free account to view it.`
+              : "Log in or create a free account to view the jobs."
+            : "Log in to your Career OS account."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <GoogleButton next={searchParams.get("next")} />
+        <AccountTypeTabs value={accountType} onChange={setAccountType} />
+        <GoogleButton
+          type={accountType}
+          next={next}
+          from="login"
+          label={accountType === "CANDIDATE" ? "Continue with Google as a job seeker" : "Continue with Google as an employer"}
+        />
         <OrDivider />
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -96,7 +119,10 @@ function LoginForm() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           New to Career OS?{" "}
-          <Link href={searchParams.get("next") ? `/signup?next=${encodeURIComponent(safeNext(searchParams.get("next")))}` : "/signup"} className="font-medium text-primary hover:underline">
+          <Link
+            href={`/signup?as=${accountType}${next ? `&next=${encodeURIComponent(safeNext(next))}` : ""}`}
+            className="font-medium text-primary hover:underline"
+          >
             Create an account
           </Link>
         </p>

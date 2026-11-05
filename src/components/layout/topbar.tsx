@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, LogOut, CreditCard, Laptop, User as UserIcon, Repeat } from "lucide-react";
+import { Bell, Search, LogOut, CreditCard, Laptop, User as UserIcon, Repeat } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -34,6 +34,7 @@ const VIEW_LABEL: Partial<Record<UserRole, string>> = {
 
 export function Topbar({ user, careersPublisher, viewRoles = [] }: TopbarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
@@ -72,12 +73,33 @@ export function Topbar({ user, careersPublisher, viewRoles = [] }: TopbarProps) 
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
+    <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur-md sm:px-6">
       <div className="flex items-center gap-2 lg:hidden">
         <MobileNav role={user.role} careersPublisher={careersPublisher} viewRoles={viewRoles} />
         <Logo />
       </div>
-      <div className="ml-auto flex items-center gap-2">
+      {(user.role ?? "CANDIDATE") === "CANDIDATE" && !pathname.startsWith("/jobs") && (
+        <form
+          role="search"
+          className="hidden max-w-md flex-1 md:block"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = new FormData(e.currentTarget).get("q")?.toString().trim();
+            router.push(q ? `/jobs?q=${encodeURIComponent(q)}` : "/jobs");
+          }}
+        >
+          <label className="relative block">
+            <span className="sr-only">Search jobs</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              name="q"
+              placeholder="Search jobs, companies or skills"
+              className="h-9 w-full rounded-full border border-border bg-surface-raised/60 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </label>
+        </form>
+      )}
+      <div className="ml-auto flex items-center gap-1.5">
         <ThemeToggle />
         <Link
           href="/notifications"

@@ -9,16 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { GoogleButton, OrDivider } from "@/components/auth/google-button";
-
-type AccountType = "CANDIDATE" | "EMPLOYER";
+import { AccountTypeTabs, accountTypeFrom, type AccountType } from "@/components/auth/account-type-tabs";
 
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
-  const [accountType, setAccountType] = useState<AccountType>("CANDIDATE");
+  const [accountType, setAccountType] = useState<AccountType>(() => accountTypeFrom(searchParams.get("as")));
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "" });
   const [error, setError] = useState<string | null>(searchParams.get("error"));
   const [loading, setLoading] = useState(false);
@@ -59,27 +57,12 @@ function SignupForm() {
         <CardDescription>Start building your Career Profile — it's free.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-md bg-muted p-1">
-          {(["CANDIDATE", "EMPLOYER"] as const).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setAccountType(type)}
-              className={cn(
-                "rounded-md py-2 text-sm font-medium transition-colors",
-                accountType === type
-                  ? "bg-brand-gradient text-white"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {type === "CANDIDATE" ? "I'm job searching" : "I'm hiring"}
-            </button>
-          ))}
-        </div>
+        <AccountTypeTabs value={accountType} onChange={setAccountType} />
 
         <GoogleButton
           type={accountType}
           next={next}
+          from="signup"
           label={accountType === "CANDIDATE" ? "Continue with Google as a job seeker" : "Continue with Google as an employer"}
         />
         <OrDivider />
@@ -148,7 +131,7 @@ function SignupForm() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-primary hover:underline">
+          <Link href={`/login?as=${accountType}${next ? `&next=${encodeURIComponent(safeNext(next))}` : ""}`} className="font-medium text-primary hover:underline">
             Log in
           </Link>
         </p>

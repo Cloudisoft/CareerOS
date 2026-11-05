@@ -24,6 +24,8 @@ import { CountUp } from "@/components/marketing/count-up";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
 import { ResumeShowcase } from "@/components/marketing/resume-showcase";
 import { HeroExplode } from "@/components/marketing/hero-explode";
+import { HeroSearch } from "@/components/marketing/hero-search";
+import { getSessionUser } from "@/lib/auth/session";
 import { AutoApplySteps, AutoApplyAgentCard } from "@/components/marketing/auto-apply-showcase";
 import { Micro1Partnership } from "@/components/marketing/micro1-partnership";
 import { Micro1Logo } from "@/components/marketing/micro1-logo";
@@ -150,7 +152,8 @@ const SKILL_TAGS = [
   "Financial Analysis",
 ];
 
-export default function MarketingHomePage() {
+export default async function MarketingHomePage() {
+  const user = await getSessionUser();
   return (
     <>
       {/* Hero */}
@@ -167,51 +170,39 @@ export default function MarketingHomePage() {
 
         <HeroExplode />
 
-        <div className="relative mx-auto max-w-5xl px-6 pt-20 pb-16 text-center sm:pt-28">
-          <Reveal>
-            <Badge variant="brand" className="mx-auto gap-1.5 py-1">
-              <Sparkles className="h-3 w-3" />
-              The Career Operating System
-            </Badge>
-          </Reveal>
+        {/* Rendered straight away (no fade-in): it's the first thing people see. */}
+        <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-14 text-center sm:pt-24">
+          <Badge variant="brand" className="mx-auto gap-1.5 py-1">
+            <Sparkles className="h-3 w-3" />
+            The Career Operating System
+          </Badge>
 
-          <Reveal delay={0.08}>
-            <h1 className="mt-6 text-balance text-5xl font-bold tracking-tight text-foreground sm:text-6xl md:text-7xl">
-              Your career.
-              <br />
-              <span className="brand-gradient-text">One operating system.</span>
-            </h1>
-          </Reveal>
+          <h1 className="mt-6 text-balance text-5xl font-extrabold tracking-tight text-foreground sm:text-7xl md:text-[5.5rem] md:leading-[0.95]">
+            Search less.
+            <br />
+            <span className="brand-gradient-text">Get hired faster.</span>
+          </h1>
 
-          <Reveal delay={0.16}>
-            <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
-              Discover opportunities, build better resumes, prepare for interviews, learn new
-              skills, and connect with the people who can move your career forward.
-            </p>
-          </Reveal>
+          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
+            Describe the job you want. Career OS finds it, tailors your resume, preps your interview and applies for you.
+          </p>
 
-          <Reveal delay={0.24}>
-            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg" className="group">
-                <Link href="/signup">
-                  Get Started
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/features">Explore Career OS</Link>
-              </Button>
-            </div>
-          </Reveal>
+          <div className="mt-9">
+            <HeroSearch siteKey={process.env.TURNSTILE_SITE_KEY || null} signedIn={Boolean(user)} />
+          </div>
 
-          <Reveal delay={0.28}>
+          <div className="mt-7 flex flex-col items-center justify-center gap-x-6 gap-y-3 text-sm sm:flex-row">
+            <Link href="/signup?as=EMPLOYER" className="group inline-flex items-center gap-1.5 font-semibold text-foreground hover:text-primary">
+              Hiring? Post a job free
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
             <a
               href="#micro1"
-              className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface/70 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-surface/70 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
             >
               In partnership with <Micro1Logo className="h-3.5 w-auto text-foreground" />
             </a>
-          </Reveal>
+          </div>
         </div>
 
         {/* Skill marquee */}

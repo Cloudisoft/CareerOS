@@ -42,6 +42,13 @@ export default function OutreachPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // "Follow up" links from the dashboard pass the job title to search for.
+  useEffect(() => {
+    const prefill = new URLSearchParams(window.location.search).get("job");
+    if (prefill) searchJobs(prefill);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/billing/status").then((r) => r.json()),

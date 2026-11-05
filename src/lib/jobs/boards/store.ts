@@ -51,6 +51,11 @@ const lastRefresh = new Map<string, number>();
 const inFlight = new Map<string, Promise<number>>();
 
 /** Scan the boards for this candidate and store what fits, at most once every few hours per person. */
+/** True while this person's employer-board scan is still running. */
+export function isBoardScanRunning(userId: string) {
+  return inFlight.has(userId);
+}
+
 export function refreshBoardJobs(userId: string): Promise<number> {
   const running = inFlight.get(userId);
   if (running) return running;

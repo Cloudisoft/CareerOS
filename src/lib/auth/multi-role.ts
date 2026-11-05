@@ -1,4 +1,5 @@
 import "server-only";
+import { requestCache as cache } from "@/lib/request-cache";
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@prisma/client";
 
@@ -11,7 +12,10 @@ import type { UserRole } from "@prisma/client";
 const KEY = "access.multiRole";
 export const SWITCHABLE_ROLES: UserRole[] = ["CANDIDATE", "EMPLOYER", "PLATFORM_ADMIN"];
 
-async function readMap(): Promise<Record<string, UserRole[]>> {
+// One read per render (cache is a no-op outside React rendering, e.g. in route handlers).
+const readMap = cache(readMapUncached);
+
+async function readMapUncached(): Promise<Record<string, UserRole[]>> {
   const row = await prisma.appSetting.findUnique({ where: { key: KEY } });
   if (!row) return {};
   try {

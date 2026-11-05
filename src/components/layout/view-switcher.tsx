@@ -36,9 +36,9 @@ export function ViewSwitcher({ role, viewRoles }: { role?: UserRole; viewRoles: 
   }
 
   return (
-    <div className="border-b border-border px-4 py-3">
-      <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Switch view</p>
-      <div className="grid gap-1" role="radiogroup" aria-label="Switch view">
+    <div className="px-3 pb-2">
+      <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">Switch view</p>
+      <div className="grid grid-cols-3 gap-1 rounded-lg bg-surface-raised p-1" role="radiogroup" aria-label="Switch view">
         {views.map((v) => {
           const active = v.role === current;
           return (
@@ -47,15 +47,20 @@ export function ViewSwitcher({ role, viewRoles }: { role?: UserRole; viewRoles: 
               type="button"
               role="radio"
               aria-checked={active}
+              title={v.label}
               onClick={() => switchTo(v.role)}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                "flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px] font-medium leading-tight transition-colors",
+                active ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {busy === v.role ? <Loader2 className="h-4 w-4 animate-spin" /> : <v.icon className="h-4 w-4" />}
-              {v.label}
-              {active && <span className="ml-auto text-[10px] uppercase tracking-wide">Current</span>}
+              {busy === v.role ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <v.icon className={cn("h-4 w-4", active && "text-primary")} />
+              )}
+              <span className="truncate">{v.label}</span>
+              {active && <span className="sr-only">Current</span>}
             </button>
           );
         })}

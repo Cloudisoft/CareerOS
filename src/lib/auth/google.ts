@@ -41,10 +41,12 @@ export interface GoogleOAuthState {
   /** null when started from the login page — only existing accounts may sign in. */
   type: GoogleAccountType | null;
   next: string;
+  /** The page the person started on, so an error sends them back there. */
+  from?: "login" | "signup";
 }
 
-export function startGoogleAuth(origin: string, type: GoogleAccountType | null, next: string) {
-  const st: GoogleOAuthState = { state: generateToken(16), verifier: generateToken(32), nonce: generateToken(16), type, next };
+export function startGoogleAuth(origin: string, type: GoogleAccountType | null, next: string, from?: "login" | "signup") {
+  const st: GoogleOAuthState = { state: generateToken(16), verifier: generateToken(32), nonce: generateToken(16), type, next, from };
   const challenge = b64url(createHash("sha256").update(st.verifier).digest());
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
@@ -152,7 +154,7 @@ export async function completeGoogleSignIn(profile: GoogleProfile, type: GoogleA
     return { user: updated, created: false };
   }
   if (!type) {
-    throw new GoogleAuthError("There's no Career OS account for this Google email yet. Choose job searching or hiring to create one.", "GOOGLE_NO_ACCOUNT");
+    throw new GoogleAuthError("There's no Career OS account for this Google email yet. Choose Job seeker or Employer to create one.", "GOOGLE_NO_ACCOUNT");
   }
   // No password is set; the account can add one any time with "Forgot password".
   const user = await prisma.user.create({

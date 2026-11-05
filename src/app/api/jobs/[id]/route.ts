@@ -6,6 +6,7 @@ import { computeAndCacheMatch, getProfileForMatching, getJobForMatching } from "
 import { recomputeCareerReadiness } from "@/lib/scoring/career-readiness";
 import { closeExpiredJobs } from "@/lib/jobs/lifecycle";
 import { apiCatch, apiError, apiOk } from "@/lib/api-response";
+import { citizensOnly, closingInDays, requiredYears, requiresWorkAuthorization, studentFriendly, visaSignal, workAuthorizationRegions } from "@/lib/jobs/signals";
 
 /** "Salary Intelligence" — a real comparison of the posted range against the candidate's own, not a fabricated market estimate. */
 function computeSalaryIntelligence(
@@ -65,7 +66,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
             getJobForMatching(job.id),
           ]);
           match = await computeAndCacheMatch(profileForMatching, jobForMatching);
-          await recomputeCareerReadiness(profile.id);
+          // The readiness score only feeds the dashboard, so it updates after the response.
+          void recomputeCareerReadiness(profile.id).catch(() => {});
         }
 
         if (entitlements.salaryIntelligence && (job.salaryMin != null || job.salaryMax != null)) {
@@ -92,6 +94,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         salaryMax: job.salaryMax,
         salaryCurrency: job.salaryCurrency,
         createdAt: job.createdAt,
+        expiresAt: job.expiresAt,
         source: job.source,
         externalUrl: job.externalUrl,
         company: {
@@ -101,8 +104,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           logoUrl: job.company.logoUrl,
           industry: job.company.industry,
           location: job.company.location,
+          size: job.company.size,
         },
         skills: job.skills.map((s) => ({ name: s.skill.name, required: s.required })),
+      },
+      signals: {
+        visa: visaSignal(job.description),
+        workAuthorization: requiresWorkAuthorization(job.description),
+        regions: workAuthorizationRegions(job.description),
+        citizensOnly: citizensOnly(job.description),
+        studentFriendly: studentFriendly(job.description),
+        yearsRequired: requiredYears(job.description),
+        closingInDays: closingInDays(job.expiresAt),
       },
       match,
       saved,
