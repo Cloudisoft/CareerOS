@@ -9,7 +9,8 @@ const PLAN_ID_ENV: Record<PayablePlanKey, string> = {
   ELITE: "PAYPAL_PLAN_ELITE",
 };
 
-const ADDON_PLAN_ID_ENV: Record<AddOnKey, string> = {
+/** Add-ons sold through PayPal. Learning Hub isn't sold; it's only given by an admin. */
+const ADDON_PLAN_ID_ENV: Partial<Record<AddOnKey, string>> = {
   RESUME_STUDIO: "PAYPAL_PLAN_RESUME_STUDIO",
   INTERVIEW_AI: "PAYPAL_PLAN_INTERVIEW_AI",
 };
@@ -25,6 +26,7 @@ export function getPlanPayPalId(plan: PayablePlanKey): string {
 
 export function getAddOnPayPalId(addOn: AddOnKey): string {
   const envVar = ADDON_PLAN_ID_ENV[addOn];
+  if (!envVar) throw new Error(`${addOn} isn't sold through PayPal.`);
   const planId = process.env[envVar];
   if (!planId) throw new Error(`No PayPal billing plan configured for add-on ${addOn}. Set ${envVar}.`);
   return planId;

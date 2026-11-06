@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, Loader2, Mail, UserPlus, Gift } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FeatureAccessCard } from "@/components/admin/feature-access-card";
 
 const CANDIDATE_PLANS = [
   ["BASIC", "Basic"],
@@ -119,7 +120,7 @@ export default function AdminAccountsPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Accounts &amp; plans</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Create Career OS accounts and give them a job seeker or company plan for a set time. Granted plans are never charged and end on their own.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Create Career OS accounts and give them a job seeker or company plan, or Interview AI and Learning Hub on their own, for a set time. Anything given here is never charged and ends on its own.</p>
       </div>
 
       {msg && (
@@ -244,6 +245,8 @@ export default function AdminAccountsPage() {
           </button>
         </form>
       </div>
+
+      <FeatureAccessCard onMessage={(m) => { setMsg(m); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="border-b border-border px-5 py-4">

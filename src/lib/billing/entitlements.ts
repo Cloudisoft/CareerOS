@@ -38,8 +38,11 @@ export async function getEntitlements(userId: string): Promise<UserEntitlements>
     prisma.addOnSubscription.findMany({ where: { userId } }),
   ]);
 
+  // An add-on given by an admin (no PayPal subscription) ends on its own at currentPeriodEnd.
+  const now = Date.now();
   const activeAddOns = addOnSubs
     .filter((a) => a.status === "ACTIVE" || a.status === "TRIALING")
+    .filter((a) => a.paypalSubscriptionId || !a.currentPeriodEnd || a.currentPeriodEnd.getTime() > now)
     .map((a) => a.addOn);
 
   const isActive = subscription && (subscription.status === "ACTIVE" || subscription.status === "TRIALING");
@@ -47,6 +50,7 @@ export async function getEntitlements(userId: string): Promise<UserEntitlements>
 
   const hasResumeStudio = activeAddOns.includes("RESUME_STUDIO");
   const hasInterviewAiAddOn = activeAddOns.includes("INTERVIEW_AI");
+  const hasLearningHub = activeAddOns.includes("LEARNING_HUB");
 
   return {
     ...base,
@@ -61,6 +65,8 @@ export async function getEntitlements(userId: string): Promise<UserEntitlements>
     interviewAi: base.interviewAi || hasInterviewAiAddOn,
     interviewSessionMonthlyLimit: hasInterviewAiAddOn ? Infinity : base.interviewSessionMonthlyLimit,
     companyInterviewPrep: base.companyInterviewPrep || hasInterviewAiAddOn,
+    // Learning Hub given on its own by an admin.
+    learning: base.learning || hasLearningHub,
     planKey: isActive ? subscription!.plan : null,
     addOns: activeAddOns,
   };

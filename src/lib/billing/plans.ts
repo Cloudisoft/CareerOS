@@ -12,7 +12,7 @@
 export type PlanKey = "FREE" | "BASIC" | "STANDARD" | "PREMIUM" | "ELITE";
 /** The plans that actually have a PayPal billing plan — everything except Free. */
 export type PayablePlanKey = Exclude<PlanKey, "FREE">;
-export type AddOnKey = "RESUME_STUDIO" | "INTERVIEW_AI";
+export type AddOnKey = "RESUME_STUDIO" | "INTERVIEW_AI" | "LEARNING_HUB";
 export type AiPriorityTier = "standard" | "priority" | "highest";
 
 export interface Entitlements {
