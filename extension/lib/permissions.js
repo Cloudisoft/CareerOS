@@ -147,6 +147,7 @@
             'lib/answers.js',
             'lib/filler.js',
             'lib/coach.js',
+            'lib/asker.js',
             'content/careeros.js',
           ],
           css: ['content/fields.css'],

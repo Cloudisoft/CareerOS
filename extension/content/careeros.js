@@ -186,6 +186,7 @@
     if (!panel) {
       panel = document.createElement('div');
       panel.className = 'careeros-panel careeros-panel--collapsed';
+      panel.setAttribute('data-careeros-ui', '');
       document.body.appendChild(panel);
     }
     renderPanel();
@@ -870,10 +871,61 @@
      so the panel's live checklist) current across every step of an
      automated run too, not only a person-driven fill from the popup. */
   async function fillTracked(scope, profile, context) {
-    const rep = await Filler.fillForm(scope, profile, context);
+    // Sites built with React can replace the whole form just after it first appears (hydration): the form
+    // found a moment ago is then a discarded copy no one sees. Wait for the page to settle and work on the
+    // form that's actually on the page.
+    await waitForSettled();
+    let live = liveScope(scope);
+    let rep = await Filler.fillForm(live, profile, context);
+    // If the page re-drew the form again and threw the answers away, fill the fresh one.
+    for (let attempt = 0; attempt < 2 && lostAnswers(live, rep); attempt++) {
+      await waitForSettled();
+      live = liveScope(live);
+      rep = await Filler.fillForm(live, profile, context);
+    }
+    rep.scope = live;
     state.report = rep;
     if (panel) renderPanel();
     return rep;
+  }
+
+  /* The scope if it's still on the page, otherwise the form that replaced it. */
+  function liveScope(scope) {
+    if (scope && scope.isConnected && scope !== document.body) return scope;
+    return ATS.findForm(state.adapter, document) || document.body;
+  }
+
+  /* Waits until the page has stopped re-drawing (no DOM changes for a short while), so a fill isn't wiped
+     by the site finishing its own setup. Gives up after a few seconds: some pages never go fully quiet. */
+  async function waitForSettled(maxMs = 6000, quietMs = 600) {
+    const start = Date.now();
+    let last = Date.now();
+    const obs = new MutationObserver((list) => {
+      // Our own marks and the panel don't count.
+      if (list.some((m) => !(m.target && m.target.closest && m.target.closest('[data-careeros-ui]')))) last = Date.now();
+    });
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+    try {
+      while (Date.now() - start < maxMs) {
+        if (document.readyState === 'complete' && Date.now() - last >= quietMs) return;
+        await sleep(120);
+      }
+    } finally {
+      obs.disconnect();
+    }
+  }
+
+  /* True when more than a couple of the answers just filled are no longer on the page. */
+  function lostAnswers(scope, rep) {
+    const filled = (rep && rep.filled) || [];
+    if (scope && !scope.isConnected) return true;
+    let lost = 0;
+    for (const r of filled) {
+      const f = r.field;
+      if (!f || !f.node) continue;
+      if (!f.node.isConnected || Filler.isEmpty(f)) lost += 1;
+    }
+    return lost >= Math.max(2, Math.ceil(filled.length / 3));
   }
 
   /* Aggregator flows: open the apply surface, then work it step by step. */
@@ -921,7 +973,7 @@
       reportProgress(step + 1, directive.directive.maxSteps, filledTotal);
 
       // Questions only the person can answer: wait for them in this tab, learn the answers, carry on.
-      if (Filler.missingRequired(scope).length) {
+      if (needsPerson(scope).length) {
         const waited = await waitForPersonAnswers(scope);
         if (waited.submittedByPerson) return { outcome: 'submitted', detail: 'you submitted it' };
       }
@@ -1074,15 +1126,20 @@
         return { outcome: 'submitted', detail: `confirmed after ${step} step${step === 1 ? '' : 's'}` };
       }
 
-      const form = ATS.findForm(state.adapter, document) || document.body;
-      const before = formSignature(form);
+      let form = ATS.findForm(state.adapter, document) || document.body;
+      let before = formSignature(form);
 
       const filled = await fillTracked(form, context.profileOverride || state.profile, context);
+      // The site may have swapped the form out while it set itself up: carry on with the one on the page.
+      if (filled.scope && filled.scope !== form) {
+        form = filled.scope;
+        before = formSignature(form);
+      }
       filledTotal += filled.filled.length + filled.generated.length;
       reportProgress(step + 1, directive.maxSteps, filledTotal);
 
       // Questions only the person can answer: wait for them in this tab, learn the answers, carry on.
-      if (Filler.missingRequired(form).length) {
+      if (needsPerson(form).length) {
         const waited = await waitForPersonAnswers(form);
         if (waited.submittedByPerson) {
           const ok = await Flows.waitFor(() => isConfirmation(), 15000);
@@ -1275,8 +1332,23 @@
   /* Required questions CareerOS couldn't answer: highlight them, then only watch the page (never type,
      focus or scroll while the person works). Once every required answer is in and they've paused, their
      answers are saved for next time and the run continues. If they press submit themselves, that counts. */
+  /* Questions only the person can answer: required ones still empty, plus sensitive ones (self-identification,
+     arbitration...) CareerOS hasn't been told yet, which it asks once even when optional. */
+  function needsPerson(scope) {
+    const missing = Filler.missingRequired(scope);
+    const sensitive = ((state.report && state.report.skipped) || [])
+      .filter((r) => r.sensitive && r.field && r.field.node && r.field.node.isConnected && Filler.isEmpty(r.field))
+      .map((r) => r.field)
+      .filter((f) => !missing.some((m) => m.node === f.node));
+    return missing.concat(sensitive.map((f) => Object.assign({}, f, { sensitive: true })));
+  }
+
+  /* Walks the person through the questions only they can answer with small cards beside each one (lib/asker.js),
+     then only watches the page (never types, focuses or scrolls while they work). Once every required answer is
+     in, the sensitive ones are answered or skipped, and they've paused, their answers are saved for next time and
+     the run continues. If they press submit themselves, that counts. */
   async function waitForPersonAnswers(scope, opts) {
-    let missing = Filler.missingRequired(scope);
+    let missing = needsPerson(scope);
     if (!missing.length && !(opts && opts.force)) return {};
     const asked = missing.slice();
     // What the form says now: anything the person changes while we wait is learned too.
@@ -1305,22 +1377,40 @@
       ? `${missing.length} question${missing.length === 1 ? ' needs' : 's need'} your answer${labels ? `: ${labels}` : ''}.`
       : 'The form needs a correction (see the highlighted message).';
     await send({ type: 'careeros:needsYou', reason: 'questions', message: what });
-    showBanner(`${what} Answer in this tab; when you stop typing, CareerOS saves your answers and continues.`);
-    missing.forEach((f) => Filler.markAttention(f.kind === 'radio' || f.kind === 'choice' ? (f.node.closest('fieldset') || f.node.parentElement) : f.node));
-    const first = missing[0] && missing[0].node;
-    if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    showBanner(`${what} Follow the cards on the form; CareerOS saves your answers and continues by itself.`);
+    missing.forEach((f) => Filler.markAttention(['radio', 'choice', 'checks'].includes(f.kind) ? (f.node.closest('fieldset') || f.node.parentElement) : f.node));
+
+    // One small card per question, beside it on the form.
+    const Asker = window.CareerOS && window.CareerOS.Asker;
+    const cards = Asker && missing.length ? Asker.start({
+      items: missing.map((f) => ({
+        node: f.node, kind: f.kind, label: f.label, required: f.required, sensitive: f.sensitive,
+        canDecline: Boolean(f.sensitive && hasDeclineOption(f)), field: f,
+      })),
+      isAnswered: (item) => !Filler.isEmpty(freshField(item.field)),
+      onDecline: async (item) => {
+        const r = await Filler.fill(freshField(item.field), state.profile, { recallAll: async () => ['Prefer not to say'] }).catch(() => null);
+        return Boolean(r && r.status === 'filled');
+      },
+    }) : null;
+    if (!cards) {
+      const first = missing[0] && missing[0].node;
+      if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
 
     try {
       for (;;) {
         await sleep(1000);
         if (submittedByPerson) return { submittedByPerson: true };
-        missing = Filler.missingRequired(scope);
-        if (missing.length || Date.now() - lastTouch < IDLE_MS) continue;
+        const required = Filler.missingRequired(scope);
+        const open = cards ? cards.pending().filter((i) => !i.required) : [];
+        if (required.length || open.length || Date.now() - lastTouch < IDLE_MS) continue;
         if (opts && opts.force && readFormErrors() && Date.now() - lastTouch < IDLE_MS * 2) continue;
         learn(asked, scope, before);
         return {};
       }
     } finally {
+      if (cards) cards.stop();
       events.forEach((e) => document.removeEventListener(e, touch, { capture: true }));
       document.removeEventListener('submit', onSubmit, true);
       document.removeEventListener('click', onSubmit, true);
@@ -1328,6 +1418,21 @@
       hideBanner();
       send({ type: 'careeros:resumed' });
     }
+  }
+
+  /* The same field as it is on the page now (forms re-draw their fields). */
+  function freshField(f) {
+    if (f.node && f.node.isConnected) return f;
+    return Filler.collectFields(document).find((x) => x.label === f.label && x.kind === f.kind) || f;
+  }
+
+  /* Whether a choice question offers a "prefer not to say" style option (react-select menus can't be read
+     until opened, so those are assumed to). */
+  function hasDeclineOption(f) {
+    const opts = f.kind === 'select' ? Array.from(f.node.options || []).map((o) => o.textContent)
+      : (f.options || []).map((o) => (o.labels && o.labels[0] && o.labels[0].textContent) || o.textContent || o.value || '');
+    if (f.kind === 'combobox') return true;
+    return opts.some((t) => Answers && Answers.DECLINE.test(String(t)));
   }
 
   /* Save what the person entered for the questions CareerOS asked them (and anything of ours they corrected),
@@ -1445,7 +1550,13 @@
     const form = ATS.findForm(state.adapter, document);
     const appFields = form ? form.querySelectorAll('input:not([type="hidden"]):not([type="password"]), select, textarea').length : 0;
     if (pw && appFields < 4) return true;
-    return !form && /sign in to (continue|apply)|log ?in to apply|create an account to apply/i.test(bodyText().slice(0, 3000));
+    if (form) return false;
+    if (/sign in to (continue|apply)|log ?in to apply|create an account to apply/i.test(bodyText().slice(0, 3000))) return true;
+    // A sign-in step made only of buttons (Workday: "Sign in with email", "Sign in with Google", "Create Account").
+    if (document.querySelector('[data-automation-id="signInLink"], [data-automation-id="createAccountLink"], [data-automation-id="SignInWithEmailButton"], [data-automation-id="utilityButtonSignIn"]')
+      && /create account|sign in/i.test(bodyText().slice(0, 4000))) return true;
+    return Array.from(document.querySelectorAll('button, a, [role="button"]')).filter((b) => Flows.visible(b))
+      .some((b) => /^(sign in with (email|google|apple|linkedin|indeed)|continue with (email|google)|create (an )?account)$/i.test((b.textContent || '').trim()));
   }
 
   function isClosed() {
@@ -1476,7 +1587,7 @@
   }
 
   function hasAnswerableFields(form) {
-    return form.querySelectorAll('input:not([type="hidden"]), select, textarea').length >= 2;
+    return form.querySelectorAll('input:not([type="hidden"]), select, textarea').length >= ((state.adapter && state.adapter.minFields) || 2);
   }
 
   function formSignature(scope) {

@@ -386,7 +386,7 @@
 
   /* How alike two normalised questions are (0–1), by their meaningful words with synonyms folded together
      ("How big a team have you led?" ~ "What size of team have you managed?"). */
-  const STOPWORDS = new Set('a an the of to in on at for with by from about as and or if is are was were be been being do does did have has had you your yours we our us this that these those it its any some what which who whom how when where why will would can could should may might must please currently first ever there their them they i me my am applying apply role position job company'.split(' '));
+  const STOPWORDS = new Set('a an the of to in on at for with by from about as and or if is are was were be been being do does did have has had you your yours we our us this that these those it its any some what which who whom how when where why will would can could should may might must please currently first ever there their them they i me my am applying apply role position job company per our also just'.split(' '));
   const SYNONYM_GROUPS = [
     ['size', 'big', 'large', 'many', 'number', 'count'],
     ['hear', 'find', 'learn', 'discover', 'see', 'come'],
@@ -399,13 +399,26 @@
     ['relocate', 'relocation', 'move'],
     ['require', 'need', 'needs', 'required'],
     ['sponsorship', 'sponsor', 'visa'],
-    ['authorized', 'authorised', 'eligible', 'permitted', 'legally']
+    ['authorized', 'authorised', 'eligible', 'permitted', 'legally'],
+    ['office', 'onsite', 'site', 'person', 'inperson', 'premises'],
+    ['open', 'willing', 'comfortable', 'able', 'ok', 'okay', 'happy'],
+    ['work', 'working', 'works', 'worked'],
+    ['remote', 'remotely', 'wfh', 'home'],
+    ['previously', 'before', 'prior', 'past', 'formerly'],
+    ['interview', 'interviewed', 'interviewing'],
+    ['travel', 'traveling', 'travelling'],
+    ['shift', 'shifts', 'hours', 'schedule'],
+    ['citizen', 'citizenship', 'national', 'nationality'],
+    ['degree', 'diploma', 'qualification'],
+    ['notice', 'availability', 'available']
   ];
+  // "three days a week" and "3 days per week" are the same question.
+  const NUMBER_WORDS = { one: '1', two: '2', three: '3', four: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10', once: '1', twice: '2' };
   const SYNONYM_OF = new Map();
   SYNONYM_GROUPS.forEach((g) => g.forEach((w) => SYNONYM_OF.set(w, g[0])));
   function questionWords(q) {
-    return new Set(String(q).split(' ').filter((w) => w.length > 1 && !STOPWORDS.has(w))
-      .map((w) => SYNONYM_OF.get(w) || w.replace(/(ing|ed|es|s)$/, '')));
+    return new Set(String(q).split(' ').filter((w) => (w.length > 1 || /\d/.test(w)) && !STOPWORDS.has(w))
+      .map((w) => NUMBER_WORDS[w] || SYNONYM_OF.get(w) || SYNONYM_OF.get(w.replace(/(ing|ed|es|s)$/, '')) || w.replace(/(ing|ed|es|s)$/, '')));
   }
   function questionSimilarity(a, b) {
     const wa = questionWords(a);

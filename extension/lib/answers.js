@@ -108,8 +108,9 @@
       }
     }
 
-    // 6. A short answer that appears as a whole word in exactly one option ("Asian" -> "Asian (Not Hispanic…)").
-    if (v.length >= 3) {
+    // 6. A short answer that appears as a whole word in exactly one option ("Asian" -> "Asian (Not Hispanic…)",
+    //    "US" -> "US / UK / India"). Two-letter answers count only as written codes ("US", "UK").
+    if (v.length >= 3 || /^[A-Z]{2}$/.test(String(value).trim())) {
       const re = new RegExp('(^|[^a-z0-9])' + escapeRe(v) + '($|[^a-z0-9])');
       const hits = opts.filter((o) => re.test(letters(o)));
       if (hits.length === 1) return hits[0];
@@ -149,6 +150,12 @@
     if (/(at least|over|older than) (the age of )?18|\b18\s*(\+|years( of age)?( or older)?|or (older|over))|of legal (working )?age/.test(q)) {
       return { value: 'Yes', key: 'over18' };
     }
+    // Jobvite's first step: "Location of Residence and Language" with regions such as "US / UK / India".
+    if (/(location|country) of residence/.test(q)) {
+      const c = norm((p.identity || {}).country);
+      const code = /^(united states|usa|us|u s|united states of america)$/.test(c) ? 'US' : /^(united kingdom|uk|great britain|england|scotland|wales)$/.test(c) ? 'UK' : (p.identity || {}).country;
+      if (code) return { value: code, key: 'residence' };
+    }
     if (/hispanic|latin[oa]/.test(q)) return { value: v.hispanic || 'Prefer not to say', key: 'eeo:hispanic' };
     if (/\btransgender\b/.test(q)) return { value: v.transgender || 'Prefer not to say', key: 'eeo:transgender' };
     if (/sexual orientation/.test(q)) return { value: v.sexualOrientation || 'Prefer not to say', key: 'eeo:orientation' };
@@ -162,7 +169,13 @@
 
   /* A required "I agree / I acknowledge / I certify" box. Ticking it is the person's standing consent. */
   function isConsent(label) {
-    return /\b(i (agree|acknowledge|accept|consent|certify|confirm|understand|have read)|privacy (notice|policy)|terms (and|&) conditions|acknowledg|attest)\b/i.test(String(label || ''));
+    return /\b(i (agree|acknowledge|accept|consent|certify|confirm|understand|have read)|privacy (notice|policy)|terms (and|&) conditions|acknowledg|attest|(ai|application|candidate|data|recruiting) policy|please (read|review)|double.?check)\b/i.test(String(label || ''));
+  }
+
+  /* Questions that carry legal or personal weight: CareerOS never answers these for the person. It asks once,
+     then reuses their own answer on later forms. */
+  function isSensitive(label) {
+    return /\b(arbitrat\w*|waive|class action|criminal|convicted|felony|misdemeanou?r|background check consent|drug (test|screen)|non.?compete|security clearance)\b/i.test(String(label || ''));
   }
 
   /* The key and meaning to remember for a self-identification answer the person gave, so a differently
@@ -180,5 +193,5 @@
   }
 
   root.CareerOS = root.CareerOS || {};
-  root.CareerOS.Answers = { pickOption, pickBoolean, standardAnswer, isConsent, meaningOf, DECLINE };
+  root.CareerOS.Answers = { pickOption, pickBoolean, standardAnswer, isConsent, isSensitive, meaningOf, DECLINE };
 })(typeof self !== 'undefined' ? self : this);

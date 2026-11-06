@@ -58,6 +58,18 @@
       description: '[data-ui="job-description"], .job-description'
     },
     {
+      id: 'jobvite',
+      label: 'Jobvite',
+      match: (h) => /jobvite\.com/.test(h),
+      // Jobvite starts with a one-question "data consent" step (location of residence), then the application.
+      form: 'form.jv-form, form[action*="/apply"], form',
+      submit: 'button[type="submit"], input[type="submit"], .jv-button-primary',
+      title: '.jv-header, h2.jv-header, h1',
+      company: '.jv-logo img[alt], .jv-page-header',
+      description: '.jv-job-detail-description, .jv-wrapper',
+      minFields: 1
+    },
+    {
       id: 'smartrecruiters',
       label: 'SmartRecruiters',
       match: (h) => /smartrecruiters\.com/.test(h),
@@ -175,7 +187,8 @@
     { key: 'availableFrom',  re: /\b(available|start date|earliest start)\b/,                        path: 'narrative.availableFrom' },
     { key: 'salary',         re: /\b(salary|compensation|expected pay|pay rate|hourly rate|rate of pay|desired pay)\b/,                      resolve: (p) => p.targeting.minSalary ? String(p.targeting.minSalary) : '' },
     { key: 'skills',         re: /\b(skills|technolog|tech stack|proficienc)\w*\b/,                  resolve: (p, P) => P.allSkills(p).join(', ') },
-    { key: 'summary',        re: /\b(summary|about you|tell us about|profile|bio)\b/,                path: 'narrative.summary' },
+    // Only "about yourself" questions; "tell us about a time…" is a story question for the writer, not the summary.
+    { key: 'summary',        re: /\b(summary|about you(rself)?\b(?! (a|an|the) (time|situation|project|deal))|tell us about yourself|professional profile|\bbio\b)/, path: 'narrative.summary' },
     { key: 'coverLetter',    re: /\b(cover letter|why (do you want|are you interested)|motivation)\b/, generated: 'coverLetter' },
     { key: 'whyCompany',     re: /\bwhy (this )?(company|us|role|position)\b/,                       generated: 'whyCompany' },
 

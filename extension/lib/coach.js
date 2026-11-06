@@ -139,6 +139,7 @@
 
       const host = document.createElement('div');
       host.setAttribute('data-careeros-coach', '');
+      host.setAttribute('data-careeros-ui', '');
       host.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;';
       const shadow = host.attachShadow({ mode: 'open' });
       shadow.innerHTML = `

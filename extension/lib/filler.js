@@ -77,6 +77,9 @@
       const nodes = Array.from(el.querySelectorAll('input, select, textarea'));
       const groups = new Map();
       const fields = [];
+      // Checkboxes sharing a name are one question ("Have you worked here? [ ] No [ ] Yes - Intern [ ] Yes - Full time").
+      const checkNames = new Map();
+      nodes.forEach((n) => { if (n.type === 'checkbox' && n.name) checkNames.set(n.name, (checkNames.get(n.name) || 0) + 1); });
 
       nodes.forEach((node) => {
         if (SKIP_TYPES.includes(node.type)) return;
@@ -89,6 +92,14 @@
         if (!isFile && !(isVisible(node) || (isChoice && labelVisible(node)) || (isCombobox(node) && comboboxShown(node)))) return;
         if (node.readOnly && !isCombobox(node)) return;
 
+        if (node.type === 'checkbox' && node.name && checkNames.get(node.name) > 1) {
+          const key = `checks:${node.name}`;
+          if (groups.has(key)) { groups.get(key).options.push(node); return; }
+          const g = { kind: 'checks', name: node.name, options: [node], label: groupLabel(node), node, required: false };
+          groups.set(key, g);
+          fields.push(g);
+          return;
+        }
         if (node.type === 'radio') {
           const key = node.name || labelFor(node);
           if (groups.has(key)) { groups.get(key).options.push(node); return; }
@@ -107,7 +118,7 @@
           required: isRequired(node)
         });
       });
-      fields.filter((f) => f.kind === 'radio').forEach((g) => {
+      fields.filter((f) => f.kind === 'radio' || f.kind === 'checks').forEach((g) => {
         const fs = g.node.closest('fieldset');
         g.required = g.options.some((o) => o.required || o.getAttribute('aria-required') === 'true')
           || /\*|\(required\)/i.test(g.label)
@@ -146,7 +157,15 @@
         return { key: 'resume', file: 'resume' };
       }
       if (!label) return null;
-      for (const pattern of root.CareerOS.ATS.FIELD_PATTERNS) {
+      const patterns = root.CareerOS.ATS.FIELD_PATTERNS;
+      // A long question is judged by what it asks first: "What address will you work from? If you'd need to
+      // relocate, say so" is an address question, not a relocation one.
+      const head = normalize(String(field.label || '').split(/[?:]\s|[.!]\s+(?=[A-Z])/)[0]);
+      if (head && head !== label) {
+        for (const pattern of patterns) if (pattern.re.test(head)) return pattern;
+        if (label.length > 90) return null;
+      }
+      for (const pattern of patterns) {
         if (pattern.re.test(label)) return pattern;
       }
       return null;
@@ -179,7 +198,7 @@
       // 1. What the person answered on an earlier form: the same question, or the same question worded
       //    differently (a choice only takes it if it's one of this form's options). Their own answer always
       //    beats a general default.
-      const choiceKind = ['select', 'radio', 'choice', 'combobox'].includes(field.kind);
+      const choiceKind = ['select', 'radio', 'choice', 'combobox', 'checks'].includes(field.kind);
       const candidates = context.recallAll ? await context.recallAll(label, { choice: choiceKind })
         : (context.recall ? [await context.recall(label)].filter(Boolean) : []);
       for (const remembered of candidates) {
@@ -197,22 +216,52 @@
       const std = Answers().standardAnswer(label, profile);
       if (std) {
         const remembered = std.key.indexOf('eeo:') === 0 && context.recallKey ? await context.recallKey(std.key) : null;
+        // Self-identification is the person's to give: until they've answered it once (here or in their
+        // profile), ask instead of declining for them. Their answer is then reused on every later form.
+        if (std.key.indexOf('eeo:') === 0 && !remembered && !chosenByPerson(std.key, profile)) {
+          return Object.assign(skip('Asks you once, then remembers'), { sensitive: true });
+        }
         const out = await write(remembered || std.value);
         if (out.mine) return kept();
         if (out.ok) return { label, status: 'filled', value: out.value };
       }
 
       // 3. A required "I agree / I acknowledge" checkbox.
-      if (field.kind === 'checkbox' && Answers().isConsent(label)) {
+      if (field.kind === 'checkbox' && Answers().isConsent(label) && !Answers().isSensitive(label)) {
         if (!(await clearToWrite(field))) return kept();
         if (!field.node.checked) clickLike(labelClickTarget(field.node));
         return { label, status: 'filled', value: 'checked' };
       }
+      // 3b. The same acknowledgement as a required dropdown or Yes/No ("I have read the policy: Yes").
+      if (choiceKind && field.required && Answers().isConsent(label) && !Answers().isSensitive(label)) {
+        const opts = optionsOf(field);
+        const agree = /\b(i (agree|acknowledge|accept|consent|certify|confirm|understand|have read)|agree|acknowledge|accept)\b|^yes\b/i;
+        const refuse = /\b(not|disagree|decline|don'?t|do not|no)\b/i;
+        const tries = opts.length ? opts.filter((o) => agree.test(o) && !refuse.test(o)).slice(0, 1)
+          : ['Yes', 'I agree', 'I acknowledge', 'Acknowledged', 'I understand', 'Agree', 'Confirm', 'Confirmed'];
+        for (const t of tries) {
+          const out = await write(t);
+          if (out.mine) return kept();
+          if (out.ok) return { label, status: 'filled', value: out.value };
+        }
+      }
+      // 3c. Questions with legal or personal weight (arbitration, criminal history...) are the person's call: asked
+      //     once, then their answer above is reused.
+      if (Answers().isSensitive(label)) return Object.assign(skip('Asks you once, then remembers'), { sensitive: true });
 
       // 4. Profile fields.
+      if (pattern && EEO_PATTERN_KEYS[pattern.key] && !chosenByPerson(EEO_PATTERN_KEYS[pattern.key], profile)) {
+        return Object.assign(skip('Asks you once, then remembers'), { sensitive: true });
+      }
       if (pattern && !pattern.file) {
         const value = pattern.generated ? await context.generate(pattern.generated, label) : resolveValue(pattern, profile);
         if (value !== undefined && value !== null && value !== '') {
+          // Location boxes that suggest places as you type (Lever, Google Places): pick a suggestion.
+          if ((pattern.key === 'location' || pattern.key === 'city') && field.kind === 'text') {
+            if (!(await clearToWrite(field))) return kept();
+            const placed = await fillPlace(field.node, String(value));
+            if (placed) return { label, status: 'filled', value: placed };
+          }
           const out = await write(String(value));
           if (out.mine) return kept();
           if (out.ok) return { label, status: pattern.generated ? 'generated' : 'filled', value: out.value };
@@ -274,12 +323,13 @@
         } catch (err) {
           result = { label: field.label, status: 'skipped', reason: err.message, required: field.required, field };
         }
+        if (result && !result.field) result.field = field;
         if (result.status === 'filled') report.filled.push(result);
         else if (result.status === 'generated') report.generated.push(result);
         else report.skipped.push(result);
 
         if (result.status !== 'filled' && result.status !== 'generated' && field.required) {
-          markAttention(field.kind === 'radio' || field.kind === 'choice' ? (field.node.closest('fieldset') || field.node.parentElement) : field.node);
+          markAttention(['radio', 'choice', 'checks'].includes(field.kind) ? (field.node.closest('fieldset') || field.node.parentElement) : field.node);
         }
         if (!result.kept) await sleep(30 + Math.random() * 70); // let the page's own handlers keep up
       }
@@ -331,6 +381,15 @@
         if (!node.checked) { node.checked = true; node.dispatchEvent(new Event('change', { bubbles: true })); }
         return { ok: node.checked, value: pick };
       }
+      case 'checks': {
+        const labels = field.options.map((o) => cleanText(labelFor(o) || o.value));
+        const pick = Answers().pickOption(labels, v);
+        if (!pick) return { ok: false };
+        const node = field.options[labels.indexOf(pick)];
+        if (!node.checked) clickLike(labelClickTarget(node));
+        if (!node.checked) { node.checked = true; node.dispatchEvent(new Event('change', { bubbles: true })); }
+        return { ok: node.checked, value: pick };
+      }
       case 'choice': {
         const labels = field.options.map((b) => cleanText(b.textContent));
         const pick = Answers().pickOption(labels, v);
@@ -354,6 +413,48 @@
         return { ok: node.value === out, value: out };
       }
     }
+  }
+
+  /* A text box that offers place suggestions while typing. Types the city (a full "City, State, Country" often
+     finds nothing), then clicks the suggestion that means the person's location. Returns the chosen text, or
+     null when the box shows no suggestions (a plain text box: the caller just types the value). */
+  async function fillPlace(input, value) {
+    const hints = `${input.className} ${input.getAttribute('autocomplete') || ''} ${input.getAttribute('aria-autocomplete') || ''} ${input.name || ''}`;
+    if (!/location|place|pac-target|autocomplete|typeahead|\boff\b|list/i.test(hints)) return null;
+    const near = () => {
+      let el = input.parentElement;
+      for (let i = 0; i < 4 && el; i++, el = el.parentElement) {
+        const items = Array.from(el.querySelectorAll('[role="option"], .dropdown-location, .dropdown-results > div, .pac-item, [class*="suggestion"] li, [class*="suggestion"] > div, [class*="autocomplete"] li'))
+          .filter((n) => isVisible(n) && cleanText(n.textContent) && !/no (location|results?) found|loading/i.test(n.textContent));
+        if (items.length) return items;
+      }
+      return null;
+    };
+    const attempts = Array.from(new Set([value.split(',')[0].trim(), value].filter(Boolean)));
+    for (const text of attempts) {
+      // Typed a key at a time, as these boxes search on each keystroke.
+      input.focus();
+      setValue(input, '', { keepFocus: true });
+      for (let i = 0; i < text.length; i++) {
+        const key = text[i];
+        const code = key.toUpperCase().charCodeAt(0);
+        input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key, keyCode: code, which: code }));
+        setValue(input, text.slice(0, i + 1), { keepFocus: true });
+        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key, keyCode: code, which: code }));
+        await sleep(25);
+      }
+      const items = await waitFor(near, 3000);
+      if (!items) continue;
+      const labels = items.map((n) => cleanText(n.textContent));
+      const pick = Answers().pickOption(labels, value) || labels[0];
+      clickLike(items[labels.indexOf(pick)]);
+      await sleep(250);
+      input.blur();
+      return pick;
+    }
+    // No suggestions at all: leave the plain value for the caller to write.
+    setValue(input, '', { keepFocus: false });
+    return null;
   }
 
   /* Searchable dropdowns (react-select on Greenhouse job boards, ARIA listboxes): open the menu the way a
@@ -435,6 +536,7 @@
         return c ? cleanText(c.textContent) : '';
       }
       case 'checkbox': return n.checked ? 'Yes' : '';
+      case 'checks': return field.options.filter((o) => o.checked).map((o) => cleanText(labelFor(o) || o.value)).join(', ');
       case 'select': {
         const o = n.selectedOptions && n.selectedOptions[0];
         return o && o.value && !/^(select|choose|please select|--)/i.test(cleanText(o.textContent)) ? cleanText(o.textContent) : '';
@@ -449,9 +551,22 @@
     return !valueOf(field);
   }
 
+  /* Self-identification answers the person actually chose, as opposed to the old built-in "decline" defaults. */
+  const EEO_PROFILE_FIELD = {
+    'eeo:gender': 'gender', 'eeo:race': 'race', 'eeo:veteran': 'veteran', 'eeo:disability': 'disability',
+    'eeo:hispanic': 'hispanic', 'eeo:transgender': 'transgender', 'eeo:orientation': 'sexualOrientation', 'eeo:pronouns': 'pronouns',
+  };
+  const EEO_PATTERN_KEYS = { gender: 'eeo:gender', race: 'eeo:race', veteran: 'eeo:veteran', disability: 'eeo:disability' };
+  const OLD_DEFAULTS = /^(decline to self identify|i don'?t wish to answer|prefer not to say)$/i;
+  function chosenByPerson(key, profile) {
+    const v = ((profile && profile.voluntary) || {})[EEO_PROFILE_FIELD[key]];
+    if (!v || !String(v).trim()) return false;
+    return !(OLD_DEFAULTS.test(String(v).trim()) && !(profile.voluntary && profile.voluntary.chosen));
+  }
+
   function optionsOf(field) {
     if (field.kind === 'select') return Array.from(field.node.options).map((o) => cleanText(o.textContent)).filter((t) => t && !/^(select|choose|please select|--)/i.test(t));
-    if (field.kind === 'radio') return field.options.map((o) => cleanText(labelFor(o) || o.value));
+    if (field.kind === 'radio' || field.kind === 'checks') return field.options.map((o) => cleanText(labelFor(o) || o.value));
     if (field.kind === 'choice') return field.options.map((b) => cleanText(b.textContent));
     return [];
   }
