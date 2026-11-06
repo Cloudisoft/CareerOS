@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const { user, profile } = await requireExtensionCandidateProfile(req);
     await requireEntitlement(user.id, "interviewAi");
     const { applicationId, transcript } = hintSchema.parse(await req.json());
-    const hint = await generateLiveHint(profile.id, applicationId, transcript);
+    const hint = await generateLiveHint(user.id, profile.id, applicationId, transcript);
     return extOk({ hint });
   } catch (error) {
     return extCatch(error);

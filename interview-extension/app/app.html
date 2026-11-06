@@ -28,7 +28,7 @@
 
       <div id="interviewStart" class="card" hidden>
         <h2>Start a new session</h2>
-        <p class="muted">5 questions, tailored to your background.</p>
+        <p class="muted">CareerOS reads your resume first, then asks 7 questions about your actual projects, results and skills, following up on what you say.</p>
         <label class="field">
           Interview type
           <select id="typeSelect">
@@ -36,6 +36,10 @@
             <option value="BEHAVIORAL">Behavioral</option>
             <option value="TECHNICAL">Technical</option>
           </select>
+        </label>
+        <label class="field">
+          Interview for
+          <select id="jobSelect"><option value="">My resume (general practice)</option></select>
         </label>
         <button id="startBtn" class="btn">Start interview</button>
         <p class="error" id="startError" hidden></p>

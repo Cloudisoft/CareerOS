@@ -46,6 +46,7 @@
       const { sessions } = await Api.listSessions();
       renderSessionList(sessions);
       $('interviewStart').hidden = false;
+      loadTargets();
     } catch (err) {
       if (isUpgradeError(err)) { $('interviewNotEntitled').hidden = false; return; }
       $('startError').hidden = false;
@@ -70,14 +71,30 @@
     });
   }
 
+  /* Practice for a specific job you applied to (Premium and up): its description shapes the questions. */
+  let targetsLoaded = false;
+  async function loadTargets() {
+    if (targetsLoaded) return;
+    targetsLoaded = true;
+    try {
+      const { targets, jobSpecific } = await Api.listTargets();
+      if (!jobSpecific || !targets.length) return;
+      $('jobSelect').innerHTML += targets
+        .map((t) => `<option value="${esc(t.jobId)}">${esc(t.jobTitle)} @ ${esc(t.companyName)}</option>`)
+        .join('');
+    } catch (err) {
+      // General practice still works without the list.
+    }
+  }
+
   $('startBtn').onclick = async () => {
     $('startBtn').disabled = true;
-    $('startBtn').textContent = 'Thinking of your first question…';
+    $('startBtn').textContent = 'Reading your resume…';
     $('startError').hidden = true;
     try {
-      const { session } = await Api.startSession($('typeSelect').value);
+      const { session } = await Api.startSession($('typeSelect').value, $('jobSelect').value);
       currentSession = session;
-      renderSession();
+      await openSession(session.id);
     } catch (err) {
       $('startError').hidden = false;
       $('startError').textContent = err.message;
@@ -87,10 +104,24 @@
     }
   };
 
+  let totalQuestions = 7;
   async function openSession(id) {
-    const { session } = await Api.getSession(id);
+    const { session, totalQuestions: total } = await Api.getSession(id);
+    if (total) totalQuestions = total;
     currentSession = session;
     renderSession();
+  }
+
+  /* What CareerOS found worth asking about in the resume (and job), shown before the questions. */
+  function renderPlan(plan) {
+    if (!plan || !plan.focusAreas || !plan.focusAreas.length) return '';
+    return `
+      <details class="card plan" ${currentSession.questions.length <= 1 ? 'open' : ''}>
+        <summary><strong>What this interview will cover</strong> <span class="muted">· from your resume</span></summary>
+        ${plan.summary ? `<p class="muted">${esc(plan.summary)}</p>` : ''}
+        <ol>${plan.focusAreas.map((f) => `<li><strong>${esc(f.topic)}</strong>${f.why ? ` <span class="muted">— ${esc(f.why)}</span>` : ''}</li>`).join('')}</ol>
+        ${plan.watchOuts && plan.watchOuts.length ? `<p><strong>Be ready for:</strong> ${plan.watchOuts.map(esc).join(' · ')}</p>` : ''}
+      </details>`;
   }
 
   function renderSession() {
@@ -138,7 +169,8 @@
     const answered = s.questions.filter((q) => q.answer != null);
 
     view.innerHTML = `
-      <h2>Question ${s.questions.length} of 5</h2>
+      ${renderPlan(s.plan)}
+      <h2>Question ${current ? current.order + 1 : s.questions.length} of ${totalQuestions}</h2>
       ${current ? `
         <p class="qa q">${esc(current.category)}</p>
         <p class="q">${esc(current.question)}</p>
@@ -161,7 +193,7 @@
         const answer = $('answerDraft').value.trim();
         if (!answer) return;
         $('submitAnswer').disabled = true;
-        $('submitAnswer').textContent = 'Scoring your answer…';
+        $('submitAnswer').textContent = 'Scoring and preparing the next question…';
         $('answerError').hidden = true;
         try {
           await Api.submitAnswer(s.id, current.id, answer);
@@ -177,8 +209,14 @@
       $('finishSession').onclick = async () => {
         $('finishSession').disabled = true;
         $('finishSession').textContent = 'Finishing…';
-        await Api.completeSession(s.id);
-        await openSession(s.id);
+        try {
+          await Api.completeSession(s.id);
+          await openSession(s.id);
+        } catch (err) {
+          $('finishSession').disabled = false;
+          $('finishSession').textContent = 'Finish session';
+          view.insertAdjacentHTML('beforeend', `<p class="error">${esc(err.message)}</p>`);
+        }
       };
     }
   }
@@ -215,6 +253,7 @@
         <p class="q">${esc(q.category)} — ${esc(q.question)}</p>
         ${q.answer ? `<p class="a">${esc(q.answer)}</p>` : ''}
         ${q.score != null ? `<p class="feedback"><span class="badge">${q.score}%</span> ${esc(q.feedback || '')}</p>` : ''}
+        ${q.answer && q.score == null ? `<p class="feedback">Your answer is saved; scoring didn't finish. Use "Try again" to rescore it.</p>` : ''}
         ${canRetry ? `
         <button class="btn small ghost" data-action="retryToggle" data-qid="${esc(q.id)}">Try again</button>
         <div class="retryForm" id="retryForm-${esc(q.id)}" hidden>

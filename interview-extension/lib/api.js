@@ -195,6 +195,17 @@
       if (!res.ok) throw new Error((body && body.error) || `Transcription failed (${res.status})`);
       return body;
     },
+    /** The jobs this person applied to, to pick which interview this is (practice or live). */
+    async listTargets() {
+      return request('/interview/targets');
+    },
+    /** Has the interviewer just asked a question, and what could the person draw on? */
+    async liveAssist({ applicationId, transcript, recent, lastQuestion }) {
+      return request('/interview/live/assist', {
+        method: 'POST',
+        body: JSON.stringify({ applicationId: applicationId || null, transcript, recent: recent || [], lastQuestion: lastQuestion || undefined }),
+      });
+    },
     async getLiveHint(applicationId, transcript) {
       return request('/interview/live/hint', {
         method: 'POST',

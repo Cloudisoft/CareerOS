@@ -98,26 +98,31 @@
 
   async function loadControls(tab, live) {
     const select = $('lcJobSelect');
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    // Help always comes from the person's resume; picking the job adds its description and prep pack.
+    select.innerHTML = '<option value="">Use my resume (any interview)</option>';
     try {
-      const { prepPacks } = await Api.listPrepPacks();
-      if (!prepPacks || prepPacks.length === 0) {
-        select.innerHTML = '<option value="">No prep packs yet — get invited to interview first</option>';
-      } else {
-        select.innerHTML = prepPacks
-          .map((p) => `<option value="${p.applicationId}">${p.jobTitle} @ ${p.companyName}</option>`)
+      const { targets, jobSpecific } = await Api.listTargets();
+      if (jobSpecific && targets && targets.length) {
+        select.innerHTML += targets
+          .map((t) => `<option value="${esc(t.applicationId)}">${esc(t.jobTitle)} @ ${esc(t.companyName)}${/INTERVIEW/.test(t.status) ? ' · interviewing' : ''}</option>`)
           .join('');
-        if (live.lastApplicationId) select.value = live.lastApplicationId;
-      }
-    } catch (err) {
-      if (/Premium/.test(err.message)) {
+        if (live.lastApplicationId && targets.some((t) => t.applicationId === live.lastApplicationId)) select.value = live.lastApplicationId;
+      } else if (!jobSpecific) {
         $('lcUpgradeMsg').hidden = false;
       }
-      select.innerHTML = '<option value="">Unavailable</option>';
+    } catch (err) {
+      if (/Premium|upgrade|plan/i.test(err.message)) {
+        $('lcUpgradeMsg').hidden = false;
+        $('lcStartBtn').disabled = true;
+      } else {
+        $('lcStatus').textContent = `Couldn't load your jobs: ${err.message}`;
+      }
     }
 
     $('lcTestBtn').onclick = async () => {
       $('lcTestBtn').disabled = true;
-      $('lcTestResult').textContent = 'Capturing this tab’s audio for 30 seconds… stay on this call.';
+      $('lcTestResult').textContent = 'Capturing this tab’s audio for 15 seconds… stay on this call.';
       $('lcMeter').hidden = false;
       const res = await chrome.runtime.sendMessage({ type: 'liveCopilot:startTest', tabId: tab.id });
       if (!res || !res.ok) {
@@ -128,17 +133,13 @@
 
     $('lcStartBtn').onclick = async () => {
       const applicationId = select.value;
-      if (!applicationId) {
-        $('lcStatus').textContent = 'Pick which interview this is first.';
-        return;
-      }
       $('lcStartBtn').disabled = true;
       const res = await chrome.runtime.sendMessage({ type: 'liveCopilot:start', tabId: tab.id, applicationId });
       $('lcStartBtn').disabled = false;
       if (res && res.ok) {
         $('lcStartBtn').hidden = true;
         $('lcStopBtn').hidden = false;
-        $('lcStatus').textContent = 'Live Copilot is on. Hints will appear as an overlay on this call.';
+        $('lcStatus').textContent = 'Live Copilot is on. When the interviewer asks a question, talking points from your resume appear on the call.';
       } else {
         $('lcStatus').textContent = `Couldn't start: ${(res && res.error) || 'unknown error'}`;
       }

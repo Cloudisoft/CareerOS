@@ -31,6 +31,40 @@ interface SessionDetail {
   overallScore: number | null;
   questions: Question[];
   job: { title: string; company: { name: string } } | null;
+  plan: InterviewPlanView | null;
+}
+
+/** What CareerOS planned to ask after reading the resume (src/lib/interview/plan-core.ts InterviewPlan). */
+interface InterviewPlanView {
+  summary: string;
+  focusAreas: { id: string; topic: string; kind: string; why: string }[];
+  strengths: string[];
+  watchOuts: string[];
+}
+
+function PlanCard({ plan, open }: { plan: InterviewPlanView | null; open: boolean }) {
+  if (!plan?.focusAreas?.length) return null;
+  return (
+    <details className="group rounded-xl border bg-card p-4 text-sm" open={open}>
+      <summary className="cursor-pointer select-none font-medium text-foreground">
+        What this interview will cover <span className="font-normal text-muted-foreground">· from your resume</span>
+      </summary>
+      {plan.summary && <p className="mt-2 text-muted-foreground">{plan.summary}</p>}
+      <ol className="mt-3 list-decimal space-y-1.5 pl-5">
+        {plan.focusAreas.map((f) => (
+          <li key={f.id}>
+            <span className="font-medium text-foreground">{f.topic}</span>
+            {f.why && <span className="text-muted-foreground"> — {f.why}</span>}
+          </li>
+        ))}
+      </ol>
+      {plan.watchOuts?.length > 0 && (
+        <p className="mt-3 text-muted-foreground">
+          <span className="font-medium text-foreground">Be ready for:</span> {plan.watchOuts.join(" · ")}
+        </p>
+      )}
+    </details>
+  );
 }
 
 interface Recap {
@@ -122,33 +156,66 @@ export default function InterviewSessionPage() {
 
   const currentIndex = session.questions.findIndex((q) => q.answer == null);
   const current = currentIndex === -1 ? null : session.questions[currentIndex];
-  const allAnswered = session.questions.every((q) => q.score != null);
+  // Every question asked has an answer (a score can be missing if scoring didn't finish; that never blocks).
+  const allAnswered = session.questions.every((q) => q.answer != null);
 
   async function submitAnswer() {
     if (!current || !draft.trim()) return;
     voiceOut.stop();
     setSubmitting(true);
     setError(null);
-    const res = await fetch(`/api/interview/sessions/${params.id}/questions/${current.id}/answer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answer: draft }),
-    });
-    const json = await res.json();
-    setSubmitting(false);
-    if (!res.ok) {
-      setError(json.error?.message ?? "Something went wrong.");
-      return;
+    try {
+      const res = await fetch(`/api/interview/sessions/${params.id}/questions/${current.id}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: draft }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(json?.error?.message ?? "Something went wrong. Your answer is still here; try again.");
+        return;
+      }
+      setDraft("");
+      await load();
+    } catch {
+      setError("Couldn't reach CareerOS. Check your connection; your answer is still here.");
+    } finally {
+      setSubmitting(false);
     }
-    setDraft("");
-    load();
   }
 
   async function finishSession() {
     setCompleting(true);
-    const res = await fetch(`/api/interview/sessions/${params.id}/complete`, { method: "POST" });
-    setCompleting(false);
-    if (res.ok) load();
+    setError(null);
+    try {
+      const res = await fetch(`/api/interview/sessions/${params.id}/complete`, { method: "POST" });
+      if (res.ok) await load();
+      else setError((await res.json().catch(() => null))?.error?.message ?? "Couldn't finish the session. Try again.");
+    } catch {
+      setError("Couldn't reach CareerOS. Check your connection and try again.");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  /* Scores an answer again as it is (when scoring didn't finish the first time). */
+  async function rescore(q: Question) {
+    if (!q.answer) return;
+    setRetrySubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/interview/sessions/${params.id}/questions/${q.id}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: q.answer }),
+      });
+      if (!res.ok) setError((await res.json().catch(() => null))?.error?.message ?? "Scoring didn't finish. Try again in a moment.");
+      await load();
+    } catch {
+      setError("Couldn't reach CareerOS. Check your connection and try again.");
+    } finally {
+      setRetrySubmitting(false);
+    }
   }
 
   async function submitRetry(questionId: string) {
@@ -339,6 +406,7 @@ export default function InterviewSessionPage() {
         </div>
       ) : (
         <div className="space-y-4">
+          <PlanCard plan={session.plan} open={session.questions.length <= 1} />
           <p className="text-sm text-muted-foreground">
             Question {(currentIndex === -1 ? session.questions.length : currentIndex) + 1} of {totalQuestions}
           </p>
@@ -406,7 +474,7 @@ export default function InterviewSessionPage() {
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button onClick={submitAnswer} disabled={submitting || !draft.trim()}>
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {submitting ? "Scoring your answer…" : "Submit answer"}
+                  {submitting ? "Scoring and preparing the next question…" : "Submit answer"}
                 </Button>
                 {submitting && (
                   <p className="text-xs text-muted-foreground">
@@ -424,6 +492,7 @@ export default function InterviewSessionPage() {
                   {completing && <Loader2 className="h-4 w-4 animate-spin" />}
                   Finish session
                 </Button>
+                {error && <p className="text-sm text-destructive">{error}</p>}
               </CardContent>
             </Card>
           )}
@@ -439,6 +508,15 @@ export default function InterviewSessionPage() {
                   </div>
                   <p className="text-sm font-medium text-foreground">{q.question}</p>
                   {q.feedback && <p className="text-sm text-muted-foreground">{q.feedback}</p>}
+                  {q.score == null && (
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      Your answer is saved; scoring didn&apos;t finish.
+                      <Button size="sm" variant="outline" onClick={() => rescore(q)} disabled={retrySubmitting}>
+                        {retrySubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Rescore
+                      </Button>
+                    </div>
+                  )}
                   {retryingId === q.id ? (
                     <div className="space-y-2">
                       <Textarea

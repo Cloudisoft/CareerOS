@@ -7,7 +7,7 @@
  */
 importScripts('../lib/storage.js', '../lib/api.js', '../lib/live-copilot.js');
 
-const { Api, Storage } = self.CareerOSInterviewPrep;
+const { Api, Storage, LiveCopilot } = self.CareerOSInterviewPrep;
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || msg.type !== 'careerosInterviewPrep:connect') return false;
@@ -117,6 +117,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       closeOffscreenDocument().catch(() => {});
       activeCaptureTabId = null;
     }
+    // Something that won't fix itself (no transcription service, signed out, plan): stop listening rather
+    // than keep capturing audio that can't help. The overlay shows why.
+    if (msg.type === 'liveCopilot:error' && msg.fatal) {
+      const tab = activeCaptureTabId;
+      stopCapture().catch(() => {}).finally(() => {
+        if (tab != null) chrome.tabs.sendMessage(tab, { type: 'liveCopilot:stopped', reason: msg.message }).catch(() => {});
+      });
+    }
     return false;
   }
 
@@ -127,4 +135,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // stop capture rather than silently keep listening to nothing.
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (tabId === activeCaptureTabId) stopCapture().catch(() => {});
+});
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  // Leaving the call (navigating the tab elsewhere) ends Live Copilot too.
+  if (tabId === activeCaptureTabId && info.url && !LiveCopilot.detectPlatform(info.url)) stopCapture().catch(() => {});
+});
+
+/* The overlay asks whether Live Copilot is running on its tab (e.g. after the page re-renders). */
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || msg.type !== 'liveCopilot:status?') return false;
+  sendResponse({ active: sender.tab != null && sender.tab.id === activeCaptureTabId });
+  return false;
 });

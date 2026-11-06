@@ -1022,6 +1022,9 @@ model InterviewSession {
   status       InterviewSessionStatus @default(IN_PROGRESS)
   overallScore Int?
   summary      String?
+  /// What CareerOS planned to ask after reading the resume (and job): focus areas, strengths, watch-outs.
+  /// See src/lib/interview/plan-core.ts InterviewPlan. Null for sessions started before plans existed.
+  plan         Json?
 
   createdAt   DateTime  @default(now())
   completedAt DateTime?
@@ -1041,6 +1044,8 @@ model InterviewQuestion {
   order    Int
   category String
   question String
+  /// The plan focus area this question covers (InterviewPlan.focusAreas[].id), if any.
+  focusId  String?
 
   answer       String?
   score        Int?
