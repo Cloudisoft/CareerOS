@@ -32,6 +32,7 @@ const EXPECTED = {
   'lib/answers.js': 'Answers',
   'lib/filler.js': 'Filler',
   'lib/coach.js': 'Coach',
+  'lib/asker.js': 'Asker',
 };
 
 describe('content-script libraries', () => {
@@ -50,5 +51,6 @@ describe('content-script libraries', () => {
     }
     expect(typeof window.CareerOS.Flows.press).toBe('function');
     expect(typeof window.CareerOS.Coach.start).toBe('function');
+    expect(typeof window.CareerOS.Asker.start).toBe('function');
   });
 });

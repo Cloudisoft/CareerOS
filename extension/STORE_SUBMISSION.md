@@ -42,6 +42,10 @@ reviewers scrutinise hardest here, and nothing was using what it granted.
 
 > `https://*.careeros.example/*` and `http://localhost:3000/*` — the CareerOS backend. It holds the user's profile and generates the tailored resume for each role.
 
+**Content script on the CareerOS website**
+
+> `content/bridge.js` runs only on `https://careeros.silverspringstaffing.com/*` (already a required host). It tells the CareerOS page the extension is installed and passes on one request, "auto apply to this job", which opens that posting in a new tab and fills it. It sends no profile data, answers or settings to the page.
+
 **Optional host permissions**
 
 > Job sites and job search APIs. None are requested at install. The user grants a group from the extension's settings when they choose to use those sites, and can revoke it there. The extension has no access to any site the user has not enabled.

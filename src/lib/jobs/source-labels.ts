@@ -5,6 +5,8 @@ const SOURCE_LABELS: Record<string, string> = {
   greenhouse: "Greenhouse",
   lever: "Lever",
   ashby: "Ashby",
+  workday: "Workday",
+  jobvite: "Jobvite",
   workable: "Workable",
   smartrecruiters: "SmartRecruiters",
   linkedin: "LinkedIn",

@@ -400,6 +400,52 @@
       return applyTo(job);
     },
 
+    /* "Auto apply" on a job's page on the CareerOS website: open it in a new tab the person can see and fill it
+       there, asking only what CareerOS doesn't know yet. Submits by itself when auto-submit is on for that site.
+       Without access to that site yet, the tab still opens and one click on the CareerOS icon fills it. */
+    async applyNow(input) {
+      const url = String((input && input.url) || '');
+      let parsed;
+      try { parsed = new URL(url); } catch (err) { return { ok: false, reason: 'bad_url' }; }
+      const local = /^(127\.0\.0\.1|localhost)$/.test(parsed.hostname);
+      if (parsed.protocol !== 'https:' && !(local && parsed.protocol === 'http:')) return { ok: false, reason: 'bad_url' };
+      if (await Storage.alreadyApplied(url)) return { ok: false, reason: 'applied', message: 'You already applied to this job.' };
+      const ats = (Discovery && Discovery.classifyUrl && Discovery.classifyUrl(url)) || 'generic';
+      const job = {
+        id: `web-${String(input.id || parsed.pathname).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || Date.now()}`,
+        url,
+        title: input.title || '',
+        company: input.company || '',
+        location: input.location || '',
+        ats,
+        source: 'careeros-web',
+      };
+      // A CareerOS Careers link redirects to the employer's form: the run follows it there (like LinkedIn's
+      // "Apply on company website") and fills that page.
+      const viaCareerOS = /(^|\.)silverspringstaffing\.com$|^localhost$/.test(parsed.hostname) && /^\/careers\/apply\//.test(parsed.pathname);
+      const granted = viaCareerOS || await chrome.permissions.contains({ origins: [`${parsed.origin}/*`] }).catch(() => false);
+      if (!granted) {
+        await chrome.tabs.create({ url, active: true });
+        return { ok: true, mode: 'manual', message: `CareerOS can't fill ${parsed.hostname} yet. On that tab, click the CareerOS icon and press Fill; to fill it by itself next time, allow employer sites in CareerOS settings.` };
+      }
+      const state = await Engine.getState();
+      const existing = state.queue.find((j) => j.id === job.id);
+      if (existing && existing.state === 'running') return { ok: true, mode: 'auto', message: 'Already filling this application in another tab.' };
+      const queue = state.queue.filter((j) => j.id !== job.id).concat([Object.assign({}, job, { score: null, provisional: true, state: 'running' })]);
+      await Engine.setState({ queue });
+      applyTo(job, { foreground: true, handoff: viaCareerOS }).catch(() => {});
+      const settings = await Storage.getSettings();
+      const submit = Policy.canAutoSubmit(ats, settings);
+      return {
+        ok: true,
+        mode: 'auto',
+        autoSubmit: submit.allowed,
+        message: submit.allowed
+          ? 'Opened in a new tab. CareerOS fills it, asks only what it doesn\'t know yet, and submits.'
+          : 'Opened in a new tab. CareerOS fills it and asks only what it doesn\'t know yet; you press Submit.',
+      };
+    },
+
     /* Called by the worker when a content script announces itself. */
     async handleReady(tabId, url) {
       await tabsReady;
@@ -708,7 +754,7 @@
     return `${job.ats}:${normalizeKey(job.company) || host}`;
   }
 
-  async function applyTo(job) {
+  async function applyTo(job, opts) {
     const settings = await Storage.getSettings();
 
     /* Hidden background tabs are the sane default for an unattended run — fast,
@@ -717,7 +763,10 @@
        side rather than a fully hidden tab. */
     let tab;
     let windowId = null;
-    if (settings.showApplyTabs) {
+    if (opts && opts.foreground) {
+      // Started by the person from the website: open where they can see it.
+      tab = await chrome.tabs.create({ url: job.url, active: true });
+    } else if (settings.showApplyTabs) {
       const win = await chrome.windows.create({
         url: job.url, type: 'popup', focused: false, width: 420, height: 640, left: 20, top: 20
       });
@@ -729,6 +778,7 @@
 
     return new Promise((resolve) => {
       const entry = { job, resolve, windowId, progress: null };
+      if (opts && opts.handoff) entry.handoff = true;
       armTimer(tab.id, entry);
       runtime.tabs.set(tab.id, entry);
       saveTabs();

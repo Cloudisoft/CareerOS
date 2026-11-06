@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { getPublicListing } from "@/lib/careers/service";
+import { AutoApplyButton } from "@/components/jobs/auto-apply-button";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +26,11 @@ export default async function CareersListingPage({ params }: { params: { id: str
           <h1 className="text-2xl font-semibold text-foreground">{listing.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">Posted {listing.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
           <div className="mt-6 whitespace-pre-wrap text-sm leading-relaxed text-foreground">{listing.description}</div>
-          <Button asChild className="mt-6">
-            <a href={`/careers/apply/${listing.id}`} target="_blank" rel="noopener noreferrer">
-              Apply now <ExternalLink className="h-4 w-4" />
-            </a>
-          </Button>
+          {/* Opens the employer's form in a new tab; with the CareerOS extension it's filled there too. */}
+          <AutoApplyButton
+            className="mt-6"
+            job={{ id: `careers-${listing.id}`, url: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com"}/careers/apply/${listing.id}`, title: listing.title, company: "" }}
+          />
         </CardContent>
       </Card>
     </div>

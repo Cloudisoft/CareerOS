@@ -60,11 +60,13 @@
       requiresVisa: '',
       willingToRelocate: false
     },
+    // Empty until the person answers: CareerOS asks once on the first form that wants it, then remembers.
     voluntary: {
-      gender: 'Decline to self identify',
-      race: 'Decline to self identify',
-      veteran: 'I don\'t wish to answer',
-      disability: 'I don\'t wish to answer'
+      gender: '',
+      race: '',
+      veteran: '',
+      disability: '',
+      chosen: false
     },
     narrative: {
       summary: '',           // 2–3 sentences, used as the base for tailored letters

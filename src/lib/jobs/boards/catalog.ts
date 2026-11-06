@@ -244,3 +244,13 @@ export const WORKDAY_CATALOG: ReadonlyArray<{ tenant: string; pod: string; site:
   { tenant: "travelers", pod: "wd5", site: "External", name: "Travelers" },
   { tenant: "bdx", pod: "wd1", site: "EXTERNAL_CAREER_SITE_USA", name: "BD" },
 ];
+
+/**
+ * Employers hiring through Jobvite. Jobvite has no public job API, so each company's public job list page is read
+ * (jobs.jobvite.com/<slug>/jobs) and each matching posting's page supplies its date and description. Verified live.
+ */
+export const JOBVITE_CATALOG: ReadonlyArray<{ slug: string; name: string }> = [
+  { slug: "nutanix", name: "Nutanix" },
+  { slug: "egnyte", name: "Egnyte" },
+  { slug: "xperi", name: "Xperi" },
+];

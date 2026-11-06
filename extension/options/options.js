@@ -116,6 +116,8 @@
       else if (el.dataset.lines !== undefined) write(path, splitLines(el.value));
       else if (el.type === 'number' || el.dataset.number !== undefined) write(path, el.value === '' ? 0 : Number(el.value));
       else write(path, el.value);
+      // A self-identification answer typed here is the person's own choice, even "decline".
+      if (path.indexOf('voluntary.') === 0) write('voluntary.chosen', true);
       queueSave();
     });
   });
