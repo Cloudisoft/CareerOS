@@ -871,6 +871,8 @@ enum PlanKey {
 enum AddOnKey {
   RESUME_STUDIO
   INTERVIEW_AI
+  /// Learning Hub on its own. Not sold; only given by a platform admin for a set time.
+  LEARNING_HUB
 }
 
 enum SubscriptionStatus {

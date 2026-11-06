@@ -40,6 +40,13 @@ case "${1:-}" in
       rm -rf "${tmp:?}/build/${name}"
     done
     find "$tmp/build" -name '.DS_Store' -delete
+    # The store build talks only to production: drop the local-development host permission.
+    node -e '
+      const fs = require("fs"); const f = process.argv[1];
+      const m = JSON.parse(fs.readFileSync(f, "utf8"));
+      m.host_permissions = (m.host_permissions || []).filter((h) => !/^http:\/\/localhost/.test(h));
+      fs.writeFileSync(f, JSON.stringify(m, null, 2) + "\n");
+    ' "$tmp/build/manifest.json"
     mv "$tmp/build" "$OUT_DIR"
     rm -rf "$tmp"
 
