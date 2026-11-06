@@ -156,6 +156,14 @@
       const code = /^(united states|usa|us|u s|united states of america)$/.test(c) ? 'US' : /^(united kingdom|uk|great britain|england|scotland|wales)$/.test(c) ? 'UK' : (p.identity || {}).country;
       if (code) return { value: code, key: 'residence' };
     }
+    // "Zip code (Non-U.S. based candidates, please enter "00000")": the form's own placeholder for people
+    // who live outside the U.S.
+    const plain = q.replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ');
+    const placeholder = String(label).match(/\b(0{3,})\b/);
+    if (placeholder && /\b(zip|postal|pin ?code)\b/.test(plain) && /\b(non ?u ?s|outside (of )?(the )?(u ?s a?|united states))\b/.test(plain)) {
+      const c = norm((p.identity || {}).country).replace(/[^a-z ]+/g, '').replace(/\s+/g, ' ').trim();
+      if (c && !/^(united states( of america)?|usa?|america)$/.test(c)) return { value: placeholder[1], key: 'postalOutsideUS' };
+    }
     if (/hispanic|latin[oa]/.test(q)) return { value: v.hispanic || 'Prefer not to say', key: 'eeo:hispanic' };
     if (/\btransgender\b/.test(q)) return { value: v.transgender || 'Prefer not to say', key: 'eeo:transgender' };
     if (/sexual orientation/.test(q)) return { value: v.sexualOrientation || 'Prefer not to say', key: 'eeo:orientation' };

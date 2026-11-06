@@ -318,7 +318,7 @@
         const shared = Object.assign({}, bank[SHARED]);
         for (const a of answers) {
           if (!a || !a.answer) continue;
-          const key = a.key && a.key.indexOf('eeo:') === 0 ? a.key : answerKey(a.question);
+          const key = a.key && /^(eeo|profile):[a-z]+$/i.test(a.key) ? a.key : answerKey(a.question);
           if (!shared[key] || (shared[key].at || 0) === 0) shared[key] = { answer: a.answer, at: 0, question: a.question };
         }
         bank[SHARED] = shared;
@@ -368,7 +368,9 @@
   const SHARED = '_account';
 
   function answerKey(question) {
-    return String(question).indexOf('eeo:') === 0 ? String(question) : normalizeQuestion(question);
+    // Answers saved by meaning keep their key: self-identification ("eeo:veteran") and profile details the
+    // person typed on a form ("profile:postal").
+    return /^(eeo|profile):[a-z]+$/i.test(String(question)) ? String(question) : normalizeQuestion(question);
   }
 
   function findAnswer(entries, question) {
