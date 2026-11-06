@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHero } from "@/components/marketing/page-hero";
 import { Reveal } from "@/components/marketing/reveal";
+import { SUPPORT_EMAIL } from "@/config/brand";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -83,8 +84,8 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-foreground">Questions</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               Reach us at{" "}
-              <a href="mailto:support@careeros.app" className="text-primary hover:underline">
-                support@careeros.app
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
+                {SUPPORT_EMAIL}
               </a>
               .
             </p>

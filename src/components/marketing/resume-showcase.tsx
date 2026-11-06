@@ -11,7 +11,7 @@ export function ResumeShowcase() {
         <span className="h-2.5 w-2.5 rounded-full bg-success/60" />
         <span className="ml-3 flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-xs text-muted-foreground">
           <span className="h-1.5 w-1.5 animate-pulse-glow rounded-full bg-success" />
-          app.careeros.app/resume-studio
+          careeros.silverspringstaffing.com/resume-studio
         </span>
       </div>
 

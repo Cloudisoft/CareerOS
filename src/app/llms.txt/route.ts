@@ -1,5 +1,5 @@
 import { HOME_FAQS } from "@/lib/marketing/home-seo";
-import { BRAND, SITE_URL } from "@/config/brand";
+import { BRAND, SITE_URL, SUPPORT_EMAIL } from "@/config/brand";
 
 /** A plain-text summary for AI answer engines (llms.txt convention). */
 export function GET() {
@@ -24,6 +24,9 @@ export function GET() {
     "",
     "## Partnership",
     "- micro1 (https://www.micro1.ai): connects vetted engineers and domain experts with AI labs, startups and enterprises; its AI recruiter, Zara, runs structured interviews.",
+    "",
+    "## Support",
+    `- Email ${SUPPORT_EMAIL}, or see ${SITE_URL}/support.`,
     "",
     "## FAQ",
     ...HOME_FAQS.flatMap((f) => [`### ${f.q}`, f.a, ""]),

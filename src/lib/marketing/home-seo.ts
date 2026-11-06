@@ -1,5 +1,5 @@
 import { HOME_TUTORIALS, posterSrc, videoSrc } from "@/config/tutorial-videos";
-import { BRAND } from "@/config/brand";
+import { BRAND, SUPPORT_EMAIL } from "@/config/brand";
 /**
  * Homepage FAQ (rendered on the page and mirrored in FAQPage structured
  * data — the two must match) and the site's structured data.
@@ -57,6 +57,8 @@ export function homeStructuredData(baseUrl: string) {
       slogan: BRAND.tagline,
       description: "CareerOS by Silver Springs Staffing is an AI career operating system for job seekers and a Recruiter Suite for hiring teams and staffing firms.",
       parentOrganization: { "@id": `${BRAND.parent.url}/#organization` },
+      email: SUPPORT_EMAIL,
+      contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: SUPPORT_EMAIL, url: `${url}/support`, availableLanguage: "English" },
       sameAs: [BRAND.parent.url],
       knowsAbout: ["job search", "resume writing", "applicant tracking systems", "interview preparation", "recruiting", "staffing"],
     },
