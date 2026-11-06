@@ -5,7 +5,7 @@ import { externalJobExpiry } from "@/lib/jobs/lifecycle";
 import { discoverJobsForUser, type DiscoveredJob } from "./discover";
 
 /**
- * Employer-board postings (Greenhouse, Lever, Ashby, Workday) found for a candidate are kept in the Job table
+ * Employer-board postings (Greenhouse, Lever, Ashby, Workday, Jobvite) found for a candidate are kept in the Job table
  * next to the Adzuna/JSearch listings, so the Jobs page shows them too. Keyed on (source, externalId) like the
  * aggregator sync: a posting found again updates in place and its expiry resets, one that stops showing up
  * ages out on its own (see lifecycle.ts).

@@ -1,18 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- board APIs return loosely shaped JSON; every field is read defensively where it is used. */
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { BOARD_CATALOG, WORKDAY_CATALOG } from "./catalog";
+import { BOARD_CATALOG, JOBVITE_CATALOG, WORKDAY_CATALOG } from "./catalog";
 import { discoveryTitles, isRecent, locationFits, titleFit } from "./match";
 
 /**
- * Automatic job discovery for Auto Apply: scan public employer boards (Greenhouse, Lever, Ashby, Workday: the
+ * Automatic job discovery for Auto Apply: scan public employer boards (Greenhouse, Lever, Ashby, Workday, Jobvite: the
  * forms the extension fills) for postings that fit the candidate's target titles and locations, so a
  * run always has jobs without anyone configuring sources. Board responses are cached for a few hours, so a
  * run costs at most one fetch per board, and a board that fails is skipped, never fatal.
  */
 
 export type BoardKind = "greenhouse" | "lever" | "ashby";
-export type DiscoveredAts = BoardKind | "workday";
+export type DiscoveredAts = BoardKind | "workday" | "jobvite";
 
 export interface DiscoveredJob {
   externalId: string;
@@ -255,6 +255,116 @@ async function discoverWorkday(titles: string[], onFail: (tenant: string) => voi
   return pool(fitting, 8, async ({ site, job, fit }) => ({ job: await withWorkdayDetails(site, job), fit }));
 }
 
+/* ---------------- Jobvite ---------------- */
+
+const JOBVITE_HOST = "jobs.jobvite.com";
+const JOBVITE_SLUG = /^[a-z0-9][a-z0-9-]{0,60}$/i;
+const JOBVITE_ID = /^[A-Za-z0-9]{4,20}$/;
+const JOBVITE_DETAILS_MAX = 15;
+const jobviteCache = new Map<string, { at: number; value: string }>();
+
+/** A page on Jobvite's job site: fixed host, no redirects (an unknown company redirects to Jobvite's help page). */
+async function jobviteHtml(path: string): Promise<string> {
+  const url = new URL(`https://${JOBVITE_HOST}${path}`);
+  if (url.hostname !== JOBVITE_HOST) throw new Error("Unexpected host");
+  const hit = jobviteCache.get(url.href);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { accept: "text/html" } });
+  if (res.status !== 200) throw new Error(`Jobvite page "${path}" returned ${res.status}`);
+  const value = (await res.text()).slice(0, 2_000_000);
+  jobviteCache.set(url.href, { at: Date.now(), value });
+  return value;
+}
+
+/** The postings listed on a company's Jobvite job page: title, link and location, read from its job table. */
+export function parseJobviteList(html: string, slug: string, company: string): DiscoveredJob[] {
+  const out: DiscoveredJob[] = [];
+  const rows = html.split(/<tr[\s>]/i).slice(1);
+  for (const row of rows) {
+    const link = row.match(/<a[^>]+href="\/([a-z0-9-]+)\/job\/([A-Za-z0-9]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!link || link[1].toLowerCase() !== slug.toLowerCase() || !JOBVITE_ID.test(link[2])) continue;
+    const loc = row.match(/class="jv-job-list-location"[^>]*>([\s\S]*?)<\/td>/i);
+    const location = htmlToText(loc?.[1] ?? "").replace(/\s*,\s*/g, ", ");
+    const url = `https://${JOBVITE_HOST}/${slug}/job/${link[2]}`;
+    out.push({
+      externalId: `jobvite:${slug}:${link[2]}`,
+      title: htmlToText(link[3]),
+      company,
+      location,
+      workplaceType: workplace(location),
+      url,
+      applyUrl: `${url}/apply`,
+      ats: "jobvite",
+      description: "",
+      postedAt: 0,
+    });
+  }
+  return out;
+}
+
+/** Date, description and location from a posting's structured data (schema.org JobPosting). */
+export function parseJobvitePosting(html: string): { postedAt: number; description: string; location: string; remote: boolean } | null {
+  for (const m of Array.from(html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi))) {
+    try {
+      const data = JSON.parse(m[1]);
+      const posting = (Array.isArray(data) ? data : [data]).find((d) => d && d["@type"] === "JobPosting");
+      if (!posting) continue;
+      const places = (Array.isArray(posting.jobLocation) ? posting.jobLocation : [posting.jobLocation]).filter(Boolean);
+      const location = places
+        .map((p: any) => [p?.address?.addressLocality, p?.address?.addressRegion, p?.address?.addressCountry].filter(Boolean).join(", "))
+        .filter(Boolean)
+        .join("; ");
+      return {
+        postedAt: time(posting.datePosted),
+        description: htmlToText(posting.description).slice(0, 6000),
+        location,
+        remote: posting.jobLocationType === "TELECOMMUTE",
+      };
+    } catch {
+      // not the posting's data block; keep looking
+    }
+  }
+  // Some companies' pages carry no structured data: read the page itself (no date there).
+  const desc = html.match(/<div class="jv-job-detail-description"[^>]*>([\s\S]*?)<\/div>\s*(?:<div class="jv-job-detail-bottom|<\/div>)/i);
+  const meta = html.match(/<p class="jv-job-detail-meta">([\s\S]*?)<\/p>/i);
+  if (!desc && !meta) return null;
+  // The meta line reads "Category | City, Region | Req.Num.: 123"; the place is the part with a comma.
+  const parts = (meta?.[1] ?? "").split(/<span[^>]*jv-inline-separator[^>]*><\/span>/i).map((p) => htmlToText(p).replace(/\s*,\s*/g, ", "));
+  const location = parts.find((p) => p.includes(",") && !/req\.?\s*num/i.test(p)) ?? "";
+  return { postedAt: 0, description: htmlToText((desc?.[1] ?? "").replace(/<!--[\s\S]*?-->/g, " ")).slice(0, 6000), location, remote: /\bremote\b/i.test(location) };
+}
+
+/** Jobvite postings fitting the candidate's titles: the list first, then details only for the ones that fit. */
+async function discoverJobvite(titles: string[], onFail: (slug: string) => void): Promise<Array<{ job: DiscoveredJob; fit: number }>> {
+  const lists = await pool([...JOBVITE_CATALOG], 4, async (c) => {
+    if (!JOBVITE_SLUG.test(c.slug)) return [];
+    try {
+      return parseJobviteList(await jobviteHtml(`/${c.slug}/jobs`), c.slug, c.name);
+    } catch {
+      onFail(c.slug);
+      return [];
+    }
+  });
+  const fitting = lists
+    .flat()
+    .map((job) => ({ job, fit: titleFit(job.title, titles) }))
+    .filter((x) => x.fit >= 0.6)
+    .sort((a, b) => b.fit - a.fit)
+    .slice(0, JOBVITE_DETAILS_MAX);
+  const detailed = await pool(fitting, 5, async ({ job, fit }) => {
+    try {
+      const info = parseJobvitePosting(await jobviteHtml(new URL(job.url).pathname));
+      if (!info) return { job, fit };
+      const location = info.location || job.location;
+      return { job: { ...job, postedAt: info.postedAt, description: info.description, location, workplaceType: info.remote ? ("remote" as const) : workplace(location) }, fit };
+    } catch {
+      return { job, fit };
+    }
+  });
+  // A posting with no date is kept (it's listed right now); one with a date must be recent.
+  return detailed.filter((x) => !x.job.postedAt || isRecent(new Date(x.job.postedAt).toISOString(), RECENT_DAYS));
+}
+
 /** Run `fn` over `items` with at most `limit` in flight. */
 async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
@@ -290,7 +400,8 @@ export async function discoverJobsForUser(userId: string, opts: { limit?: number
 
   let failed = 0;
   const workdayFailed = new Set<string>();
-  const [boards, workday] = await Promise.all([
+  const jobviteFailed = new Set<string>();
+  const [boards, workday, jobvite] = await Promise.all([
     pool([...BOARD_CATALOG], 12, (b) =>
       fetchBoard(b.kind, b.identifier, b.name).catch(() => {
         failed += 1;
@@ -298,6 +409,7 @@ export async function discoverJobsForUser(userId: string, opts: { limit?: number
       })
     ),
     discoverWorkday(titles, (tenant) => workdayFailed.add(tenant)),
+    discoverJobvite(titles, (slug) => jobviteFailed.add(slug)),
   ]);
 
   const fits = ({ job }: { job: DiscoveredJob }) => locationFits({ location: job.location, workplaceType: job.workplaceType }, prefs);
@@ -308,12 +420,13 @@ export async function discoverJobsForUser(userId: string, opts: { limit?: number
     .filter((x) => x.fit >= 0.6 && fits(x));
   // A Workday posting with no readable location (only "3 Locations") is kept: the title already matched.
   const fromWorkday = workday.filter((x) => !x.job.location || fits(x));
-  const scored = [...fromBoards, ...fromWorkday].sort((a, b) => b.fit - a.fit || b.job.postedAt - a.job.postedAt);
+  const fromJobvite = jobvite.filter((x) => !x.job.location || fits(x));
+  const scored = [...fromBoards, ...fromWorkday, ...fromJobvite].sort((a, b) => b.fit - a.fit || b.job.postedAt - a.job.postedAt);
 
-  failed += workdayFailed.size;
+  failed += workdayFailed.size + jobviteFailed.size;
   return {
     jobs: scored.slice(0, opts.limit ?? 100).map((s) => s.job),
-    scanned: BOARD_CATALOG.length + WORKDAY_CATALOG.length - failed,
+    scanned: BOARD_CATALOG.length + WORKDAY_CATALOG.length + JOBVITE_CATALOG.length - failed,
     failed,
     reason: null as string | null,
   };

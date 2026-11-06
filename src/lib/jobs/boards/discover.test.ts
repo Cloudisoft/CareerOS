@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchBoard, workdayPostedAt } from "./discover";
+import { fetchBoard, parseJobviteList, parseJobvitePosting, workdayPostedAt } from "./discover";
 import { isRecent, locationFits, titleFit } from "./match";
 
 const now = new Date().toISOString();
@@ -65,5 +65,44 @@ describe("Workday posting dates", () => {
     expect(workdayPostedAt("Posted 3 Days Ago", at)).toBe(at - 3 * day);
     expect(workdayPostedAt("Posted 30+ Days Ago", at)).toBe(0);
     expect(workdayPostedAt(undefined, at)).toBe(0);
+  });
+});
+
+describe("Jobvite", () => {
+  // Shaped like jobs.jobvite.com/<company>/jobs and a posting page (both read live on 2026-11-06).
+  const list = `<table class="jv-job-list"><thead><tr><th>Job listing</th></tr></thead><tbody>
+    <tr>
+      <td class="jv-job-list-name"><a href="/egnyte/job/opPUAfws">Customer Support Specialist, AR &amp; Billing</a></td>
+      <td class="jv-job-list-location">
+            Mountain View,
+            California
+      </td>
+    </tr>
+    <tr><td class="jv-job-list-name"><a href="/othercompany/job/zzzzzzzz">Not this company</a></td><td class="jv-job-list-location">Remote</td></tr>
+    <tr><td class="jv-job-list-name"><a href="/egnyte/job/orIXAfwq">QA Analyst</a></td><td class="jv-job-list-location">Remote</td></tr>
+  </tbody></table>`;
+
+  it("reads the job list: title, link, location and the apply page", () => {
+    const jobs = parseJobviteList(list, "egnyte", "Egnyte");
+    expect(jobs.map((j) => j.title)).toEqual(["Customer Support Specialist, AR & Billing", "QA Analyst"]);
+    expect(jobs[0]).toMatchObject({
+      externalId: "jobvite:egnyte:opPUAfws",
+      location: "Mountain View, California",
+      url: "https://jobs.jobvite.com/egnyte/job/opPUAfws",
+      applyUrl: "https://jobs.jobvite.com/egnyte/job/opPUAfws/apply",
+      ats: "jobvite",
+    });
+    expect(jobs[1].workplaceType).toBe("remote");
+  });
+
+  it("reads a posting's date, description and location from its structured data", () => {
+    const page = `<html><head><script type="application/ld+json">{"@context":"https://schema.org","@type":"JobPosting","title":"QA Analyst",
+      "datePosted":"2026-10-06","description":"&lt;p&gt;Own test plans&lt;/p&gt;",
+      "jobLocation":{"@type":"Place","address":{"addressLocality":"Austin","addressRegion":"TX","addressCountry":"US"}}}</script></head></html>`;
+    const info = parseJobvitePosting(page)!;
+    expect(new Date(info.postedAt).toISOString().slice(0, 10)).toBe("2026-10-06");
+    expect(info.description).toBe("Own test plans");
+    expect(info.location).toBe("Austin, TX, US");
+    expect(parseJobvitePosting("<html>no data</html>")).toBeNull();
   });
 });
