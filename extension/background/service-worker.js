@@ -135,6 +135,11 @@ chrome.tabs.onCreated.addListener((tab) => { Engine.adoptTab(tab.openerTabId, ta
 chrome.tabs.onRemoved.addListener((tabId) => { Engine.handleTabClosed(tabId).catch(() => {}); });
 /* Clicking "… needs you" brings that application's tab to the front. */
 chrome.notifications.onClicked.addListener((id) => {
+  if (id === 'careeros:boards-allow') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html?tab=platforms&allow=boards') });
+    chrome.notifications.clear(id);
+    return;
+  }
   const m = /^careeros:tab:(\d+)$/.exec(id);
   if (m) Engine.focusTab(Number(m[1]));
   chrome.notifications.clear(id);
@@ -193,6 +198,23 @@ async function syncOnce() {
       syncedAt: Date.now(),
     }));
     copy.settings = server;
+    // LinkedIn & Indeed add-on (turned on on the website): search both boards in real time and apply there.
+    // The person acknowledged the boards' terms there, once.
+    if (s.boardsAddon === true) {
+      const was = local.boardsAddon;
+      await Storage.saveSettings({ boardsAddon: true, acknowledgedRestricted: true, searchJobBoards: true });
+      if (!was && !(await Permissions.has('boards'))) {
+        chrome.notifications.create('careeros:boards-allow', {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+          title: 'LinkedIn & Indeed is on',
+          message: 'Click here, then "Allow LinkedIn & Indeed" so CareerOS can search and apply there.',
+          priority: 2,
+        });
+      }
+    } else if (s.boardsAddon === false && local.boardsAddon) {
+      await Storage.saveSettings({ boardsAddon: false, searchJobBoards: false });
+    }
   }
 
   if (payload.resume && payload.resume.data) {

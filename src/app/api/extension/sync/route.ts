@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireExtensionUser } from "@/lib/auth/extension";
 import { getEntitlements } from "@/lib/billing/entitlements";
 import { getOrCreateCandidateProfile } from "@/lib/profile/service";
-import { getOrCreateSettings, countAppliedThisMonth, listAppliedUrls } from "@/lib/autoapply/service";
+import { getOrCreateSettings, countAppliedThisMonth, listAppliedUrls, effectiveBoardSettings } from "@/lib/autoapply/service";
 import { getProfileForExtensionSync, buildExtensionProfile } from "@/lib/autoapply/adapter";
 import { listAnswers } from "@/lib/autoapply/answers";
 import { extCatch, extOk } from "@/lib/extension/response";
@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
       listAnswers(candidateProfile.id),
     ]);
     const monthlyLimit = Math.min(settings.monthlyLimit, entitlements.monthlyApplicationLimit);
+    const boards = effectiveBoardSettings(settings, entitlements);
 
     return extOk({
       entitled: true,
@@ -51,7 +52,9 @@ export async function GET(req: NextRequest) {
         pacingSeconds: settings.pacingSeconds,
         concurrency: settings.concurrency,
         autoSubmit: settings.autoSubmit,
-        platformModes: settings.platformModes ?? {},
+        platformModes: boards.platformModes,
+        // LinkedIn & Indeed add-on: search both boards in real time during a run and submit there.
+        boardsAddon: boards.boardsAddon,
       },
       resume: { data: buildExtensionProfile(user, fullProfile) },
       appliedToday: appliedThisMonth,

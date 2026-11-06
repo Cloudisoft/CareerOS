@@ -286,3 +286,42 @@ export async function listRecentRuns(profileId: string) {
     take: 10,
   });
 }
+
+/* ---------------- LinkedIn & Indeed add-on ---------------- */
+
+/** The add-on is included with every paid plan. */
+export function boardsAddonAllowed(entitlements: Pick<UserEntitlements, "planKey">) {
+  return Boolean(entitlements.planKey && entitlements.planKey !== "FREE");
+}
+
+/**
+ * Turns the LinkedIn & Indeed add-on on or off. Turning it on the first time needs the person's acknowledgement that
+ * those boards may restrict accounts that apply automatically; it's asked once and remembered.
+ */
+export async function setBoardsAddon(profileId: string, input: { enabled: boolean; acknowledge?: boolean }, entitlements: Pick<UserEntitlements, "planKey">) {
+  const settings = await getOrCreateSettings(profileId);
+  if (input.enabled) {
+    if (!boardsAddonAllowed(entitlements)) throw new AutoApplyError("LinkedIn & Indeed auto apply comes with a paid plan.", "UPGRADE_REQUIRED");
+    if (!settings.boardsAddonAckAt && !input.acknowledge) throw new AutoApplyError("Please confirm you understand the LinkedIn and Indeed warning first.", "ACK_REQUIRED");
+  }
+  return prisma.autoApplySettings.update({
+    where: { profileId },
+    data: {
+      boardsAddon: input.enabled,
+      ...(input.enabled && !settings.boardsAddonAckAt ? { boardsAddonAckAt: new Date() } : {}),
+    },
+  });
+}
+
+/** What the extension should do on LinkedIn and Indeed: the add-on, when on and allowed, applies there on its own. */
+export function effectiveBoardSettings(
+  settings: { boardsAddon: boolean; boardsAddonAckAt: Date | null; platformModes: unknown },
+  entitlements: Pick<UserEntitlements, "planKey">
+) {
+  const stored = (settings.platformModes && typeof settings.platformModes === "object" ? settings.platformModes : {}) as Record<string, string>;
+  const on = settings.boardsAddon && Boolean(settings.boardsAddonAckAt) && boardsAddonAllowed(entitlements);
+  return {
+    boardsAddon: on,
+    platformModes: on ? { ...stored, linkedin: "auto", indeed: "auto" } : stored,
+  };
+}
