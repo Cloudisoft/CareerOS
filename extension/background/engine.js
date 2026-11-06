@@ -356,8 +356,21 @@
             }
           }
 
+          // LinkedIn & Indeed add-on: look at both boards again for new postings while the run is on.
+          const watchBoards = settings.boardsAddon && settings.searchJobBoards !== false;
+          if (watchBoards && !runtime.boardSearch && Date.now() - (runtime.boardSearchedAt || 0) >= BOARD_SEARCH_EVERY_MS) {
+            const profiles = await Storage.getProfiles();
+            searchJobBoards(Profile.hydrate(profiles.profiles[profiles.activeId]), settings);
+          }
+
           const next = pickNext(state.queue, settings, await getBlockedSites());
           if (!next) {
+            // With the add-on, an empty queue means "wait for the next search", not "done".
+            if (watchBoards) {
+              if (state.statusNote !== 'watching') await Engine.setState({ statusNote: 'watching' });
+              await sleep(5000);
+              continue;
+            }
             if (!runtime.boardSearch && (!runtime.tabs.size || [...runtime.tabs.values()].every((t) => t.waiting))) {
               await Engine.stop('Queue finished');
               notify('Run finished', summarize(await Engine.getState()));
@@ -367,6 +380,7 @@
             continue;
           }
 
+          if (state.statusNote) await Engine.setState({ statusNote: null });
           // An application waiting for the person doesn't hold a slot: the rest of the run carries on.
           const working = [...runtime.tabs.values()].filter((t) => !t.waiting);
           const cap = Policy.concurrencyCap(next.ats, settings);
@@ -667,7 +681,8 @@
      permission, and only for boards whose mode lets jobs be queued. Easy Apply / Indeed Apply jobs then
      fill like any other (submitted by the person unless they turned on full automation for that board). */
   const BOARD_SEARCH_MS = 60000;
-  const BOARD_SEARCH_EVERY_MS = 20 * 60 * 1000;
+  // How often a run looks at LinkedIn and Indeed again for new postings.
+  const BOARD_SEARCH_EVERY_MS = 15 * 60 * 1000;
   function searchJobBoards(profile, settings) {
     if (runtime.boardSearch || settings.searchJobBoards === false || !SearchUrls) return runtime.boardSearch;
     if (Date.now() - (runtime.boardSearchedAt || 0) < BOARD_SEARCH_EVERY_MS) return null;

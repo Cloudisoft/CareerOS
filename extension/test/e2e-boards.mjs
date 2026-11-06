@@ -25,7 +25,7 @@ import { chromium } from 'playwright';
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const ext = path.resolve(here, '..');
-const seen = { submissions: [], applications: [] };
+const seen = { submissions: [], applications: [], boardsAddon: undefined, platformModes: null };
 const DESCRIPTION = 'We are hiring a QA Analyst to own test plans, automation with Selenium and Cypress, regression suites, and release quality for our payments platform. You will work with engineers and product managers to ship reliable software. '.repeat(2);
 
 /* ---------- stand-in Career OS API ---------- */
@@ -37,7 +37,7 @@ const api = http.createServer(async (req, res) => {
   if (p === '/api/extension/sync') {
     return json(200, {
       entitled: true,
-      settings: { minMatchScore: 0, pacingSeconds: 10, concurrency: 1, autoSubmit: true, platformModes: { linkedin: 'auto', indeed: 'auto' }, monthlyLimit: 100 },
+      settings: { minMatchScore: 0, pacingSeconds: 10, concurrency: 1, autoSubmit: true, platformModes: seen.platformModes || { linkedin: 'auto', indeed: 'auto' }, monthlyLimit: 100, ...(seen.boardsAddon === undefined ? {} : { boardsAddon: seen.boardsAddon }) },
       resume: { data: {} }, appliedThisMonth: 0, appliedUrls: [], answers: [],
     });
   }
@@ -334,6 +334,31 @@ try {
   const states = await Promise.all(['gh-1', 'gh-2', 'gh-3'].map(jobState));
   check(states.every((j) => j.state === 'submitted') && ['gh-901', 'gh-902', 'gh-903'].every((id) => seen.submissions.some((x) => x.id === id)),
     `went on from one application to the next by itself: ${states.map((j) => `${j.company} ${j.state}${j.detail ? ` (${j.detail})` : ''}`).join(', ')} in ${Math.round((Date.now() - t0) / 1000)}s`);
+
+  /* 6. The LinkedIn & Indeed add-on, switched on on the website: the extension applies there on its own, searches
+        both boards in real time, and keeps watching for new postings when the queue empties. */
+  await sw.evaluate(() => handleEngineCommand({ command: 'stop' }));
+  await sw.evaluate(() => self.CareerOS.Storage.saveSettings({ platformModes: {}, acknowledgedRestricted: false, searchJobBoards: false, boardsAddon: false }));
+  seen.boardsAddon = true;
+  seen.platformModes = { linkedin: 'auto', indeed: 'auto' }; // what the server sends while the add-on is on
+  await sw.evaluate(() => syncOnce());
+  const addon = await sw.evaluate(async () => { const s = await self.CareerOS.Storage.getSettings(); return { a: s.boardsAddon, ack: s.acknowledgedRestricted, search: s.searchJobBoards, modes: s.platformModes, li: self.CareerOS.Policy.canAutoSubmit('linkedin', s), ind: self.CareerOS.Policy.canAutoSubmit('indeed', s) }; });
+  check(addon.a && addon.ack && addon.search && addon.li.allowed && addon.ind.allowed, `the add-on turns on real-time search and applying on LinkedIn and Indeed (${JSON.stringify(addon)})`);
+  await sw.evaluate(() => self.CareerOS.Storage.saveSettings({ searchJobBoards: false })); // no live search tabs in this check
+  await sw.evaluate(() => self.CareerOS.Storage.saveSettings({ boardsAddon: true, searchJobBoards: true }));
+  await sw.evaluate(async () => { self.CareerOS.Engine.runtime.boardSearchedAt = Date.now(); await handleEngineCommand({ command: 'clear' }); return handleEngineCommand({ command: 'start' }); });
+  // The run's own discovery may queue employer-board jobs as it starts: empty the queue to see what an empty one does.
+  await sleep(2500);
+  await sw.evaluate(() => self.CareerOS.Engine.setState({ queue: [] }));
+  await sleep(8000);
+  const watching = await sw.evaluate(async () => { const st = await self.CareerOS.Engine.getState(); return { running: st.running, note: st.statusNote, queue: st.queue.map((j) => [j.id, j.state]) }; });
+  check(watching.running && watching.note === 'watching', `with nothing queued, the run keeps watching LinkedIn and Indeed instead of stopping (${JSON.stringify(watching)})`);
+  await sw.evaluate(() => handleEngineCommand({ command: 'stop' }));
+  seen.boardsAddon = false;
+  seen.platformModes = {};
+  await sw.evaluate(() => syncOnce());
+  const off = await sw.evaluate(async () => { const s = await self.CareerOS.Storage.getSettings(); return { a: s.boardsAddon, search: s.searchJobBoards, li: self.CareerOS.Policy.canAutoSubmit('linkedin', s).allowed }; });
+  check(!off.a && !off.search && !off.li, `switching the add-on off stops it (${JSON.stringify(off)})`);
 } catch (err) {
   failures.push(err.message);
   console.log(`✗ ${err.message}`);

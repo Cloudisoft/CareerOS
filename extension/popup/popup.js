@@ -107,6 +107,17 @@
     $('setup').hidden = false;
     $('gaps').innerHTML = gaps.map((g) => `<li>${esc(g)}</li>`).join('');
   }
+  // LinkedIn & Indeed add-on turned on (on the website): Chrome only grants a site from a click in the extension.
+  if (settings.boardsAddon && window.CareerOS.Permissions && !(await window.CareerOS.Permissions.has('boards'))) {
+    $('boardsAllow').hidden = false;
+    $('boardsAllowBtn').onclick = async () => {
+      const ok = await chrome.permissions.request({ origins: window.CareerOS.Permissions.GROUPS.boards.origins });
+      if (!ok) return showMsg('Allow it when Chrome asks, so CareerOS can work on LinkedIn and Indeed.', 'warn');
+      await engineCmd('reregister');
+      $('boardsAllow').hidden = true;
+      showMsg('LinkedIn and Indeed allowed. The next run searches them and applies there.', 'ok');
+    };
+  }
   $('runCard').hidden = false;
   wireRunControls();
   await refresh();

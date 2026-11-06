@@ -20,6 +20,8 @@ interface Settings {
   autoSubmit: boolean;
   runCommand?: "start" | "stop" | null;
   runCommandAt?: string | null;
+  boardsAddon?: boolean;
+  boardsAddonAckAt?: string | null;
 }
 
 interface WaitingApplication {
@@ -72,6 +74,10 @@ export default function AutoApplyPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [controlBusy, setControlBusy] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
+  const [boardsAllowed, setBoardsAllowed] = useState(false);
+  const [boardsBusy, setBoardsBusy] = useState(false);
+  const [boardsError, setBoardsError] = useState<string | null>(null);
+  const [boardsWarning, setBoardsWarning] = useState(false);
 
   async function loadAll() {
     try {
@@ -104,6 +110,7 @@ export default function AutoApplyPage() {
 
     setSettings(settingsJson.data?.settings ?? null);
     setMaxMonthlyLimit(settingsJson.data?.maxMonthlyLimit ?? 0);
+    setBoardsAllowed(Boolean(settingsJson.data?.boardsAddonAllowed));
     setRuns(runsJson.data?.runs ?? []);
     setApplications(appsJson.data?.applications ?? []);
     setDevices(devicesJson.data?.sessions ?? []);
@@ -135,6 +142,31 @@ export default function AutoApplyPage() {
       setControlError((e as Error).message);
     } finally {
       setControlBusy(false);
+    }
+  }
+
+  /* LinkedIn & Indeed add-on. The first time it's turned on, the warning is shown and acknowledged. */
+  async function setBoards(enabled: boolean, acknowledge = false) {
+    if (enabled && !settings?.boardsAddonAckAt && !acknowledge) {
+      setBoardsWarning(true);
+      return;
+    }
+    setBoardsBusy(true);
+    setBoardsError(null);
+    try {
+      const res = await fetch("/api/auto-apply/boards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled, acknowledge }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error?.message ?? "Couldn't change the LinkedIn & Indeed setting.");
+      setSettings((s) => (s ? { ...s, boardsAddon: json.data.settings.boardsAddon, boardsAddonAckAt: json.data.settings.boardsAddonAckAt } : s));
+      setBoardsWarning(false);
+    } catch (e) {
+      setBoardsError((e as Error).message);
+    } finally {
+      setBoardsBusy(false);
     }
   }
 
@@ -242,6 +274,71 @@ export default function AutoApplyPage() {
         )}
       </Card>
 
+      {settings && (
+        <Card>
+          <CardHeader className="flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                LinkedIn &amp; Indeed <Badge variant="outline">Add-on</Badge>
+              </CardTitle>
+              <CardDescription>
+                While a run is on, the extension searches LinkedIn and Indeed for your target roles in real time (every 15 minutes) and applies
+                with Easy Apply and Indeed Apply, using your own sign-in in that browser. Questions it doesn&apos;t know are asked once, then
+                remembered.
+              </CardDescription>
+              {boardsError && <p className="mt-1 text-sm text-destructive">{boardsError}</p>}
+            </div>
+            {boardsAllowed ? (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(settings.boardsAddon)}
+                aria-label="LinkedIn & Indeed auto apply"
+                disabled={boardsBusy}
+                onClick={() => setBoards(!settings.boardsAddon)}
+                className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${settings.boardsAddon ? "bg-primary" : "bg-muted"}`}
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${settings.boardsAddon ? "translate-x-5" : "translate-x-0.5"}`} />
+              </button>
+            ) : (
+              <Button asChild variant="secondary" size="sm">
+                <Link href="/pricing">Included with paid plans</Link>
+              </Button>
+            )}
+          </CardHeader>
+          {boardsWarning && (
+            <CardContent className="pt-0">
+              <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+                <p className="flex items-center gap-2 font-semibold text-foreground">
+                  <AlertTriangle className="h-4 w-4 text-warning" /> Before you turn this on
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  LinkedIn&apos;s and Indeed&apos;s terms don&apos;t allow automated applying, and they can limit or restrict accounts that do it.
+                  CareerOS applies at a human pace, one board tab at a time, and never gets past their CAPTCHAs or sign-in, but the risk to
+                  your LinkedIn and Indeed accounts is yours.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" disabled={boardsBusy} onClick={() => setBoards(true, true)}>
+                    {boardsBusy && <Loader2 className="h-4 w-4 animate-spin" />} I understand, turn it on
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => setBoardsWarning(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          )}
+          {settings.boardsAddon && (
+            <CardContent className="pt-0">
+              <p className="text-sm text-muted-foreground">
+                On. The extension picks this up within a minute. If it hasn&apos;t been allowed on LinkedIn and Indeed yet, it shows an{" "}
+                <span className="font-medium text-foreground">Allow LinkedIn &amp; Indeed</span> button in its menu: one click and it&apos;s set.
+                Stay signed in to LinkedIn and Indeed in that browser.
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
       {waiting.length > 0 && (
         <Card className="border-destructive/40">
           <CardHeader>

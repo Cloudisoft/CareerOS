@@ -1170,6 +1170,11 @@ model AutoApplySettings {
   autoSubmit    Boolean @default(true)
   platformModes Json    @default("{}")
 
+  /// LinkedIn & Indeed add-on (paid plans): the extension searches both boards in real time and submits there.
+  boardsAddon      Boolean   @default(false)
+  /// When the person acknowledged that LinkedIn and Indeed may restrict accounts that apply automatically.
+  boardsAddonAckAt DateTime?
+
   /// "start" or "stop" pressed on the Auto Apply page, waiting for the extension to pick it up.
   runCommand   String?
   runCommandAt DateTime?
