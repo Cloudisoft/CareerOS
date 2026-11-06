@@ -126,3 +126,6 @@ select {
   background: linear-gradient(90deg, var(--flame), var(--brand-amber));
   transition: width 0.1s linear;
 }
+
+/* Elements marked hidden stay hidden, whatever their class sets display to. */
+[hidden] { display: none !important; }

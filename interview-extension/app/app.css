@@ -146,3 +146,6 @@ select, textarea, input {
 .plan summary { cursor: pointer; }
 .plan ol { margin: 10px 0 6px; padding-left: 20px; display: grid; gap: 4px; }
 .plan p { margin: 8px 0 0; }
+
+/* Elements marked hidden stay hidden, whatever their class sets display to. */
+[hidden] { display: none !important; }
