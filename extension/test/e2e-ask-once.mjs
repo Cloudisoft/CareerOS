@@ -9,6 +9,8 @@
  *   - the run then submits by itself, and the answers are saved (self-identification by meaning)
  *   - the next form asks the same things in other words: filled from the saved answers and submitted without
  *     stopping or showing a card
+ *   - "Auto apply" on a job's page on the CareerOS website (content/bridge.js): the extension announces itself, the
+ *     posting opens in a new tab, and it's filled and submitted from what CareerOS remembers
  *
  *   node extension/test/e2e-ask-once.mjs        (needs Playwright's Chromium; set CHROMIUM_PATH to override)
  */
@@ -58,7 +60,19 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/extension/answers') { seen.answers.push(...JSON.parse(body).answers); return json(200, { ok: true }); }
   if (p === '/api/extension/jobgpt/generate') return json(422, { error: 'Needs you' }); // only the person knows these
   if (p.startsWith('/api/extension/')) return json(200, { ok: true, tailored: false, jobs: [], command: null });
-  if (p === '/apply/1' || p === '/apply/2') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(page(Number(p.slice(-1)))); }
+  if (p === '/apply/1' || p === '/apply/2' || p === '/apply/3') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(page(Number(p.slice(-1)))); }
+  if (p === '/jobs/abc') {
+    // Stand-in for a job's page on the CareerOS website, with the "Auto apply" button's message.
+    res.writeHead(200, { 'content-type': 'text/html' });
+    return res.end(`<!doctype html><html><body><h1>Office Manager at Fabrikam</h1><button id="auto">Auto apply</button><pre id="log"></pre>
+<script>
+  window.addEventListener('message', function (e) { if (e.data && e.data.source === 'careeros-extension') document.getElementById('log').textContent += JSON.stringify(e.data) + '\\n'; });
+  window.postMessage({ type: 'careeros-extension:ping' }, location.origin);
+  document.getElementById('auto').onclick = function () {
+    window.postMessage({ type: 'careeros-extension:apply', requestId: 'r1', job: { id: 'abc', url: location.origin + '/apply/3', title: 'Office Manager', company: 'Fabrikam', location: 'Austin' } }, location.origin);
+  };
+</script></body></html>`);
+  }
   if (p.startsWith('/submit/')) {
     seen.submissions.push({ id: p.split('/')[2], fields: Object.fromEntries(new URLSearchParams(body)) });
     res.writeHead(200, { 'content-type': 'text/html' });
@@ -73,6 +87,7 @@ const extDir = mkdtempSync(path.join(tmpdir(), 'careeros-ext-'));
 cpSync(ext, extDir, { recursive: true, filter: (src) => !src.includes(`${path.sep}test`) && !src.endsWith('.zip') });
 const manifest = JSON.parse(readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
 manifest.host_permissions.push(`${origin}/*`);
+manifest.content_scripts[0].matches.push(`${origin}/*`); // the website bridge, on the stand-in website
 writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest));
 
 const context = await chromium.launchPersistentContext(mkdtempSync(path.join(tmpdir(), 'careeros-profile-')), {
@@ -162,6 +177,22 @@ try {
   const s2 = seen.submissions.find((s) => s.id === '2');
   check((await jobState('job-2')).state === 'submitted' && !states.has('waiting') && !cardSeen, `the next form was answered and submitted without asking again (states: ${[...states].join(' → ')})`);
   check(!!s2 && s2.fields.office === 'Yes' && s2.fields.gender === "I don't wish to answer", `reworded questions answered from memory (${JSON.stringify(s2 && s2.fields)})`);
+
+  /* 3. "Auto apply" on the website: a new tab, filled and submitted from memory. */
+  await sw.evaluate(() => self.CareerOS.Engine.runtime.gateUntil.clear());
+  const site = await context.newPage();
+  await site.goto(`${origin}/jobs/abc`);
+  await waitFor(async () => /careeros-extension:ready/.test(await site.textContent('#log')), 10000, 'extension announced itself');
+  check(true, 'the extension announces itself on the CareerOS website');
+  const tabsBefore = context.pages().length;
+  await site.click('#auto');
+  const result = await waitFor(async () => { const m = (await site.textContent('#log')).match(/\{"source":"careeros-extension","type":"careeros-extension:apply-result"[^\n]*/); return m && JSON.parse(m[0]); }, 15000, 'apply result');
+  check(result.ok && result.mode === 'auto', `the website's request is accepted (${result.message || result.reason})`);
+  const p3 = await pageFor('/apply/3');
+  check(context.pages().length > tabsBefore, 'the posting opens in a new tab');
+  await waitFor(() => seen.submissions.find((s) => s.id === '3'), 60000, 'website job submitted');
+  const s3 = seen.submissions.find((s) => s.id === '3');
+  check(!!p3 && s3.fields.first_name === 'Ada' && s3.fields.office === 'Yes', `filled and submitted from what CareerOS remembers (${JSON.stringify(s3.fields)})`);
 } catch (err) {
   failures.push(err.message);
   console.log(`✗ ${err.message}`);

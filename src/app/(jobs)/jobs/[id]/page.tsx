@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Loader2, CheckCircle2, MapPin, Briefcase, DollarSign, ExternalLink, Sparkles, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Bookmark, BookmarkCheck, Loader2, CheckCircle2, MapPin, Briefcase, DollarSign, Sparkles, AlertTriangle, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { formatSalaryRange } from "@/lib/utils";
 import { BackButton } from "@/components/layout/back-button";
+import { AutoApplyButton } from "@/components/jobs/auto-apply-button";
 
 interface ResumeOption {
   id: string;
@@ -236,11 +237,7 @@ export default function JobDetailPage() {
                   This listing comes from {job.source === "adzuna" ? "Adzuna" : job.source === "jsearch" ? "JSearch" : "an external board"}.
                   Apply on the original posting.
                 </p>
-                <Button asChild size="lg">
-                  <a href={job.externalUrl} target="_blank" rel="noopener noreferrer">
-                    Apply <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
+                <AutoApplyButton size="lg" className="shrink-0" job={{ id: job.id, url: job.externalUrl, title: job.title, company: job.company.name, location: job.location }} />
               </CardContent>
             </Card>
           ) : !authed ? (

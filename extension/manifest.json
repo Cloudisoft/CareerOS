@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "CareerOS \u2014 Auto Apply",
+  "name": "CareerOS — Auto Apply",
   "short_name": "CareerOS",
   "version": "2.15.0",
   "description": "Finds roles that match you, tailors your resume for each one, and fills the application. You approve before anything is sent.",
@@ -87,5 +87,17 @@
     "https://api.adzuna.com/*",
     "https://jsearch.p.rapidapi.com/*",
     "https://data.usajobs.gov/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://careeros.silverspringstaffing.com/*"
+      ],
+      "js": [
+        "content/bridge.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
   ]
 }

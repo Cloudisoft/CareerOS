@@ -9,7 +9,6 @@ import {
   Briefcase,
   CheckCircle2,
   Clock,
-  ExternalLink,
   FileBadge,
   GraduationCap,
   Loader2,
@@ -18,6 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { CompanyLogo } from "@/components/jobs/company-logo";
+import { AutoApplyButton } from "@/components/jobs/auto-apply-button";
 import { careerLevelLabel, employmentLabel, payLabel, postedLabel, workplaceLabel } from "@/lib/jobs/display";
 import { cn } from "@/lib/utils";
 
@@ -261,14 +261,7 @@ export function JobDetailPane({
             <CheckCircle2 className="h-4 w-4" /> Applied
           </span>
         ) : external ? (
-          <a
-            href={job.externalUrl!}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-foreground px-5 text-sm font-semibold text-background hover:opacity-90"
-          >
-            Apply on company site <ExternalLink className="h-4 w-4" />
-          </a>
+          <AutoApplyButton job={{ id: job.id, url: job.externalUrl!, title: job.title, company: job.company.name, location: job.location }} />
         ) : (
           <button
             type="button"

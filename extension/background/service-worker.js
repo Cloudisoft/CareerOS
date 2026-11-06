@@ -77,6 +77,19 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     Engine.handleProgress(tabId, { step: msg.step, maxSteps: msg.maxSteps, filled: msg.filled });
     return false;
   }
+  /* "Auto apply" pressed on a job's page on the CareerOS website (content/bridge.js). */
+  if (msg.type === 'careeros:applyNow') {
+    const from = (sender.tab && sender.tab.url) || sender.url || '';
+    Storage.getSettings().then(async (settings) => {
+      const allowed = [new URL(Api.DEFAULT_BASE).origin];
+      try { if (settings.apiBase) allowed.push(new URL(settings.apiBase).origin); } catch (err) { /* ignore */ }
+      let origin = '';
+      try { origin = new URL(from).origin; } catch (err) { /* ignore */ }
+      if (!allowed.includes(origin)) return respond({ ok: false, reason: 'forbidden' });
+      respond(await Engine.applyNow(msg.job));
+    }).catch((err) => respond({ ok: false, reason: 'error', message: err.message }));
+    return true;
+  }
   if (msg.type === 'careeros:engine') {
     handleEngineCommand(msg).then(respond).catch((err) => respond({ ok: false, error: err.message }));
     return true;
