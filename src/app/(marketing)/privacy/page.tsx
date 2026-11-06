@@ -5,7 +5,7 @@ import { SUPPORT_EMAIL } from "@/config/brand";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How Career OS collects, uses, and protects your data.",
+  description: "How Career OS collects, uses, and protects your data, including the Chrome extensions and Live Copilot.",
 };
 
 const SECTIONS: { title: string; body: string[] }[] = [
@@ -17,7 +17,17 @@ const SECTIONS: { title: string; body: string[] }[] = [
       "Application activity: jobs you view, save, or apply to, resumes and cover letters generated for them, and Auto Apply run history.",
       "Interview AI sessions: your practice answers and the resulting feedback, stored so you can track progress over time.",
       "Billing data: your subscription plan and status. Payment details (card numbers, etc.) are handled entirely by PayPal — we never receive or store them.",
-      "Chrome extension data: if you install it, the extension syncs with your Career OS account to read job postings on pages you visit and submit the tailored application packages you approve.",
+      "Chrome extension data: if you install the Auto Apply extension, it syncs with your Career OS account to read job postings on pages you visit and submit the tailored application packages you approve. The Interview Prep extension uses your account for mock interviews and saved stories, and keeps your sign-in token and Live Copilot settings on your device.",
+    ],
+  },
+  {
+    title: "Live Copilot (Interview Prep extension)",
+    body: [
+      "Live Copilot is off by default. It starts only when you press Start in the Interview Prep extension while a Google Meet, Zoom or Microsoft Teams call is open in Chrome, after you have agreed to an on-screen disclosure. It stops when you press Stop, close the call tab, or leave the call.",
+      "While it is on, it captures the audio the call tab plays (the other participants), not your microphone. Silent stretches are dropped on your device; short clips of speech are sent over HTTPS to Career OS.",
+      "Career OS forwards each clip to a speech-to-text provider (Deepgram, or OpenAI if Deepgram is not available) to turn it into text. The text, with your resume and saved interview stories, is sent to an AI provider to decide whether a question was asked and to suggest a few talking points.",
+      "Career OS does not store call audio or transcripts: each clip and its text exist only while that request is processed, then are discarded. The providers process them only to return the result, under their API terms.",
+      "Some places require everyone on a call to be told that it is being transcribed or AI-assisted, and some employers do not allow AI assistance in interviews. You are responsible for telling others and for following those rules.",
     ],
   },
   {
@@ -34,14 +44,16 @@ const SECTIONS: { title: string; body: string[] }[] = [
     body: [
       "PayPal processes subscription payments and never shares your full payment details with us.",
       "Adzuna and JSearch supply external job listings that Career OS aggregates and normalizes alongside employer-posted jobs.",
-      "An AI provider (OpenAI, OpenRouter, or Anthropic, depending on configuration) processes the text you submit for resume rewrites, cover letters, Job GPT conversations, and Interview AI feedback, solely to generate that response.",
+      "An AI provider (Anthropic, OpenAI, or OpenRouter, depending on configuration) processes the text you submit for resume rewrites, cover letters, Job GPT conversations, Interview AI questions and feedback, and Live Copilot talking points, solely to generate that response.",
+      "Deepgram (or OpenAI) transcribes Live Copilot audio clips into text, solely to return the transcript.",
     ],
   },
   {
     title: "Your controls",
     body: [
       "You can edit or delete any part of your Career Profile at any time from your account settings.",
-      "You can disconnect the Chrome extension at any time from Settings → Connected browsers.",
+      "You can disconnect the Chrome extensions at any time from Settings → Connected browsers, or remove them from Chrome.",
+      "You can stop Live Copilot at any time from the panel on the call or from the extension.",
       "You can cancel your subscription at any time from Settings → Billing; cancellation takes effect at the end of your current billing period.",
       "To request a full export or deletion of your account data, contact us at the address below.",
     ],
@@ -61,7 +73,7 @@ export default function PrivacyPage() {
       <PageHero eyebrow="Legal" title="Privacy Policy" align="left" />
       <div className="mx-auto max-w-3xl px-6 py-16">
         <Reveal>
-          <p className="text-sm text-muted-foreground">Last updated: {new Date().getFullYear()}</p>
+          <p className="text-sm text-muted-foreground">Last updated: November 7, 2026</p>
         </Reveal>
         <div className="mt-8 space-y-10">
           {SECTIONS.map((section, i) => (
