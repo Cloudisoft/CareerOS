@@ -24,7 +24,8 @@ export async function listAnswers(profileId: string) {
 export async function saveAnswers(profileId: string, answers: { question: string; answer: string; key?: string; source?: string }[]) {
   let saved = 0;
   for (const a of answers) {
-    const key = a.key?.startsWith("eeo:") ? a.key : questionKey(a.question);
+    // Answers saved by meaning (self-identification, or a profile detail such as the postal code) keep their key.
+    const key = a.key && /^(eeo|profile):[a-z]+$/i.test(a.key) ? a.key : questionKey(a.question);
     if (!key || !a.answer.trim()) continue;
     await prisma.extensionAnswer.upsert({
       where: { profileId_questionKey: { profileId, questionKey: key } },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildExtensionProfile } from "./adapter";
+import { buildExtensionProfile, splitLocation } from "./adapter";
 import type { User } from "@prisma/client";
 
 function fakeUser(overrides: Partial<User> = {}): User {
@@ -140,5 +140,20 @@ describe("notice period from the extension", () => {
     expect(noticePeriodToDays("1 month")).toBe(30);
     expect(noticePeriodToDays("Immediately")).toBe(0);
     expect(noticePeriodToDays("when the project ends")).toBeNull();
+  });
+});
+
+describe("splitLocation", () => {
+  it("reads the postal code out of the location line", () => {
+    expect(splitLocation("Austin, TX 78701")).toEqual({ city: "Austin", state: "TX", country: "", postalCode: "78701" });
+    expect(splitLocation("Austin, TX 78701-1234, USA")).toEqual({ city: "Austin", state: "TX", country: "USA", postalCode: "78701-1234" });
+    expect(splitLocation("Bengaluru, Karnataka 560001, India")).toEqual({ city: "Bengaluru", state: "Karnataka", country: "India", postalCode: "560001" });
+    expect(splitLocation("Toronto, ON M5V 2T6, Canada").postalCode).toBe("M5V 2T6");
+    expect(splitLocation("London, SW1A 1AA, UK")).toEqual({ city: "London", state: "", country: "UK", postalCode: "SW1A 1AA" });
+  });
+  it("leaves the postal code empty when there isn't one", () => {
+    expect(splitLocation("New York, NY, USA")).toEqual({ city: "New York", state: "NY", country: "USA", postalCode: "" });
+    expect(splitLocation("London, UK").postalCode).toBe("");
+    expect(splitLocation(null).postalCode).toBe("");
   });
 });

@@ -8,7 +8,7 @@
  *   - answering moves the card on by itself; "Prefer not to say" on the card answers the sensitive one
  *   - the run then submits by itself, and the answers are saved (self-identification by meaning)
  *   - the next form asks the same things in other words: filled from the saved answers and submitted without
- *     stopping or showing a card
+ *     stopping or showing a card; the postal code typed on the first form fills "Postal code" on the next
  *   - "Auto apply" on a job's page on the CareerOS website (content/bridge.js): the extension announces itself, the
  *     posting opens in a new tab, and it's filled and submitted from what CareerOS remembers
  *
@@ -27,6 +27,8 @@ const seen = { submissions: [], answers: [] };
 function page(n) {
   const office = n === 1 ? 'Are you open to working in-person in our office 3 days a week?' : 'Can you work from the office three days per week?';
   const gender = n === 1 ? 'Gender' : 'What is your gender identity?';
+  // The postal code isn't in the profile: asked once on the first form, then filled however it's worded.
+  const zip = n === 1 ? 'Zip Code / Postal Code (Non-U.S. based candidates, please enter "00000")' : 'Postal code';
   const genderOptions = n === 1 ? ['Male', 'Female', 'Non-binary', 'Decline to self identify'] : ['Man', 'Woman', 'Non-binary', "I don't wish to answer"];
   const form = `<form id="application-form" method="post" action="/submit/${n}">
     <p><label for="first_name">First name *</label><input id="first_name" name="first_name" required></p>
@@ -34,6 +36,7 @@ function page(n) {
     <p><label for="email">Email *</label><input id="email" name="email" type="email" required></p>
     <div style="height:900px"></div>
     <p><label for="office">${office} *</label><select id="office" name="office" required><option value="">Select...</option><option>Yes</option><option>No</option></select></p>
+    <p><label for="zip">${zip} *</label><input id="zip" name="zip" required></p>
     <p><label for="gender">${gender}</label><select id="gender" name="gender"><option value="">Select...</option>${genderOptions.map((o) => `<option>${o}</option>`).join('')}</select></p>
     <button type="submit">Submit application</button></form>`;
   // The first form is replaced by an identical new one shortly after load (a client-side re-render).
@@ -138,16 +141,19 @@ try {
   const waiting = await waitFor(async () => { const j = await jobState('job-1'); return j && j.state === 'waiting' ? j : null; }, 60000, 'job-1 waiting for the person');
   const p1 = await pageFor('/apply/1');
   check((await p1.inputValue('#first_name')) === 'Ada' && (await p1.inputValue('#email')) === 'ada@example.com', 'filled the form that is on the page after it was re-drawn');
-  check(/2 questions/.test(waiting.detail || ''), `asks for both questions, the optional self-identification one included ("${waiting.detail}")`);
+  check(/3 questions/.test(waiting.detail || ''), `asks the three questions, the optional self-identification one included ("${waiting.detail}")`);
 
   const c1 = await waitFor(() => card(p1), 10000, 'first card');
-  check(c1.step === 'Question 1 of 2' && /office/i.test(c1.q), `shows a card beside the first question ("${c1.step}: ${c1.q}")`);
+  check(c1.step === 'Question 1 of 3' && /office/i.test(c1.q), `shows a card beside the first question ("${c1.step}: ${c1.q}")`);
   check(c1.inside, 'the card sits inside the window');
   if (process.env.SHOT) { await sleep(1200); await p1.screenshot({ path: process.env.SHOT }); }
   // The card doesn't block the page: the person can use the form under it.
   await p1.bringToFront();
   await p1.selectOption('#office', 'Yes');
-  const c2 = await waitFor(async () => { const c = await card(p1); return c && c.step === 'Question 2 of 2' ? c : null; }, 10000, 'card moves to the second question');
+  const cz = await waitFor(async () => { const c = await card(p1); return c && c.step === 'Question 2 of 3' ? c : null; }, 10000, 'card moves to the postal code');
+  check(/zip/i.test(cz.q), `moved on by itself to the postal code ("${cz.q}")`);
+  await p1.fill('#zip', '78701');
+  const c2 = await waitFor(async () => { const c = await card(p1); return c && c.step === 'Question 3 of 3' ? c : null; }, 10000, 'card moves to the third question');
   check(/gender/i.test(c2.q) && c2.decline, 'moved on by itself to the self-identification question, which offers "Prefer not to say"');
   check(!seen.submissions.length, 'does not submit while a question is still open');
 
@@ -157,6 +163,7 @@ try {
   check(!!s1 && s1.fields.office === 'Yes' && s1.fields.gender === 'Decline to self identify', `submitted by itself with the person's answers (${JSON.stringify(s1 && s1.fields)})`);
   check(seen.answers.some((a) => a.key === 'eeo:gender' && a.answer === 'Prefer not to say'), 'saved the self-identification answer by meaning');
   check(seen.answers.some((a) => /office/i.test(a.question) && a.answer === 'Yes'), 'saved the office answer');
+  check(seen.answers.some((a) => a.key === 'profile:postal' && a.answer === '78701'), 'saved the postal code by meaning');
 
   /* 2. Same questions, other words and options: answered from memory, no card, no stop. */
   await sw.evaluate(() => self.CareerOS.Engine.runtime.gateUntil.clear());
@@ -176,7 +183,7 @@ try {
   }, 60000, 'job-2 finished').catch(async (e) => { console.log('job-2', JSON.stringify(await jobState('job-2')), [...states], 'card', cardSeen); throw e; });
   const s2 = seen.submissions.find((s) => s.id === '2');
   check((await jobState('job-2')).state === 'submitted' && !states.has('waiting') && !cardSeen, `the next form was answered and submitted without asking again (states: ${[...states].join(' → ')})`);
-  check(!!s2 && s2.fields.office === 'Yes' && s2.fields.gender === "I don't wish to answer", `reworded questions answered from memory (${JSON.stringify(s2 && s2.fields)})`);
+  check(!!s2 && s2.fields.office === 'Yes' && s2.fields.gender === "I don't wish to answer" && s2.fields.zip === '78701', `reworded questions answered from memory (${JSON.stringify(s2 && s2.fields)})`);
 
   /* 3. "Auto apply" on the website: a new tab, filled and submitted from memory. */
   await sw.evaluate(() => self.CareerOS.Engine.runtime.gateUntil.clear());

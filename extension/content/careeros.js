@@ -1450,6 +1450,12 @@
       answers.push({ question, answer });
       const meaning = Answers && Answers.meaningOf(question, answer);
       if (meaning) answers.push({ question, answer: meaning.value, key: meaning.key });
+      // A profile detail typed on the form (postal code, street address...) is saved by meaning too, so a
+      // differently worded question on the next form gets it. Not when it's a non-U.S. placeholder ("00000").
+      const pattern = Filler.classify(fresh);
+      if (pattern && pattern.path && /^identity\./.test(pattern.path) && !/^0+$/.test(answer.trim()) && answer.length <= 200) {
+        answers.push({ question, answer, key: `profile:${pattern.key}` });
+      }
     });
     if (answers.length) send({ type: 'careeros:learn', answers, profileId: state.activeProfileId });
   }

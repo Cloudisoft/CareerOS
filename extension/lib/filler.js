@@ -254,7 +254,12 @@
         return Object.assign(skip('Asks you once, then remembers'), { sensitive: true });
       }
       if (pattern && !pattern.file) {
-        const value = pattern.generated ? await context.generate(pattern.generated, label) : resolveValue(pattern, profile);
+        let value = pattern.generated ? await context.generate(pattern.generated, label) : resolveValue(pattern, profile);
+        // Not in the profile, but typed on an earlier form (a postal code, a street address): use that, however
+        // this form words the question.
+        if ((value === undefined || value === null || value === '') && pattern.path && /^identity\./.test(pattern.path) && context.recallKey) {
+          value = (await context.recallKey(`profile:${pattern.key}`)) || '';
+        }
         if (value !== undefined && value !== null && value !== '') {
           // Location boxes that suggest places as you type (Lever, Google Places): pick a suggestion.
           if ((pattern.key === 'location' || pattern.key === 'city') && field.kind === 'text') {

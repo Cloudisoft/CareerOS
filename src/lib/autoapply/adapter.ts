@@ -25,10 +25,24 @@ const SENIORITY_BY_LEVEL: Record<string, string> = {
   EXECUTIVE: "director",
 };
 
-function splitLocation(location: string | null) {
-  if (!location) return { city: "", state: "", country: "" };
-  const parts = location.split(",").map((p) => p.trim());
-  return { city: parts[0] ?? "", state: parts[1] ?? "", country: parts[2] ?? "" };
+// A postal code written into the location: US ZIP / ZIP+4, Canadian, UK, or a 4-6 digit code (India, Europe...).
+const POSTAL_RE = /\b(\d{5}(?:-\d{4})?|[A-Z]\d[A-Z] ?\d[A-Z]\d|[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}|\d{4,6})\b/i;
+
+/** "Austin, TX 78701, USA" -> city, state, country and postal code. The location is one free-text line. */
+export function splitLocation(location: string | null) {
+  if (!location) return { city: "", state: "", country: "", postalCode: "" };
+  let postalCode = "";
+  const parts = location
+    .split(",")
+    .map((p) => p.trim())
+    .map((part, i) => {
+      if (postalCode || i === 0) return part;
+      const m = part.match(POSTAL_RE);
+      if (!m) return part;
+      postalCode = m[1].toUpperCase();
+      return part.replace(m[0], "").replace(/\s+/g, " ").trim();
+    });
+  return { city: parts[0] ?? "", state: parts[1] ?? "", country: parts[2] ?? "", postalCode };
 }
 
 function dateOnly(date: Date | null) {
@@ -51,7 +65,7 @@ export async function getProfileForExtensionSync(profileId: string) {
 }
 
 export function buildExtensionProfile(user: User, profile: ProfileForExtension) {
-  const { city, state, country } = splitLocation(profile.location);
+  const { city, state, country, postalCode } = splitLocation(profile.location);
 
   const technicalSkills = profile.skills.filter((s) => s.type === "TECHNICAL");
   const core = technicalSkills.filter((s) => s.level === "ADVANCED" || s.level === "EXPERT").map((s) => s.skill.name);
@@ -71,7 +85,7 @@ export function buildExtensionProfile(user: User, profile: ProfileForExtension) 
       city,
       state,
       country,
-      postalCode: "",
+      postalCode,
       addressLine1: "",
       linkedin: profile.linkedinUrl ?? "",
       github: profile.githubUrl ?? "",
