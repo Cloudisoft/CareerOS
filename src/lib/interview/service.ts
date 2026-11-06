@@ -5,7 +5,19 @@ import { generateText } from "@/lib/ai/gateway";
 import { buildCareerContext } from "@/lib/ai/job-gpt/context";
 import { recomputeCareerReadiness } from "@/lib/scoring/career-readiness";
 import { recomputeJobReadiness } from "@/lib/interview/prep";
-import type { InterviewType } from "@prisma/client";
+import type { InterviewType, Prisma } from "@prisma/client";
+import { z } from "zod";
+import { generateJson } from "@/lib/interview/json";
+import {
+  buildInterviewPlan,
+  fallbackPlan,
+  fallbackQuestion,
+  loadInterviewMaterial,
+  nextFocus,
+  planBrief,
+  type InterviewMaterial,
+  type InterviewPlan,
+} from "@/lib/interview/plan";
 
 export class InterviewError extends Error {
   code: string;
@@ -26,25 +38,10 @@ const TYPE_LABEL: Record<InterviewType, string> = {
   MIXED: "a mix of behavioral and role-specific technical",
 };
 
-function stripCodeFence(text: string) {
-  return text
-    .trim()
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/, "")
-    .trim();
-}
-
 interface GeneratedQuestion {
   category: string;
   question: string;
-}
-
-function mockQuestion(type: InterviewType, questionNumber: number): GeneratedQuestion {
-  const label = TYPE_LABEL[type];
-  return {
-    category: "Dev mode",
-    question: `[DEV MODE — no AI provider configured. Set ANTHROPIC_API_KEY for real, tailored ${label} questions.] Placeholder question ${questionNumber} of ${QUESTIONS_PER_SESSION}.`,
-  };
+  focusId?: string | null;
 }
 
 interface AnsweredTurn {
@@ -75,58 +72,87 @@ function difficultyGuidance(questionNumber: number, total: number, hasJob: boole
     : "DIFFICULTY: this is a late-interview question — make it the hardest and most senior-level question of the session: a strategic trade-off, a system-level or leadership scenario, or something that would clearly separate a strong candidate from an average one.";
 }
 
+const questionSchema = z.object({
+  category: z.string().trim().min(1).max(120).catch("Interview"),
+  question: z.string().trim().min(8).max(800),
+  focusId: z.string().trim().max(10).nullable().optional(),
+});
+
 /**
  * Generates ONE question at a time, live — question 1 opens the interview;
  * every question after that is generated only once the candidate has
  * answered the previous one, reading their actual answer and deciding
  * whether to probe deeper on it or move to new ground, the way a real
  * interviewer conducts a conversation rather than reading a fixed script.
+ *
+ * Questions come from the interview plan (what CareerOS found worth asking
+ * about in this person's resume and the job). If the AI can't answer, the
+ * next planned area is asked with a question written without AI, so a session
+ * never stalls on an AI error.
  */
 async function generateQuestion(
   type: InterviewType,
-  careerContext: string,
+  plan: InterviewPlan,
+  material: InterviewMaterial,
   jobContext: string | null,
-  history: AnsweredTurn[],
+  history: (AnsweredTurn & { focusId?: string | null })[],
   questionNumber: number
 ): Promise<GeneratedQuestion> {
   const label = TYPE_LABEL[type];
+  const asked = history.map((h) => h.focusId).filter((x): x is string => Boolean(x));
+  const suggested = nextFocus(plan, asked);
   const phaseGuidance = difficultyGuidance(questionNumber, QUESTIONS_PER_SESSION, Boolean(jobContext));
-  const system = `You are an expert interviewer conducting a live ${label} mock interview with a candidate, one question at a time — this is question ${questionNumber} of ${QUESTIONS_PER_SESSION}.
-Ground every question only in the candidate's real background (CareerContext) below and, if given, the target job — never invent facts about them.
+  const system = `You are an expert interviewer conducting a live ${label} interview with a candidate, one question at a time — this is question ${questionNumber} of ${QUESTIONS_PER_SESSION}.
+You have already read their resume and planned the interview (the plan is below). Ask about THIS candidate: name their actual projects, companies, numbers and skills from the resume. Never ask a generic question that could be asked of anyone, and never invent facts about them.
 ${phaseGuidance}
 ${
   history.length > 0
-    ? "You have already asked the questions below and the candidate answered each. Read their most recent answer closely: if it left something specific worth probing — a vague claim, an interesting detail, a result stated without a number, a decision they glossed over — ask a genuine, natural follow-up question about exactly that (while still honoring the DIFFICULTY guidance above for this point in the interview). Otherwise, move on to a new angle you haven't covered yet. Don't repeat ground already covered."
-    : "This is the opening question of the interview — set a natural, welcoming tone consistent with the DIFFICULTY guidance above."
+    ? `Read their most recent answer closely. If it left something specific worth probing — a vague claim, a result without a number, "we" where you need "I", a decision they glossed over — ask a natural follow-up about exactly that and keep the same focusId. Otherwise move to the next planned area${suggested ? ` (suggested: ${suggested.id}, "${suggested.topic}")` : ""}. Don't repeat ground already covered.`
+    : `This is the opening question — welcoming, and about their background${suggested ? ` (start with ${suggested.id}, "${suggested.topic}")` : ""}.`
 }
-Respond with ONLY a JSON object, no markdown code fences, no prose, in exactly this shape:
-{"category": "string", "question": "string"}`;
+Keep the question to 1-3 sentences, spoken naturally, one question at a time (no multi-part lists).
+Respond with ONLY a JSON object: {"category": "short label", "question": "string", "focusId": "f1"}`;
 
   const historyBlock = history.length
     ? `\n\nQuestions asked so far and the candidate's answers, in order:\n${history
-        .map((h, i) => `${i + 1}. [${h.category}] ${h.question}\nCandidate's answer: ${h.answer}`)
+        .map((h, i) => `${i + 1}. [${h.category}${h.focusId ? ` · ${h.focusId}` : ""}] ${h.question}\nCandidate's answer: ${h.answer.slice(0, 1500)}`)
         .join("\n\n")}`
     : "";
 
-  const prompt = `CareerContext:\n${careerContext}${jobContext ? `\n\nTarget job:\n${jobContext}` : ""}${historyBlock}\n\nAsk question ${questionNumber} of ${QUESTIONS_PER_SESSION} now.`;
+  const prompt = `${planBrief(plan)}\n\nResume:\n${(material.resumeText || material.careerContext).slice(0, 4000)}${
+    jobContext ? `\n\nTarget job:\n${jobContext.slice(0, 2000)}` : ""
+  }${historyBlock}\n\nAsk question ${questionNumber} of ${QUESTIONS_PER_SESSION} now.`;
 
-  const { text, provider } = await generateText({ system, prompt, maxTokens: 400 });
-  if (provider === "mock") return mockQuestion(type, questionNumber);
-
-  try {
-    const parsed = JSON.parse(stripCodeFence(text)) as GeneratedQuestion;
-    if (!parsed?.question) throw new Error("empty");
-    return parsed;
-  } catch {
-    throw new InterviewError("The AI provider returned an unexpected response. Please try again.", "AI_PARSE_ERROR");
+  const res = await generateJson({ system, prompt, maxTokens: 400 }, questionSchema);
+  if (res.ok) {
+    const focusId = res.value.focusId && plan.focusAreas.some((f) => f.id === res.value.focusId) ? res.value.focusId : suggested?.id ?? null;
+    return { category: res.value.category, question: res.value.question, focusId };
   }
+  if (res.provider === "mock") {
+    const q = fallbackQuestion(suggested, questionNumber);
+    return { ...q, category: `Dev mode · ${q.category}`, focusId: suggested?.id ?? null };
+  }
+  console.error(`Interview question ${questionNumber}: AI reply unusable, asking the planned question instead (${res.error})`);
+  return { ...fallbackQuestion(suggested, questionNumber), focusId: suggested?.id ?? null };
 }
 
 async function loadJobContext(jobId?: string | null): Promise<{ context: string | null; validId: string | undefined }> {
   if (!jobId) return { context: null, validId: undefined };
   const job = await prisma.job.findUnique({ where: { id: jobId }, include: { company: true } });
   if (!job) return { context: null, validId: undefined };
-  return { context: `${job.title} at ${job.company.name}\n${job.description.slice(0, 1500)}`, validId: job.id };
+  return { context: `${job.title} at ${job.company.name}\n${job.description.slice(0, 3000)}`, validId: job.id };
+}
+
+async function sessionJobContext(session: { aiWorkRoleId: string | null; jobId: string | null }) {
+  if (session.aiWorkRoleId) return (await roleInterviewContext(session.aiWorkRoleId))?.context ?? null;
+  return (await loadJobContext(session.jobId)).context;
+}
+
+/** The plan saved on a session, or one built from the resume for sessions started before plans existed. */
+function sessionPlan(stored: unknown, material: InterviewMaterial, jobContext: string | null): InterviewPlan {
+  const p = stored as InterviewPlan | null;
+  if (p && Array.isArray(p.focusAreas) && p.focusAreas.length) return p;
+  return fallbackPlan(material.resume, jobContext);
 }
 
 export interface AnswerScore {
@@ -146,28 +172,33 @@ function mockScore(answer: string): AnswerScore {
   };
 }
 
-export async function scoreAnswer(question: string, category: string, answer: string): Promise<AnswerScore> {
-  const system = `You are an expert interview coach scoring one candidate's written answer to a mock interview question.
-Score honestly on structure (e.g. STAR for behavioral questions), specificity, relevance, and clarity. Do not invent facts about the candidate beyond what they wrote; do not be falsely encouraging.
-Respond with ONLY JSON, no markdown code fences, no prose, in exactly this shape:
-{"score": <integer 0-100>, "feedback": "<2-3 sentences>", "strengths": ["<short item>", ...up to 3], "improvements": ["<short item>", ...up to 3]}`;
+const scoreSchema = z.object({
+  score: z.coerce.number().min(0).max(100),
+  feedback: z.string().trim().min(1).max(1200),
+  strengths: z.array(z.string().trim().max(200)).catch([]),
+  improvements: z.array(z.string().trim().max(200)).catch([]),
+});
 
-  const prompt = `Question (${category}): ${question}\n\nCandidate's answer:\n${answer}\n\nScore this answer.`;
-
-  const { text, provider } = await generateText({ system, prompt, maxTokens: 500 });
-  if (provider === "mock") return mockScore(answer);
-
-  try {
-    const parsed = JSON.parse(stripCodeFence(text)) as AnswerScore;
-    return {
-      score: Math.max(0, Math.min(100, Math.round(parsed.score))),
-      feedback: parsed.feedback,
-      strengths: parsed.strengths?.slice(0, 3) ?? [],
-      improvements: parsed.improvements?.slice(0, 3) ?? [],
-    };
-  } catch {
-    throw new InterviewError("The AI provider returned an unexpected response. Please try again.", "AI_PARSE_ERROR");
+export async function scoreAnswer(question: string, category: string, answer: string, resumeHint?: string): Promise<AnswerScore> {
+  const system = `You are an expert interview coach scoring one candidate's answer to an interview question.
+Score honestly on structure (e.g. STAR for behavioral questions), specificity (real examples, their own actions, numbers), relevance to the question, and clarity. Do not invent facts about the candidate beyond what they said; do not be falsely encouraging.${
+    resumeHint ? " If their resume (below) has a stronger example or a number they could have used, say so in one improvement." : ""
   }
+Respond with ONLY JSON: {"score": <integer 0-100>, "feedback": "<2-3 sentences>", "strengths": ["<short item>", ...up to 3], "improvements": ["<short item>", ...up to 3]}`;
+
+  const prompt = `Question (${category}): ${question}\n\nCandidate's answer:\n${answer}${resumeHint ? `\n\nTheir resume, for reference:\n${resumeHint.slice(0, 2500)}` : ""}\n\nScore this answer.`;
+
+  const res = await generateJson({ system, prompt, maxTokens: 500 }, scoreSchema);
+  if (res.ok) {
+    return {
+      score: Math.max(0, Math.min(100, Math.round(res.value.score))),
+      feedback: res.value.feedback,
+      strengths: res.value.strengths.slice(0, 3),
+      improvements: res.value.improvements.slice(0, 3),
+    };
+  }
+  if (res.provider === "mock") return mockScore(answer);
+  throw new InterviewError("Your answer is saved, but scoring didn't finish. Press Rescore to try again.", "AI_PARSE_ERROR");
 }
 
 function startOfMonthUtc() {
@@ -202,8 +233,10 @@ export async function getSession(profileId: string, sessionId: string) {
 export async function startSession(userId: string, profileId: string, type: InterviewType, jobId?: string, aiWorkRoleId?: string) {
   const role = await roleInterviewContext(aiWorkRoleId);
   const { context: jobContext, validId: validJobId } = role ? { context: role.context, validId: undefined } : await loadJobContext(jobId);
-  const careerContext = await buildCareerContext(userId);
-  const first = await generateQuestion(type, careerContext, jobContext, [], 1);
+  const material = await loadInterviewMaterial(userId, profileId);
+  // Read the resume (and job) first, then open the interview from that plan.
+  const plan = await buildInterviewPlan(material, jobContext, TYPE_LABEL[type]);
+  const first = await generateQuestion(type, plan, material, jobContext, [], 1);
 
   return prisma.interviewSession.create({
     data: {
@@ -211,12 +244,18 @@ export async function startSession(userId: string, profileId: string, type: Inte
       jobId: validJobId,
       aiWorkRoleId: role?.id,
       type,
-      questions: { create: [{ order: 0, category: first.category, question: first.question }] },
+      plan: plan as unknown as Prisma.InputJsonValue,
+      questions: { create: [{ order: 0, category: first.category, question: first.question, focusId: first.focusId ?? null }] },
     },
     include: { questions: { orderBy: { order: "asc" } } },
   });
 }
 
+/**
+ * Saves the answer first (so it's never lost to an AI error), then scores it and writes the next question at
+ * the same time. If scoring fails the answer stays saved without a score and can be rescored; the next
+ * question always arrives (from the plan if the AI can't write one). Pressing submit twice is harmless.
+ */
 export async function submitAnswer(userId: string, profileId: string, sessionId: string, questionId: string, answer: string) {
   const session = await getSession(profileId, sessionId);
   if (session.status !== "IN_PROGRESS") {
@@ -224,42 +263,53 @@ export async function submitAnswer(userId: string, profileId: string, sessionId:
   }
   const question = session.questions.find((q) => q.id === questionId);
   if (!question) throw new InterviewError("This question could not be found.", "NOT_FOUND");
-
-  const result = await scoreAnswer(question.question, question.category, answer);
-
-  const updated = await prisma.interviewQuestion.update({
-    where: { id: questionId },
-    data: {
-      answer,
-      score: result.score,
-      feedback: result.feedback,
-      strengths: result.strengths,
-      improvements: result.improvements,
-      answeredAt: new Date(),
-    },
-  });
-
   const nextOrder = question.order + 1;
-  if (nextOrder < QUESTIONS_PER_SESSION) {
-    const history: AnsweredTurn[] = [
-      ...session.questions
-        .filter((q) => q.answer != null)
-        .map((q) => ({ category: q.category, question: q.question, answer: q.answer as string })),
-      { category: question.category, question: question.question, answer },
-    ];
+  const nextExists = session.questions.some((q) => q.order === nextOrder);
+  if (question.answer != null && question.score != null && (nextExists || nextOrder >= QUESTIONS_PER_SESSION)) return question;
 
-    const { context: jobContext } = session.aiWorkRoleId
-      ? { context: (await roleInterviewContext(session.aiWorkRoleId))?.context ?? null }
-      : await loadJobContext(session.jobId);
-    const careerContext = await buildCareerContext(userId);
-    const next = await generateQuestion(session.type, careerContext, jobContext, history, nextOrder + 1);
+  await prisma.interviewQuestion.update({ where: { id: questionId }, data: { answer, answeredAt: new Date() } });
 
-    await prisma.interviewQuestion.create({
-      data: { sessionId: session.id, order: nextOrder, category: next.category, question: next.question },
-    });
+  const needsNext = nextOrder < QUESTIONS_PER_SESSION && !nextExists;
+  const material = await loadInterviewMaterial(userId, profileId);
+  const jobContext = needsNext ? await sessionJobContext(session) : null;
+
+  const [scored, next] = await Promise.allSettled([
+    scoreAnswer(question.question, question.category, answer, material.resumeText || undefined),
+    needsNext
+      ? (async () => {
+          const plan = sessionPlan(session.plan, material, jobContext);
+          const history = [
+            ...session.questions
+              .filter((q) => q.answer != null && q.id !== question.id)
+              .map((q) => ({ category: q.category, question: q.question, answer: q.answer as string, focusId: q.focusId })),
+            { category: question.category, question: question.question, answer, focusId: question.focusId },
+          ];
+          return generateQuestion(session.type, plan, material, jobContext, history, nextOrder + 1);
+        })()
+      : Promise.resolve(null),
+  ]);
+
+  if (needsNext) {
+    const q: GeneratedQuestion =
+      next.status === "fulfilled" && next.value ? next.value : { ...fallbackQuestion(null, nextOrder + 1), focusId: null };
+    // A second submit racing this one may have added it already.
+    const exists = await prisma.interviewQuestion.findFirst({ where: { sessionId: session.id, order: nextOrder }, select: { id: true } });
+    if (!exists) {
+      await prisma.interviewQuestion.create({
+        data: { sessionId: session.id, order: nextOrder, category: q.category, question: q.question, focusId: q.focusId ?? null },
+      });
+    }
   }
 
-  return updated;
+  if (scored.status === "rejected") {
+    console.error(`Interview scoring failed for question ${questionId}:`, scored.reason);
+    return prisma.interviewQuestion.findUniqueOrThrow({ where: { id: questionId } });
+  }
+  const result = scored.value;
+  return prisma.interviewQuestion.update({
+    where: { id: questionId },
+    data: { score: result.score, feedback: result.feedback, strengths: result.strengths, improvements: result.improvements },
+  });
 }
 
 /**

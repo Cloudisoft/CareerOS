@@ -18,6 +18,9 @@ export interface GenerateTextInput {
   prompt: string;
   maxTokens?: number;
   effort?: "low" | "medium" | "high";
+  /** Use this provider first when its key is set, whatever AI_PROVIDER says (e.g. Interview AI prefers
+      Anthropic for its reasoning about a person's resume). The usual chain still applies if it fails. */
+  prefer?: AiProviderName;
 }
 
 export interface ChatMessage {
@@ -390,7 +393,6 @@ function buildProvider(name: AiProviderName): AiProvider | null {
 }
 
 let cachedPrimary: AiProvider | null | undefined;
-let cachedFallback: AiProvider | null | undefined;
 
 export class AiNotConfiguredError extends Error {
   code = "AI_NOT_CONFIGURED";
@@ -427,40 +429,48 @@ function getPrimaryProvider(): AiProvider {
   return cachedPrimary ?? mockOrFail();
 }
 
-/**
- * OpenAI (direct) is the standing fallback for every OpenAI-compatible or
- * Anthropic primary — it's only skipped when OPENAI_API_KEY is unset or it
- * IS the primary provider already.
- */
-function getFallbackProvider(primary: AiProvider): AiProvider | null {
-  if (cachedFallback !== undefined) return cachedFallback && cachedFallback.name !== primary.name ? cachedFallback : null;
-
-  cachedFallback = buildProvider("openai");
-  return cachedFallback && cachedFallback.name !== primary.name ? cachedFallback : null;
+const providerCache = new Map<AiProviderName, AiProvider | null>();
+function cachedProvider(name: AiProviderName): AiProvider | null {
+  if (!providerCache.has(name)) providerCache.set(name, buildProvider(name));
+  return providerCache.get(name) ?? null;
 }
 
-async function withFallback<T>(run: (provider: AiProvider) => Promise<T>): Promise<{ result: T; provider: AiProviderName }> {
-  const primary = getPrimaryProvider();
-  try {
-    return { result: await run(primary), provider: primary.name };
-  } catch (primaryError) {
-    if (primary.name === "mock") throw primaryError;
+/**
+ * The providers to try, in order: the preferred one (when asked for and configured), the configured
+ * primary, then Anthropic and OpenAI as standing fallbacks — each only when its key is set, and never twice.
+ */
+function providerChain(prefer?: AiProviderName): AiProvider[] {
+  const chain: AiProvider[] = [];
+  const add = (p: AiProvider | null) => {
+    if (p && !chain.some((c) => c.name === p.name)) chain.push(p);
+  };
+  if (prefer && prefer !== "mock") add(cachedProvider(prefer));
+  add(getPrimaryProvider());
+  if (chain[0]?.name === "mock") return chain.slice(0, 1);
+  add(cachedProvider("anthropic"));
+  add(cachedProvider("openai"));
+  return chain;
+}
 
-    const fallback = getFallbackProvider(primary);
-    if (!fallback) throw primaryError;
-
-    console.error(`AI provider "${primary.name}" failed, retrying against fallback "${fallback.name}":`, primaryError);
+async function withFallback<T>(run: (provider: AiProvider) => Promise<T>, prefer?: AiProviderName): Promise<{ result: T; provider: AiProviderName }> {
+  const chain = providerChain(prefer);
+  let lastError: unknown;
+  for (let i = 0; i < chain.length; i++) {
+    const provider = chain[i];
     try {
-      return { result: await run(fallback), provider: fallback.name };
-    } catch (fallbackError) {
-      console.error(`AI fallback provider "${fallback.name}" also failed:`, fallbackError);
-      throw fallbackError;
+      return { result: await run(provider), provider: provider.name };
+    } catch (error) {
+      lastError = error;
+      if (provider.name === "mock") throw error;
+      const next = chain[i + 1];
+      console.error(`AI provider "${provider.name}" failed${next ? `, retrying against "${next.name}"` : ""}:`, error);
     }
   }
+  throw lastError;
 }
 
 export async function generateText(input: GenerateTextInput): Promise<GenerateTextResult> {
-  const { result: text, provider } = await withFallback((p) => p.generateText(input));
+  const { result: text, provider } = await withFallback((p) => p.generateText(input), input.prefer);
   return { text, provider };
 }
 

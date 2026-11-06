@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 
 OUT_DIR="dist"
 ZIP_NAME="careeros-interview-prep.zip"
-EXCLUDE_NAMES=(build.sh .DS_Store "$OUT_DIR" "$ZIP_NAME")
+EXCLUDE_NAMES=(build.sh .DS_Store test "$OUT_DIR" "$ZIP_NAME")
 
 usage() {
   echo "Usage: ./build.sh <package|clean>"

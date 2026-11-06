@@ -52,15 +52,23 @@ export default function InterviewAiPage() {
   async function startSession() {
     setStarting(true);
     setError(null);
-    const res = await fetch("/api/interview/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, jobId: jobId === "none" ? "" : jobId }),
-    });
-    const json = await res.json();
+    let res: Response;
+    let json: { data?: { session: { id: string } }; error?: { message?: string } } | null;
+    try {
+      res = await fetch("/api/interview/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, jobId: jobId === "none" ? "" : jobId }),
+      });
+      json = await res.json().catch(() => null);
+    } catch {
+      setStarting(false);
+      setError("Couldn't reach CareerOS. Check your connection and try again.");
+      return;
+    }
     setStarting(false);
-    if (!res.ok) {
-      setError(json.error?.message ?? "Something went wrong.");
+    if (!res.ok || !json?.data) {
+      setError(json?.error?.message ?? "Something went wrong.");
       return;
     }
     window.location.href = `/interview-ai/${json.data.session.id}`;
@@ -94,7 +102,7 @@ export default function InterviewAiPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Start a new session</CardTitle>
-            <CardDescription>5 questions, tailored to your background and (optionally) a target job.</CardDescription>
+            <CardDescription>CareerOS reads your resume (and the job, if you pick one) first, then asks 7 questions about your actual projects, results and skills, following up on your answers.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -138,7 +146,7 @@ export default function InterviewAiPage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button onClick={startSession} disabled={starting}>
               {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Start interview
+              {starting ? "Reading your resume…" : "Start interview"}
             </Button>
           </CardContent>
         </Card>
