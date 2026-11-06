@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Mail, BookOpen, Puzzle, ShieldCheck, CreditCard, Mic } from "lucide-react";
 import { PageHero } from "@/components/marketing/page-hero";
 import { RevealGroup, RevealItem } from "@/components/marketing/reveal";
+import { SUPPORT_EMAIL } from "@/config/brand";
 
 export const metadata: Metadata = {
   title: "Support",
@@ -10,8 +11,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/support" },
 };
 
-/** The inbox people write to. Set NEXT_PUBLIC_SUPPORT_EMAIL to change it without a code change. */
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@careeros.app";
 
 const TOPICS = [
   {

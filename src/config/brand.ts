@@ -5,6 +5,9 @@
  */
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://careeros.silverspringstaffing.com").replace(/\/$/, "");
 
+/** The one support address, shown on /support, the Privacy Policy and the Terms. */
+export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@silverspringstaffing.com";
+
 export const BRAND = {
   name: "CareerOS",
   fullName: "CareerOS by Silver Springs Staffing",
