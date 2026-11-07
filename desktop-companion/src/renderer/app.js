@@ -120,6 +120,7 @@
   }
   $('capturePrivacy').onchange = (e) => setPrivacy({ capturePrivacy: e.target.checked }, e.target, 'capturePrivacy');
   $('networkPaused').onchange = (e) => setPrivacy({ networkPaused: e.target.checked }, e.target, 'networkPaused');
+  $('quickHideBtn').onclick = () => C.quickHide();
   $('practiceLink').onclick = () => C.openWeb('interview');
   $('signOut').onclick = async () => { await C.signOut(); st = await C.state(); route(); };
 
