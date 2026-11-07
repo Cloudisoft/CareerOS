@@ -26,7 +26,7 @@ const failures = [];
 const check = (ok, what) => { console.log(`${ok ? '✓' : '✗'} ${what}`); if (!ok) failures.push(what); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const seen = { clips: [], assists: [], polls: 0, sttMode: 'ok', auth: [] };
+const seen = { clips: [], assists: [], polls: 0, sttMode: 'ok', auth: [], nextTranscript: null, copilotRequests: [] };
 let said = 0;
 const server = http.createServer(async (req, res) => {
   const chunks = [];
@@ -47,10 +47,13 @@ const server = http.createServer(async (req, res) => {
     seen.clips.push({ size: body.length, type: req.headers['content-type'], ebml: body.subarray(0, 4).toString('hex') === '1a45dfa3' });
     if (seen.sttMode === 'unset') return json(503, { error: "Live transcription isn't set up yet. Add DEEPGRAM_API_KEY (or OPENAI_API_KEY) on the server to turn it on." });
     said++;
-    return json(200, { transcript: said === 1 ? 'Thanks for joining today.' : 'Tell me about a time two teams disagreed on the numbers?' });
+    const nextTranscript = seen.nextTranscript;
+    seen.nextTranscript = null;
+    return json(200, { transcript: nextTranscript || (said === 1 ? 'Thanks for joining today.' : 'Tell me about a time two teams disagreed on the numbers?') });
   }
   if (p === '/api/extension/interview/copilot/ask') {
     const input = JSON.parse(body.toString());
+    seen.copilotRequests.push(input);
     return json(200, { answer: `Mock specialist answer (${input.skill}): ${input.question}`, provider: 'mock' });
   }
   if (p === '/api/extension/interview/live/assist') {
@@ -141,14 +144,24 @@ try {
   await speak(true); await sleep(1500); await speak(false); await sleep(2600);
   await win.waitForSelector('.current .q');
 
-  // 5. Notes.
+  // 5. Opt-in wake-word command: explicit spoken request may call the specialist API.
+  await win.check('#voiceCommandsEnabled');
+  seen.nextTranscript = 'CareerOS explain the difference between SQL joins';
+  const beforeVoice = seen.copilotRequests.length;
+  await speak(true); await sleep(1600); await speak(false); await sleep(2500);
+  await win.waitForFunction((n) => document.querySelector('#copilotAnswer').textContent.includes('SQL joins'), null, { timeout: 9000 });
+  check(seen.copilotRequests.length === beforeVoice + 1, 'opt-in wake-word triggers one specialist request');
+  check(seen.copilotRequests.at(-1)?.question.includes('SQL joins'), 'wake-word passes the spoken question');
+  await win.uncheck('#voiceCommandsEnabled');
+
+  // 6. Notes.
   await win.click('#notesBtn');
   await sleep(500);
   const files = readdirSync(notesDir);
   const md = files.length ? readFileSync(path.join(notesDir, files[0]), 'utf8') : '';
   check(/two teams disagreed/.test(md) && /Traced figures/.test(md) && /Senior Data Analyst @ Fabrikam/.test(md), 'notes save with the job, questions and points');
 
-  // 6. Stop, then a server without transcription: stops with the reason.
+  // 7. Stop, then a server without transcription: stops with the reason.
   await win.click('#stopBtn');
   await win.click('#stopBtn'); // Back
   await win.waitForSelector('#home:not([hidden])');
@@ -160,7 +173,7 @@ try {
   await win.waitForFunction(() => /isn't set up/.test(document.getElementById('liveError').textContent), null, { timeout: 8000 });
   check((await win.textContent('#state')) === 'Stopped', 'stops listening and says why when transcription isn’t set up');
 
-  // 7. An ordinary, visible window.
+  // 8. An ordinary, visible window.
   const props = await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
     return { onTop: w.isAlwaysOnTop(), protectedFromCapture: typeof w.isContentProtected === 'function' ? w.isContentProtected() : 'n/a' };
