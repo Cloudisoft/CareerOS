@@ -94,6 +94,12 @@
     <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
     <label class="check small"><input id="voiceCommandsEnabled" type="checkbox"> Enable spoken commands (“CareerOS, explain …”)</label>
     <div class="row"><button id="voiceToggleBtn" class="btn ghost" type="button">Pause microphone/call audio</button></div>
+    <details id="notesPanel" class="transcript-panel">
+      <summary>Meeting notes &amp; summary</summary>
+      <label class="check small"><input id="autoNotes" type="checkbox"> Automatically generate summary when stopping</label>
+      <div class="row"><button id="generateNotesBtn" type="button" class="btn ghost">Generate notes</button><button id="exportNotesBtn" type="button" class="btn ghost" disabled>Export Markdown</button></div>
+      <textarea id="editableNotes" rows="9" spellcheck="true" placeholder="AI summary will appear here. You can edit it before exporting." aria-label="Editable meeting notes"></textarea>
+    </details>
     <div class="row"><button id="saveSessionBtn" class="btn ghost" type="button">Save session locally</button><span class="muted small" id="sessionSaveState">Only saved when you choose</span></div>
     <div class="row"><button id="clearSessionBtn" class="btn ghost" type="button">Clear session</button><span class="muted small">Ctrl/Cmd+Shift+K: Ask · Ctrl/Cmd+Shift+L: Transcript · Ctrl/Cmd+Shift+J: Screen</span></div>
     <div class="row">
