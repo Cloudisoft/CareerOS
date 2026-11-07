@@ -51,6 +51,10 @@ const server = http.createServer(async (req, res) => {
     seen.nextTranscript = null;
     return json(200, { transcript: nextTranscript || (said === 1 ? 'Thanks for joining today.' : 'Tell me about a time two teams disagreed on the numbers?') });
   }
+  if (p === '/api/extension/interview/copilot/notes') {
+    const payload = JSON.parse(body.toString());
+    return json(200, { note: '# Summary\n' + (payload.transcript?.[0] || 'None') + '\n# Action items\n- Follow up', provider: 'mock' });
+  }
   if (p === '/api/extension/interview/copilot/ask') {
     const input = JSON.parse(body.toString());
     seen.copilotRequests.push(input);
@@ -147,7 +151,14 @@ try {
   await speak(true); await sleep(1500); await speak(false); await sleep(2600);
   await win.waitForSelector('.current .q');
 
-  // 5. Opt-in wake-word command: explicit spoken request may call the specialist API.
+  // 5. Smog-style Notes: explicitly generate, edit and export a meeting summary.
+  await win.click('#generateNotesBtn');
+  await win.waitForFunction(() => document.querySelector('#editableNotes').value.includes('# Summary'));
+  check((await win.inputValue('#editableNotes')).includes('Thanks for joining today.'), 'notes use real transcript context');
+  await win.fill('#editableNotes', '# Edited summary\n- The candidate clarified the figures.');
+  check(!(await win.isDisabled('#exportNotesBtn')), 'edited notes can be exported');
+
+  // 6. Opt-in wake-word command: explicit spoken request may call the specialist API.
   await win.check('#voiceCommandsEnabled');
   seen.nextTranscript = 'CareerOS explain the difference between SQL joins';
   const beforeVoice = seen.copilotRequests.length;
@@ -157,14 +168,14 @@ try {
   check(seen.copilotRequests.at(-1)?.question.includes('SQL joins'), 'wake-word passes the spoken question');
   await win.uncheck('#voiceCommandsEnabled');
 
-  // 6. Notes.
+  // 7. Original interview notes.
   await win.click('#notesBtn');
   await sleep(500);
   const files = readdirSync(notesDir);
   const md = files.length ? readFileSync(path.join(notesDir, files[0]), 'utf8') : '';
   check(/two teams disagreed/.test(md) && /Traced figures/.test(md) && /Senior Data Analyst @ Fabrikam/.test(md), 'notes save with the job, questions and points');
 
-  // 7. Stop, then a server without transcription: stops with the reason.
+  // 8. Stop, then a server without transcription: stops with the reason.
   await win.click('#stopBtn');
   await win.click('#stopBtn'); // Back
   await win.waitForSelector('#home:not([hidden])');
@@ -185,7 +196,7 @@ try {
   await win.waitForFunction(() => /isn't set up/.test(document.getElementById('liveError').textContent), null, { timeout: 8000 });
   check((await win.textContent('#state')) === 'Stopped', 'stops listening and says why when transcription isn’t set up');
 
-  // 8. An ordinary, visible window.
+  // 9. An ordinary, visible window.
   const props = await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
     return { onTop: w.isAlwaysOnTop(), protectedFromCapture: typeof w.isContentProtected === 'function' ? w.isContentProtected() : 'n/a' };
