@@ -41,7 +41,7 @@ function SignupForm() {
       }
 
       // Connecting the browser extension shouldn't be lost behind sign-up; onboarding can follow.
-      if (next && safeNext(next, "").startsWith("/extension-connect")) router.push(safeNext(next));
+      if (next && (safeNext(next, "").startsWith("/extension-connect") || safeNext(next, "").startsWith("/download"))) router.push(safeNext(next));
       else router.push(json.data.needsOnboarding ? "/onboarding" : safeNext(next));
       router.refresh();
     } catch {
