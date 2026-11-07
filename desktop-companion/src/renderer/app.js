@@ -119,6 +119,7 @@
   let sessionStartedAt = 0;
   let clockTimer = null;
   let asking = false;
+  let screenBusy = false;
   let transcriptCount = 0;
   const notes = [];
   const skillPrompts = {
@@ -150,6 +151,8 @@
     $('heard').hidden = true;
     $('notesBtn').disabled = true;
     $('askInput').value = '';
+    $('copilotAnswer').hidden = true;
+    $('copilotAnswer').textContent = '';
   }
   $('clearSessionBtn').addEventListener('click', clearSession);
   document.addEventListener('keydown', (event) => {
@@ -160,7 +163,40 @@
     } else if (event.key.toLowerCase() === 'l') {
       event.preventDefault();
       $('transcriptPanel').open = !$('transcriptPanel').open;
+    } else if (event.key.toLowerCase() === 'j') {
+      event.preventDefault();
+      $('screenBtn').click();
     }
+  });
+  function displayAnswer(text) {
+    $('copilotAnswer').hidden = false;
+    $('copilotAnswer').textContent = text;
+    $('copilotAnswer').scrollIntoView({ block: 'nearest' });
+  }
+  $('screenBtn').addEventListener('click', async () => {
+    if (!running || screenBusy) return;
+    const question = $('askInput').value.trim() || 'Explain the selected screenshot and provide practical guidance.';
+    screenBusy = true;
+    $('screenBtn').disabled = true;
+    setState('Analyzing…', 'busy');
+    try {
+      const result = await C.analyzeScreen(question);
+      if (result.ok && result.answer) displayAnswer(result.answer);
+      else if (!result.cancelled) showError('liveError', result.error || 'Screenshot analysis failed.');
+    } catch (error) {
+      showError('liveError', error.message || 'Screenshot analysis failed.');
+    } finally {
+      screenBusy = false;
+      $('screenBtn').disabled = false;
+      setState(running ? 'Listening' : '', running ? 'on' : '');
+    }
+  });
+  $('voiceToggleBtn').addEventListener('click', () => {
+    if (!running || !stream) return;
+    const active = stream.getAudioTracks().some((track) => track.enabled);
+    stream.getAudioTracks().forEach((track) => { track.enabled = !active; });
+    $('voiceToggleBtn').textContent = active ? 'Resume microphone/call audio' : 'Pause microphone/call audio';
+    setState(active ? 'Audio paused' : 'Listening', active ? '' : 'on');
   });
   function updateClock() {
     const seconds = Math.max(0, Math.floor((Date.now() - sessionStartedAt) / 1000));
@@ -310,20 +346,14 @@
     showError('liveError', '');
     setState('Thinking…', 'busy');
     try {
-      const response = await C.assist({
-        applicationId: applicationId || null,
-        transcript: requested,
-        recent: recent.slice(-RECENT),
-        lastQuestion: lastQuestion || undefined,
-      });
+      const response = await C.askCopilot({ skill, question: requested, recent: [...recent, ...Array.from($('transcriptList').children).slice(-5).map((item) => item.querySelector('span')?.textContent || '')].slice(-8) });
       if (!response.ok) return onError(response.error);
-      if (response.assist && response.assist.isQuestion) {
-        lastQuestion = response.assist.question || question;
-        showAssist(response.assist);
+      if (!response.answer) {
+        showError('liveError', 'No answer was generated.');
       } else {
-        showError('liveError', 'No answer was generated. Try asking a specific interview question.');
+        displayAnswer(response.answer);
+        $('askInput').value = '';
       }
-      $('askInput').value = '';
     } catch (error) {
       showError('liveError', error.message || 'Could not ask CareerOS.');
     } finally {
@@ -348,6 +378,8 @@
     if (clockTimer) clearInterval(clockTimer);
     clockTimer = setInterval(updateClock, 1000);
     $('askBtn').disabled = false;
+    $('voiceToggleBtn').textContent = 'Pause microphone/call audio';
+    $('screenBtn').disabled = false;
     fatal = false;
     recent = [];
     lastQuestion = '';
@@ -379,6 +411,7 @@
     if (clockTimer) clearInterval(clockTimer);
     clockTimer = null;
     $('askBtn').disabled = true;
+    $('screenBtn').disabled = true;
     if (recorder && recorder.state !== 'inactive') { recorder.onstop = null; try { recorder.stop(); } catch { /* ignore */ } }
     recorder = null;
     if (ctx) { try { ctx.close(); } catch { /* ignore */ } }
@@ -407,6 +440,8 @@
     $('transcriptCount').textContent = '0';
     $('transcriptPanel').open = false;
     $('askInput').value = '';
+    $('copilotAnswer').hidden = true;
+    $('copilotAnswer').textContent = '';
     $('notesBtn').disabled = true;
     route();
   };
