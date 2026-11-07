@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CompanionCard } from "@/components/companion/companion-card";
 import {
   Search,
   Target,
@@ -382,6 +383,15 @@ export default async function MarketingHomePage() {
             </div>
           </div>
           <VideoGallery videos={HOME_TUTORIALS} className="mt-6" />
+        </div>
+      </section>
+
+      {/* Desktop app */}
+      <section className="border-t border-border py-20">
+        <div className="mx-auto max-w-5xl px-6">
+          <Reveal>
+            <CompanionCard variant="wide" />
+          </Reveal>
         </div>
       </section>
 

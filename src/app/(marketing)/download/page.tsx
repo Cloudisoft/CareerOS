@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Apple, Monitor, Mic, ListChecks, FileText, ShieldCheck } from "lucide-react";
 import { PageHero } from "@/components/marketing/page-hero";
 import { SUPPORT_EMAIL } from "@/config/brand";
-import { downloadsBucket } from "@/lib/storage/s3-presign";
+import { installerUrls } from "@/lib/companion/downloads";
 
 // The buttons depend on whether the downloads bucket is connected on the server.
 export const dynamic = "force-dynamic";
@@ -13,17 +13,6 @@ export const metadata: Metadata = {
   description: "A small desktop window that works beside any call app and shows talking points from your CareerOS resume when the interviewer asks a question.",
   alternates: { canonical: "/download" },
 };
-
-/** Where the installers are: the private downloads bucket (served through /download/<platform>), or URLs set
-    on the server (NEXT_PUBLIC_COMPANION_*_URL) if they're hosted elsewhere. */
-function installerUrls() {
-  const hosted = Boolean(downloadsBucket());
-  return {
-    mac: process.env.NEXT_PUBLIC_COMPANION_MAC_URL || (hosted ? "/download/mac" : ""),
-    macIntel: process.env.NEXT_PUBLIC_COMPANION_MAC_INTEL_URL || (hosted ? "/download/mac-intel" : ""),
-    win: process.env.NEXT_PUBLIC_COMPANION_WIN_URL || (hosted ? "/download/windows" : ""),
-  };
-}
 
 const FEATURES = [
   { icon: Mic, title: "Works with any call app", body: "Zoom, Teams, Google Meet, Webex and others, in the browser or the desktop app. It listens to your computer's call audio, or your microphone." },
