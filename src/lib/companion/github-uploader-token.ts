@@ -43,7 +43,7 @@ export function verifyCompanionReleaseIdentity(token: string, jwks: { keys?: Jwk
         claims.repository !== "Cloudisoft/CareerOS" ||
         claims.repository_id !== "1362954981" ||
         claims.ref !== "refs/heads/main" ||
-        claims.sub !== "repo:Cloudisoft/CareerOS:ref:refs/heads/main" ||
+        claims.sub !== "repo:Cloudisoft@245951127/CareerOS@1362954981:ref:refs/heads/main" ||
         claims.event_name !== "push" ||
         claims.workflow_ref !== "Cloudisoft/CareerOS/.github/workflows/desktop-companion.yml@refs/heads/main") return false;
 
