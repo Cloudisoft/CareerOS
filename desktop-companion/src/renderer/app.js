@@ -13,7 +13,7 @@
   const CONSENT_VERSION = 1;
   const CONSENT_TEXT = [
     'Interview Companion listens to your call audio (or your microphone) while you have it on, and when someone asks you a question it shows a few talking points from your own CareerOS resume and stories. Never a script to read out.',
-    'This window is visible like any other app: it shows up if you share your screen or record.',
+    'By default, this window is visible like any other app: it can show in screen shares and recordings. Optional screen-share privacy may suppress its image in supported capture software, but it is not guaranteed and does not change consent or disclosure requirements.',
     'Some places require you to tell everyone on a call that it is being transcribed or AI-assisted. That is your responsibility.',
     'Some employers do not allow AI assistance in interviews and treat it as grounds for disqualification. Only use it where you are sure it is allowed.',
     'Audio is never stored. Short clips of speech are sent to CareerOS to be turned into text, used once to find talking points, and discarded.',
