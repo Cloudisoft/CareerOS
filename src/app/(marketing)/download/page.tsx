@@ -4,9 +4,7 @@ import { Apple, Monitor, Mic, ListChecks, FileText, ShieldCheck, LockKeyhole, Us
 import { PageHero } from "@/components/marketing/page-hero";
 import { SUPPORT_EMAIL } from "@/config/brand";
 import { installerUrls } from "@/lib/companion/downloads";
-import { getSessionUser } from "@/lib/auth/session";
-import { getEntitlements } from "@/lib/billing/entitlements";
-import { companionAccess } from "@/lib/companion/access";
+import { getCompanionDownloadAccess } from "@/lib/companion/access-server";
 
 export const dynamic = "force-dynamic";
 
@@ -41,11 +39,7 @@ function DownloadButton({ href, icon: Icon, label, sub }: { href: string; icon: 
 }
 
 export default async function DownloadPage({ searchParams }: { searchParams?: { platform?: string; upgrade?: string; error?: string } }) {
-  const user = await getSessionUser();
-  // Entitlements are only queried for job seekers. Employers cannot gain access by paying.
-  const canUseCompanion = user?.role === "CANDIDATE";
-  const allowed = canUseCompanion && user ? Boolean((await getEntitlements(user.id)).interviewAi) : false;
-  const access = companionAccess(user?.role, allowed);
+  const access = await getCompanionDownloadAccess();
   const urls = installerUrls();
   const selectedPlatform = searchParams?.platform === "windows" || searchParams?.platform === "mac-intel"
     ? searchParams.platform : "mac";
