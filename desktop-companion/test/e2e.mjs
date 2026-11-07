@@ -154,7 +154,7 @@ try {
   // 5. Smog-style Notes: explicitly generate, edit and export a meeting summary.
   await win.click('#generateNotesBtn');
   await win.waitForFunction(() => document.querySelector('#editableNotes').value.includes('# Summary'));
-  check((await win.inputValue('#editableNotes')).includes('Thanks for joining today.'), 'notes use real transcript context');
+  check((await win.inputValue('#editableNotes')).includes('Tell me about a time two teams disagreed'), 'notes use the available real transcript context');
   await win.fill('#editableNotes', '# Edited summary\n- The candidate clarified the figures.');
   check(!(await win.isDisabled('#exportNotesBtn')), 'edited notes can be exported');
 
