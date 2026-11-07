@@ -16,6 +16,8 @@ function ConnectContent() {
   );
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<{ label: string; version: string | null; createdAt: string; code: string; valid: boolean } | null>(null);
+  // The desktop Interview Companion signs in through this same page; its version is "companion-<n>".
+  const isApp = Boolean(info?.version?.startsWith("companion-"));
 
   useEffect(() => {
     if (!state) return;
@@ -109,7 +111,7 @@ function ConnectContent() {
           <CheckCircle2 className="h-8 w-8 text-success" />
           <p className="font-medium text-foreground">Browser connected</p>
           <p className="text-sm text-muted-foreground">
-            You can close this tab and return to the extension.
+            You can close this tab and return to the {isApp ? "Interview Companion app" : "extension"}.
           </p>
         </CardContent>
       </Card>
@@ -132,12 +134,12 @@ function ConnectContent() {
     <Card>
       <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
         <ShieldCheck className="h-8 w-8 text-primary" />
-        <p className="font-medium text-foreground">Connect this browser to Career OS?</p>
+        <p className="font-medium text-foreground">{isApp ? "Connect the Interview Companion app to Career OS?" : "Connect this browser to Career OS?"}</p>
         {info && (
           <div className="w-full rounded-lg border border-border p-3 text-left text-sm">
             <p className="text-foreground">
               <span className="font-medium">{info.label}</span>
-              {info.version ? <span className="text-muted-foreground"> · extension {info.version}</span> : null}
+              {info.version ? <span className="text-muted-foreground"> · {isApp ? `app ${info.version.replace(/^companion-/, "")}` : `extension ${info.version}`}</span> : null}
             </p>
             <p className="text-muted-foreground">Asked {new Date(info.createdAt).toLocaleTimeString()}</p>
             <p className="mt-2 text-muted-foreground">
@@ -146,9 +148,9 @@ function ConnectContent() {
           </div>
         )}
         <p className="text-sm text-muted-foreground">
-          Approve only if you just pressed Sign in in the Career OS extension and its notification shows the same
-          code. The extension will be able to read your Career Profile, resumes, and Auto Apply settings, and record
-          applications it submits on your behalf.
+          {isApp
+            ? "Approve only if you just pressed Sign in in the Career OS Interview Companion app and it shows the same code. The app will be able to read your Career Profile, resumes and interview stories to suggest talking points."
+            : "Approve only if you just pressed Sign in in the Career OS extension and its notification shows the same code. The extension will be able to read your Career Profile, resumes, and Auto Apply settings, and record applications it submits on your behalf."}
         </p>
         {info && !info.valid && <p className="text-sm text-destructive">This request has expired. Press Sign in in the extension again.</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}

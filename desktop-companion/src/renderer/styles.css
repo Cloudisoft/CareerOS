@@ -1,0 +1,52 @@
+:root {
+  --bg: #16131b; --panel: #1f1a25; --line: rgba(255,255,255,.09); --text: #f6f2f7; --muted: #b6aeba;
+  --accent: #e2632f; --accent2: #ef862d; --ok: #2e9e5b; --err: #ffb394;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 13px/1.45 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.mark { width: 26px; height: 26px; border-radius: 6px; }
+.brand { display: flex; flex-direction: column; line-height: 1.2; }
+.brand strong { font-size: 13px; }
+.brand span { font-size: 11px; color: var(--muted); }
+.state { margin-left: auto; font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.state.on::before, .state.busy::before { content: ""; width: 8px; height: 8px; border-radius: 99px; background: var(--ok); }
+.state.on::before { animation: pulse 1.8s infinite; box-shadow: 0 0 0 0 rgba(46,158,91,.6); }
+.state.busy::before { background: var(--accent); }
+@keyframes pulse { 70% { box-shadow: 0 0 0 7px rgba(46,158,91,0); } 100% { box-shadow: 0 0 0 0 rgba(46,158,91,0); } }
+.view { padding: 16px 14px; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+.view[hidden], [hidden] { display: none !important; }
+h1 { font-size: 17px; margin: 0; }
+.muted { color: var(--muted); margin: 0; }
+.small { font-size: 12px; }
+.btn { appearance: none; border: 0; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 600; color: #fff; cursor: pointer; background: linear-gradient(135deg, var(--accent2), var(--accent)); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.ghost { background: rgba(255,255,255,.08); }
+.btn.ghost:hover { background: rgba(255,255,255,.14); }
+.link { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
+.link:hover { color: var(--text); }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.row .btn { flex: 1; }
+.links { justify-content: space-between; margin-top: auto; }
+.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 12px; }
+select { font: inherit; font-weight: 400; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; }
+.check { display: flex; gap: 8px; align-items: center; }
+.consent { margin: 0; padding-left: 18px; display: grid; gap: 8px; color: var(--muted); }
+.error { color: var(--err); margin: 0; font-size: 12px; }
+.meter { height: 4px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+#meterFill { height: 100%; width: 0; background: var(--ok); transition: width .1s linear; }
+.current { border-radius: 12px; padding: 12px; background: var(--panel); border: 1px solid var(--line); }
+.current.fresh { animation: fresh .6s ease; }
+@keyframes fresh { from { border-color: var(--accent); } to { border-color: var(--line); } }
+.kind { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.q { margin: 4px 0 10px; font-weight: 600; font-size: 15px; line-height: 1.35; }
+.points { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.points li { padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,.06); }
+.story { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; background: rgba(46,158,91,.14); color: #9fe3bb; }
+.heard { margin: 0; color: #8e8692; font-size: 11px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.earlier summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.earlier ol { margin: 6px 0 0; padding-left: 18px; color: #cfc7d3; display: grid; gap: 4px; }
+
+.code { margin: 0; font: 600 22px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; text-align: center; padding: 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
