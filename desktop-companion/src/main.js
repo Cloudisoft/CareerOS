@@ -46,6 +46,10 @@ function deviceLabel() {
 }
 
 async function api(pathname, { method = 'GET', body, raw, contentType } = {}) {
+  // Device pairing is left available to support reconnection.
+  if (readSettings().networkPaused === true && !pathname.startsWith('/connect/')) {
+    throw new Error('AI/network activity is paused. Resume it in Privacy settings.');
+  }
   const token = readSettings().deviceToken;
   const headers = { 'X-CareerOS-Version': `companion-${VERSION}` };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -117,10 +121,14 @@ function createWindow() {
     y: s.bounds?.y,
     title: 'CareerOS Interview Companion',
     alwaysOnTop: s.alwaysOnTop !== false,
+    capturePrivacy: s.capturePrivacy === true,
+    networkPaused: s.networkPaused === true,
     backgroundColor: '#16131b',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
+  // Optional capture protection. Behavior depends on the OS and sharing app.
+  win.setContentProtection(s.capturePrivacy === true);
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.on('close', () => { if (win) writeSettings({ bounds: win.getBounds() }); });
@@ -139,6 +147,12 @@ app.whenReady().then(() => {
   });
   createWindow();
   // User-triggered keyboard shortcut brings the visible assistant into focus.
+  // Quick hide is explicit and reversible; it is not a monitoring-bypass.
+  globalShortcut.register('CommandOrControl+Shift+H', () => {
+    if (!win) return;
+    if (win.isVisible()) win.hide();
+    else { win.show(); win.focus(); }
+  });
   globalShortcut.register('CommandOrControl+Shift+Space', () => {
     if (!win) createWindow();
     if (win.isMinimized()) win.restore();
@@ -171,9 +185,12 @@ ipcMain.handle('signOut', () => { writeSettings({ deviceToken: '', pairedAs: '' 
 ipcMain.handle('saveSettings', (_e, patch) => {
   const allowed = {};
   for (const k of ['consentedVersion', 'consentedAt', 'source', 'lastApplicationId', 'alwaysOnTop']) if (k in patch) allowed[k] = patch[k];
+  if (typeof patch.capturePrivacy === 'boolean') allowed.capturePrivacy = patch.capturePrivacy;
+  if (typeof patch.networkPaused === 'boolean') allowed.networkPaused = patch.networkPaused;
   const s = writeSettings(allowed);
   if ('alwaysOnTop' in allowed && win) win.setAlwaysOnTop(allowed.alwaysOnTop !== false);
-  return { ok: true, alwaysOnTop: s.alwaysOnTop !== false };
+  if ('capturePrivacy' in allowed && win) win.setContentProtection(allowed.capturePrivacy === true);
+  return { ok: true, alwaysOnTop: s.alwaysOnTop !== false, capturePrivacy: s.capturePrivacy === true, networkPaused: s.networkPaused === true };
 });
 ipcMain.handle('targets', async () => {
   try { return { ok: true, ...(await api('/interview/targets')) }; } catch (err) { return { ok: false, error: err.message }; }
