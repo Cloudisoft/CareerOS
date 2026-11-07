@@ -202,6 +202,12 @@ ipcMain.handle('saveSettings', (_e, patch) => {
   if (allowed.networkPaused === true) stopPendingNetworkRequests();
   return { ok: true, alwaysOnTop: s.alwaysOnTop !== false, capturePrivacy: s.capturePrivacy === true, networkPaused: s.networkPaused === true };
 });
+ipcMain.handle('quickHide', () => {
+  if (!win) return { ok: false, error: 'Window unavailable.' };
+  if (win.isVisible()) win.hide();
+  else { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+  return { ok: true, visible: win.isVisible() };
+});
 ipcMain.handle('targets', async () => {
   try { return { ok: true, ...(await api('/interview/targets')) }; } catch (err) { return { ok: false, error: err.message }; }
 });
