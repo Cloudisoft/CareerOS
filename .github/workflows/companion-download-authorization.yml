@@ -1,0 +1,26 @@
+name: Companion paid candidate download authorization
+
+on:
+  pull_request:
+    paths:
+      - 'src/app/(marketing)/download/**'
+      - 'src/components/companion/**'
+      - 'src/lib/companion/**'
+      - 'src/lib/auth/extension.ts'
+      - '.github/workflows/companion-download-authorization.yml'
+  workflow_dispatch:
+
+jobs:
+  verify-candidate-access:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec vitest run src/lib/companion/access.test.ts
