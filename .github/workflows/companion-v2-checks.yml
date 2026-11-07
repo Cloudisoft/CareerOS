@@ -26,3 +26,14 @@ jobs:
           node --check src/renderer/app.js
       - name: Electron end-to-end tests
         run: xvfb-run -a npm test
+
+  backend-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
