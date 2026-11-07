@@ -1,7 +1,7 @@
 {
   "name": "careeros-interview-companion",
   "productName": "CareerOS Interview Companion",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Live talking points from your resume during interviews on any call app. Part of CareerOS by Silver Springs Staffing.",
   "author": "Silver Springs Staffing",
   "license": "UNLICENSED",
@@ -28,7 +28,13 @@
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "icon": "assets/icon.png",
       "extendInfo": {
@@ -38,7 +44,12 @@
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "assets/icon.png"
     },
