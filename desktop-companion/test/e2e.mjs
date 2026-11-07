@@ -51,6 +51,10 @@ const server = http.createServer(async (req, res) => {
     seen.nextTranscript = null;
     return json(200, { transcript: nextTranscript || (said === 1 ? 'Thanks for joining today.' : 'Tell me about a time two teams disagreed on the numbers?') });
   }
+  if (p === '/api/extension/interview/copilot/notes') {
+    const payload = JSON.parse(body.toString());
+    return json(200, { note: '# Summary\n' + (payload.transcript?.[0] || 'None') + '\n# Action items\n- Follow up', provider: 'mock' });
+  }
   if (p === '/api/extension/interview/copilot/ask') {
     const input = JSON.parse(body.toString());
     seen.copilotRequests.push(input);
@@ -137,6 +141,9 @@ try {
   check((await win.textContent('#copilotAnswer')).includes('binary search complexity'), 'Ask AI displays specialist answer');
   check((await win.textContent('#copilotAnswer')).includes('dsa'), 'specialist skill reaches the AI endpoint');
   check(Number(await win.textContent('#transcriptCount')) === 2, 'transcript records incoming speech');
+  await win.click('#saveSessionBtn');
+  await win.waitForFunction(() => document.querySelector('#sessionSaveState').textContent.includes('Saved on this computer'));
+  check(true, 'session is saved explicitly on user request');
   await win.click('#clearSessionBtn');
   check((await win.textContent('#transcriptCount')) === '0', 'Clear session resets transcript');
   check(!(await visible('#copilotAnswer')), 'Clear session removes AI answers');
@@ -144,7 +151,15 @@ try {
   await speak(true); await sleep(1500); await speak(false); await sleep(2600);
   await win.waitForSelector('.current .q');
 
-  // 5. Opt-in wake-word command: explicit spoken request may call the specialist API.
+  // 5. Smog-style Notes: explicitly generate, edit and export a meeting summary.
+  await win.click('#notesPanel summary');
+  await win.click('#generateNotesBtn');
+  await win.waitForFunction(() => document.querySelector('#editableNotes').value.includes('# Summary'));
+  check((await win.inputValue('#editableNotes')).includes('Tell me about a time two teams disagreed'), 'notes use the available real transcript context');
+  await win.fill('#editableNotes', '# Edited summary\n- The candidate clarified the figures.');
+  check(!(await win.isDisabled('#exportNotesBtn')), 'edited notes can be exported');
+
+  // 6. Opt-in wake-word command: explicit spoken request may call the specialist API.
   await win.check('#voiceCommandsEnabled');
   seen.nextTranscript = 'CareerOS explain the difference between SQL joins';
   const beforeVoice = seen.copilotRequests.length;
@@ -154,17 +169,27 @@ try {
   check(seen.copilotRequests.at(-1)?.question.includes('SQL joins'), 'wake-word passes the spoken question');
   await win.uncheck('#voiceCommandsEnabled');
 
-  // 6. Notes.
+  // 7. Original interview notes.
   await win.click('#notesBtn');
   await sleep(500);
   const files = readdirSync(notesDir);
   const md = files.length ? readFileSync(path.join(notesDir, files[0]), 'utf8') : '';
   check(/two teams disagreed/.test(md) && /Traced figures/.test(md) && /Senior Data Analyst @ Fabrikam/.test(md), 'notes save with the job, questions and points');
 
-  // 7. Stop, then a server without transcription: stops with the reason.
+  // 8. Stop, then a server without transcription: stops with the reason.
   await win.click('#stopBtn');
   await win.click('#stopBtn'); // Back
   await win.waitForSelector('#home:not([hidden])');
+  await win.click('#historyPanel summary');
+  await win.waitForFunction(() => document.querySelectorAll('.history-item').length === 1);
+  check((await win.textContent('.history-item')).includes('Senior Data Analyst'), 'saved session appears in local history');
+  await win.fill('#historySearch', 'binary search complexity');
+  check(await win.locator('.history-item').count() === 1, 'saved history searches AI answers');
+  await win.fill('#historySearch', 'not-in-session');
+  check(await win.locator('.history-item').count() === 0, 'saved history filters nonmatching entries');
+  await win.fill('#historySearch', '');
+  await win.click('.history-item button.link');
+  check((await win.textContent('#historyPreview')).includes('binary search complexity'), 'saved session opens with transcript and AI answers');
   seen.sttMode = 'unset';
   await win.click('#startBtn');
   await win.waitForSelector('#live:not([hidden])');
@@ -173,7 +198,7 @@ try {
   await win.waitForFunction(() => /isn't set up/.test(document.getElementById('liveError').textContent), null, { timeout: 8000 });
   check((await win.textContent('#state')) === 'Stopped', 'stops listening and says why when transcription isn’t set up');
 
-  // 8. An ordinary, visible window.
+  // 9. An ordinary, visible window.
   const props = await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
     return { onTop: w.isAlwaysOnTop(), protectedFromCapture: typeof w.isContentProtected === 'function' ? w.isContentProtected() : 'n/a' };
