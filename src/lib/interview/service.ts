@@ -201,6 +201,65 @@ Respond with ONLY JSON: {"score": <integer 0-100>, "feedback": "<2-3 sentences>"
   throw new InterviewError("Your answer is saved, but scoring didn't finish. Press Rescore to try again.", "AI_PARSE_ERROR");
 }
 
+export interface SuggestedAnswer {
+  /** 3-4 beats to hit, in order (e.g. situation, what you did, result). */
+  outline: string[];
+  /** A sample answer in the candidate's voice, built only from their own resume and saved stories. */
+  sample: string;
+  /** Which of their experiences it draws on, e.g. "Checkout rebuild at Northwind". */
+  basedOn: string;
+}
+
+const suggestSchema = z.object({
+  outline: z.array(z.string().trim().min(1).max(160)).min(1).max(5),
+  sample: z.string().trim().min(1).max(1600),
+  basedOn: z.string().trim().max(160).catch(""),
+});
+
+/**
+ * A suggested answer for a mock-interview question, for practice: an outline and a sample answer built from
+ * the candidate's own resume and saved stories (never invented experience). Not stored; the candidate still
+ * answers in their own words and is scored on what they say.
+ */
+export async function suggestAnswer(userId: string, profileId: string, sessionId: string, questionId: string): Promise<SuggestedAnswer> {
+  const session = await getSession(profileId, sessionId);
+  const question = session.questions.find((q) => q.id === questionId);
+  if (!question) throw new InterviewError("This question could not be found.", "NOT_FOUND");
+  const [material, stories] = await Promise.all([
+    loadInterviewMaterial(userId, profileId),
+    prisma.interviewStory.findMany({ where: { profileId, answer: { not: null } }, select: { question: true, answer: true }, take: 8 }),
+  ]);
+  const jobContext = await sessionJobContext(session);
+  const storyText = stories.map((s) => `- ${s.question}: ${String(s.answer).slice(0, 400)}`).join("\n");
+
+  const system = `You are an interview coach helping a candidate PRACTISE. Write a strong example answer to the question, in the first person, as the candidate would say it out loud (about 60-90 seconds spoken, 120-200 words).
+Use ONLY facts from their resume, profile and saved stories below. Never invent employers, projects, numbers or skills. If their material has no fitting example, write a short honest answer that says what they would draw on, and keep numbers out.
+For behavioral questions follow STAR (situation, task, action, result). Keep it natural and conversational, not a list.
+Respond with ONLY JSON: {"outline": ["<beat 1>", "<beat 2>", "<beat 3>"], "sample": "<the spoken answer>", "basedOn": "<which experience it uses, a few words>"}`;
+  const prompt = [
+    `Question (${question.category}): ${question.question}`,
+    jobContext ? `The job:\n${jobContext.slice(0, 1500)}` : "",
+    material.resumeText ? `Their resume:\n${material.resumeText.slice(0, 3500)}` : "They have no resume on file.",
+    material.careerContext ? `Their profile:\n${material.careerContext.slice(0, 1200)}` : "",
+    storyText ? `Their saved stories:\n${storyText}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const res = await generateJson({ system, prompt, maxTokens: 700 }, suggestSchema);
+  if (res.ok) return { outline: res.value.outline.slice(0, 4), sample: res.value.sample, basedOn: res.value.basedOn };
+
+  // No AI available: a structure to follow, pointing at their most recent role, so the button never comes back empty.
+  const recent = material.resume?.experience?.[0];
+  const where = recent ? `${recent.title || "my role"}${recent.company ? ` at ${recent.company}` : ""}` : "a recent project";
+  const bullet = recent?.bullets?.[0]?.trim().replace(/\.$/, "");
+  return {
+    outline: [`Set the scene: ${where}`, "What you were responsible for", "What you did, step by step", "The result, and what you learned"],
+    sample: `${recent ? `In my role as ${where}` : "On a recent project"}${bullet ? `, one thing I'm proud of: ${bullet}.` : ", I took on something like this."} I'd walk through what I owned, the decisions I made and why, and finish with the result and what I'd do differently.`,
+    basedOn: where,
+  };
+}
+
 function startOfMonthUtc() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));

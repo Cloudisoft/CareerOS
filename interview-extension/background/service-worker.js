@@ -141,6 +141,13 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (tabId === activeCaptureTabId && info.url && !LiveCopilot.detectPlatform(info.url)) stopCapture().catch(() => {});
 });
 
+/* The popup asks which tab Live Copilot is running on, if any. */
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!msg || msg.type !== 'liveCopilot:state?') return false;
+  sendResponse({ activeTabId: activeCaptureTabId });
+  return false;
+});
+
 /* The overlay asks whether Live Copilot is running on its tab (e.g. after the page re-renders). */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || msg.type !== 'liveCopilot:status?') return false;

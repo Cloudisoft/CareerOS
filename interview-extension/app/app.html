@@ -11,7 +11,7 @@
     <img src="../icons/icon128.png" alt="" class="mark">
     <div>
       <h1>Interview Prep</h1>
-      <p>Adaptive mock interviews and a locked answer bank for the questions every interview asks.</p>
+      <p>Spoken mock interviews built from your resume, with a live transcript, suggested answers and feedback on every answer.</p>
     </div>
   </header>
 
@@ -28,7 +28,8 @@
 
       <div id="interviewStart" class="card" hidden>
         <h2>Start a new session</h2>
-        <p class="muted">CareerOS reads your resume first, then asks 7 questions about your actual projects, results and skills, following up on what you say.</p>
+        <p class="muted">Alex, your CareerOS interviewer, reads your resume first, then asks 7 questions out loud about your real projects, results and skills, following up on what you say. Answer out loud or type; you'll see the full transcript, a suggested answer whenever you want one, and feedback after every answer.</p>
+        <p class="muted">Use headphones or a quiet room. Chrome will ask once for your microphone.</p>
         <label class="field">
           Interview type
           <select id="typeSelect">
@@ -65,5 +66,7 @@
 </body>
 <script src="../lib/storage.js"></script>
 <script src="../lib/api.js"></script>
+<script src="../lib/segmenter.js"></script>
+<script src="room.js"></script>
 <script src="app.js"></script>
 </html>

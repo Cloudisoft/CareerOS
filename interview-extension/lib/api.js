@@ -156,6 +156,10 @@
     async draftThankYou(sessionId) {
       return request(`/interview/sessions/${sessionId}/thank-you`, { method: 'POST' });
     },
+    /** A suggested answer to practise from, built from the person's own resume and saved stories. */
+    async suggestAnswer(sessionId, questionId) {
+      return request(`/interview/sessions/${sessionId}/questions/${questionId}/suggest`, { method: 'POST' });
+    },
 
     // ---------------- My Stories ----------------
     async listStories() {
