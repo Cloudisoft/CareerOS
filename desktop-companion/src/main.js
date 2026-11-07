@@ -220,6 +220,10 @@ ipcMain.handle('analyzeScreen', async (_e, question) => {
     })) };
   } catch (err) { return { ok: false, error: err.message || 'Screen analysis failed.' }; }
 });
+ipcMain.handle('generateSessionNotes', async (_e, payload) => {
+  try { return { ok: true, ...(await api('/interview/copilot/notes', { method: 'POST', body: payload })) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('sessionHistoryList', () => {
   try { return { ok: true, sessions: sessionHistory.load(app.getPath('userData')) }; }
   catch (error) { return { ok: false, error: error.message }; }
