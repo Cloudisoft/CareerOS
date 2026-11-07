@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CompanionCard } from "@/components/companion/companion-card";
+import { InterviewAIShowcase } from "@/components/marketing/interview-ai-showcase";
 import {
   Search,
   Target,
@@ -386,10 +387,25 @@ export default async function MarketingHomePage() {
         </div>
       </section>
 
-      {/* Desktop app */}
-      <section className="border-t border-border py-20">
-        <div className="mx-auto max-w-5xl px-6">
-          <Reveal>
+      {/* Interview AI */}
+      <section aria-labelledby="interview-ai-heading" className="border-t border-border py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <Badge variant="outline" className="mx-auto">
+              Interview AI
+            </Badge>
+            <h2 id="interview-ai-heading" className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
+              Walk into every interview prepared
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Practise with questions built from your own resume, then keep the Interview Companion beside your call:
+              it listens for the question and shows talking points from your experience. You answer in your own words.
+            </p>
+          </Reveal>
+          <Reveal delay={0.1} className="mt-10">
+            <InterviewAIShowcase />
+          </Reveal>
+          <Reveal delay={0.1} className="mx-auto mt-14 max-w-5xl">
             <CompanionCard variant="wide" />
           </Reveal>
         </div>
