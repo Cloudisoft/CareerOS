@@ -7,6 +7,10 @@ name: Desktop companion
 on:
   workflow_dispatch:
   push:
+    branches: ["main"]
+    paths:
+      - "desktop-companion/**"
+      - ".github/workflows/desktop-companion.yml"
     tags: ["companion-v*"]
 
 jobs:
@@ -52,6 +56,11 @@ jobs:
             export APPLE_ID="$SECRET_APPLE_ID" APPLE_APP_SPECIFIC_PASSWORD="$SECRET_APPLE_APP_SPECIFIC_PASSWORD" APPLE_TEAM_ID="$SECRET_APPLE_TEAM_ID"
           fi
           npm run ${{ matrix.script }} -- --publish never
+      - name: List installer checksums
+        shell: bash
+        run: |
+          ls -lh dist/
+          sha256sum dist/*.dmg dist/*.exe 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: careeros-interview-companion-${{ runner.os }}
