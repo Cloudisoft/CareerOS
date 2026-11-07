@@ -187,6 +187,8 @@ ipcMain.handle('state', () => {
     version: VERSION,
     webUrl: WEB_URL,
     testAudio: process.env.CAREEROS_TEST_AUDIO === '1',
+    capturePrivacy: s.capturePrivacy === true,
+    networkPaused: s.networkPaused === true,
   };
 });
 ipcMain.handle('connect', () => connect().catch((err) => ({ ok: false, error: err.message })));
