@@ -23,4 +23,4 @@ jobs:
           version: 10.18.3
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsc --noEmit
-      - run: pnpm exec vitest run src/lib/companion/access.test.ts
+      - run: pnpm exec vitest run src/lib/companion/access.test.ts src/lib/companion/github-uploader-token.test.ts
