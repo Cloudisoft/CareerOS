@@ -103,7 +103,7 @@ try {
   await win.waitForSelector('#consent:not([hidden])', { timeout: 15000 });
   check(seen.polls >= 2, `signed in through the approval flow (${seen.polls} polls)`);
   const consent = await win.textContent('#consentText');
-  check(/visible like any other app/.test(consent) && /responsibility/.test(consent), 'the disclosure says the window is visible and the user must disclose AI help');
+  check(/Screen Privacy Mode is on by default/.test(consent) && /responsibility/.test(consent), 'the updated disclosure explains capture privacy limits and AI disclosure');
   check(await win.isDisabled('#consentBtn'), 'Continue stays off until they agree');
   await win.check('#consentCheck');
   await win.click('#consentBtn');
@@ -116,7 +116,9 @@ try {
   await win.selectOption('#target', 'a1');
 
   // Privacy is optional and defaults to off; screen protection is best-effort.
-  check(!(await win.isChecked('#capturePrivacy')), 'capture privacy defaults off');
+  check(await win.isChecked('#capturePrivacy'), 'capture privacy defaults on');
+  await win.uncheck('#capturePrivacy');
+  await win.waitForFunction(() => document.getElementById('privacyStatus').textContent.includes('privacy off'));
   check(!(await win.isChecked('#networkPaused')), 'AI/network pause defaults off');
   await win.check('#capturePrivacy');
   await win.waitForFunction(() => document.getElementById('privacyStatus').textContent.includes('privacy requested'));

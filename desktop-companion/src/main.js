@@ -137,7 +137,7 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   // Optional capture protection. Behavior depends on the OS and sharing app.
-  win.setContentProtection(s.capturePrivacy === true);
+  win.setContentProtection(s.capturePrivacy !== false);
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.on('close', () => { if (win) writeSettings({ bounds: win.getBounds() }); });
@@ -187,7 +187,7 @@ ipcMain.handle('state', () => {
     version: VERSION,
     webUrl: WEB_URL,
     testAudio: process.env.CAREEROS_TEST_AUDIO === '1',
-    capturePrivacy: s.capturePrivacy === true,
+    capturePrivacy: s.capturePrivacy !== false,
     networkPaused: s.networkPaused === true,
   };
 });
@@ -202,7 +202,7 @@ ipcMain.handle('saveSettings', (_e, patch) => {
   if ('alwaysOnTop' in allowed && win) win.setAlwaysOnTop(allowed.alwaysOnTop !== false);
   if ('capturePrivacy' in allowed && win) win.setContentProtection(allowed.capturePrivacy === true);
   if (allowed.networkPaused === true) stopPendingNetworkRequests();
-  return { ok: true, alwaysOnTop: s.alwaysOnTop !== false, capturePrivacy: s.capturePrivacy === true, networkPaused: s.networkPaused === true };
+  return { ok: true, alwaysOnTop: s.alwaysOnTop !== false, capturePrivacy: s.capturePrivacy !== false, networkPaused: s.networkPaused === true };
 });
 ipcMain.handle('quickHide', () => {
   if (!win) return { ok: false, error: 'Window unavailable.' };

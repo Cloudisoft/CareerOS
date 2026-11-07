@@ -46,7 +46,7 @@
     <p class="muted small" id="sourceNote"></p>
     <div class="privacy-settings">
       <strong>Privacy & discreet workspace</strong>
-      <label class="check small"><input type="checkbox" id="capturePrivacy"> Screen-share privacy (best effort)</label>
+      <label class="check small"><input type="checkbox" id="capturePrivacy"> Screen Privacy Mode (enabled by default; best effort)</label>
       <p class="muted small">Requests OS capture protection for this window. Not guaranteed across screen-sharing apps or recordings; never substitutes for consent or interview rules.</p>
       <label class="check small"><input type="checkbox" id="networkPaused"> Pause AI and transcription requests</label>
       <p class="muted small">Block new AI requests and cancel pending requests while paused. Ctrl/Cmd+Shift+H hides or restores the window. Hiding does not stop audio capture.</p>
@@ -101,7 +101,7 @@
     <p class="error" id="liveError" hidden></p>
     <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
     <label class="check small"><input id="voiceCommandsEnabled" type="checkbox"> Enable spoken commands (“CareerOS, explain …”)</label>
-    <div class="privacy-status muted small" id="privacyStatus">Screen-share privacy off · Network active</div>
+    <div class="privacy-status muted small" id="privacyStatus">Screen privacy requested · Network active</div>
     <p class="muted small">Quick Hide (Ctrl/Cmd+Shift+H) hides only this window. Press Stop to end audio capture.</p>
     <div class="row"><button id="voiceToggleBtn" class="btn ghost" type="button">Pause microphone/call audio</button></div>
     <details id="notesPanel" class="transcript-panel">
