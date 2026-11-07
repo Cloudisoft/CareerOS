@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth/session";
 import { PLANS, ADD_ONS, type PayablePlanKey, type AddOnKey } from "@/lib/billing/plans";
 import { getPlanPayPalId, getAddOnPayPalId } from "@/lib/paypal/plans";
@@ -16,6 +17,12 @@ export async function GET(req: NextRequest) {
     const key = req.nextUrl.searchParams.get("key");
     if (kind !== "plan" && kind !== "addon") return apiError("Invalid request.", 422, "INVALID_INPUT");
     if (!key) return apiError("Invalid request.", 422, "INVALID_INPUT");
+    if (kind === "addon" && key === "INTERVIEW_AI") {
+      const account = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } });
+      if (account?.role !== "CANDIDATE") {
+        return apiError("Interview AI is available only to candidate/job seeker accounts.", 403, "FORBIDDEN");
+      }
+    }
 
     const planId =
       kind === "plan"
