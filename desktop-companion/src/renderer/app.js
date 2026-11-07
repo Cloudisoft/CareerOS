@@ -67,6 +67,9 @@
   async function loadHome() {
     $('pairedAs').textContent = st.pairedAs ? `Signed in as ${st.pairedAs}` : 'Signed in';
     $('onTop').checked = st.alwaysOnTop;
+    $('capturePrivacy').checked = st.capturePrivacy === true;
+    $('networkPaused').checked = st.networkPaused === true;
+    renderPrivacyStatus();
     $('source').value = st.source === 'mic' ? 'mic' : 'system';
     sourceNote();
     const res = await C.targets();
@@ -93,6 +96,30 @@
   $('source').onchange = () => { C.saveSettings({ source: $('source').value }); sourceNote(); };
   $('target').onchange = () => C.saveSettings({ lastApplicationId: $('target').value });
   $('onTop').onchange = (e) => C.saveSettings({ alwaysOnTop: e.target.checked });
+  function renderPrivacyStatus() {
+    $('privacyStatus').textContent = `${st.capturePrivacy ? 'Screen-share privacy requested' : 'Screen-share privacy off'} · ${st.networkPaused ? 'AI/network paused' : 'Network active'}`;
+    $('startBtn').disabled = st.networkPaused === true;
+    $('startBtn').title = st.networkPaused ? 'Resume AI/network activity to start listening.' : '';
+  }
+  async function setPrivacy(patch, checkbox, key) {
+    checkbox.disabled = true;
+    try {
+      const result = await C.saveSettings(patch);
+      if (result && result.ok) {
+        st[key] = result[key] === true;
+        checkbox.checked = st[key];
+        renderPrivacyStatus();
+      } else {
+        checkbox.checked = st[key] === true;
+        showError('homeError', result?.error || 'Could not update privacy setting.');
+      }
+    } catch (error) {
+      checkbox.checked = st[key] === true;
+      showError('homeError', error.message || 'Could not update privacy setting.');
+    } finally { checkbox.disabled = false; }
+  }
+  $('capturePrivacy').onchange = (e) => setPrivacy({ capturePrivacy: e.target.checked }, e.target, 'capturePrivacy');
+  $('networkPaused').onchange = (e) => setPrivacy({ networkPaused: e.target.checked }, e.target, 'networkPaused');
   $('practiceLink').onclick = () => C.openWeb('interview');
   $('signOut').onclick = async () => { await C.signOut(); st = await C.state(); route(); };
 
@@ -501,6 +528,10 @@
   });
 
   async function start() {
+    if (st.networkPaused) {
+      showError('homeError', 'AI/network activity is paused. Resume it in Privacy settings before starting.');
+      return;
+    }
     showError('homeError', '');
     showError('liveError', '');
     applicationId = $('target').value;
