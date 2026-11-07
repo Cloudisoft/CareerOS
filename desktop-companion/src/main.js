@@ -16,6 +16,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const sessionHistory = require('./session-history');
 
 const DEFAULT_WEB = 'https://careeros.silverspringstaffing.com';
 const WEB_URL = (process.env.CAREEROS_WEB_URL || DEFAULT_WEB).replace(/\/$/, '');
@@ -218,6 +219,18 @@ ipcMain.handle('analyzeScreen', async (_e, question) => {
       method: 'POST', body: { screenshot: image, question: question.trim() },
     })) };
   } catch (err) { return { ok: false, error: err.message || 'Screen analysis failed.' }; }
+});
+ipcMain.handle('sessionHistoryList', () => {
+  try { return { ok: true, sessions: sessionHistory.load(app.getPath('userData')) }; }
+  catch (error) { return { ok: false, error: error.message }; }
+});
+ipcMain.handle('sessionHistorySave', (_e, data) => {
+  try { return { ok: true, item: sessionHistory.save(app.getPath('userData'), data) }; }
+  catch (error) { return { ok: false, error: error.message }; }
+});
+ipcMain.handle('sessionHistoryDelete', (_e, id) => {
+  try { return { ok: sessionHistory.remove(app.getPath('userData'), id) }; }
+  catch (error) { return { ok: false, error: error.message }; }
 });
 ipcMain.handle('micPermission', async () => {
   if (process.platform !== 'darwin') return 'granted';
