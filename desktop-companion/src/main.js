@@ -11,7 +11,7 @@
  * /interview/live/assist. Requests go from this process (Node), because the API only accepts browser-extension
  * origins from web pages. No audio or transcript is written to disk; only notes the person chooses to save.
  */
-const { app, BrowserWindow, ipcMain, shell, dialog, session, desktopCapturer, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, session, desktopCapturer, systemPreferences, globalShortcut } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -137,9 +137,17 @@ app.whenReady().then(() => {
     }).catch(() => cb({}));
   });
   createWindow();
+  // User-triggered keyboard shortcut brings the visible assistant into focus.
+  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    if (!win) createWindow();
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
   app.on('activate', () => { if (!win) createWindow(); });
 });
 app.on('window-all-closed', () => app.quit());
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 /* ---------------- IPC ---------------- */
 ipcMain.handle('state', () => {
