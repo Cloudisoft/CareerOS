@@ -69,3 +69,7 @@ select { font: inherit; font-weight: 400; color: var(--text); background: var(--
 #transcriptList li { margin: 8px 0; overflow-wrap: anywhere; }
 #transcriptList time { font-size: 10px; color: #bdaebf; margin-right: 7px; }
 @media (max-width: 380px) { .session-hint { display: none; } .ask-line { flex-direction: column; } }
+
+.skill-toolbar { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.skill-toolbar select { flex: 1; min-width: 0; }
+#clearSessionBtn { flex: none; padding: 7px 10px; }
