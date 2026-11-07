@@ -88,3 +88,8 @@ select { font: inherit; font-weight: 400; color: var(--text); background: var(--
 #notesPanel .row { margin-top: 10px; flex-wrap: wrap; }
 #editableNotes { width: 100%; margin-top: 10px; display: block; box-sizing: border-box; resize: vertical; background: #14111a; color: var(--text); border: 1px solid var(--line); padding: 10px; border-radius: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 #editableNotes:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px; }
+
+.privacy-settings { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 7px; background: var(--panel); }
+.privacy-settings strong { font-size: 12px; }
+.privacy-settings p { margin: 0 0 6px; line-height: 1.4; }
+.privacy-status { padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; }
