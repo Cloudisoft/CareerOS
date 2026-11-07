@@ -4,10 +4,10 @@ import { Apple, Monitor, ArrowRight } from "lucide-react";
 import { installerUrls } from "@/lib/companion/downloads";
 
 /* All homepage and dashboard download CTAs lead to the login/subscription gate first. */
-export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "wide" }) {
+export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "wide" | "strip" }) {
   const urls = installerUrls();
   const available = Boolean(urls.mac || urls.win);
-  const wide = variant === "wide";
+  const wide = variant === "wide" || variant === "strip";
 
   const buttons = available ? (
     <div className={wide ? "flex flex-col gap-3 sm:flex-row" : "flex flex-wrap gap-2"}>
@@ -54,6 +54,23 @@ export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "
       </Link>
     </p>
   );
+
+  if (variant === "strip") {
+    // Sits right under the Interview AI demo, so the app and its download read as part of the same section.
+    return (
+      <div className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-4">
+          <Image src="/brand/icon-192.png" alt="" width={56} height={56} className="h-12 w-12 shrink-0 rounded-xl sm:h-14 sm:w-14" />
+          <div className="min-w-0">
+            <p className="font-semibold text-foreground">Interview Companion for Mac and Windows</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">The desktop app from the demo. Included with a paid Interview AI subscription.</p>
+            <div className="mt-1">{more}</div>
+          </div>
+        </div>
+        <div className="shrink-0">{buttons}</div>
+      </div>
+    );
+  }
 
   if (wide) {
     return (

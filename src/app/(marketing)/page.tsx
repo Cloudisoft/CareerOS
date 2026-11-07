@@ -392,7 +392,7 @@ export default async function MarketingHomePage() {
         <div className="mx-auto max-w-6xl px-6">
           <Reveal className="mx-auto max-w-2xl text-center">
             <Badge variant="outline" className="mx-auto">
-              Interview AI
+              Interview AI + Interview Companion
             </Badge>
             <h2 id="interview-ai-heading" className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
               Walk into every interview prepared
@@ -405,8 +405,8 @@ export default async function MarketingHomePage() {
           <Reveal delay={0.1} className="mt-10">
             <InterviewAIShowcase />
           </Reveal>
-          <Reveal delay={0.1} className="mx-auto mt-14 max-w-5xl">
-            <CompanionCard variant="wide" />
+          <Reveal delay={0.1} className="mx-auto mt-8 max-w-5xl">
+            <CompanionCard variant="strip" />
           </Reveal>
         </div>
       </section>

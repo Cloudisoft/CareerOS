@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Apple, Monitor, Mic, ListChecks, FileText, ShieldCheck, LockKeyhole, UserRound } from "lucide-react";
 import { PageHero } from "@/components/marketing/page-hero";
+import { InterviewAIShowcase } from "@/components/marketing/interview-ai-showcase";
 import { SUPPORT_EMAIL } from "@/config/brand";
 import { installerUrls } from "@/lib/companion/downloads";
 import { getCompanionDownloadAccess } from "@/lib/companion/access-server";
@@ -94,6 +95,14 @@ export default async function DownloadPage({ searchParams }: { searchParams?: { 
             </div>
           )}
         </div>
+
+        <section aria-labelledby="companion-demo-heading" className="space-y-6">
+          <div>
+            <h2 id="companion-demo-heading" className="text-xl font-semibold text-foreground">See it in action</h2>
+            <p className="mt-1 text-sm text-muted-foreground">A sample interview: listening for the question, keeping every question, and practising from your resume.</p>
+          </div>
+          <InterviewAIShowcase />
+        </section>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {FEATURES.map(({ icon: Icon, title, body }) => (
