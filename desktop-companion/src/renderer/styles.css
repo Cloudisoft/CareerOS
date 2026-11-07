@@ -83,3 +83,8 @@ select { font: inherit; font-weight: 400; color: var(--text); background: var(--
 .history-item .history-content { min-width: 0; overflow-wrap: anywhere; }
 .history-item p { margin: 2px 0; }
 #historySearch { width: 100%; margin-top: 10px; background: #14111a; color: var(--text); border: 1px solid var(--line); padding: 9px; border-radius: 8px; }
+
+#notesPanel { display: grid; gap: 10px; }
+#notesPanel .row { margin-top: 10px; flex-wrap: wrap; }
+#editableNotes { width: 100%; margin-top: 10px; display: block; box-sizing: border-box; resize: vertical; background: #14111a; color: var(--text); border: 1px solid var(--line); padding: 10px; border-radius: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+#editableNotes:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px; }
