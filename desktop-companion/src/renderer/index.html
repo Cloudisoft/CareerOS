@@ -44,6 +44,13 @@
       </select>
     </label>
     <p class="muted small" id="sourceNote"></p>
+    <div class="privacy-settings">
+      <strong>Privacy & discreet workspace</strong>
+      <label class="check small"><input type="checkbox" id="capturePrivacy"> Screen-share privacy (best effort)</label>
+      <p class="muted small">Requests OS capture protection for this window. Not guaranteed across screen-sharing apps or recordings; never substitutes for consent or interview rules.</p>
+      <label class="check small"><input type="checkbox" id="networkPaused"> Pause AI and transcription requests</label>
+      <p class="muted small">Block AI requests while paused. Ctrl/Cmd+Shift+H hides or restores the window.</p>
+    </div>
     <button id="startBtn" class="btn">Start listening</button>
     <details class="transcript-panel" id="historyPanel">
       <summary>Saved sessions (local to this computer)</summary>
@@ -93,6 +100,7 @@
     <p class="error" id="liveError" hidden></p>
     <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
     <label class="check small"><input id="voiceCommandsEnabled" type="checkbox"> Enable spoken commands (“CareerOS, explain …”)</label>
+    <div class="privacy-status muted small" id="privacyStatus">Screen-share privacy off · Network active</div>
     <div class="row"><button id="voiceToggleBtn" class="btn ghost" type="button">Pause microphone/call audio</button></div>
     <details id="notesPanel" class="transcript-panel">
       <summary>Meeting notes &amp; summary</summary>
