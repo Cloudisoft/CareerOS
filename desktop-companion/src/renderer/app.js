@@ -123,6 +123,72 @@
   let transcriptCount = 0;
   const chatHistory = [];
   const notes = [];
+  const savedAnswers = [];
+  let savedSessions = [];
+  async function refreshHistory() {
+    const result = await C.sessionHistoryList();
+    if (!result.ok) { $('historyList').textContent = result.error || 'History unavailable.'; return; }
+    savedSessions = result.sessions || [];
+    renderHistory();
+  }
+  function renderHistory() {
+    const term = $('historySearch').value.trim().toLowerCase();
+    const items = savedSessions.filter(item => !term || [item.title, item.skill,
+      ...(item.transcript || []), ...(item.answers || []).flatMap(answer => [answer.question, answer.answer])]
+      .some(value => String(value || '').toLowerCase().includes(term)));
+    $('historyList').replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted small';
+      empty.textContent = term ? 'No saved sessions matched.' : 'No sessions saved yet.';
+      $('historyList').append(empty);
+      return;
+    }
+    for (const item of items.slice(0, 50)) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'history-item';
+      const content = document.createElement('div');
+      content.className = 'history-content';
+      const heading = document.createElement('strong');
+      heading.textContent = item.title;
+      const meta = document.createElement('p');
+      meta.className = 'muted small';
+      meta.textContent = `${new Date(item.savedAt).toLocaleString()} · ${(item.transcript || []).length} segments · ${(item.answers || []).length} answers`;
+      const open = document.createElement('button');
+      open.className = 'link';
+      open.textContent = 'View';
+      open.addEventListener('click', () => {
+        const text = [...(item.transcript || []).map((t, i) => `${i + 1}. ${t}`),
+          ...(item.answers || []).map(a => `Question: ${a.question}\nAnswer: ${a.answer}`)].join('\n\n');
+        $('historyPreview').textContent = text || 'No content.';
+        $('historyPreview').hidden = false;
+      });
+      const del = document.createElement('button');
+      del.className = 'link';
+      del.textContent = 'Delete';
+      del.setAttribute('aria-label', `Delete ${item.title}`);
+      del.addEventListener('click', async () => {
+        if (!confirm(`Delete saved session "${item.title}" from this computer?`)) return;
+        const response = await C.sessionHistoryDelete(item.id);
+        if (response.ok) await refreshHistory();
+      });
+      content.append(heading, meta, open);
+      wrapper.append(content, del);
+      $('historyList').append(wrapper);
+    }
+  }
+  $('historySearch').addEventListener('input', renderHistory);
+  $('saveSessionBtn').addEventListener('click', async () => {
+    if (!running && !transcriptCount && !savedAnswers.length) return;
+    const transcript = Array.from($('transcriptList').children).map(li => li.querySelector('span')?.textContent || '').filter(Boolean);
+    const result = await C.sessionHistorySave({
+      title: $('target').selectedOptions[0]?.textContent || 'CareerOS session',
+      skill: $('skillPreset').value,
+      transcript,
+      answers: savedAnswers.slice(-60),
+    });
+    $('sessionSaveState').textContent = result.ok ? 'Saved on this computer' : (result.error || 'Could not save');
+  });
   const skillPrompts = {
     general: '',
     behavioral: 'Give me concise STAR-method talking points for: ',
@@ -137,6 +203,7 @@
     recent = [];
     lastQuestion = '';
     notes.length = 0;
+    savedAnswers.length = 0;
     chatHistory.length = 0;
     transcriptCount = 0;
     $('transcriptList').replaceChildren();
@@ -372,6 +439,7 @@
         showError('liveError', 'No answer was generated.');
       } else {
         displayAnswer(response.answer);
+        savedAnswers.push({ question, answer: response.answer });
         chatHistory.push('User: ' + question, 'Assistant: ' + response.answer.slice(0, 900));
         if (chatHistory.length > 8) chatHistory.splice(0, chatHistory.length - 8);
         $('askInput').value = '';
@@ -406,6 +474,8 @@
     recent = [];
     lastQuestion = '';
     chatHistory.length = 0;
+    savedAnswers.length = 0;
+    $('sessionSaveState').textContent = 'Only saved when you choose';
     ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
@@ -459,6 +529,7 @@
     showError('liveError', '');
     notes.length = 0;
     chatHistory.length = 0;
+    savedAnswers.length = 0;
     $('transcriptList').replaceChildren();
     transcriptCount = 0;
     $('transcriptCount').textContent = '0';
@@ -497,6 +568,7 @@
     if ((st.consentedVersion || 0) < CONSENT_VERSION) { show('consent'); return; }
     show('home');
     loadHome();
+    refreshHistory();
   }
   route();
 })();
