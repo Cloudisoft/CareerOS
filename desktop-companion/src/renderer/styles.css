@@ -76,3 +76,10 @@ select { font: inherit; font-weight: 400; color: var(--text); background: var(--
 
 .answer-card { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #25202c; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; user-select: text; line-height: 1.6; }
 .answer-card[hidden] { display: none; }
+
+.history-list { display: grid; gap: 6px; margin-top: 9px; max-height: 230px; overflow: auto; }
+.history-item { border: 1px solid var(--line); background: rgba(255,255,255,.04); padding: 8px; border-radius: 8px; display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.history-item button { padding: 5px 7px; }
+.history-item .history-content { min-width: 0; overflow-wrap: anywhere; }
+.history-item p { margin: 2px 0; }
+#historySearch { width: 100%; margin-top: 10px; background: #14111a; color: var(--text); border: 1px solid var(--line); padding: 9px; border-radius: 8px; }
