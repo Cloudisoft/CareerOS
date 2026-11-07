@@ -9,7 +9,7 @@
 <body>
   <header class="top">
     <img src="../../assets/icon.png" alt="" class="mark">
-    <div class="brand"><strong>Interview Companion</strong><span>CareerOS</span></div>
+    <div class="brand"><strong>CareerOS Companion</strong><span>Live AI workspace</span></div>
     <span class="state" id="state"></span>
   </header>
 
@@ -55,10 +55,17 @@
 
   <!-- Live -->
   <section id="live" class="view" hidden>
+    <div class="session-strip"><span class="live-pill">● LIVE</span><span id="sessionClock" aria-label="Session duration">00:00</span><span class="session-hint">Your AI copilot is listening</span></div>
     <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
     <div id="current" class="current">
       <p class="muted">Listening for the interviewer's next question. Talking points from your resume will show here.</p>
     </div>
+    <form id="askForm" class="ask-form">
+      <label for="askInput" class="small muted">Ask CareerOS about this conversation</label>
+      <div class="ask-line"><input id="askInput" maxlength="1200" placeholder="Ask a question or request talking points…" autocomplete="off"><button id="askBtn" type="submit" class="btn">Ask AI</button></div>
+      <p class="muted small">Enter to ask · AI uses your CareerOS profile and recent context.</p>
+    </form>
+    <details id="transcriptPanel" class="transcript-panel"><summary>Live transcript <span id="transcriptCount">0</span></summary><ol id="transcriptList" aria-live="polite"></ol></details>
     <p class="heard" id="heard" hidden></p>
     <p class="error" id="liveError" hidden></p>
     <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
