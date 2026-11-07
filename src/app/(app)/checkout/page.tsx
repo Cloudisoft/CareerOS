@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { safeNext } from "@/lib/safe-next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PLANS, ADD_ONS } from "@/lib/billing/plans";
@@ -42,6 +43,7 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const kind = searchParams.get("kind") === "addon" ? "addon" : "plan";
   const key = searchParams.get("key") ?? "";
+  const afterCheckout = safeNext(searchParams.get("next"), "/settings/billing?checkout=success");
 
   const [status, setStatus] = useState<"loading" | "ready" | "confirming" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ function CheckoutContent() {
               });
               const confirmJson = await confirmRes.json();
               if (confirmRes.ok) {
-                router.push("/settings/billing?checkout=success");
+                router.push(afterCheckout);
               } else {
                 setStatus("error");
                 setError(confirmJson.error?.message ?? "Could not confirm your subscription.");
@@ -96,7 +98,7 @@ function CheckoutContent() {
         setError(err instanceof Error ? err.message : "Could not start checkout.");
       }
     })();
-  }, [kind, key, router]);
+  }, [kind, key, router, afterCheckout]);
 
   if (!key || !label) {
     return (

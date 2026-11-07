@@ -77,7 +77,7 @@ export default async function DownloadPage({ searchParams }: { searchParams?: { 
               <h2 className="font-semibold">Interview AI subscription required</h2>
               <p className="text-sm text-muted-foreground">Your job seeker account does not currently include Interview AI. Subscribe to the Interview AI add-on, or choose a qualifying plan, to unlock the desktop installers.</p>
               <div className="flex flex-wrap gap-3">
-                <Link className="rounded-lg bg-brand-gradient px-5 py-3 text-sm font-semibold text-white" href="/checkout?kind=addon&key=INTERVIEW_AI">Subscribe to Interview AI</Link>
+                <Link className="rounded-lg bg-brand-gradient px-5 py-3 text-sm font-semibold text-white" href={`/checkout?kind=addon&key=INTERVIEW_AI&next=${encodeURIComponent(back)}`}>Subscribe to Interview AI</Link>
                 <Link className="rounded-lg border border-border px-5 py-3 text-sm font-semibold text-foreground" href="/pricing">Compare plans</Link>
               </div>
               <p className="text-xs text-muted-foreground">Already subscribed? Confirm your payment on the billing page, then return here.</p>
