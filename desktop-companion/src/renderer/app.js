@@ -116,7 +116,27 @@
   let running = false;
   let fatal = false;
   let applicationId = '';
+  let sessionStartedAt = 0;
+  let clockTimer = null;
+  let asking = false;
+  let transcriptCount = 0;
   const notes = [];
+  function updateClock() {
+    const seconds = Math.max(0, Math.floor((Date.now() - sessionStartedAt) / 1000));
+    $('sessionClock').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+  function appendTranscript(message) {
+    const li = document.createElement('li');
+    const time = document.createElement('time');
+    time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const content = document.createElement('span');
+    content.textContent = message;
+    li.append(time, content);
+    $('transcriptList').append(li);
+    transcriptCount++;
+    $('transcriptCount').textContent = String(transcriptCount);
+    li.scrollIntoView({ block: 'nearest' });
+  }
 
   async function getStream(source) {
     if (st.testAudio) {
@@ -195,6 +215,7 @@
     const transcript = (t.transcript || '').trim();
     setState('Listening', 'on');
     if (!transcript) return;
+    appendTranscript(transcript);
     $('heard').hidden = false;
     $('heard').textContent = `Heard: “${transcript}”`;
     setState('Thinking…', 'busy');
@@ -237,6 +258,38 @@
     $('notesBtn').disabled = false;
   }
 
+  $('askForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const question = $('askInput').value.trim();
+    if (!running || asking || !question) return;
+    asking = true;
+    $('askBtn').disabled = true;
+    showError('liveError', '');
+    setState('Thinking…', 'busy');
+    try {
+      const response = await C.assist({
+        applicationId: applicationId || null,
+        transcript: question,
+        recent: recent.slice(-RECENT),
+        lastQuestion: lastQuestion || undefined,
+      });
+      if (!response.ok) return onError(response.error);
+      if (response.assist && response.assist.isQuestion) {
+        lastQuestion = response.assist.question || question;
+        showAssist(response.assist);
+      } else {
+        showError('liveError', 'No answer was generated. Try asking a specific interview question.');
+      }
+      $('askInput').value = '';
+    } catch (error) {
+      showError('liveError', error.message || 'Could not ask CareerOS.');
+    } finally {
+      asking = false;
+      $('askBtn').disabled = false;
+      setState(running ? 'Listening' : '', running ? 'on' : '');
+    }
+  });
+
   async function start() {
     showError('homeError', '');
     showError('liveError', '');
@@ -247,6 +300,11 @@
       return showError('homeError', err.message || 'Couldn’t start listening.');
     }
     running = true;
+    sessionStartedAt = Date.now();
+    updateClock();
+    if (clockTimer) clearInterval(clockTimer);
+    clockTimer = setInterval(updateClock, 1000);
+    $('askBtn').disabled = false;
     fatal = false;
     recent = [];
     lastQuestion = '';
@@ -275,6 +333,9 @@
     running = false;
     if (ticker) clearInterval(ticker);
     ticker = null;
+    if (clockTimer) clearInterval(clockTimer);
+    clockTimer = null;
+    $('askBtn').disabled = true;
     if (recorder && recorder.state !== 'inactive') { recorder.onstop = null; try { recorder.stop(); } catch { /* ignore */ } }
     recorder = null;
     if (ctx) { try { ctx.close(); } catch { /* ignore */ } }
@@ -298,6 +359,11 @@
     $('heard').hidden = true;
     showError('liveError', '');
     notes.length = 0;
+    $('transcriptList').replaceChildren();
+    transcriptCount = 0;
+    $('transcriptCount').textContent = '0';
+    $('transcriptPanel').open = false;
+    $('askInput').value = '';
     $('notesBtn').disabled = true;
     route();
   };
