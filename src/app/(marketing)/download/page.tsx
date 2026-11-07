@@ -6,6 +6,7 @@ import { SUPPORT_EMAIL } from "@/config/brand";
 import { installerUrls } from "@/lib/companion/downloads";
 import { getSessionUser } from "@/lib/auth/session";
 import { getEntitlements } from "@/lib/billing/entitlements";
+import { companionAccess } from "@/lib/companion/access";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,8 @@ export default async function DownloadPage({ searchParams }: { searchParams?: { 
   const user = await getSessionUser();
   // Entitlements are only queried for job seekers. Employers cannot gain access by paying.
   const canUseCompanion = user?.role === "CANDIDATE";
-  const allowed = canUseCompanion ? Boolean((await getEntitlements(user.id)).interviewAi) : false;
+  const allowed = canUseCompanion && user ? Boolean((await getEntitlements(user.id)).interviewAi) : false;
+  const access = companionAccess(user?.role, allowed);
   const urls = installerUrls();
   const selectedPlatform = searchParams?.platform === "windows" || searchParams?.platform === "mac-intel"
     ? searchParams.platform : "mac";
@@ -61,7 +63,7 @@ export default async function DownloadPage({ searchParams }: { searchParams?: { 
             Your Interview AI desktop assistant for Windows and Mac. Download access requires a CareerOS candidate account with an active Interview AI entitlement (from a qualifying paid plan or Interview AI add-on).
           </p>
 
-          {!user ? (
+          {access === "login" ? (
             <div className="rounded-2xl border border-border bg-surface p-6 space-y-4">
               <div className="flex items-center gap-2 font-semibold"><LockKeyhole className="h-5 w-5 text-primary" /> Sign in to unlock your download</div>
               <p className="text-sm text-muted-foreground">Create a job seeker account or sign in. We will check your Interview AI subscription before allowing an installer download.</p>
@@ -70,13 +72,13 @@ export default async function DownloadPage({ searchParams }: { searchParams?: { 
                 <Link className="rounded-lg border border-border px-5 py-3 text-sm font-semibold text-foreground" href={signup}>Create job seeker account</Link>
               </div>
             </div>
-          ) : !canUseCompanion ? (
+          ) : access === "candidate-only" ? (
             <div className="rounded-2xl border border-border bg-surface p-6 space-y-3" role="status">
               <div className="flex items-center gap-2 font-semibold"><UserRound className="h-5 w-5 text-primary" /> Candidates only</div>
               <p className="text-sm text-muted-foreground">Interview Companion is available only to candidate/job seeker accounts. Employer and admin accounts cannot download or subscribe to this candidate product from this account view.</p>
               <Link className="text-sm font-semibold text-primary hover:underline" href="/dashboard">Return to dashboard</Link>
             </div>
-          ) : !allowed ? (
+          ) : access === "subscribe" ? (
             <div className="rounded-2xl border border-border bg-surface p-6 space-y-4" role="status">
               <h2 className="font-semibold">Interview AI subscription required</h2>
               <p className="text-sm text-muted-foreground">Your job seeker account does not currently include Interview AI. Subscribe to the Interview AI add-on, or choose a qualifying plan, to unlock the desktop installers.</p>
