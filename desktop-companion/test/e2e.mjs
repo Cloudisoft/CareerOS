@@ -152,6 +152,7 @@ try {
   await win.waitForSelector('.current .q');
 
   // 5. Smog-style Notes: explicitly generate, edit and export a meeting summary.
+  await win.click('#notesPanel summary');
   await win.click('#generateNotesBtn');
   await win.waitForFunction(() => document.querySelector('#editableNotes').value.includes('# Summary'));
   check((await win.inputValue('#editableNotes')).includes('Tell me about a time two teams disagreed'), 'notes use the available real transcript context');
@@ -179,6 +180,7 @@ try {
   await win.click('#stopBtn');
   await win.click('#stopBtn'); // Back
   await win.waitForSelector('#home:not([hidden])');
+  await win.click('#historyPanel summary');
   await win.waitForFunction(() => document.querySelectorAll('.history-item').length === 1);
   check((await win.textContent('.history-item')).includes('Senior Data Analyst'), 'saved session appears in local history');
   await win.fill('#historySearch', 'binary search complexity');
