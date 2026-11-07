@@ -9,7 +9,7 @@
 <body>
   <header class="top">
     <img src="../../assets/icon.png" alt="" class="mark">
-    <div class="brand"><strong>Interview Companion</strong><span>CareerOS</span></div>
+    <div class="brand"><strong>CareerOS Companion</strong><span>Live AI workspace</span></div>
     <span class="state" id="state"></span>
   </header>
 
@@ -55,13 +55,40 @@
 
   <!-- Live -->
   <section id="live" class="view" hidden>
+    <div class="session-strip"><span class="live-pill">● LIVE</span><span id="sessionClock" aria-label="Session duration">00:00</span><span class="session-hint">Your AI copilot is listening</span></div>
     <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
     <div id="current" class="current">
       <p class="muted">Listening for the interviewer's next question. Talking points from your resume will show here.</p>
     </div>
+    <div class="skill-toolbar">
+      <label for="skillPreset" class="small muted">Interview skill</label>
+      <select id="skillPreset" aria-label="Interview skill">
+        <option value="general">General interview</option>
+        <option value="behavioral">Behavioral / STAR</option>
+        <option value="programming">Programming</option>
+        <option value="dsa">DSA / algorithms</option>
+        <option value="system-design">System design</option>
+        <option value="data">Data science</option>
+        <option value="sales">Sales / negotiation</option>
+        <option value="devops">DevOps</option>
+        <option value="presentation">Presentation</option>
+        <option value="negotiation">Negotiation</option>
+      </select>
+    </div>
+    <form id="askForm" class="ask-form">
+      <label for="askInput" class="small muted">Ask CareerOS about this conversation</label>
+      <div class="ask-line"><input id="askInput" maxlength="1200" placeholder="Ask a question or request talking points…" autocomplete="off"><button id="askBtn" type="submit" class="btn">Ask AI</button></div>
+      <p class="muted small">Enter to ask · AI uses your CareerOS profile and recent context.</p>
+    </form>
+    <div class="row"><button class="btn ghost" type="button" id="screenBtn">Analyze screenshot</button><span class="muted small">You choose what gets shared</span></div>
+    <div class="answer-card" id="copilotAnswer" hidden aria-live="polite"></div>
+    <details id="transcriptPanel" class="transcript-panel"><summary>Live transcript <span id="transcriptCount">0</span></summary><ol id="transcriptList" aria-live="polite"></ol></details>
     <p class="heard" id="heard" hidden></p>
     <p class="error" id="liveError" hidden></p>
     <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
+    <label class="check small"><input id="voiceCommandsEnabled" type="checkbox"> Enable spoken commands (“CareerOS, explain …”)</label>
+    <div class="row"><button id="voiceToggleBtn" class="btn ghost" type="button">Pause microphone/call audio</button></div>
+    <div class="row"><button id="clearSessionBtn" class="btn ghost" type="button">Clear session</button><span class="muted small">Ctrl/Cmd+Shift+K: Ask · Ctrl/Cmd+Shift+L: Transcript · Ctrl/Cmd+Shift+J: Screen</span></div>
     <div class="row">
       <button id="stopBtn" class="btn ghost">Stop</button>
       <button id="notesBtn" class="btn ghost" disabled>Save notes</button>

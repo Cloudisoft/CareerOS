@@ -116,7 +116,106 @@
   let running = false;
   let fatal = false;
   let applicationId = '';
+  let sessionStartedAt = 0;
+  let clockTimer = null;
+  let asking = false;
+  let screenBusy = false;
+  let transcriptCount = 0;
+  const chatHistory = [];
   const notes = [];
+  const skillPrompts = {
+    general: '',
+    behavioral: 'Give me concise STAR-method talking points for: ',
+    programming: 'Explain a correct programming approach and key trade-offs for: ',
+    dsa: 'Explain the algorithm, time and space complexity, and edge cases for: ',
+    'system-design': 'Describe requirements, architecture, scaling and trade-offs for: ',
+    data: 'Explain the data science approach, validation and metrics for: ',
+    sales: 'Give me a practical sales or negotiation framework for: ',
+    devops: 'Explain infrastructure, deployment, reliability and security for: ',
+  };
+  function clearSession() {
+    recent = [];
+    lastQuestion = '';
+    notes.length = 0;
+    chatHistory.length = 0;
+    transcriptCount = 0;
+    $('transcriptList').replaceChildren();
+    $('transcriptCount').textContent = '0';
+    $('transcriptPanel').open = false;
+    $('current').replaceChildren();
+    const placeholder = document.createElement('p');
+    placeholder.className = 'muted';
+    placeholder.textContent = 'Session cleared. Listening for the next question.';
+    $('current').append(placeholder);
+    delete $('current').dataset.q;
+    $('earlierList').replaceChildren();
+    $('earlier').hidden = true;
+    $('heard').hidden = true;
+    $('notesBtn').disabled = true;
+    $('askInput').value = '';
+    $('copilotAnswer').hidden = true;
+    $('copilotAnswer').textContent = '';
+  }
+  $('clearSessionBtn').addEventListener('click', clearSession);
+  document.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || !running) return;
+    if (event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      $('askInput').focus();
+    } else if (event.key.toLowerCase() === 'l') {
+      event.preventDefault();
+      $('transcriptPanel').open = !$('transcriptPanel').open;
+    } else if (event.key.toLowerCase() === 'j') {
+      event.preventDefault();
+      $('screenBtn').click();
+    }
+  });
+  function displayAnswer(text) {
+    $('copilotAnswer').hidden = false;
+    $('copilotAnswer').textContent = text;
+    $('copilotAnswer').scrollIntoView({ block: 'nearest' });
+  }
+  $('screenBtn').addEventListener('click', async () => {
+    if (!running || screenBusy) return;
+    const question = $('askInput').value.trim() || 'Explain the selected screenshot and provide practical guidance.';
+    screenBusy = true;
+    $('screenBtn').disabled = true;
+    setState('Analyzing…', 'busy');
+    try {
+      const result = await C.analyzeScreen(question);
+      if (result.ok && result.answer) displayAnswer(result.answer);
+      else if (!result.cancelled) showError('liveError', result.error || 'Screenshot analysis failed.');
+    } catch (error) {
+      showError('liveError', error.message || 'Screenshot analysis failed.');
+    } finally {
+      screenBusy = false;
+      $('screenBtn').disabled = false;
+      setState(running ? 'Listening' : '', running ? 'on' : '');
+    }
+  });
+  $('voiceToggleBtn').addEventListener('click', () => {
+    if (!running || !stream) return;
+    const active = stream.getAudioTracks().some((track) => track.enabled);
+    stream.getAudioTracks().forEach((track) => { track.enabled = !active; });
+    $('voiceToggleBtn').textContent = active ? 'Resume microphone/call audio' : 'Pause microphone/call audio';
+    setState(active ? 'Audio paused' : 'Listening', active ? '' : 'on');
+  });
+  function updateClock() {
+    const seconds = Math.max(0, Math.floor((Date.now() - sessionStartedAt) / 1000));
+    $('sessionClock').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+  function appendTranscript(message) {
+    const li = document.createElement('li');
+    const time = document.createElement('time');
+    time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const content = document.createElement('span');
+    content.textContent = message;
+    li.append(time, content);
+    $('transcriptList').append(li);
+    transcriptCount++;
+    $('transcriptCount').textContent = String(transcriptCount);
+    li.scrollIntoView({ block: 'nearest' });
+  }
 
   async function getStream(source) {
     if (st.testAudio) {
@@ -195,6 +294,20 @@
     const transcript = (t.transcript || '').trim();
     setState('Listening', 'on');
     if (!transcript) return;
+    appendTranscript(transcript);
+    // Only act on an explicit wake phrase when this session's opt-in is on.
+    // The phrase is transcribed using the existing audio source; no extra capture occurs.
+    const voiceCommand = /^careeros[,:]?\s+(?:answer|explain|help(?:\s+me)?(?:\s+with)?)[,:]?\s+(.{3,})$/i.exec(transcript);
+    if (voiceCommand && $('voiceCommandsEnabled').checked) {
+      const response = await C.askCopilot({
+        skill: $('skillPreset').value,
+        question: voiceCommand[1].trim(),
+        recent: recent.slice(-RECENT),
+      });
+      if (response.ok && response.answer) displayAnswer(response.answer);
+      else showError('liveError', response.error || 'Voice question could not be answered.');
+      return;
+    }
     $('heard').hidden = false;
     $('heard').textContent = `Heard: “${transcript}”`;
     setState('Thinking…', 'busy');
@@ -237,6 +350,41 @@
     $('notesBtn').disabled = false;
   }
 
+  $('askForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const question = $('askInput').value.trim();
+    const skill = $('skillPreset').value;
+    const requested = (skillPrompts[skill] || '') + question;
+    if (!running || asking || !question) return;
+    asking = true;
+    $('askBtn').disabled = true;
+    showError('liveError', '');
+    setState('Thinking…', 'busy');
+    try {
+      const conversation = [
+        ...recent,
+        ...Array.from($('transcriptList').children).slice(-4).map((item) => item.querySelector('span')?.textContent || ''),
+        ...chatHistory.slice(-4),
+      ].slice(-8);
+      const response = await C.askCopilot({ skill, question: requested, recent: conversation });
+      if (!response.ok) return onError(response.error);
+      if (!response.answer) {
+        showError('liveError', 'No answer was generated.');
+      } else {
+        displayAnswer(response.answer);
+        chatHistory.push('User: ' + question, 'Assistant: ' + response.answer.slice(0, 900));
+        if (chatHistory.length > 8) chatHistory.splice(0, chatHistory.length - 8);
+        $('askInput').value = '';
+      }
+    } catch (error) {
+      showError('liveError', error.message || 'Could not ask CareerOS.');
+    } finally {
+      asking = false;
+      $('askBtn').disabled = false;
+      setState(running ? 'Listening' : '', running ? 'on' : '');
+    }
+  });
+
   async function start() {
     showError('homeError', '');
     showError('liveError', '');
@@ -247,9 +395,17 @@
       return showError('homeError', err.message || 'Couldn’t start listening.');
     }
     running = true;
+    sessionStartedAt = Date.now();
+    updateClock();
+    if (clockTimer) clearInterval(clockTimer);
+    clockTimer = setInterval(updateClock, 1000);
+    $('askBtn').disabled = false;
+    $('voiceToggleBtn').textContent = 'Pause microphone/call audio';
+    $('screenBtn').disabled = false;
     fatal = false;
     recent = [];
     lastQuestion = '';
+    chatHistory.length = 0;
     ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
@@ -275,6 +431,10 @@
     running = false;
     if (ticker) clearInterval(ticker);
     ticker = null;
+    if (clockTimer) clearInterval(clockTimer);
+    clockTimer = null;
+    $('askBtn').disabled = true;
+    $('screenBtn').disabled = true;
     if (recorder && recorder.state !== 'inactive') { recorder.onstop = null; try { recorder.stop(); } catch { /* ignore */ } }
     recorder = null;
     if (ctx) { try { ctx.close(); } catch { /* ignore */ } }
@@ -298,6 +458,15 @@
     $('heard').hidden = true;
     showError('liveError', '');
     notes.length = 0;
+    chatHistory.length = 0;
+    $('transcriptList').replaceChildren();
+    transcriptCount = 0;
+    $('transcriptCount').textContent = '0';
+    $('transcriptPanel').open = false;
+    $('askInput').value = '';
+    $('voiceCommandsEnabled').checked = false;
+    $('copilotAnswer').hidden = true;
+    $('copilotAnswer').textContent = '';
     $('notesBtn').disabled = true;
     route();
   };

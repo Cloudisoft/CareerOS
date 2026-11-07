@@ -50,3 +50,29 @@ select { font: inherit; font-weight: 400; color: var(--text); background: var(--
 .earlier ol { margin: 6px 0 0; padding-left: 18px; color: #cfc7d3; display: grid; gap: 4px; }
 
 .code { margin: 0; font: 600 22px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; text-align: center; padding: 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
+
+/* Companion 2.0: a compact, accessible live workspace. */
+.top { background: linear-gradient(120deg, #221b2b, #16131b); }
+.session-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 11px; }
+.live-pill { padding: 3px 8px; border-radius: 999px; background: rgba(46,158,91,.16); color: #9fe3bb; letter-spacing: .08em; font-weight: 800; }
+#sessionClock { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 700; }
+.session-hint { margin-left: auto; }
+.ask-form { padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ask-line { display: flex; gap: 8px; }
+.ask-line input { flex: 1; min-width: 0; background: #14111a; color: var(--text); border: 1px solid rgba(255,255,255,.2); border-radius: 8px; padding: 10px; font: inherit; }
+.ask-line input:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px; }
+.ask-line .btn { white-space: nowrap; }
+.transcript-panel { background: var(--panel); border-radius: 10px; border: 1px solid var(--line); padding: 10px 12px; }
+.transcript-panel summary { cursor: pointer; color: var(--text); font-weight: 650; }
+#transcriptCount { color: var(--muted); font-weight: 400; }
+#transcriptList { padding-left: 22px; max-height: 180px; overflow: auto; color: var(--muted); }
+#transcriptList li { margin: 8px 0; overflow-wrap: anywhere; }
+#transcriptList time { font-size: 10px; color: #bdaebf; margin-right: 7px; }
+@media (max-width: 380px) { .session-hint { display: none; } .ask-line { flex-direction: column; } }
+
+.skill-toolbar { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.skill-toolbar select { flex: 1; min-width: 0; }
+#clearSessionBtn { flex: none; padding: 7px 10px; }
+
+.answer-card { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #25202c; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; user-select: text; line-height: 1.6; }
+.answer-card[hidden] { display: none; }
