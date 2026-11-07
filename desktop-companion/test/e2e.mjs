@@ -137,6 +137,9 @@ try {
   check((await win.textContent('#copilotAnswer')).includes('binary search complexity'), 'Ask AI displays specialist answer');
   check((await win.textContent('#copilotAnswer')).includes('dsa'), 'specialist skill reaches the AI endpoint');
   check(Number(await win.textContent('#transcriptCount')) === 2, 'transcript records incoming speech');
+  await win.click('#saveSessionBtn');
+  await win.waitForFunction(() => document.querySelector('#sessionSaveState').textContent.includes('Saved on this computer'));
+  check(true, 'session is saved explicitly on user request');
   await win.click('#clearSessionBtn');
   check((await win.textContent('#transcriptCount')) === '0', 'Clear session resets transcript');
   check(!(await visible('#copilotAnswer')), 'Clear session removes AI answers');
@@ -165,6 +168,15 @@ try {
   await win.click('#stopBtn');
   await win.click('#stopBtn'); // Back
   await win.waitForSelector('#home:not([hidden])');
+  await win.waitForFunction(() => document.querySelectorAll('.history-item').length === 1);
+  check((await win.textContent('.history-item')).includes('Senior Data Analyst'), 'saved session appears in local history');
+  await win.fill('#historySearch', 'binary search complexity');
+  check(await win.locator('.history-item').count() === 1, 'saved history searches AI answers');
+  await win.fill('#historySearch', 'not-in-session');
+  check(await win.locator('.history-item').count() === 0, 'saved history filters nonmatching entries');
+  await win.fill('#historySearch', '');
+  await win.click('.history-item button.link');
+  check((await win.textContent('#historyPreview')).includes('binary search complexity'), 'saved session opens with transcript and AI answers');
   seen.sttMode = 'unset';
   await win.click('#startBtn');
   await win.waitForSelector('#live:not([hidden])');
