@@ -175,6 +175,42 @@ ipcMain.handle('transcribe', async (_e, { audio, mimeType }) => {
 ipcMain.handle('assist', async (_e, payload) => {
   try { return { ok: true, ...(await api('/interview/live/assist', { method: 'POST', body: payload })) }; } catch (err) { return { ok: false, error: err.message }; }
 });
+ipcMain.handle('askCopilot', async (_e, payload) => {
+  try { return { ok: true, ...(await api('/interview/copilot/ask', { method: 'POST', body: payload })) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// User explicitly triggers each capture. No background screenshots, clipboard or monitoring.
+ipcMain.handle('analyzeScreen', async (_e, question) => {
+  try {
+    if (typeof question !== 'string' || question.trim().length < 2 || question.length > 1500) {
+      return { ok: false, error: 'Enter a question (2–1500 characters) about the screenshot.' };
+    }
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'], thumbnailSize: { width: 1280, height: 800 },
+    });
+    if (!sources.length) return { ok: false, error: 'No screen source was available.' };
+    const choices = sources.slice(0, 5);
+    const selection = await dialog.showMessageBox(win, {
+      type: 'question',
+      title: 'Share a screenshot with CareerOS AI?',
+      message: 'Choose the screen to capture and send to CareerOS for analysis.',
+      detail: 'The captured image may contain private information. Close sensitive windows first. CareerOS will send this image to its AI provider to answer your question.',
+      buttons: [...choices.map((item, i) => `Screen ${i + 1}: ${item.name}`), 'Cancel'],
+      defaultId: choices.length,
+      cancelId: choices.length,
+      noLink: true,
+    });
+    if (selection.response >= choices.length) return { ok: false, cancelled: true };
+    const screenshot = choices[selection.response].thumbnail.toJPEG(75);
+    if (!screenshot.length || screenshot.length > 2_000_000) {
+      return { ok: false, error: 'Screenshot too large. Try a lower display resolution.' };
+    }
+    const image = 'data:image/jpeg;base64,' + screenshot.toString('base64');
+    return { ok: true, ...(await api('/interview/copilot/vision', {
+      method: 'POST', body: { screenshot: image, question: question.trim() },
+    })) };
+  } catch (err) { return { ok: false, error: err.message || 'Screen analysis failed.' }; }
+});
 ipcMain.handle('micPermission', async () => {
   if (process.platform !== 'darwin') return 'granted';
   const status = systemPreferences.getMediaAccessStatus('microphone');
