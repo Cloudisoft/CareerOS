@@ -6,6 +6,10 @@ name: Desktop companion
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "desktop-companion/**"
+      - ".github/workflows/desktop-companion.yml"
   push:
     branches: ["main"]
     paths:
