@@ -31,15 +31,27 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run ${{ matrix.script }} -- --publish never
+      - name: Build
+        shell: bash
         env:
-          # Without signing certificates the installers are unsigned (see README). Add these secrets to sign.
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+          # Signing secrets are optional. They're passed through only when set: an empty CSC_LINK makes
+          # electron-builder treat the app folder as the certificate and fail ("not a file").
+          SECRET_CSC_LINK: ${{ secrets.CSC_LINK }}
+          SECRET_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          SECRET_APPLE_ID: ${{ secrets.APPLE_ID }}
+          SECRET_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$SECRET_CSC_LINK" ]; then
+            export CSC_LINK="$SECRET_CSC_LINK" CSC_KEY_PASSWORD="$SECRET_CSC_KEY_PASSWORD"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "No signing certificate: building an unsigned installer."
+          fi
+          if [ -n "$SECRET_APPLE_ID" ]; then
+            export APPLE_ID="$SECRET_APPLE_ID" APPLE_APP_SPECIFIC_PASSWORD="$SECRET_APPLE_APP_SPECIFIC_PASSWORD" APPLE_TEAM_ID="$SECRET_APPLE_TEAM_ID"
+          fi
+          npm run ${{ matrix.script }} -- --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: careeros-interview-companion-${{ runner.os }}
