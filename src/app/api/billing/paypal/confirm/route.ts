@@ -20,6 +20,12 @@ export async function POST(req: NextRequest) {
     if (!user) return apiError("Not authenticated", 401, "UNAUTHENTICATED");
 
     const { subscriptionID, kind, key } = paypalConfirmSchema.parse(await req.json());
+    if (kind === "addon" && key === "INTERVIEW_AI") {
+      const account = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } });
+      if (account?.role !== "CANDIDATE") {
+        return apiError("Interview AI is available only to candidate/job seeker accounts.", 403, "FORBIDDEN");
+      }
+    }
 
     const expectedPlanId =
       kind === "plan"
