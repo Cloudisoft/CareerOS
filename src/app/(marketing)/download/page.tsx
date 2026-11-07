@@ -3,6 +3,10 @@ import Link from "next/link";
 import { Apple, Monitor, Mic, ListChecks, FileText, ShieldCheck } from "lucide-react";
 import { PageHero } from "@/components/marketing/page-hero";
 import { SUPPORT_EMAIL } from "@/config/brand";
+import { downloadsBucket } from "@/lib/storage/s3-presign";
+
+// The buttons depend on whether the downloads bucket is connected on the server.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Interview Companion for Mac and Windows",
@@ -10,9 +14,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/download" },
 };
 
-/** Where the installers are hosted. Set these on the server once the builds are uploaded. */
-const MAC_URL = process.env.NEXT_PUBLIC_COMPANION_MAC_URL || "";
-const WIN_URL = process.env.NEXT_PUBLIC_COMPANION_WIN_URL || "";
+/** Where the installers are: the private downloads bucket (served through /download/<platform>), or URLs set
+    on the server (NEXT_PUBLIC_COMPANION_*_URL) if they're hosted elsewhere. */
+function installerUrls() {
+  const hosted = Boolean(downloadsBucket());
+  return {
+    mac: process.env.NEXT_PUBLIC_COMPANION_MAC_URL || (hosted ? "/download/mac" : ""),
+    macIntel: process.env.NEXT_PUBLIC_COMPANION_MAC_INTEL_URL || (hosted ? "/download/mac-intel" : ""),
+    win: process.env.NEXT_PUBLIC_COMPANION_WIN_URL || (hosted ? "/download/windows" : ""),
+  };
+}
 
 const FEATURES = [
   { icon: Mic, title: "Works with any call app", body: "Zoom, Teams, Google Meet, Webex and others, in the browser or the desktop app. It listens to your computer's call audio, or your microphone." },
@@ -45,6 +56,7 @@ function DownloadButton({ href, icon: Icon, label, sub }: { href: string; icon: 
 }
 
 export default function DownloadPage() {
+  const urls = installerUrls();
   return (
     <>
       <PageHero eyebrow="Desktop app" title="CareerOS Interview Companion" align="left" />
@@ -54,9 +66,15 @@ export default function DownloadPage() {
             A small window that sits beside your interview call. When you&apos;re asked a question, it shows a few talking points from your own CareerOS resume. Sign in with your CareerOS account; it&apos;s included with Interview AI.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <DownloadButton href={MAC_URL} icon={Apple} label="Download for Mac" sub="macOS 13 or later" />
-            <DownloadButton href={WIN_URL} icon={Monitor} label="Download for Windows" sub="Windows 10 or 11" />
+            <DownloadButton href={urls.mac} icon={Apple} label="Download for Mac" sub="Apple Silicon (M1–M4) · macOS 13+" />
+            <DownloadButton href={urls.win} icon={Monitor} label="Download for Windows" sub="Windows 10 or 11" />
           </div>
+          {urls.macIntel && (
+            <p className="text-xs text-muted-foreground">
+              Mac with an Intel processor?{" "}
+              <a href={urls.macIntel} className="text-primary hover:underline">Download the Intel version</a>. First time opening it on a Mac, right-click the app and choose Open; on Windows, choose More info, then Run anyway.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Prefer the browser? The Interview Prep Chrome extension does the same on Google Meet, Zoom and Teams calls in Chrome.
           </p>
