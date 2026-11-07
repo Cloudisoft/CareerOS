@@ -121,6 +121,7 @@
   let asking = false;
   let screenBusy = false;
   let transcriptCount = 0;
+  const chatHistory = [];
   const notes = [];
   const skillPrompts = {
     general: '',
@@ -136,6 +137,7 @@
     recent = [];
     lastQuestion = '';
     notes.length = 0;
+    chatHistory.length = 0;
     transcriptCount = 0;
     $('transcriptList').replaceChildren();
     $('transcriptCount').textContent = '0';
@@ -346,12 +348,19 @@
     showError('liveError', '');
     setState('Thinking…', 'busy');
     try {
-      const response = await C.askCopilot({ skill, question: requested, recent: [...recent, ...Array.from($('transcriptList').children).slice(-5).map((item) => item.querySelector('span')?.textContent || '')].slice(-8) });
+      const conversation = [
+        ...recent,
+        ...Array.from($('transcriptList').children).slice(-4).map((item) => item.querySelector('span')?.textContent || ''),
+        ...chatHistory.slice(-4),
+      ].slice(-8);
+      const response = await C.askCopilot({ skill, question: requested, recent: conversation });
       if (!response.ok) return onError(response.error);
       if (!response.answer) {
         showError('liveError', 'No answer was generated.');
       } else {
         displayAnswer(response.answer);
+        chatHistory.push('User: ' + question, 'Assistant: ' + response.answer.slice(0, 900));
+        if (chatHistory.length > 8) chatHistory.splice(0, chatHistory.length - 8);
         $('askInput').value = '';
       }
     } catch (error) {
@@ -383,6 +392,7 @@
     fatal = false;
     recent = [];
     lastQuestion = '';
+    chatHistory.length = 0;
     ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
@@ -435,6 +445,7 @@
     $('heard').hidden = true;
     showError('liveError', '');
     notes.length = 0;
+    chatHistory.length = 0;
     $('transcriptList').replaceChildren();
     transcriptCount = 0;
     $('transcriptCount').textContent = '0';
