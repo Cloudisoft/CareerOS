@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { getEntitlements } from "@/lib/billing/entitlements";
+import { companionAccess } from "@/lib/companion/access";
 import { COMPANION_FILES, downloadsBucket, presignS3, type CompanionPlatform } from "@/lib/storage/s3-presign";
 
 export const dynamic = "force-dynamic";
@@ -20,19 +21,19 @@ export async function GET(req: NextRequest, { params }: { params: { platform: st
 
   const noStore = { "Cache-Control": "private, no-store, max-age=0" };
   const user = await getSessionUser();
-  if (!user) {
+  if (companionAccess(user?.role, false) === "login") {
     const login = new URL("/login", req.url);
     login.searchParams.set("as", "CANDIDATE");
     login.searchParams.set("next", `/download/${platform}`);
     return NextResponse.redirect(login, { status: 303, headers: noStore });
   }
 
-  if (user.role !== "CANDIDATE") {
+  if (!user || companionAccess(user.role, false) === "candidate-only") {
     return NextResponse.redirect(new URL("/download?error=candidate-only", req.url), { status: 303, headers: noStore });
   }
 
   const entitlements = await getEntitlements(user.id);
-  if (entitlements.interviewAi !== true) {
+  if (companionAccess(user.role, entitlements.interviewAi === true) !== "allowed") {
     return NextResponse.redirect(new URL("/download?upgrade=interview-ai", req.url), { status: 303, headers: noStore });
   }
 
