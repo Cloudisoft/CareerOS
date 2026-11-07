@@ -124,6 +124,7 @@
   const chatHistory = [];
   const notes = [];
   const savedAnswers = [];
+  let notesBusy = false;
   let savedSessions = [];
   async function refreshHistory() {
     const result = await C.sessionHistoryList();
@@ -177,6 +178,50 @@
       $('historyList').append(wrapper);
     }
   }
+  function sessionTranscript() {
+    return Array.from($('transcriptList').children)
+      .map(li => li.querySelector('span')?.textContent || '').filter(Boolean);
+  }
+  async function generateMeetingNotes() {
+    if (notesBusy) return;
+    const transcript = sessionTranscript();
+    if (!transcript.length && !savedAnswers.length) {
+      showError('liveError', 'No conversation has been transcribed or answered yet.');
+      return;
+    }
+    notesBusy = true;
+    $('generateNotesBtn').disabled = true;
+    showError('liveError', '');
+    try {
+      const result = await C.generateSessionNotes({
+        mode: $('target').value ? 'interview' : 'meeting',
+        transcript: transcript.slice(-300),
+        questions: savedAnswers.slice(-30),
+      });
+      if (!result.ok) {
+        showError('liveError', result.error || 'Notes generation failed.');
+        return;
+      }
+      $('editableNotes').value = result.note || '';
+      $('exportNotesBtn').disabled = !$('editableNotes').value.trim();
+      $('notesPanel').open = true;
+    } catch (error) {
+      showError('liveError', error.message || 'Notes generation failed.');
+    } finally {
+      notesBusy = false;
+      $('generateNotesBtn').disabled = false;
+    }
+  }
+  $('generateNotesBtn').addEventListener('click', generateMeetingNotes);
+  $('editableNotes').addEventListener('input', () => {
+    $('exportNotesBtn').disabled = !$('editableNotes').value.trim();
+  });
+  $('exportNotesBtn').addEventListener('click', async () => {
+    if (!$('editableNotes').value.trim()) return;
+    const result = await C.saveNotes($('editableNotes').value);
+    if (result?.ok) setState('Summary exported', '');
+    else if (result?.error) showError('liveError', result.error);
+  });
   $('historySearch').addEventListener('input', renderHistory);
   $('saveSessionBtn').addEventListener('click', async () => {
     if (!running && !transcriptCount && !savedAnswers.length) return;
@@ -220,6 +265,8 @@
     $('heard').hidden = true;
     $('notesBtn').disabled = true;
     $('askInput').value = '';
+    $('editableNotes').value = '';
+    $('exportNotesBtn').disabled = true;
     $('copilotAnswer').hidden = true;
     $('copilotAnswer').textContent = '';
   }
@@ -476,6 +523,8 @@
     chatHistory.length = 0;
     savedAnswers.length = 0;
     $('sessionSaveState').textContent = 'Only saved when you choose';
+    $('editableNotes').value = '';
+    $('exportNotesBtn').disabled = true;
     ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
@@ -498,7 +547,9 @@
   }
 
   function stop(reason) {
+    const shouldGenerateNotes = running && !reason && $('autoNotes').checked;
     running = false;
+    if (shouldGenerateNotes) void generateMeetingNotes();
     if (ticker) clearInterval(ticker);
     ticker = null;
     if (clockTimer) clearInterval(clockTimer);
@@ -535,6 +586,9 @@
     $('transcriptCount').textContent = '0';
     $('transcriptPanel').open = false;
     $('askInput').value = '';
+    $('editableNotes').value = '';
+    $('exportNotesBtn').disabled = true;
+    $('autoNotes').checked = false;
     $('voiceCommandsEnabled').checked = false;
     $('copilotAnswer').hidden = true;
     $('copilotAnswer').textContent = '';
