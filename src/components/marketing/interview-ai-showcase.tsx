@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion, useInView } from "framer-motion";
 import { AudioLines, ListChecks, Sparkles, Mic, FileText, Check, BookOpen, Volume2, VolumeX } from "lucide-react";
 
 /* Looping, illustrative demos of Interview AI for the home page: the desktop Companion listening for a question
    and showing talking points, the running list of questions with notes, and a practice interview built from a
    resume. Sample content only; nothing here is live data. Each scene plays a short timeline, holds, then the
-   stage moves to the next scene. Animations only run while the stage is on screen, and people who prefer
-   reduced motion see each scene's finished state. */
+   stage moves to the next scene. Animations only run while the stage is on screen. The demo always plays (a frozen
+   demo looks broken); for people who prefer reduced motion, MotionConfig turns movement into plain fades. */
 
 type SceneProps = { step: number };
 
@@ -376,6 +376,8 @@ function IllustratedInterviewer({ speaking, still }: { speaking: boolean; still:
         cx="100"
         cy="139"
         rx="9"
+        ry="1.5"
+        initial={{ ry: 1.5 }}
         fill="#7a3b2e"
         animate={speaking && !still ? { ry: [1.5, 5, 2.5, 6, 1.5, 4, 2] } : { ry: 1.5 }}
         transition={speaking && !still ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
@@ -436,7 +438,6 @@ function pickVoice(practice: boolean): SpeechSynthesisVoice | null {
 }
 
 export function InterviewAIShowcase() {
-  const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { amount: 0.35 });
   const [scene, setScene] = useState(0);
@@ -455,7 +456,7 @@ export function InterviewAIShowcase() {
   // Play the current scene's timeline, hold on the finished state, then move to the next scene. It loops for as
   // long as the section is on screen. With sound on, the interviewer's line is spoken and the demo waits for it.
   useEffect(() => {
-    if (reduce || !inView) return;
+    if (!inView) return;
     const line = sound && canSpeak ? lineFor(cfg.id, step) : "";
     let timerDone = false;
     let speechDone = !line;
@@ -496,16 +497,17 @@ export function InterviewAIShowcase() {
       if (safety) clearTimeout(safety);
       if (talking) window.speechSynthesis.cancel();
     };
-  }, [step, scene, inView, reduce, cfg, sound, canSpeak]);
+  }, [step, scene, inView, cfg, sound, canSpeak]);
 
   const Scene = RENDER[cfg.id];
-  const shownStep = reduce ? 99 : step;
+  const shownStep = step;
   // When the other side of the call is talking in each demo.
   const speaking =
-    !reduce && inView && ((cfg.id === "listen" && step >= 1 && step <= 2) || (cfg.id === "list" && step >= 1 && step <= 5) || (cfg.id === "practice" && step === 6));
+    inView && ((cfg.id === "listen" && step >= 1 && step <= 2) || (cfg.id === "list" && step >= 1 && step <= 5) || (cfg.id === "practice" && step === 6));
   const caller = cfg.id === "practice" ? { label: "Interview AI", sub: "Practice interviewer" } : { label: "Jordan Reyes", sub: "Hiring manager · Northwind" };
 
   return (
+    <MotionConfig reducedMotion="user">
     <div ref={ref}>
       <div className="flex justify-center gap-1.5 sm:flex-wrap sm:gap-2" role="tablist" aria-label="Interview AI demos">
         {SCENES.map((s, i) => (
@@ -526,7 +528,7 @@ export function InterviewAIShowcase() {
             <s.icon className={"h-3.5 w-3.5 " + (i === scene ? "text-primary" : "")} />
             <span className="sm:hidden">{s.short}</span>
             <span className="hidden sm:inline">{s.label}</span>
-            {i === scene && !reduce && (
+            {i === scene && (
               <motion.span
                 key={`${scene}-bar`}
                 className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-primary"
@@ -538,7 +540,7 @@ export function InterviewAIShowcase() {
           </button>
         ))}
       </div>
-      {canSpeak && !reduce && (
+      {canSpeak && (
         <div className="mt-3 flex justify-center">
           <button
             type="button"
@@ -561,7 +563,7 @@ export function InterviewAIShowcase() {
         <div aria-hidden className="pointer-events-none absolute -inset-y-10 inset-x-0 -z-10 rounded-full opacity-60 blur-3xl md:-inset-10" style={{ background: "radial-gradient(circle, rgba(239,134,45,0.18), transparent 70%)" }} />
         <div className="flex items-center gap-3 md:sticky md:top-24 md:block">
           <div className="w-20 shrink-0 sm:w-24 md:w-full">
-            <CallTile speaking={speaking} label={caller.label} sub={caller.sub} still={Boolean(reduce)} />
+            <CallTile speaking={speaking} label={caller.label} sub={caller.sub} still={false} />
           </div>
           <div className="min-w-0 md:hidden">
             <p className="truncate text-sm font-semibold text-foreground">{caller.label}</p>
@@ -579,5 +581,6 @@ export function InterviewAIShowcase() {
         <p className="text-center text-[11px] text-muted-foreground md:col-span-2">Sample interview for illustration.</p>
       </div>
     </div>
+    </MotionConfig>
   );
 }
