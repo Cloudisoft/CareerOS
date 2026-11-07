@@ -120,8 +120,14 @@ try {
   check(!(await win.isChecked('#networkPaused')), 'AI/network pause defaults off');
   await win.check('#capturePrivacy');
   await win.waitForFunction(() => document.getElementById('privacyStatus').textContent.includes('privacy requested'));
+  const capturePrefs = await win.evaluate(() => window.companion.state());
+  check(capturePrefs.capturePrivacy === true, 'optional capture protection preference is saved');
   const protectionEnabled = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isContentProtected());
-  check(protectionEnabled === true, 'optional screen-capture protection is applied to window');
+  if (process.platform !== 'linux') {
+    check(protectionEnabled === true, 'OS capture-protection flag is enabled on supported desktop');
+  } else {
+    console.log('ℹ Linux capture protection is not reliably supported by Electron; preference-only test');
+  }
   await win.uncheck('#capturePrivacy');
   await win.waitForFunction(() => document.getElementById('privacyStatus').textContent.includes('privacy off'));
   await win.check('#networkPaused');
