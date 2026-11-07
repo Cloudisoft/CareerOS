@@ -297,7 +297,7 @@
     appendTranscript(transcript);
     // Only act on an explicit wake phrase when this session's opt-in is on.
     // The phrase is transcribed using the existing audio source; no extra capture occurs.
-    const voiceCommand = /^careeros[,:]?\\s+(?:answer|explain|help(?:\\s+me)?(?:\\s+with)?)[,:]?\\s+(.{3,})$/i.exec(transcript);
+    const voiceCommand = /^careeros[,:]?\s+(?:answer|explain|help(?:\s+me)?(?:\s+with)?)[,:]?\s+(.{3,})$/i.exec(transcript);
     if (voiceCommand && $('voiceCommandsEnabled').checked) {
       const response = await C.askCopilot({
         skill: $('skillPreset').value,
