@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanionCard } from "@/components/companion/companion-card";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
@@ -250,6 +251,8 @@ export default async function DashboardPage() {
               </Link>
             </div>
           </div>
+
+          <CompanionCard />
 
           <Link
             href="/ai-work"
