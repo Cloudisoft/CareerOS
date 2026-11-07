@@ -22,6 +22,14 @@ const oidcResponse = await fetch(requestUrl + (requestUrl.includes('?') ? '&' : 
 if (!oidcResponse.ok) throw new Error('Could not obtain short-lived GitHub release identity.');
 const token = (await oidcResponse.json()).value;
 if (!token || typeof token !== 'string') throw new Error('No GitHub OIDC identity was returned.');
+// Safe public workflow metadata only. Never print the JWT, authorization bearer, or S3 URL.
+const identity = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+console.log('Release identity claims:', JSON.stringify({
+  iss: identity.iss, aud: identity.aud, sub: identity.sub,
+  repository: identity.repository, repository_id: identity.repository_id,
+  ref: identity.ref, event_name: identity.event_name, workflow_ref: identity.workflow_ref,
+  exp: identity.exp, iat: identity.iat,
+}));
 
 const files = await readdir(dir);
 function targetFilename(predicate, label) {
