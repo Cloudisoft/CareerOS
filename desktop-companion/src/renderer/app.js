@@ -295,6 +295,19 @@
     setState('Listening', 'on');
     if (!transcript) return;
     appendTranscript(transcript);
+    // Only act on an explicit wake phrase when this session's opt-in is on.
+    // The phrase is transcribed using the existing audio source; no extra capture occurs.
+    const voiceCommand = /^careeros[,:]?\\s+(?:answer|explain|help(?:\\s+me)?(?:\\s+with)?)[,:]?\\s+(.{3,})$/i.exec(transcript);
+    if (voiceCommand && $('voiceCommandsEnabled').checked) {
+      const response = await C.askCopilot({
+        skill: $('skillPreset').value,
+        question: voiceCommand[1].trim(),
+        recent: recent.slice(-RECENT),
+      });
+      if (response.ok && response.answer) displayAnswer(response.answer);
+      else showError('liveError', response.error || 'Voice question could not be answered.');
+      return;
+    }
     $('heard').hidden = false;
     $('heard').textContent = `Heard: “${transcript}”`;
     setState('Thinking…', 'busy');
@@ -451,6 +464,7 @@
     $('transcriptCount').textContent = '0';
     $('transcriptPanel').open = false;
     $('askInput').value = '';
+    $('voiceCommandsEnabled').checked = false;
     $('copilotAnswer').hidden = true;
     $('copilotAnswer').textContent = '';
     $('notesBtn').disabled = true;
