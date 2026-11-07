@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('companion', {
   analyzeScreen: (question) => ipcRenderer.invoke('analyzeScreen', question),
   micPermission: () => ipcRenderer.invoke('micPermission'),
   saveNotes: (markdown) => ipcRenderer.invoke('saveNotes', markdown),
+  sessionHistoryList: () => ipcRenderer.invoke('sessionHistoryList'),
+  sessionHistorySave: (data) => ipcRenderer.invoke('sessionHistorySave', data),
+  sessionHistoryDelete: (id) => ipcRenderer.invoke('sessionHistoryDelete', id),
   openWeb: (where) => ipcRenderer.invoke('openWeb', where),
   onConnectCode: (fn) => ipcRenderer.on('connectCode', (_e, code) => fn(code)),
 });
