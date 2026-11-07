@@ -115,6 +115,28 @@ try {
   check((await win.$$eval('#target option', (o) => o.map((x) => x.textContent))).some((t) => /Senior Data Analyst @ Fabrikam/.test(t)), 'lists the jobs they applied to');
   await win.selectOption('#target', 'a1');
 
+  // Privacy is optional and defaults to off; screen protection is best-effort.
+  check(!(await win.isChecked('#capturePrivacy')), 'capture privacy defaults off');
+  check(!(await win.isChecked('#networkPaused')), 'AI/network pause defaults off');
+  await win.check('#capturePrivacy');
+  await win.waitForFunction(() => document.getElementById('privacyStatus').textContent.includes('privacy requested'));
+  const capturePrefs = await win.evaluate(() => window.companion.state());
+  check(capturePrefs.capturePrivacy === true, 'optional capture protection preference is saved');
+  const protectionEnabled = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isContentProtected());
+  if (process.platform !== 'linux') {
+    check(protectionEnabled === true, 'OS capture-protection flag is enabled on supported desktop');
+  } else {
+    console.log('ℹ Linux capture protection is not reliably supported by Electron; preference-only test');
+  }
+  await win.uncheck('#capturePrivacy');
+  await win.waitForFunction(() => document.getElementById('privacyStatus').textContent.includes('privacy off'));
+  await win.check('#networkPaused');
+  await win.waitForFunction(() => document.getElementById('startBtn').disabled);
+  check(await win.isDisabled('#startBtn'), 'offline privacy blocks start of AI audio session');
+  await win.uncheck('#networkPaused');
+  await win.waitForFunction(() => !document.getElementById('startBtn').disabled);
+  check(!(await win.isDisabled('#startBtn')), 'resuming network restores listening controls');
+
   // 3. Listen.
   await win.click('#startBtn');
   await win.waitForSelector('#live:not([hidden])');

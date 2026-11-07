@@ -13,7 +13,7 @@
   const CONSENT_VERSION = 1;
   const CONSENT_TEXT = [
     'Interview Companion listens to your call audio (or your microphone) while you have it on, and when someone asks you a question it shows a few talking points from your own CareerOS resume and stories. Never a script to read out.',
-    'This window is visible like any other app: it shows up if you share your screen or record.',
+    'By default, this window is visible like any other app: it can show in screen shares and recordings. Optional screen-share privacy may suppress its image in supported capture software, but it is not guaranteed and does not change consent or disclosure requirements.',
     'Some places require you to tell everyone on a call that it is being transcribed or AI-assisted. That is your responsibility.',
     'Some employers do not allow AI assistance in interviews and treat it as grounds for disqualification. Only use it where you are sure it is allowed.',
     'Audio is never stored. Short clips of speech are sent to CareerOS to be turned into text, used once to find talking points, and discarded.',
@@ -67,6 +67,9 @@
   async function loadHome() {
     $('pairedAs').textContent = st.pairedAs ? `Signed in as ${st.pairedAs}` : 'Signed in';
     $('onTop').checked = st.alwaysOnTop;
+    $('capturePrivacy').checked = st.capturePrivacy === true;
+    $('networkPaused').checked = st.networkPaused === true;
+    renderPrivacyStatus();
     $('source').value = st.source === 'mic' ? 'mic' : 'system';
     sourceNote();
     const res = await C.targets();
@@ -93,6 +96,31 @@
   $('source').onchange = () => { C.saveSettings({ source: $('source').value }); sourceNote(); };
   $('target').onchange = () => C.saveSettings({ lastApplicationId: $('target').value });
   $('onTop').onchange = (e) => C.saveSettings({ alwaysOnTop: e.target.checked });
+  function renderPrivacyStatus() {
+    $('privacyStatus').textContent = `${st.capturePrivacy ? 'Screen-share privacy requested' : 'Screen-share privacy off'} · ${st.networkPaused ? 'AI/network paused' : 'Network active'}`;
+    $('startBtn').disabled = st.networkPaused === true;
+    $('startBtn').title = st.networkPaused ? 'Resume AI/network activity to start listening.' : '';
+  }
+  async function setPrivacy(patch, checkbox, key) {
+    checkbox.disabled = true;
+    try {
+      const result = await C.saveSettings(patch);
+      if (result && result.ok) {
+        st[key] = result[key] === true;
+        checkbox.checked = st[key];
+        renderPrivacyStatus();
+      } else {
+        checkbox.checked = st[key] === true;
+        showError('homeError', result?.error || 'Could not update privacy setting.');
+      }
+    } catch (error) {
+      checkbox.checked = st[key] === true;
+      showError('homeError', error.message || 'Could not update privacy setting.');
+    } finally { checkbox.disabled = false; }
+  }
+  $('capturePrivacy').onchange = (e) => setPrivacy({ capturePrivacy: e.target.checked }, e.target, 'capturePrivacy');
+  $('networkPaused').onchange = (e) => setPrivacy({ networkPaused: e.target.checked }, e.target, 'networkPaused');
+  $('quickHideBtn').onclick = () => C.quickHide();
   $('practiceLink').onclick = () => C.openWeb('interview');
   $('signOut').onclick = async () => { await C.signOut(); st = await C.state(); route(); };
 
@@ -501,6 +529,10 @@
   });
 
   async function start() {
+    if (st.networkPaused) {
+      showError('homeError', 'AI/network activity is paused. Resume it in Privacy settings before starting.');
+      return;
+    }
     showError('homeError', '');
     showError('liveError', '');
     applicationId = $('target').value;

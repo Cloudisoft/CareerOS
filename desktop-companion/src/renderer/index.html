@@ -49,7 +49,8 @@
       <label class="check small"><input type="checkbox" id="capturePrivacy"> Screen-share privacy (best effort)</label>
       <p class="muted small">Requests OS capture protection for this window. Not guaranteed across screen-sharing apps or recordings; never substitutes for consent or interview rules.</p>
       <label class="check small"><input type="checkbox" id="networkPaused"> Pause AI and transcription requests</label>
-      <p class="muted small">Block AI requests while paused. Ctrl/Cmd+Shift+H hides or restores the window.</p>
+      <p class="muted small">Block new AI requests and cancel pending requests while paused. Ctrl/Cmd+Shift+H hides or restores the window. Hiding does not stop audio capture.</p>
+      <button id="quickHideBtn" type="button" class="btn ghost">Quick Hide window</button>
     </div>
     <button id="startBtn" class="btn">Start listening</button>
     <details class="transcript-panel" id="historyPanel">
@@ -101,6 +102,7 @@
     <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
     <label class="check small"><input id="voiceCommandsEnabled" type="checkbox"> Enable spoken commands (“CareerOS, explain …”)</label>
     <div class="privacy-status muted small" id="privacyStatus">Screen-share privacy off · Network active</div>
+    <p class="muted small">Quick Hide (Ctrl/Cmd+Shift+H) hides only this window. Press Stop to end audio capture.</p>
     <div class="row"><button id="voiceToggleBtn" class="btn ghost" type="button">Pause microphone/call audio</button></div>
     <details id="notesPanel" class="transcript-panel">
       <summary>Meeting notes &amp; summary</summary>
