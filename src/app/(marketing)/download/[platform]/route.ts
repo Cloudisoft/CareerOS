@@ -1,21 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCompanionDownloadAccess } from "@/lib/companion/access-server";
 import { COMPANION_FILES, downloadsBucket, presignS3, type CompanionPlatform } from "@/lib/storage/s3-presign";
 
 export const dynamic = "force-dynamic";
 
 /**
- * /download/mac, /download/mac-intel, /download/windows: sends the visitor to a 10-minute signed link for the
- * installer in the private Railway "downloads" bucket.
+ * Download authorization is enforced at the server, not only by hiding page buttons.
+ * A valid CANDIDATE session with a current Interview AI entitlement is required to
+ * obtain a short-lived signed Railway bucket URL. Do not host public installers or
+ * expose direct NEXT_PUBLIC_COMPANION URLs to bypass this check.
  */
 export async function GET(req: NextRequest, { params }: { params: { platform: string } }) {
-  const file = COMPANION_FILES[params.platform as CompanionPlatform];
+  const platform = params.platform as CompanionPlatform;
+  const file = Object.prototype.hasOwnProperty.call(COMPANION_FILES, platform)
+    ? COMPANION_FILES[platform]
+    : null;
+  if (!file) return new NextResponse("Not found", { status: 404 });
+
+  const noStore = { "Cache-Control": "private, no-store, max-age=0" };
+  const access = await getCompanionDownloadAccess();
+  if (access === "login") {
+    const login = new URL("/login", req.url);
+    login.searchParams.set("as", "CANDIDATE");
+    login.searchParams.set("next", `/download?platform=${platform}`);
+    return NextResponse.redirect(login, { status: 303, headers: noStore });
+  }
+  if (access === "candidate-only") {
+    return NextResponse.redirect(new URL("/download?error=candidate-only", req.url), { status: 303, headers: noStore });
+  }
+  if (access === "subscribe") {
+    return NextResponse.redirect(new URL("/download?upgrade=interview-ai", req.url), { status: 303, headers: noStore });
+  }
+
   const bucket = downloadsBucket();
-  if (!file || !bucket) return NextResponse.redirect(new URL("/download", req.url), 302);
+  if (!bucket) return NextResponse.redirect(new URL("/download?error=unavailable", req.url), { status: 303, headers: noStore });
+
   const url = presignS3(bucket, {
     method: "GET",
     key: file.key,
-    expiresSeconds: 600,
+    expiresSeconds: 120,
     query: { "response-content-disposition": `attachment; filename="${file.filename}"` },
   });
-  return NextResponse.redirect(url, { status: 302, headers: { "Cache-Control": "no-store" } });
+  return NextResponse.redirect(url, { status: 302, headers: noStore });
 }

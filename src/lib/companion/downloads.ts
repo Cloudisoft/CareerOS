@@ -1,13 +1,15 @@
 import { downloadsBucket } from "@/lib/storage/s3-presign";
 
-/** Where the Interview Companion installers are: the private downloads bucket (served through
-    /download/<platform>), or URLs set on the server (NEXT_PUBLIC_COMPANION_*_URL) if they're hosted elsewhere.
-    An empty string means that installer isn't available yet. */
+/**
+ * All installer links must pass through authenticated /download/[platform] routes.
+ * Never expose NEXT_PUBLIC_COMPANION_*_URL or a public installer URL as a fallback:
+ * those bypass paid-candidate authorization.
+ */
 export function installerUrls() {
   const hosted = Boolean(downloadsBucket());
   return {
-    mac: process.env.NEXT_PUBLIC_COMPANION_MAC_URL || (hosted ? "/download/mac" : ""),
-    macIntel: process.env.NEXT_PUBLIC_COMPANION_MAC_INTEL_URL || (hosted ? "/download/mac-intel" : ""),
-    win: process.env.NEXT_PUBLIC_COMPANION_WIN_URL || (hosted ? "/download/windows" : ""),
+    mac: hosted ? "/download/mac" : "",
+    macIntel: hosted ? "/download/mac-intel" : "",
+    win: hosted ? "/download/windows" : "",
   };
 }

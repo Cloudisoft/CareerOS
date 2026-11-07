@@ -3,9 +3,7 @@ import Image from "next/image";
 import { Apple, Monitor, ArrowRight } from "lucide-react";
 import { installerUrls } from "@/lib/companion/downloads";
 
-/* A card for the CareerOS Interview Companion desktop app, linking to the installers.
-   "compact" fits the dashboard; "wide" is the home page section. Download buttons are plain links:
-   /download/<platform> redirects to the file, so it must not be prefetched. */
+/* All homepage and dashboard download CTAs lead to the login/subscription gate first. */
 export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "wide" }) {
   const urls = installerUrls();
   const available = Boolean(urls.mac || urls.win);
@@ -15,7 +13,7 @@ export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "
     <div className={wide ? "flex flex-col gap-3 sm:flex-row" : "flex flex-wrap gap-2"}>
       {urls.mac && (
         <a
-          href={urls.mac}
+          href="/download?platform=mac"
           className={
             "inline-flex items-center justify-center gap-2 rounded-lg bg-foreground font-semibold text-background transition-opacity hover:opacity-90 " +
             (wide ? "px-5 py-3 text-sm" : "px-3 py-2 text-xs")
@@ -26,7 +24,7 @@ export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "
       )}
       {urls.win && (
         <a
-          href={urls.win}
+          href="/download?platform=windows"
           className={
             "inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface font-semibold text-foreground transition-colors hover:border-primary/40 " +
             (wide ? "px-5 py-3 text-sm" : "px-3 py-2 text-xs")
@@ -45,7 +43,7 @@ export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "
       {urls.macIntel && (
         <>
           Intel Mac?{" "}
-          <a href={urls.macIntel} className="font-medium text-primary hover:underline">
+          <a href="/download?platform=mac-intel" className="font-medium text-primary hover:underline">
             Get the Intel version
           </a>{" "}
           ·{" "}
@@ -68,7 +66,7 @@ export function CompanionCard({ variant = "compact" }: { variant?: "compact" | "
             <p className="mt-2 max-w-2xl text-muted-foreground">
               A small window that sits beside your Zoom, Teams or Meet call. When you&apos;re asked a question, it shows a few
               talking points from your own CareerOS resume and saved stories. Sign in with your CareerOS account; it&apos;s
-              included with Interview AI.
+              available to candidate accounts with a paid Interview AI subscription.
             </p>
           </div>
           {buttons}
