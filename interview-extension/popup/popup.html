@@ -31,15 +31,34 @@
 
   <section id="home" class="card" hidden>
     <p class="muted" id="pairedAs"></p>
-    <button id="openInterview" class="btn">Continue mock interview</button>
-    <button id="openStories" class="btn ghost">My Stories</button>
-    <button id="signOut" class="linkBtn">Sign out</button>
+    <button id="openInterview" class="tile primaryTile">
+      <span class="tileTitle">Start a mock interview</span>
+      <span class="tileSub">The interviewer asks out loud, you answer by voice. Live transcript, suggested answers and feedback.</span>
+    </button>
+    <button id="openStories" class="tile">
+      <span class="tileTitle">My Stories</span>
+      <span class="tileSub">Practise and lock answers to the questions every interview asks.</span>
+    </button>
   </section>
 
   <!-- Live Copilot: a distinct, opt-in feature — only shown at all when the
        active tab is a call platform, and never enabled without consent. -->
   <section id="liveCopilot" class="card liveCard" hidden>
     <h2>Live Copilot <span class="beta">Beta · Opt-in</span></h2>
+
+    <div id="lcRunning" hidden>
+      <p class="muted"><span class="dot"></span> Live Copilot is on in your call tab. Talking points appear on the call page when you're asked a question.</p>
+      <div class="row" style="margin-top:8px">
+        <button id="lcGoToCall" class="btn ghost">Go to the call</button>
+        <button id="lcStopRunning" class="btn ghost">Stop</button>
+      </div>
+    </div>
+
+    <div id="lcNotOnCall" hidden>
+      <p class="muted">Talking points from your resume while you're in a real interview. Join the call in Chrome (Google Meet, or Zoom or Teams in the browser), then open this from the call tab and press Start.</p>
+      <div id="lcCallTabs"></div>
+      <button id="lcSettings" class="linkBtn" style="margin-top:6px">Live Copilot settings</button>
+    </div>
 
     <div id="lcConsent" hidden>
       <p class="muted" id="lcConsentText"></p>
@@ -64,6 +83,10 @@
       <p class="muted" id="lcStatus"></p>
     </div>
   </section>
+
+  <footer class="foot" id="foot" hidden>
+    <button id="signOut" class="linkBtn">Sign out</button>
+  </footer>
 </body>
 <script src="../lib/storage.js"></script>
 <script src="../lib/api.js"></script>

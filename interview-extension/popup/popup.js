@@ -59,6 +59,7 @@
   }
 
   $('home').hidden = false;
+  $('foot').hidden = false;
   $('pairedAs').textContent = settings.pairedAs ? `Signed in as ${settings.pairedAs}` : 'Signed in';
   $('openInterview').onclick = () => openApp('interview');
   $('openStories').onclick = () => openApp('stories');
@@ -72,9 +73,58 @@
   async function initLiveCopilot() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const platform = tab && LiveCopilot.detectPlatform(tab.url);
-    if (!platform) return; // Only ever appears on a Meet/Zoom/Teams tab.
-
     $('liveCopilot').hidden = false;
+
+    // Already running somewhere: show that, with a way back to the call and a stop button.
+    const state = await chrome.runtime.sendMessage({ type: 'liveCopilot:state?' }).catch(() => null);
+    if (state && state.activeTabId != null && (!tab || tab.id !== state.activeTabId)) {
+      $('lcRunning').hidden = false;
+      $('lcGoToCall').onclick = async () => {
+        const t = await chrome.tabs.get(state.activeTabId).catch(() => null);
+        if (t) {
+          await chrome.tabs.update(t.id, { active: true });
+          if (t.windowId != null) await chrome.windows.update(t.windowId, { focused: true });
+        }
+        window.close();
+      };
+      $('lcStopRunning').onclick = async () => {
+        await chrome.runtime.sendMessage({ type: 'liveCopilot:stop' });
+        $('lcRunning').hidden = true;
+        initLiveCopilot();
+      };
+      return;
+    }
+
+    if (!platform) {
+      // Not on a call tab: explain how to start, and offer any call tabs that are already open.
+      $('lcNotOnCall').hidden = false;
+      $('lcSettings').onclick = () => chrome.runtime.openOptionsPage();
+      const all = await chrome.tabs.query({});
+      const calls = all.filter((t) => LiveCopilot.detectPlatform(t.url));
+      const names = { meet: 'Google Meet', zoom: 'Zoom', teams: 'Microsoft Teams' };
+      $('lcCallTabs').innerHTML = '';
+      calls.slice(0, 3).forEach((t) => {
+        const b = document.createElement('button');
+        b.className = 'btn ghost';
+        b.style.marginTop = '8px';
+        b.textContent = `Switch to your ${names[LiveCopilot.detectPlatform(t.url)]} call`;
+        b.onclick = async () => {
+          await chrome.tabs.update(t.id, { active: true });
+          if (t.windowId != null) await chrome.windows.update(t.windowId, { focused: true });
+          window.close();
+        };
+        $('lcCallTabs').appendChild(b);
+      });
+      if (calls.length) {
+        const p = document.createElement('p');
+        p.className = 'muted';
+        p.style.marginTop = '6px';
+        p.textContent = 'Then click the CareerOS icon again on that tab to start.';
+        $('lcCallTabs').appendChild(p);
+      }
+      return;
+    }
+
     const live = await Storage.getLiveCopilotSettings();
 
     if (live.consentedVersion < LiveCopilot.CONSENT_VERSION) {
@@ -94,6 +144,11 @@
 
     $('lcControls').hidden = false;
     await loadControls(tab, live);
+    if (state && state.activeTabId === tab.id) {
+      $('lcStartBtn').hidden = true;
+      $('lcStopBtn').hidden = false;
+      $('lcStatus').textContent = 'Live Copilot is on for this call.';
+    }
   }
 
   async function loadControls(tab, live) {

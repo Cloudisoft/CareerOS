@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CareerOS \u2014 Interview Prep",
   "short_name": "Interview Prep",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Mock interviews built from your resume, and opt-in Live Copilot talking points during real interviews on Meet, Zoom and Teams.",
   "author": "Career OS",
   "icons": {
