@@ -60,6 +60,19 @@
     <div id="current" class="current">
       <p class="muted">Listening for the interviewer's next question. Talking points from your resume will show here.</p>
     </div>
+    <div class="skill-toolbar">
+      <label for="skillPreset" class="small muted">Interview skill</label>
+      <select id="skillPreset" aria-label="Interview skill">
+        <option value="general">General interview</option>
+        <option value="behavioral">Behavioral / STAR</option>
+        <option value="programming">Programming</option>
+        <option value="dsa">DSA / algorithms</option>
+        <option value="system-design">System design</option>
+        <option value="data">Data science</option>
+        <option value="sales">Sales / negotiation</option>
+        <option value="devops">DevOps</option>
+      </select>
+    </div>
     <form id="askForm" class="ask-form">
       <label for="askInput" class="small muted">Ask CareerOS about this conversation</label>
       <div class="ask-line"><input id="askInput" maxlength="1200" placeholder="Ask a question or request talking points…" autocomplete="off"><button id="askBtn" type="submit" class="btn">Ask AI</button></div>
@@ -69,6 +82,7 @@
     <p class="heard" id="heard" hidden></p>
     <p class="error" id="liveError" hidden></p>
     <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
+    <div class="row"><button id="clearSessionBtn" class="btn ghost" type="button">Clear session</button><span class="muted small">Ctrl/Cmd+Shift+K: Ask AI · Ctrl/Cmd+Shift+L: Transcript</span></div>
     <div class="row">
       <button id="stopBtn" class="btn ghost">Stop</button>
       <button id="notesBtn" class="btn ghost" disabled>Save notes</button>
