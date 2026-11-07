@@ -22,6 +22,10 @@ const DEFAULT_WEB = 'https://careeros.silverspringstaffing.com';
 const WEB_URL = (process.env.CAREEROS_WEB_URL || DEFAULT_WEB).replace(/\/$/, '');
 const API_BASE = (process.env.CAREEROS_API_BASE || `${WEB_URL}/api/extension`).replace(/\/$/, '');
 const VERSION = app.getVersion();
+const activeRequests = new Set();
+function stopPendingNetworkRequests() {
+  for (const controller of activeRequests) controller.abort();
+}
 
 // macOS shares system audio through ScreenCaptureKit; this lets Chromium use it for the call audio.
 if (process.platform === 'darwin') app.commandLine.appendSwitch('enable-features', 'MacLoopbackAudioForScreenShare');
@@ -46,8 +50,8 @@ function deviceLabel() {
 }
 
 async function api(pathname, { method = 'GET', body, raw, contentType } = {}) {
-  // Device pairing is left available to support reconnection.
-  if (readSettings().networkPaused === true && !pathname.startsWith('/connect/')) {
+  // Offline privacy means no network calls, including sign-in or pairing.
+  if (readSettings().networkPaused === true) {
     throw new Error('AI/network activity is paused. Resume it in Privacy settings.');
   }
   const token = readSettings().deviceToken;
@@ -55,11 +59,18 @@ async function api(pathname, { method = 'GET', body, raw, contentType } = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   if (raw) headers['Content-Type'] = contentType || 'audio/webm';
   else if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  activeRequests.add(controller);
   let res;
   try {
-    res = await fetch(`${API_BASE}${pathname}`, { method, headers, body: raw ? Buffer.from(raw) : body !== undefined ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000) });
+    res = await fetch(`${API_BASE}${pathname}`, { method, headers, body: raw ? Buffer.from(raw) : body !== undefined ? JSON.stringify(body) : undefined, signal: controller.signal });
   } catch (err) {
+    if (readSettings().networkPaused === true) throw new Error('AI/network activity is paused. Resume in Privacy settings.');
     throw new Error('Couldn’t reach CareerOS. Check your internet connection.');
+  } finally {
+    clearTimeout(timeout);
+    activeRequests.delete(controller);
   }
   let json = null;
   try { json = await res.json(); } catch { json = null; }
@@ -121,8 +132,6 @@ function createWindow() {
     y: s.bounds?.y,
     title: 'CareerOS Interview Companion',
     alwaysOnTop: s.alwaysOnTop !== false,
-    capturePrivacy: s.capturePrivacy === true,
-    networkPaused: s.networkPaused === true,
     backgroundColor: '#16131b',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
@@ -190,6 +199,7 @@ ipcMain.handle('saveSettings', (_e, patch) => {
   const s = writeSettings(allowed);
   if ('alwaysOnTop' in allowed && win) win.setAlwaysOnTop(allowed.alwaysOnTop !== false);
   if ('capturePrivacy' in allowed && win) win.setContentProtection(allowed.capturePrivacy === true);
+  if (allowed.networkPaused === true) stopPendingNetworkRequests();
   return { ok: true, alwaysOnTop: s.alwaysOnTop !== false, capturePrivacy: s.capturePrivacy === true, networkPaused: s.networkPaused === true };
 });
 ipcMain.handle('targets', async () => {
