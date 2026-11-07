@@ -49,6 +49,10 @@ const server = http.createServer(async (req, res) => {
     said++;
     return json(200, { transcript: said === 1 ? 'Thanks for joining today.' : 'Tell me about a time two teams disagreed on the numbers?' });
   }
+  if (p === '/api/extension/interview/copilot/ask') {
+    const input = JSON.parse(body.toString());
+    return json(200, { answer: `Mock specialist answer (${input.skill}): ${input.question}`, provider: 'mock' });
+  }
   if (p === '/api/extension/interview/live/assist') {
     const a = JSON.parse(body.toString());
     seen.assists.push(a);
@@ -122,14 +126,29 @@ try {
   check((await win.textContent('.story')).includes('one source of truth'), 'shows the matching story');
   if (process.env.SHOT) await win.screenshot({ path: process.env.SHOT });
 
-  // 4. Notes.
+  // 4. Ask AI and session memory (the new specialist endpoint).
+  await win.selectOption('#skillPreset', 'dsa');
+  await win.fill('#askInput', 'Explain binary search complexity');
+  await win.click('#askBtn');
+  await win.waitForSelector('#copilotAnswer:not([hidden])');
+  check((await win.textContent('#copilotAnswer')).includes('binary search complexity'), 'Ask AI displays specialist answer');
+  check((await win.textContent('#copilotAnswer')).includes('dsa'), 'specialist skill reaches the AI endpoint');
+  check(Number(await win.textContent('#transcriptCount')) === 2, 'transcript records incoming speech');
+  await win.click('#clearSessionBtn');
+  check((await win.textContent('#transcriptCount')) === '0', 'Clear session resets transcript');
+  check(!(await visible('#copilotAnswer')), 'Clear session removes AI answers');
+  // Generate another question so the notes flow remains covered.
+  await speak(true); await sleep(1500); await speak(false); await sleep(2600);
+  await win.waitForSelector('.current .q');
+
+  // 5. Notes.
   await win.click('#notesBtn');
   await sleep(500);
   const files = readdirSync(notesDir);
   const md = files.length ? readFileSync(path.join(notesDir, files[0]), 'utf8') : '';
   check(/two teams disagreed/.test(md) && /Traced figures/.test(md) && /Senior Data Analyst @ Fabrikam/.test(md), 'notes save with the job, questions and points');
 
-  // 5. Stop, then a server without transcription: stops with the reason.
+  // 6. Stop, then a server without transcription: stops with the reason.
   await win.click('#stopBtn');
   await win.click('#stopBtn'); // Back
   await win.waitForSelector('#home:not([hidden])');
@@ -141,7 +160,7 @@ try {
   await win.waitForFunction(() => /isn't set up/.test(document.getElementById('liveError').textContent), null, { timeout: 8000 });
   check((await win.textContent('#state')) === 'Stopped', 'stops listening and says why when transcription isn’t set up');
 
-  // 6. An ordinary, visible window.
+  // 7. An ordinary, visible window.
   const props = await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
     return { onTop: w.isAlwaysOnTop(), protectedFromCapture: typeof w.isContentProtected === 'function' ? w.isContentProtected() : 'n/a' };
