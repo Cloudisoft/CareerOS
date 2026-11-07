@@ -319,6 +319,100 @@ function PracticeScene({ step }: SceneProps) {
   );
 }
 
+/* The other side of the call: a video tile beside the demo. Plays a looping clip when one is configured
+   (NEXT_PUBLIC_INTERVIEW_DEMO_VIDEO, a muted MP4 of someone who agreed to appear on the site); otherwise an
+   illustrated interviewer whose mouth moves while they're asking a question. */
+const DEMO_VIDEO = process.env.NEXT_PUBLIC_INTERVIEW_DEMO_VIDEO || "";
+
+function IllustratedInterviewer({ speaking, still }: { speaking: boolean; still: boolean }) {
+  return (
+    <svg viewBox="0 0 200 240" className="h-full w-full" aria-hidden>
+      <defs>
+        <linearGradient id="ia-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2a2433" />
+          <stop offset="1" stopColor="#17131c" />
+        </linearGradient>
+      </defs>
+      <rect width="200" height="240" fill="url(#ia-bg)" />
+      {/* bookshelf behind */}
+      <rect x="14" y="30" width="58" height="4" rx="2" fill="#3a3244" />
+      <rect x="18" y="12" width="8" height="18" rx="1.5" fill="#EF862D" opacity="0.55" />
+      <rect x="28" y="16" width="7" height="14" rx="1.5" fill="#7c6f8f" />
+      <rect x="37" y="10" width="9" height="20" rx="1.5" fill="#DF4C2C" opacity="0.5" />
+      <rect x="150" y="18" width="34" height="34" rx="17" fill="#2f6b4f" opacity="0.45" />
+      {/* shoulders and shirt */}
+      <path d="M30 240 C34 188 64 170 100 170 C136 170 166 188 170 240 Z" fill="#3d5a80" />
+      <path d="M86 172 L100 196 L114 172 Z" fill="#e9e4ef" />
+      {/* neck */}
+      <rect x="88" y="146" width="24" height="30" rx="10" fill="#c98e6b" />
+      {/* head */}
+      <ellipse cx="100" cy="112" rx="40" ry="46" fill="#d9a07c" />
+      {/* hair */}
+      <path d="M58 108 C56 72 80 58 102 60 C128 60 146 76 142 110 C138 92 128 82 112 80 C96 90 76 92 58 108 Z" fill="#2b1d16" />
+      {/* ears */}
+      <ellipse cx="60" cy="116" rx="6" ry="9" fill="#cf9572" />
+      <ellipse cx="140" cy="116" rx="6" ry="9" fill="#cf9572" />
+      {/* brows */}
+      <motion.g animate={speaking && !still ? { y: [0, -1.5, 0, -1, 0] } : { y: 0 }} transition={{ duration: 1.6, repeat: speaking ? Infinity : 0 }}>
+        <rect x="78" y="100" width="16" height="3" rx="1.5" fill="#2b1d16" />
+        <rect x="106" y="100" width="16" height="3" rx="1.5" fill="#2b1d16" />
+      </motion.g>
+      {/* eyes, blinking now and then */}
+      <motion.g
+        style={{ transformOrigin: "100px 113px" }}
+        animate={still ? { scaleY: 1 } : { scaleY: [1, 1, 0.1, 1] }}
+        transition={still ? {} : { duration: 4, times: [0, 0.92, 0.96, 1], repeat: Infinity }}
+      >
+        <ellipse cx="86" cy="113" rx="4" ry="4.5" fill="#1d1712" />
+        <ellipse cx="114" cy="113" rx="4" ry="4.5" fill="#1d1712" />
+      </motion.g>
+      {/* nose */}
+      <path d="M100 116 C98 124 96 128 101 129" stroke="#b97d5b" strokeWidth="2" fill="none" strokeLinecap="round" />
+      {/* mouth: opens and closes while speaking */}
+      <motion.ellipse
+        cx="100"
+        cy="139"
+        rx="9"
+        fill="#7a3b2e"
+        animate={speaking && !still ? { ry: [1.5, 5, 2.5, 6, 1.5, 4, 2] } : { ry: 1.5 }}
+        transition={speaking && !still ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
+      />
+    </svg>
+  );
+}
+
+function CallTile({ speaking, label, sub, still }: { speaking: boolean; label: string; sub: string; still: boolean }) {
+  return (
+    <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl border border-border bg-[#17131c] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.35)]">
+      {DEMO_VIDEO ? (
+        <video className="h-full w-full object-cover" src={DEMO_VIDEO} autoPlay muted loop playsInline preload="metadata" aria-hidden />
+      ) : (
+        <IllustratedInterviewer speaking={speaking} still={still} />
+      )}
+      {/* speaking ring */}
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-inset ring-primary"
+        animate={{ opacity: speaking ? 1 : 0 }}
+        transition={{ duration: 0.25 }}
+      />
+      <div className="absolute inset-x-3 bottom-3 flex items-center gap-2 rounded-lg bg-black/55 px-2.5 py-1.5 text-white backdrop-blur">
+        <span className={"flex h-5 w-5 items-center justify-center rounded-full " + (speaking ? "bg-primary" : "bg-white/20")}>
+          <Mic className="h-3 w-3" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-semibold">{label}</span>
+          <span className="block truncate text-[10px] text-white/70">{sub}</span>
+        </span>
+      </div>
+      {/* the candidate's own small tile */}
+      <div className="absolute right-3 top-3 flex h-12 w-16 items-center justify-center rounded-md border border-white/15 bg-[#2a2433] text-[10px] font-semibold text-white/80">
+        You
+      </div>
+    </div>
+  );
+}
+
 const RENDER = { listen: ListenScene, list: ListScene, practice: PracticeScene };
 
 export function InterviewAIShowcase() {
@@ -344,6 +438,10 @@ export function InterviewAIShowcase() {
 
   const Scene = RENDER[cfg.id];
   const shownStep = reduce ? 99 : step;
+  // When the other side of the call is talking in each demo.
+  const speaking =
+    !reduce && inView && ((cfg.id === "listen" && step >= 1 && step <= 2) || (cfg.id === "list" && step >= 1 && step <= 5) || (cfg.id === "practice" && step === 6));
+  const caller = cfg.id === "practice" ? { label: "Interview AI", sub: "Practice interviewer" } : { label: "Jordan Reyes", sub: "Hiring manager · Northwind" };
 
   return (
     <div ref={ref}>
@@ -377,14 +475,17 @@ export function InterviewAIShowcase() {
           </button>
         ))}
       </div>
-      <div className="relative mx-auto mt-8 max-w-3xl">
+      <div className="relative mx-auto mt-8 grid max-w-5xl items-start gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
         <div aria-hidden className="pointer-events-none absolute -inset-10 -z-10 rounded-full opacity-60 blur-3xl" style={{ background: "radial-gradient(circle, rgba(239,134,45,0.18), transparent 70%)" }} />
+        <div className="mx-auto w-40 sm:w-48 md:sticky md:top-24 md:w-full">
+          <CallTile speaking={speaking} label={caller.label} sub={caller.sub} still={Boolean(reduce)} />
+        </div>
         <AnimatePresence mode="wait">
           <motion.div key={cfg.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.35 }}>
             <Scene step={shownStep} />
           </motion.div>
         </AnimatePresence>
-        <p className="mt-3 text-center text-[11px] text-muted-foreground">Sample interview for illustration.</p>
+        <p className="text-center text-[11px] text-muted-foreground md:col-span-2">Sample interview for illustration.</p>
       </div>
     </div>
   );
