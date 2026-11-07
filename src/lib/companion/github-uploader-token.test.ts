@@ -12,7 +12,7 @@ const allowed = {
   repository: "Cloudisoft/CareerOS",
   repository_id: "1362954981",
   ref: "refs/heads/main",
-  sub: "repo:Cloudisoft/CareerOS:ref:refs/heads/main",
+  sub: "repo:Cloudisoft@245951127/CareerOS@1362954981:ref:refs/heads/main",
   workflow_ref: "Cloudisoft/CareerOS/.github/workflows/desktop-companion.yml@refs/heads/main",
   event_name: "push",
   iat: now - 20, exp: now + 260, nbf: now - 20,
