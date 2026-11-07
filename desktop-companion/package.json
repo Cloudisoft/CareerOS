@@ -1,0 +1,67 @@
+{
+  "name": "careeros-interview-companion",
+  "productName": "CareerOS Interview Companion",
+  "version": "1.0.0",
+  "description": "Live talking points from your resume during interviews on any call app. Part of CareerOS by Silver Springs Staffing.",
+  "author": "Silver Springs Staffing",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/e2e.mjs",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux AppImage"
+  },
+  "build": {
+    "appId": "com.silverspringstaffing.careeros.companion",
+    "productName": "CareerOS Interview Companion",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ],
+      "icon": "assets/icon.png",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "CareerOS listens to your interview call audio to find questions and suggest talking points from your resume.",
+        "NSScreenCaptureUsageDescription": "macOS shares a call's audio through screen recording permission. CareerOS uses only the audio."
+      }
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "playwright-core": "^1.63.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Cloudisoft/CareerOS.git"
+  }
+}

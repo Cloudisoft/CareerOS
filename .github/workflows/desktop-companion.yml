@@ -1,0 +1,47 @@
+# Builds the CareerOS Interview Companion desktop installers.
+# Run it from GitHub → Actions → "Desktop companion" → Run workflow, or push a tag like companion-v1.0.0.
+# The installers appear as downloadable artifacts on the run; upload them where /download links to
+# (see desktop-companion/README.md).
+name: Desktop companion
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["companion-v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+            files: desktop-companion/dist/*.dmg
+          - os: windows-latest
+            script: dist:win
+            files: desktop-companion/dist/*.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop-companion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run ${{ matrix.script }} -- --publish never
+        env:
+          # Without signing certificates the installers are unsigned (see README). Add these secrets to sign.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: careeros-interview-companion-${{ runner.os }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error

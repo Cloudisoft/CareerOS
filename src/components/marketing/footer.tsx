@@ -11,6 +11,7 @@ const COLUMNS = [
       { href: "/interview-ai", label: "Interview AI" },
       { href: "/job-gpt", label: "Job GPT" },
       { href: "/learning", label: "Learning Hub" },
+      { href: "/download", label: "Desktop app" },
     ],
   },
   {

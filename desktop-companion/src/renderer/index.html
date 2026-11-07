@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob: mediastream:">
+  <title>CareerOS Interview Companion</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <img src="../../assets/icon.png" alt="" class="mark">
+    <div class="brand"><strong>Interview Companion</strong><span>CareerOS</span></div>
+    <span class="state" id="state"></span>
+  </header>
+
+  <!-- Sign in -->
+  <section id="signin" class="view" hidden>
+    <h1>Sign in to CareerOS</h1>
+    <p class="muted">Talking points come from your CareerOS resume and saved stories, so sign in with your CareerOS account. Your browser opens to approve it.</p>
+    <button id="signinBtn" class="btn">Sign in</button>
+    <p class="code" id="signinCode" hidden></p>
+    <p class="muted small" id="signinMsg"></p>
+  </section>
+
+  <!-- One-time disclosure -->
+  <section id="consent" class="view" hidden>
+    <h1>Before you start</h1>
+    <ul class="consent" id="consentText"></ul>
+    <label class="check"><input type="checkbox" id="consentCheck"> I understand and agree.</label>
+    <button id="consentBtn" class="btn" disabled>Continue</button>
+  </section>
+
+  <!-- Ready -->
+  <section id="home" class="view" hidden>
+    <p class="muted small" id="pairedAs"></p>
+    <label class="field">Which interview is this?
+      <select id="target"><option value="">Use my resume (any interview)</option></select>
+    </label>
+    <p class="muted small" id="targetNote" hidden>Help for a specific job's interview is on Premium and higher. It still works from your resume.</p>
+    <label class="field">Listen to
+      <select id="source">
+        <option value="system">Call audio on this computer</option>
+        <option value="mic">Microphone</option>
+      </select>
+    </label>
+    <p class="muted small" id="sourceNote"></p>
+    <button id="startBtn" class="btn">Start listening</button>
+    <p class="error" id="homeError" hidden></p>
+    <div class="row links">
+      <label class="check small"><input type="checkbox" id="onTop"> Keep on top</label>
+      <button class="link" id="practiceLink">Practice interviews</button>
+      <button class="link" id="signOut">Sign out</button>
+    </div>
+  </section>
+
+  <!-- Live -->
+  <section id="live" class="view" hidden>
+    <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
+    <div id="current" class="current">
+      <p class="muted">Listening for the interviewer's next question. Talking points from your resume will show here.</p>
+    </div>
+    <p class="heard" id="heard" hidden></p>
+    <p class="error" id="liveError" hidden></p>
+    <details id="earlier" class="earlier" hidden><summary>Earlier questions</summary><ol id="earlierList"></ol></details>
+    <div class="row">
+      <button id="stopBtn" class="btn ghost">Stop</button>
+      <button id="notesBtn" class="btn ghost" disabled>Save notes</button>
+    </div>
+  </section>
+
+  <script src="../lib/segmenter.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
