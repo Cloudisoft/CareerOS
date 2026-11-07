@@ -42,6 +42,9 @@ export class ExtensionProfileError extends Error {
  * companion) that need the profile row, not just the user. */
 export async function requireExtensionCandidateProfile(req: NextRequest) {
   const user = await requireExtensionUser(req);
+  if (user.role !== "CANDIDATE") {
+    throw new ExtensionProfileError("Interview Companion is available only to candidate/job seeker accounts.");
+  }
   const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.id } });
   if (!profile) {
     throw new ExtensionProfileError("Finish your Career Profile in Career OS before using this feature.");
