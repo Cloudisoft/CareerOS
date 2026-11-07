@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('companion', {
   assist: (payload) => ipcRenderer.invoke('assist', payload),
   askCopilot: (payload) => ipcRenderer.invoke('askCopilot', payload),
   analyzeScreen: (question) => ipcRenderer.invoke('analyzeScreen', question),
+  quickHide: () => ipcRenderer.invoke('quickHide'),
   micPermission: () => ipcRenderer.invoke('micPermission'),
   saveNotes: (markdown) => ipcRenderer.invoke('saveNotes', markdown),
   generateSessionNotes: (payload) => ipcRenderer.invoke('generateSessionNotes', payload),
