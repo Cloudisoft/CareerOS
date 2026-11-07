@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
-import { AudioLines, ListChecks, Sparkles, Mic, FileText, Check, BookOpen } from "lucide-react";
+import { AudioLines, ListChecks, Sparkles, Mic, FileText, Check, BookOpen, Volume2, VolumeX } from "lucide-react";
 
 /* Looping, illustrative demos of Interview AI for the home page: the desktop Companion listening for a question
    and showing talking points, the running list of questions with notes, and a practice interview built from a
@@ -13,9 +13,9 @@ import { AudioLines, ListChecks, Sparkles, Mic, FileText, Check, BookOpen } from
 type SceneProps = { step: number };
 
 const SCENES = [
-  { id: "listen", label: "Listens for the question", icon: AudioLines, steps: [600, 2600, 900, 700, 700, 700, 900], hold: 3200 },
-  { id: "list", label: "Keeps every question", icon: ListChecks, steps: [500, 700, 700, 700, 900, 1200, 900], hold: 3000 },
-  { id: "practice", label: "Practice from your resume", icon: Sparkles, steps: [500, 1600, 500, 500, 500, 500, 900, 2400, 900, 700], hold: 3200 },
+  { id: "listen", label: "Listens for the question", short: "Listens", icon: AudioLines, steps: [600, 2600, 900, 700, 700, 700, 900], hold: 3200 },
+  { id: "list", label: "Keeps every question", short: "Questions", icon: ListChecks, steps: [500, 700, 700, 700, 900, 1200, 900], hold: 3000 },
+  { id: "practice", label: "Practice from your resume", short: "Practice", icon: Sparkles, steps: [500, 1600, 500, 500, 500, 500, 900, 2400, 900, 700], hold: 3200 },
 ] as const;
 
 /** Text that types itself out once `on` is true. */
@@ -81,6 +81,9 @@ function WindowChrome({ title, status, children }: { title: string; status: Reac
   );
 }
 
+const HEARD = "So, tell me about a time you had to deliver something under a really tight deadline.";
+const PRACTICE_Q = "Your resume says checkout conversion rose 12%. How was that measured, and what did you do?";
+
 const POINTS = ["Checkout rebuild at Northwind, 6-week deadline", "Agreed a smaller first release with the PM", "Shipped on time; conversion up 12%"];
 
 /* Scene 1: the Companion hears the interviewer, spots the question, and shows talking points. */
@@ -103,7 +106,7 @@ function ListenScene({ step }: SceneProps) {
         </div>
         <div className="min-h-[3.25rem] text-sm text-muted-foreground">
           <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Heard</span>
-          <Typed text="So, tell me about a time you had to deliver something under a really tight deadline." on={step >= 1} ms={2300} instant={instant} />
+          <Typed text={HEARD} on={step >= 1} ms={2300} instant={instant} />
         </div>
         <div className="min-h-[11.5rem] rounded-lg border border-border bg-surface p-4">
           <AnimatePresence>
@@ -157,12 +160,12 @@ function ListScene({ step }: SceneProps) {
       title="Interview Companion"
       status={
         <>
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> {shown} questions
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> {shown} {shown === 1 ? "question" : "questions"}
         </>
       }
     >
       <div className="grid gap-0 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <div className="min-h-[18rem] border-b border-border p-5 sm:border-b-0 sm:border-r sm:p-6">
+        <div className="min-h-[13rem] border-b border-border p-5 sm:border-b-0 sm:border-r sm:p-6">
           <AnimatePresence mode="wait">
             {shown > 0 && (
               <motion.div key={current.q} {...pop}>
@@ -203,7 +206,7 @@ function ListScene({ step }: SceneProps) {
             </motion.button>
           </div>
           <ol className="mt-3 space-y-2">
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} mode="popLayout">
               {QUESTIONS.slice(0, shown)
                 .map(({ q }, i) => ({ q, i }))
                 .reverse()
@@ -212,7 +215,7 @@ function ListScene({ step }: SceneProps) {
                     key={q}
                     layout
                     {...pop}
-                    className={"rounded-lg border-l-2 px-3 py-2 text-xs " + (i === shown - 1 ? "border-primary bg-primary/5 text-foreground" : "border-success/60 bg-surface text-muted-foreground")}
+                    className={"rounded-lg border-l-2 px-3 py-2 text-xs " + (i < shown - 3 ? "hidden sm:block " : "") + (i === shown - 1 ? "border-primary bg-primary/5 text-foreground" : "border-success/60 bg-surface text-muted-foreground")}
                   >
                     <span className="line-clamp-1">{q}</span>
                     <span className="mt-0.5 block text-[10px] opacity-70">{i === shown - 1 ? "Now" : "Covered"}</span>
@@ -267,7 +270,7 @@ function PracticeScene({ step }: SceneProps) {
             {step >= 6 && (
               <motion.div key="q" {...pop}>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Question 3 · Resume claim</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">Your resume says checkout conversion rose 12%. How was that measured, and what did you do?</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{PRACTICE_Q}</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -382,6 +385,7 @@ function IllustratedInterviewer({ speaking, still }: { speaking: boolean; still:
 }
 
 function CallTile({ speaking, label, sub, still }: { speaking: boolean; label: string; sub: string; still: boolean }) {
+  // On phones the tile is small, so its name tag is shown beside it instead (see InterviewAIShowcase).
   return (
     <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl border border-border bg-[#17131c] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.35)]">
       {DEMO_VIDEO ? (
@@ -396,7 +400,7 @@ function CallTile({ speaking, label, sub, still }: { speaking: boolean; label: s
         animate={{ opacity: speaking ? 1 : 0 }}
         transition={{ duration: 0.25 }}
       />
-      <div className="absolute inset-x-3 bottom-3 flex items-center gap-2 rounded-lg bg-black/55 px-2.5 py-1.5 text-white backdrop-blur">
+      <div className="absolute inset-x-3 bottom-3 hidden items-center md:flex gap-2 rounded-lg bg-black/55 px-2.5 py-1.5 text-white backdrop-blur">
         <span className={"flex h-5 w-5 items-center justify-center rounded-full " + (speaking ? "bg-primary" : "bg-white/20")}>
           <Mic className="h-3 w-3" />
         </span>
@@ -406,7 +410,7 @@ function CallTile({ speaking, label, sub, still }: { speaking: boolean; label: s
         </span>
       </div>
       {/* the candidate's own small tile */}
-      <div className="absolute right-3 top-3 flex h-12 w-16 items-center justify-center rounded-md border border-white/15 bg-[#2a2433] text-[10px] font-semibold text-white/80">
+      <div className="absolute right-1.5 top-1.5 flex h-7 w-9 items-center justify-center rounded border border-white/15 bg-[#2a2433] text-[8px] md:right-3 md:top-3 md:h-12 md:w-16 md:rounded-md md:text-[10px] font-semibold text-white/80">
         You
       </div>
     </div>
@@ -415,26 +419,84 @@ function CallTile({ speaking, label, sub, still }: { speaking: boolean; label: s
 
 const RENDER = { listen: ListenScene, list: ListScene, practice: PracticeScene };
 
+/** What the interviewer says out loud at this point of a scene, when sound is on. */
+function lineFor(sceneId: (typeof SCENES)[number]["id"], step: number): string {
+  if (sceneId === "listen" && step === 1) return HEARD;
+  if (sceneId === "list" && step >= 1 && step <= QUESTIONS.length) return QUESTIONS[step - 1].q;
+  if (sceneId === "practice" && step === 6) return PRACTICE_Q;
+  return "";
+}
+
+/** A natural English voice: one for the hiring manager, a different one for the practice interviewer if there is one. */
+function pickVoice(practice: boolean): SpeechSynthesisVoice | null {
+  const all = window.speechSynthesis.getVoices().filter((v) => /^en(-|_|$)/i.test(v.lang));
+  if (!all.length) return null;
+  const ranked = [...all].sort((a, b) => Number(/natural|google|samantha|daniel|aria|jenny|guy/i.test(b.name)) - Number(/natural|google|samantha|daniel|aria|jenny|guy/i.test(a.name)));
+  return ranked[practice && ranked.length > 1 ? 1 : 0];
+}
+
 export function InterviewAIShowcase() {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { amount: 0.35 });
   const [scene, setScene] = useState(0);
   const [step, setStep] = useState(0);
+  const [sound, setSound] = useState(false);
+  const [canSpeak, setCanSpeak] = useState(false);
   const cfg = SCENES[scene];
 
-  // Play the current scene's timeline, hold on the finished state, then move to the next scene.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    setCanSpeak(true);
+    window.speechSynthesis.getVoices(); // some browsers load the voice list on first ask
+    return () => window.speechSynthesis.cancel();
+  }, []);
+
+  // Play the current scene's timeline, hold on the finished state, then move to the next scene. It loops for as
+  // long as the section is on screen. With sound on, the interviewer's line is spoken and the demo waits for it.
   useEffect(() => {
     if (reduce || !inView) return;
-    const t =
-      step < cfg.steps.length
-        ? setTimeout(() => setStep((s) => s + 1), cfg.steps[step])
-        : setTimeout(() => {
-            setStep(0);
-            setScene((s) => (s + 1) % SCENES.length);
-          }, cfg.hold);
-    return () => clearTimeout(t);
-  }, [step, scene, inView, reduce, cfg]);
+    const line = sound && canSpeak ? lineFor(cfg.id, step) : "";
+    let timerDone = false;
+    let speechDone = !line;
+    let talking = false;
+    const next = () => {
+      if (!timerDone || !speechDone) return;
+      if (step < cfg.steps.length) setStep((s) => s + 1);
+      else {
+        setStep(0);
+        setScene((s) => (s + 1) % SCENES.length);
+      }
+    };
+    const timer = setTimeout(() => {
+      timerDone = true;
+      next();
+    }, step < cfg.steps.length ? cfg.steps[step] : cfg.hold);
+    let safety: ReturnType<typeof setTimeout> | undefined;
+    if (line) {
+      const u = new SpeechSynthesisUtterance(line);
+      const voice = pickVoice(cfg.id === "practice");
+      if (voice) u.voice = voice;
+      u.rate = 1.02;
+      const done = () => {
+        if (speechDone) return;
+        speechDone = true;
+        talking = false;
+        next();
+      };
+      u.onend = done;
+      u.onerror = done;
+      talking = true;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+      safety = setTimeout(done, 12000); // never let a missing "end" event stall the loop
+    }
+    return () => {
+      clearTimeout(timer);
+      if (safety) clearTimeout(safety);
+      if (talking) window.speechSynthesis.cancel();
+    };
+  }, [step, scene, inView, reduce, cfg, sound, canSpeak]);
 
   const Scene = RENDER[cfg.id];
   const shownStep = reduce ? 99 : step;
@@ -445,7 +507,7 @@ export function InterviewAIShowcase() {
 
   return (
     <div ref={ref}>
-      <div className="flex flex-wrap justify-center gap-2" role="tablist" aria-label="Interview AI demos">
+      <div className="flex justify-center gap-1.5 sm:flex-wrap sm:gap-2" role="tablist" aria-label="Interview AI demos">
         {SCENES.map((s, i) => (
           <button
             key={s.id}
@@ -457,12 +519,13 @@ export function InterviewAIShowcase() {
               setStep(0);
             }}
             className={
-              "relative inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors " +
+              "relative inline-flex shrink-0 items-center gap-1.5 overflow-hidden rounded-full border px-3 py-1.5 text-[13px] font-medium transition-colors sm:px-3.5 sm:text-sm " +
               (i === scene ? "border-primary/50 bg-primary/10 text-foreground" : "border-border bg-surface text-muted-foreground hover:text-foreground")
             }
           >
             <s.icon className={"h-3.5 w-3.5 " + (i === scene ? "text-primary" : "")} />
-            {s.label}
+            <span className="sm:hidden">{s.short}</span>
+            <span className="hidden sm:inline">{s.label}</span>
             {i === scene && !reduce && (
               <motion.span
                 key={`${scene}-bar`}
@@ -475,10 +538,38 @@ export function InterviewAIShowcase() {
           </button>
         ))}
       </div>
-      <div className="relative mx-auto mt-8 grid max-w-5xl items-start gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
-        <div aria-hidden className="pointer-events-none absolute -inset-10 -z-10 rounded-full opacity-60 blur-3xl" style={{ background: "radial-gradient(circle, rgba(239,134,45,0.18), transparent 70%)" }} />
-        <div className="mx-auto w-40 sm:w-48 md:sticky md:top-24 md:w-full">
-          <CallTile speaking={speaking} label={caller.label} sub={caller.sub} still={Boolean(reduce)} />
+      {canSpeak && !reduce && (
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            aria-pressed={sound}
+            onClick={() => {
+              if (sound) window.speechSynthesis.cancel();
+              setSound((v) => !v);
+            }}
+            className={
+              "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors " +
+              (sound ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")
+            }
+          >
+            {sound ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+            {sound ? "Sound on" : "Hear the interviewer"}
+          </button>
+        </div>
+      )}
+      <div className="relative mx-auto mt-6 grid max-w-5xl items-start gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+        <div aria-hidden className="pointer-events-none absolute -inset-y-10 inset-x-0 -z-10 rounded-full opacity-60 blur-3xl md:-inset-10" style={{ background: "radial-gradient(circle, rgba(239,134,45,0.18), transparent 70%)" }} />
+        <div className="flex items-center gap-3 md:sticky md:top-24 md:block">
+          <div className="w-20 shrink-0 sm:w-24 md:w-full">
+            <CallTile speaking={speaking} label={caller.label} sub={caller.sub} still={Boolean(reduce)} />
+          </div>
+          <div className="min-w-0 md:hidden">
+            <p className="truncate text-sm font-semibold text-foreground">{caller.label}</p>
+            <p className="truncate text-xs text-muted-foreground">{caller.sub}</p>
+            <p className={"mt-1 flex items-center gap-1.5 text-[11px] font-medium " + (speaking ? "text-primary" : "text-muted-foreground")}>
+              <Mic className="h-3 w-3" /> {speaking ? "Asking a question…" : "On the call"}
+            </p>
+          </div>
         </div>
         <AnimatePresence mode="wait">
           <motion.div key={cfg.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.35 }}>
