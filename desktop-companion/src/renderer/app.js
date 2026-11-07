@@ -121,6 +121,47 @@
   let asking = false;
   let transcriptCount = 0;
   const notes = [];
+  const skillPrompts = {
+    general: '',
+    behavioral: 'Give me concise STAR-method talking points for: ',
+    programming: 'Explain a correct programming approach and key trade-offs for: ',
+    dsa: 'Explain the algorithm, time and space complexity, and edge cases for: ',
+    'system-design': 'Describe requirements, architecture, scaling and trade-offs for: ',
+    data: 'Explain the data science approach, validation and metrics for: ',
+    sales: 'Give me a practical sales or negotiation framework for: ',
+    devops: 'Explain infrastructure, deployment, reliability and security for: ',
+  };
+  function clearSession() {
+    recent = [];
+    lastQuestion = '';
+    notes.length = 0;
+    transcriptCount = 0;
+    $('transcriptList').replaceChildren();
+    $('transcriptCount').textContent = '0';
+    $('transcriptPanel').open = false;
+    $('current').replaceChildren();
+    const placeholder = document.createElement('p');
+    placeholder.className = 'muted';
+    placeholder.textContent = 'Session cleared. Listening for the next question.';
+    $('current').append(placeholder);
+    delete $('current').dataset.q;
+    $('earlierList').replaceChildren();
+    $('earlier').hidden = true;
+    $('heard').hidden = true;
+    $('notesBtn').disabled = true;
+    $('askInput').value = '';
+  }
+  $('clearSessionBtn').addEventListener('click', clearSession);
+  document.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || !running) return;
+    if (event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      $('askInput').focus();
+    } else if (event.key.toLowerCase() === 'l') {
+      event.preventDefault();
+      $('transcriptPanel').open = !$('transcriptPanel').open;
+    }
+  });
   function updateClock() {
     const seconds = Math.max(0, Math.floor((Date.now() - sessionStartedAt) / 1000));
     $('sessionClock').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -261,6 +302,8 @@
   $('askForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const question = $('askInput').value.trim();
+    const skill = $('skillPreset').value;
+    const requested = (skillPrompts[skill] || '') + question;
     if (!running || asking || !question) return;
     asking = true;
     $('askBtn').disabled = true;
@@ -269,7 +312,7 @@
     try {
       const response = await C.assist({
         applicationId: applicationId || null,
-        transcript: question,
+        transcript: requested,
         recent: recent.slice(-RECENT),
         lastQuestion: lastQuestion || undefined,
       });
